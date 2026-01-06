@@ -1,0 +1,213 @@
+{% extends 'myapp/base.html' %}
+
+{% block title %} Takuma Operation Log | Boiler {% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100 dark:bg-slate-950 p-6 flex flex-col items-center">
+    <div class="w-full max-w-7xl bg-white dark:bg-slate-900 rounded-xl shadow-lg p-8">
+
+        <div class="flex justify-between items-center mb-6 border-b pb-4 dark:border-slate-700">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800 dark:text-white">📝 บันทึกข้อมูล Takuma</h2>
+                <p class="text-sm text-slate-500">Operation Log Sheet (24 Items)</p>
+            </div>
+            <a href="{% url 'boiler' %}" class="text-slate-500 hover:text-slate-700 transition-colors">
+                <i data-lucide="x" class="inline-block w-5 h-5"></i> ยกเลิก
+            </a>
+        </div>
+
+        <form method="post" class="space-y-8">
+            {% csrf_token %}
+
+            <!-- Date & Time -->
+            <div
+                class="bg-indigo-50 dark:bg-indigo-900/20 p-6 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                <h3 class="font-bold text-indigo-700 dark:text-indigo-300 mb-4 flex items-center gap-2">
+                    <i data-lucide="calendar-clock" class="w-5 h-5"></i> วันที่และเวลา
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div
+                        class="[&>input]:w-full [&>input]:p-2.5 [&>input]:rounded-lg [&>input]:border [&>input]:border-indigo-200 [&>input]:bg-white [&>input]:text-slate-900 [&>input]:dark:bg-slate-800 [&>input]:dark:border-indigo-700 [&>input]:dark:text-white">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">วันที่</label>
+                        {{ form.tk_date }}
+                    </div>
+                    <div
+                        class="[&>input]:w-full [&>input]:p-2.5 [&>input]:rounded-lg [&>input]:border [&>input]:border-indigo-200 [&>input]:bg-white [&>input]:text-slate-900 [&>input]:dark:bg-slate-800 [&>input]:dark:border-indigo-700 [&>input]:dark:text-white">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">เวลา</label>
+                        {{ form.tk_time }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Grid -->
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+
+                <!-- Group 1: Steam System -->
+                <div
+                    class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <h3
+                        class="font-bold text-lg text-cyan-600 dark:text-cyan-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex items-center gap-2">
+                        <i data-lucide="cloud" class="w-5 h-5"></i> 1. ระบบไอน้ำ (Steam)
+                    </h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2 md:col-span-1">
+                            <label class="text-xs text-slate-500 mb-1 block">Steam Flow</label>
+                            {{ form.tk_steam_flow }}
+                        </div>
+                        <div class="col-span-2 md:col-span-1">
+                            <label class="text-xs text-slate-500 mb-1 block">Steam Pressure</label>
+                            {{ form.tk_steam_pressure }}
+                        </div>
+                        <div class="col-span-2">
+                            <label class="text-xs text-slate-500 mb-1 block">Steam Temperature</label>
+                            {{ form.tk_steam_temp }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 2: Water System -->
+                <div
+                    class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <h3
+                        class="font-bold text-lg text-blue-600 dark:text-blue-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex items-center gap-2">
+                        <i data-lucide="droplets" class="w-5 h-5"></i> 2. ระบบน้ำ (Water System)
+                    </h3>
+                    <div class="space-y-4">
+                        <!-- Drum & Deaerator -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="text-xs text-slate-500 mb-1 block">Drum Level</label>{{form.drum_level }}
+                            </div>
+                            <div><label class="text-xs text-slate-500 mb-1 block">Deaerator
+                                    Temp</label>{{form.tk_dea_temp}}
+                            </div>
+                        </div>
+
+                        <!-- Feed Water -->
+                        <div class="grid grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <div><label class="text-xs text-slate-500 mb-1 block">Feed Water
+                                    Valve</label>{{form.tk_feed_water_valve }}</div>
+                            <div><label class="text-xs text-slate-500 mb-1 block">Feed Water
+                                    Flow</label>{{form.tk_feed_water_flow}}</div>
+                            <div><label class="text-xs text-slate-500 mb-1 block">Eco Out
+                                    Temp</label>{{form.tk_eco_out_temp }}</div>
+                        </div>
+
+                        <!-- Chemistry -->
+                        <div class="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <div><label class="text-xs text-slate-500 mb-1 block">pH Boiler</label>{{ form.tk_ph_water}}
+                            </div>
+                            <div><label class="text-xs text-slate-500 mb-1 block">TDS Boiler</label>{{form.tk_tds_water
+                                }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 3: Air & Combustion -->
+                <div
+                    class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <h3
+                        class="font-bold text-lg text-orange-600 dark:text-orange-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex items-center gap-2">
+                        <i data-lucide="flame" class="w-5 h-5"></i> 3. ระบบลมและป้อนกากอ้อย (Air&Feeder)
+                    </h3>
+                    <div class="space-y-4">
+                        <!-- Combustion Quality -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="text-xs text-slate-500 mb-1 block">Oxygen(%)</label>{{form.tk_o2_percent
+                                }}
+                            </div>
+                            <div><label class="text-xs text-slate-500 mb-1 block">Air Outet AH
+                                    Temp</label>{{form.tk_air_heater_out_temp }}</div>
+                        </div>
+
+                        <!-- Feeder & Dampers -->
+                        <div class="grid grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <div><label class="text-xs text-slate-500 mb-1 block">Feeder
+                                    Speed(%)</label>{{form.tk_feeder_control }}</div>
+                            <div><label class="text-xs text-slate-500 mb-1 block">Damper
+                                    FDF</label>{{form.tk_fdf_damper}}
+                            </div>
+                            <div><label class="text-xs text-slate-500 mb-1 block">Damper
+                                    IDF</label>{{form.tk_idf_damper}}
+                            </div>
+                        </div>
+
+                        <!-- Amps -->
+                        <div
+                            class="bg-white dark:bg-slate-900/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <span class="text-xs font-bold text-slate-500 block mb-2">Motor Amps</span>
+                            <div class="grid grid-cols-2 gap-3 mb-3">
+                                <div><label class="text-[10px] text-slate-400 mb-1 block">Amp
+                                        FDF</label>{{form.tk_fdf_amp}}</div>
+                                <div><label class="text-[10px] text-slate-400 mb-1 block">IDF Amp
+                                        IDF</label>{{form.tk_idf_amp }}</div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-700">
+                                <div><label class="text-[10px] text-slate-400 mb-1 block">SAF Left
+                                        Amp</label>{{form.tk_saf_amp_left }}</div>
+                                <div><label class="text-[10px] text-slate-400 mb-1 block">SAF Right
+                                        Amp</label>{{form.tk_saf_amp_right }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 4: Gas & Draft -->
+                <div
+                    class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <h3
+                        class="font-bold text-lg text-emerald-600 dark:text-emerald-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex items-center gap-2">
+                        <i data-lucide="wind" class="w-5 h-5"></i> 4. ระบบแก๊สและแรงดัน (Gas system)
+                    </h3>
+                    <div class="space-y-4">
+                        <!-- Furnace -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="text-xs text-slate-500 mb-1 block">Furnace
+                                    Press</label>{{form.tk_furnace_pressure }}</div>
+                            <div><label class="text-xs text-slate-500 mb-1 block">Inlet Gas AH
+                                    Temp</label>{{form.tk_gas_furnace_ah_temp }}</div>
+                        </div>
+
+                        <!-- Eco & DC -->
+                        <div class="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <div><label class="text-xs text-slate-500 mb-1 block">Gas Outlet Eco
+                                    Press</label>{{form.tk_gas_out_eco_pressure }}</div>
+                            <div><label class="text-xs text-slate-500 mb-1 block">Gas Inlet Eco
+                                    Temp</label>{{form.tk_gas_in_eco_temp }}</div>
+                        </div>
+
+                        <!-- Stack & End -->
+                        <div class="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <div><label class="text-xs text-slate-500 mb-1 block">Gas Outlet DC
+                                    Press</label>{{form.tk_gas_out_dc_pressure }}</div>
+                            <div><label class="text-xs text-slate-500 mb-1 block">Stack
+                                    Temp</label>{{form.tk_stack_temp }}</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- หมายเหตุ -->
+            <div
+                class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700 [&>textarea]:w-full [&>textarea]:p-3 [&>textarea]:rounded-lg [&>textarea]:border [&>textarea]:border-slate-200 [&>textarea]:bg-white [&>textarea]:text-slate-700 [&>textarea]:dark:bg-slate-800 [&>textarea]:dark:border-slate-700 [&>textarea]:dark:text-slate-300 [&>textarea]:focus:ring-2 [&>textarea]:focus:ring-indigo-500 [&>textarea]:focus:border-indigo-500 [&>textarea]:transition-colors">
+                <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    {{ form.tk_remark.label }}
+                </label>
+                {{ form.tk_remark }}
+            </div>
+
+            <div class="flex items-center justify-end gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <a href="{% url 'operation_dashboard' %}"
+                    class="px-6 py-3 rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors">
+                    ยกเลิก
+                </a>
+                <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition-all shadow-md hover:shadow-lg flex items-center gap-2">
+                    <i data-lucide="save" class="w-5 h-5"></i> บันทึกข้อมูล
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

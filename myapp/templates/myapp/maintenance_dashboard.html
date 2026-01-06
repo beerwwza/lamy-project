@@ -1,0 +1,515 @@
+{% extends 'myapp/base.html' %}
+{% load static %}
+
+{% block title %} Maintenance Dashboard | Factory OS {% endblock title %}
+
+{% block content %}
+<div id="dashboard-section" class="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950 font-sans">
+
+    <!-- Sidebar -->
+    <aside
+        class="w-64 flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 hidden md:flex flex-col">
+        <div class="h-16 flex items-center justify-center border-b border-slate-200 dark:border-slate-800">
+            <span class="font-bold text-xl text-indigo-600">FACTORY OS</span>
+        </div>
+        <div class="p-4">
+            <a href="{% url 'dashboard' %}"
+                class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i> Back to Main
+            </a>
+            <a href="#"
+                class="flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg mt-2">
+                <i data-lucide="wrench" class="w-5 h-5"></i> Maintenance
+            </a>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-900 to-slate-900 text-white p-4 shadow-lg sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-white/10 p-2 rounded-lg backdrop-blur-sm"><i data-lucide="wrench"
+                            class="w-6 h-6 text-white"></i></div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight">Dashboard ซ่อมบำรุง & KPI</h1>
+                        <p class="text-xs text-blue-200 opacity-80 font-light">ฝ่ายวิศวกรรมจักรกล - ประจำปี 2568/69</p>
+                    </div>
+                </div>
+                <div
+                    class="flex items-center gap-2 bg-white/10 p-1.5 rounded-lg border border-white/20 backdrop-blur-sm">
+                    <button onclick="switchTab('maintenance')" id="btn-maintenance"
+                        class="px-3 py-1.5 rounded-md text-sm font-semibold transition bg-white text-blue-900 shadow-sm">งานซ่อม</button>
+                    <button onclick="switchTab('kpi')" id="btn-kpi"
+                        class="px-3 py-1.5 rounded-md text-sm font-semibold transition text-blue-100 hover:bg-white/10">KPI</button>
+                    <div class="h-4 w-px bg-white/20 mx-1"></div>
+
+                    <!-- Add Buttons -->
+                    <a href="{% url 'maintenance_log_add' %}"
+                        class="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold transition text-white hover:bg-blue-600 bg-blue-700/50 border border-blue-500/30">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> งานซ่อม
+                    </a>
+                    <a href="{% url 'maintenance_kpi_metric_add' %}"
+                        class="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold transition text-white hover:bg-emerald-600 bg-emerald-700/50 border border-emerald-500/30">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> KPI
+                    </a>
+
+                    <div class="h-4 w-px bg-white/20 mx-1"></div>
+                    <button onclick="window.print()"
+                        class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-md transition text-xs font-bold shadow-sm ml-1 flex items-center gap-2">
+                        <i data-lucide="printer" class="w-4 h-4"></i> PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="flex-1 overflow-y-auto p-6">
+            <div class="max-w-7xl mx-auto">
+
+                <!-- Maintenance Tab -->
+                <div id="tab-maintenance" class="space-y-6">
+                    <!-- Stats Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div
+                            class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-blue-500 shadow-sm relative overflow-hidden">
+                            <div class="relative z-10">
+                                <p
+                                    class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                                    ซ่อม (ครั้ง)</p>
+                                <h2 class="text-3xl font-bold text-slate-800 dark:text-white" id="stat-total-failures">0
+                                </h2>
+                            </div>
+                            <div
+                                class="absolute right-2 top-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-full text-blue-500 opacity-50">
+                                <i data-lucide="clipboard-list" class="w-6 h-6"></i></div>
+                        </div>
+                        <div
+                            class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-red-500 shadow-sm relative overflow-hidden">
+                            <div class="relative z-10">
+                                <p
+                                    class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                                    หยุดหีบ (ชม.)</p>
+                                <h2 class="text-3xl font-bold text-red-600" id="stat-stop-time">0</h2>
+                            </div>
+                            <div
+                                class="absolute right-2 top-2 bg-red-50 dark:bg-red-900/20 p-2 rounded-full text-red-500 opacity-50">
+                                <i data-lucide="alert-octagon" class="w-6 h-6"></i></div>
+                        </div>
+                        <div
+                            class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-yellow-500 shadow-sm relative overflow-hidden">
+                            <div class="relative z-10">
+                                <p
+                                    class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                                    ลดรอบ (ชม.)</p>
+                                <h2 class="text-3xl font-bold text-yellow-600" id="stat-reduced-time">0</h2>
+                            </div>
+                            <div
+                                class="absolute right-2 top-2 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded-full text-yellow-600 opacity-50">
+                                <i data-lucide="activity" class="w-6 h-6"></i></div>
+                        </div>
+                        <div
+                            class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-cyan-500 shadow-sm relative overflow-hidden">
+                            <div class="relative z-10">
+                                <p
+                                    class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                                    รั่วไหล (ครั้ง)</p>
+                                <h2 class="text-3xl font-bold text-cyan-600" id="stat-leaks">0</h2>
+                            </div>
+                            <div
+                                class="absolute right-2 top-2 bg-cyan-100 dark:bg-cyan-900/20 p-2 rounded-full text-cyan-600 opacity-50">
+                                <i data-lucide="droplet" class="w-6 h-6"></i></div>
+                        </div>
+                        <div
+                            class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-indigo-500 shadow-sm relative overflow-hidden">
+                            <div class="relative z-10">
+                                <p
+                                    class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                                    MTTR (ชม.)</p>
+                                <h2 class="text-3xl font-bold text-indigo-600" id="stat-mttr">0</h2>
+                            </div>
+                            <div
+                                class="absolute right-2 top-2 bg-indigo-50 dark:bg-indigo-900/20 p-2 rounded-full text-indigo-500 opacity-50">
+                                <i data-lucide="timer" class="w-6 h-6"></i></div>
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div
+                        class="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm flex flex-wrap items-center gap-3 border border-slate-100 dark:border-slate-700">
+                        <div
+                            class="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-semibold text-sm px-2">
+                            <i data-lucide="filter" class="w-4 h-4"></i> ตัวกรอง:
+                        </div>
+                        <select id="filter-dept" onchange="renderDashboard()"
+                            class="border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-md px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="All">ทุกแผนก</option>
+                        </select>
+                        <select id="filter-category" onchange="renderDashboard()"
+                            class="border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-md px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="All">ทุกประเภทปัญหา</option>
+                        </select>
+                        <div class="relative flex-grow md:flex-grow-0 md:ml-auto">
+                            <i data-lucide="search"
+                                class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                            <input type="text" id="search-term" onkeyup="renderDashboard()"
+                                placeholder="ค้นหาเครื่องจักร..."
+                                class="pl-9 pr-4 py-1.5 border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-md text-sm w-full outline-none focus:ring-1 focus:ring-blue-500" />
+                        </div>
+                    </div>
+
+                    <!-- Charts Row -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div
+                            class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h3
+                                class="text-md font-bold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
+                                <i data-lucide="bar-chart-2" class="w-5 h-5 text-blue-600"></i> เวลาสูญเสียตามแผนก (ชม.)
+                            </h3>
+                            <div class="h-64">
+                                <canvas id="chart-dept"></canvas>
+                            </div>
+                        </div>
+                        <div
+                            class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            <h3
+                                class="text-md font-bold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
+                                <i data-lucide="pie-chart" class="w-5 h-5 text-purple-600"></i> สัดส่วนปัญหา (%)
+                            </h3>
+                            <div class="h-64 flex justify-center">
+                                <canvas id="chart-category"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                        <div
+                            class="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
+                            <h3 class="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2 text-sm">
+                                <i data-lucide="file-text" class="w-4 h-4"></i> บันทึกรายละเอียด
+                            </h3>
+                            <span class="text-xs text-slate-400" id="table-count">แสดง 0 รายการ</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead
+                                    class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wider font-semibold">
+                                    <tr>
+                                        <th class="p-3 w-24">วันที่</th>
+                                        <th class="p-3">เครื่องจักร</th>
+                                        <th class="p-3">ปัญหา/สาเหตุ</th>
+                                        <th class="p-3 w-32">ผู้แจ้ง</th>
+                                        <th class="p-3 w-24 text-right">หยุด (ชม.)</th>
+                                        <th class="p-3 w-24 text-right text-orange-600 dark:text-orange-400">ไม่หยุด
+                                            (ชม.)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="maintenance-table-body"
+                                    class="divide-y divide-slate-100 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-300">
+                                    <!-- JS will populate rows here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI Tab -->
+                <div id="tab-kpi" class="space-y-6 hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border-l-4 border-emerald-500">
+                            <p class="text-slate-500 dark:text-slate-400 text-sm">คะแนน KPI รวม</p>
+                            <h2 class="text-4xl font-bold text-emerald-600"><span id="kpi-total-score">0</span> <span
+                                    class="text-lg text-slate-400">/ <span id="kpi-max-score">0</span></span></h2>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border-l-4 border-blue-500">
+                            <p class="text-slate-500 dark:text-slate-400 text-sm">เกรดประเมิน</p>
+                            <h2 class="text-5xl font-bold text-blue-600 inline-block rounded" id="kpi-grade">-</h2>
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                        <table class="w-full text-left border-collapse">
+                            <thead
+                                class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs uppercase font-semibold">
+                                <tr>
+                                    <th class="p-4">หัวข้อ KPI</th>
+                                    <th class="p-4 text-center">เป้าหมาย</th>
+                                    <th class="p-4 text-center">ผลลัพธ์</th>
+                                    <th class="p-4 text-center">คะแนน</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kpi-table-body"
+                                class="divide-y divide-slate-100 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-300">
+                                <!-- JS will populate rows here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+
+<!-- Data from Django Views -->
+{{ logs_json|json_script:"logs-data" }}
+{{ kpi_json|json_script:"kpi-data" }}
+
+<script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // --- Data Management (Real Data Only) ---
+    function getSafeData(id) {
+        const el = document.getElementById(id);
+        if (el && el.textContent) {
+            try {
+                let parsed = JSON.parse(el.textContent);
+                // Handle potential double serialization if Django view dumped it first
+                if (typeof parsed === 'string') {
+                    parsed = JSON.parse(parsed);
+                }
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                console.error("JSON parse error:", e);
+                return [];
+            }
+        }
+        return [];
+    }
+
+    // Get Real Data
+    const logsData = getSafeData('logs-data');
+    const kpiData = getSafeData('kpi-data');
+
+    let chartDeptInstance = null;
+    let chartCatInstance = null;
+
+    // --- Main Render Function ---
+    function renderDashboard() {
+        const filterDept = document.getElementById('filter-dept').value;
+        const filterCat = document.getElementById('filter-category').value;
+        const searchTerm = document.getElementById('search-term').value.toLowerCase();
+
+        // Filter Data
+        const filtered = logsData.filter(item => {
+            const matchDept = filterDept === 'All' || item.dept === filterDept;
+            const matchCat = filterCat === 'All' || item.category === filterCat;
+            const matchSearch = (item.machine || "").toLowerCase().includes(searchTerm) ||
+                (item.problem || "").toLowerCase().includes(searchTerm);
+            return matchDept && matchCat && matchSearch;
+        });
+
+        // 1. Render Stats
+        updateStats(filtered);
+
+        // 2. Render Charts
+        updateCharts(filtered);
+
+        // 3. Render Table
+        renderTable(filtered);
+    }
+
+    function updateStats(data) {
+        const totalFailures = data.length;
+        // Parse floats to ensure calculation works correctly
+        const stopTime = data.reduce((acc, curr) => acc + (parseFloat(curr.downtimeStop) || 0), 0);
+        const reducedTime = data.reduce((acc, curr) => acc + (parseFloat(curr.downtimeReduced) || 0), 0);
+        const leaks = data.filter(i => i.isLeak).length;
+        const mttr = totalFailures > 0 ? ((stopTime + reducedTime) / totalFailures) : 0;
+
+        document.getElementById('stat-total-failures').innerText = totalFailures;
+        document.getElementById('stat-stop-time').innerText = stopTime.toFixed(2);
+        document.getElementById('stat-reduced-time').innerText = reducedTime.toFixed(2);
+        document.getElementById('stat-leaks').innerText = leaks;
+        document.getElementById('stat-mttr').innerText = mttr.toFixed(2);
+    }
+
+    function renderTable(data) {
+        const tbody = document.getElementById('maintenance-table-body');
+        document.getElementById('table-count').innerText = `แสดง ${data.length} รายการ`;
+
+        if (data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">ไม่พบข้อมูลในระบบ (กรุณาเพิ่มข้อมูลงานซ่อม)</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = data.slice(0, 50).map(row => `
+            <tr class="hover:bg-blue-50/50 dark:hover:bg-slate-700/50 transition-colors border-b border-slate-100 dark:border-slate-700">
+                <td class="p-3 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">${row.date}</td>
+                <td class="p-3 font-medium text-blue-700 dark:text-blue-400">
+                    <div class="flex items-center gap-2">
+                        ${row.isLeak ? '<i data-lucide="droplet" class="w-3 h-3 text-cyan-500"></i>' : ''} 
+                        ${row.machine}
+                    </div>
+                </td>
+                <td class="p-3 max-w-xs">
+                    <div class="font-semibold text-xs truncate dark:text-slate-200">${row.problem}</div>
+                    <div class="text-[10px] text-slate-400 truncate">${row.cause || '-'}</div>
+                </td>
+                <td class="p-3 text-xs text-slate-600 dark:text-slate-400">
+                    ${row.reporter || '-'}
+                </td>
+                <td class="p-3 text-right font-mono text-xs font-bold text-red-600 dark:text-red-400">
+                    ${row.downtimeStop > 0 ? parseFloat(row.downtimeStop).toFixed(2) : '-'}
+                </td>
+                <td class="p-3 text-right font-mono text-xs text-orange-600 dark:text-orange-400">
+                    ${row.downtimeNonStop > 0 ? parseFloat(row.downtimeNonStop).toFixed(2) : '-'}
+                </td>
+            </tr>
+        `).join('');
+
+        lucide.createIcons();
+    }
+
+    function updateCharts(data) {
+        // Group Data for Dept Chart
+        const deptGroups = {};
+        data.forEach(item => {
+            const val = (parseFloat(item.downtimeStop) || 0) + (parseFloat(item.downtimeReduced) || 0);
+            if (val > 0) {
+                deptGroups[item.dept] = (deptGroups[item.dept] || 0) + val;
+            }
+        });
+        const deptLabels = Object.keys(deptGroups);
+        const deptValues = Object.values(deptGroups);
+
+        // Group Data for Category Chart
+        const catGroups = {};
+        data.forEach(item => {
+            catGroups[item.category] = (catGroups[item.category] || 0) + 1;
+        });
+        const catLabels = Object.keys(catGroups);
+        const catValues = Object.values(catGroups);
+
+        // Init/Update Chart Dept
+        const ctxDept = document.getElementById('chart-dept').getContext('2d');
+        if (chartDeptInstance) chartDeptInstance.destroy();
+
+        chartDeptInstance = new Chart(ctxDept, {
+            type: 'bar',
+            data: {
+                labels: deptLabels,
+                datasets: [{
+                    label: 'เวลาสูญเสีย (ชม.)',
+                    data: deptValues,
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 4
+                }]
+            },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
+        });
+
+        // Init/Update Chart Category
+        const ctxCat = document.getElementById('chart-category').getContext('2d');
+        if (chartCatInstance) chartCatInstance.destroy();
+        chartCatInstance = new Chart(ctxCat, {
+            type: 'doughnut',
+            data: {
+                labels: catLabels,
+                datasets: [{
+                    data: catValues,
+                    backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'],
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function initFilters() {
+        const depts = [...new Set(logsData.map(d => d.dept))].filter(Boolean);
+        const cats = [...new Set(logsData.map(d => d.category))].filter(Boolean);
+
+        const deptSel = document.getElementById('filter-dept');
+        depts.forEach(d => deptSel.innerHTML += `<option value="${d}">${d}</option>`);
+
+        const catSel = document.getElementById('filter-category');
+        cats.forEach(c => catSel.innerHTML += `<option value="${c}">${c}</option>`);
+    }
+
+    // --- KPI Logic ---
+    function renderKPI() {
+        const tbody = document.getElementById('kpi-table-body');
+        let totalScore = 0;
+        let totalWeight = 0;
+
+        if (kpiData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-400 italic">ไม่พบข้อมูล KPI (กรุณาเพิ่มข้อมูล KPI)</td></tr>`;
+            document.getElementById('kpi-grade').innerText = "-";
+            return;
+        }
+
+        tbody.innerHTML = kpiData.map(row => {
+            const scoreVal = parseFloat(row.score) || 0;
+            const weightVal = parseFloat(row.weight) || 0;
+            const rowTotal = scoreVal * weightVal;
+            totalScore += rowTotal;
+            totalWeight += (weightVal * 4); // Max score 4
+
+            let scoreClass = 'bg-slate-100 text-slate-700';
+            if (scoreVal === 4) scoreClass = 'bg-green-100 text-green-700 border border-green-200';
+            if (scoreVal === 3) scoreClass = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+            if (scoreVal <= 2) scoreClass = 'bg-red-100 text-red-700 border border-red-200';
+
+            return `
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700">
+                    <td class="p-4 font-medium text-slate-700 dark:text-slate-200">${row.name}</td>
+                    <td class="p-4 text-center text-slate-500 dark:text-slate-400 font-mono">${row.target} ${row.unit}</td>
+                    <td class="p-4 text-center font-bold text-blue-600 dark:text-blue-400 font-mono">${row.actual}</td>
+                    <td class="p-4 text-center">
+                        <span class="px-3 py-1 rounded-full text-xs font-bold ${scoreClass}">${row.score}</span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        document.getElementById('kpi-total-score').innerText = totalScore;
+        document.getElementById('kpi-max-score').innerText = totalWeight;
+
+        const percent = totalWeight > 0 ? (totalScore / totalWeight) * 100 : 0;
+        let grade = 'D';
+        if (percent >= 80) grade = 'A';
+        else if (percent >= 75) grade = 'B+';
+        else if (percent >= 70) grade = 'B';
+        else if (percent >= 65) grade = 'C+';
+        else if (percent >= 60) grade = 'C';
+
+        document.getElementById('kpi-grade').innerText = grade;
+    }
+
+    // --- Tab Switching ---
+    window.switchTab = function (tabName) {
+        const tabMaint = document.getElementById('tab-maintenance');
+        const tabKPI = document.getElementById('tab-kpi');
+        const btnMaint = document.getElementById('btn-maintenance');
+        const btnKPI = document.getElementById('btn-kpi');
+
+        if (tabName === 'maintenance') {
+            tabMaint.classList.remove('hidden');
+            tabKPI.classList.add('hidden');
+            btnMaint.className = "px-3 py-1.5 rounded-md text-sm font-semibold transition bg-white text-blue-900 shadow-sm";
+            btnKPI.className = "px-3 py-1.5 rounded-md text-sm font-semibold transition text-blue-100 hover:bg-white/10";
+        } else {
+            tabMaint.classList.add('hidden');
+            tabKPI.classList.remove('hidden');
+            btnMaint.className = "px-3 py-1.5 rounded-md text-sm font-semibold transition text-blue-100 hover:bg-white/10";
+            btnKPI.className = "px-3 py-1.5 rounded-md text-sm font-semibold transition bg-white text-blue-900 shadow-sm";
+        }
+    };
+
+    // --- Init ---
+    document.addEventListener('DOMContentLoaded', () => {
+        initFilters();
+        renderDashboard();
+        renderKPI();
+    });
+
+</script>
+{% endblock content %}

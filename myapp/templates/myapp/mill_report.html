@@ -1,0 +1,234 @@
+{% extends 'myapp/base.html' %}
+
+{% block title %} Daily Report | Factory OS {% endblock title %}
+
+{% block content %}
+<div
+    class="flex h-screen overflow-hidden bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-[#f1f5f9] transition-colors duration-300 font-sans">
+
+    <!-- Sidebar -->
+    <aside
+        class="w-64 bg-white/50 dark:bg-[#1e293b]/50 border-r border-slate-200 dark:border-slate-700/50 hidden md:flex flex-col z-10 backdrop-blur-md">
+        <div class="p-6 border-b border-slate-200/50 dark:border-slate-700/50 flex items-center gap-3">
+            <div class="bg-indigo-600 p-2 rounded-xl text-white shadow-md shadow-indigo-600/20">
+                <i data-lucide="factory" class="w-6 h-6"></i>
+            </div>
+            <span class="font-bold text-lg tracking-tight text-slate-800 dark:text-slate-100">Factory OS</span>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 ml-3">Main Menu</div>
+            <a href="{% url 'mill' %}"
+                class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl font-medium transition-colors">
+                <i data-lucide="activity" class="w-5 h-5"></i> Dashboard
+            </a>
+            <a href="{% url 'mill_report' %}"
+                class="w-full flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-slate-700/50 text-indigo-600 dark:text-indigo-400 rounded-xl font-medium transition-colors border border-indigo-100 dark:border-slate-600">
+                <i data-lucide="file-text" class="w-5 h-5"></i> Daily Report
+            </a>
+            <button
+                class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl font-medium transition-colors">
+                <i data-lucide="settings" class="w-5 h-5"></i> Settings
+            </button>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <!-- Header -->
+        <div class="h-16 flex items-center justify-between px-6 md:px-8 pt-6 pb-2 shrink-0">
+            <div class="flex items-center gap-4">
+                <button class="md:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg"><i
+                        data-lucide="menu"></i></button>
+                <div>
+                    <h1 class="text-2xl font-semibold text-slate-800 dark:text-[#f1f5f9]">Daily Report</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">บันทึกข้อมูลประจำวัน</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scrollable Form Area -->
+        <div class="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth">
+            <form method="POST" class="max-w-6xl mx-auto space-y-6 pb-20">
+                {% csrf_token %}
+
+                <!-- 1. General Information Card -->
+                <div
+                    class="bg-white dark:bg-[#1e293b] rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                        <i data-lucide="calendar" class="w-5 h-5"></i> General Information (ข้อมูลทั่วไป)
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Date
+                                (วันที่)</label>
+                            <input type="date" name="date" required
+                                class="w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Production
+                                Line (สายการผลิต)</label>
+                            <select name="line"
+                                class="w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <!-- สำคัญ: value="A" และ value="B" ต้องตรงกับตัวแรกของ Tuple ใน models.py -->
+                                <option value="A">Line A (ราง A)</option>
+                                <option value="B">Line B (ราง B)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Production Overview -->
+                <div
+                    class="bg-white dark:bg-[#1e293b] rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                        <i data-lucide="scale" class="w-5 h-5"></i> Production Data (ข้อมูลการผลิต)
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 dark:text-slate-300">Cane Weight / Day
+                                (Ton)</label>
+                            <p class="text-xs text-slate-400 mb-1">น้ำหนักอ้อย/วัน (ตัน)</p>
+                            <input type="number" step="0.01" name="cane_weight"
+                                class="w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 dark:text-slate-300">Target Crushing /
+                                Day (Ton)</label>
+                            <p class="text-xs text-slate-400 mb-1">เป้าหีบอ้อย/วัน (ตัน)</p>
+                            <input type="number" step="0.01" name="target_crushing"
+                                class="w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 dark:text-slate-300">Reduced Capacity
+                                Hours</label>
+                            <p class="text-xs text-slate-400 mb-1">ชั่วโมงลดกำลังการผลิต</p>
+                            <input type="number" step="0.1" name="reduced_capacity_hours"
+                                class="w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. KPI Inputs Card -->
+                <div
+                    class="bg-white dark:bg-[#1e293b] rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                        <i data-lucide="activity" class="w-5 h-5"></i> Performance Indicators (KPIs)
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                        <!-- Extraction Group -->
+                        <div class="space-y-4">
+                            <h3
+                                class="text-sm font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 pb-1">
+                                Extraction Performance</h3>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">1st Mill
+                                    Extraction (%)</label>
+                                <input type="number" step="0.01" name="first_mill_extraction" placeholder="Target: 76.4"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Reduced Pol
+                                    Extraction (%)</label>
+                                <input type="number" step="0.01" name="reduced_pol_extraction"
+                                    placeholder="Target: 96.0"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Overall
+                                    Recovery (%)</label>
+                                <input type="number" step="0.01" name="overall_recovery" placeholder="Target: 88.0"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                        </div>
+
+                        <!-- Quality Group -->
+                        <div class="space-y-4">
+                            <h3
+                                class="text-sm font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 pb-1">
+                                Quality Control</h3>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Cane
+                                    Preparation Index (CPI)</label>
+                                <input type="number" step="0.01" name="cane_preparation_index"
+                                    placeholder="Target: > 91"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Purity Drop
+                                    (%)</label>
+                                <input type="number" step="0.01" name="purity_drop" placeholder="Target: < 1.2"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Bagasse
+                                    Moisture (%)</label>
+                                <input type="number" step="0.01" name="bagasse_moisture" placeholder="Target: < 49"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Pol %
+                                    Bagasse</label>
+                                <input type="number" step="0.01" name="pol_bagasse" placeholder="Target: < 1.8"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                        </div>
+
+                        <!-- Process Group -->
+                        <div class="space-y-4">
+                            <h3
+                                class="text-sm font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 pb-1">
+                                Process Efficiency</h3>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Imbibition %
+                                    Cane</label>
+                                <input type="number" step="0.01" name="imbibition_cane" placeholder="Target: 30"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Imbibition %
+                                    Fiber</label>
+                                <input type="number" step="0.01" name="imbibition_fiber" placeholder="Target: 200"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Loss in
+                                    Bagasse (%)</label>
+                                <input type="number" step="0.01" name="loss_bagasse" placeholder="Target: < 0.5"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Downtime
+                                    (Hours) เวลาหยุดหีบ</label>
+                                <!--<p class="text-xs text-slate-400 mb-1">เวลาหยุดหีบ</p>-->
+                                <input type="number" step="0.01" name="downtime" placeholder="Target: < 0.81"
+                                    class="mt-1 w-full p-3 rounded-lg border-slate-400 dark:border-slate-500 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex justify-end gap-3 pt-4">
+                    <button type="button"
+                        class="px-6 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        ยกเลิก
+                    </button>
+                    <button type="submit"
+                        class="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-600/30 transition-all transform hover:scale-105">
+                        บันทึกข้อมูล
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </main>
+</div>
+
+<!-- Re-initialize Icons script -->
+<script>
+    if (window.lucide) window.lucide.createIcons();
+</script>
+{% endblock content %}

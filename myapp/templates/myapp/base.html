@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="th" class="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Factory Management System{% endblock title %}</title>
+
+    <!-- Fonts: Kanit for Thai support -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Kanit', 'sans-serif'] },
+                    colors: {
+                        dark: { bg: '#0f172a', card: '#1e293b', text: '#f1f5f9' },
+                        light: { bg: '#f8fafc', card: '#ffffff', text: '#1e293b' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .glass-panel {
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+    </style>
+</head>
+
+<body
+    class="font-sans antialiased bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen relative overflow-x-hidden">
+
+    <!-- Theme Toggle Button (Fixed on every page) -->
+    <button onclick="toggleTheme()"
+        class="fixed top-5 right-5 z-50 p-3 rounded-full bg-white/80 dark:bg-slate-800/80 shadow-lg hover:scale-110 transition-transform border border-slate-200 dark:border-slate-700">
+        <i id="theme-icon" data-lucide="moon" class="w-6 h-6 text-indigo-600 dark:text-yellow-400"></i>
+    </button>
+
+    <!-- Content Injection Point -->
+    {% block content %}
+    {% endblock content %}
+
+    <!-- Global Scripts -->
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // ---- Theme Logic ----
+        const html = document.documentElement;
+        const themeIcon = document.getElementById('theme-icon');
+
+        function toggleTheme() {
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                if (themeIcon) themeIcon.setAttribute('data-lucide', 'moon');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.add('dark');
+                if (themeIcon) themeIcon.setAttribute('data-lucide', 'sun');
+                localStorage.setItem('theme', 'dark');
+            }
+            lucide.createIcons();
+        }
+
+        // Check local storage
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            html.classList.add('dark');
+            if (themeIcon) themeIcon.setAttribute('data-lucide', 'sun');
+        } else {
+            html.classList.remove('dark');
+            if (themeIcon) themeIcon.setAttribute('data-lucide', 'moon');
+        }
+    </script>
+</body>
+
+</html>

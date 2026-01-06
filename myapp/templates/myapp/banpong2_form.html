@@ -1,0 +1,265 @@
+{% extends 'myapp/base.html' %}
+
+{% block title %} Banpong 2 Operation Log | Boiler {% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100 dark:bg-slate-950 p-6 flex flex-col items-center">
+    <div class="w-full max-w-7xl bg-white dark:bg-slate-900 rounded-xl shadow-lg p-8">
+
+        <div class="flex justify-between items-center mb-6 border-b pb-4 dark:border-slate-700">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800 dark:text-white">📝 บันทึกข้อมูล Banpong 2</h2>
+                <p class="text-sm text-slate-500">Operation Log Sheet</p>
+            </div>
+            <a href="{% url 'boiler' %}" class="text-slate-500 hover:text-slate-700 transition-colors">
+                <i data-lucide="x" class="inline-block w-5 h-5"></i> ยกเลิก
+            </a>
+        </div>
+
+        <form method="post" class="space-y-8">
+            {% csrf_token %}
+
+            <!-- Date & Time -->
+            <div
+                class="bg-indigo-50 dark:bg-indigo-900/20 p-6 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                <h3 class="font-bold text-indigo-700 dark:text-indigo-300 mb-4 flex items-center gap-2">
+                    <i data-lucide="calendar-clock" class="w-5 h-5"></i> วันที่และเวลา
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div
+                        class="[&>input]:w-full [&>input]:p-2.5 [&>input]:rounded-lg [&>input]:border [&>input]:border-indigo-200 [&>input]:bg-white [&>input]:text-slate-900 [&>input]:dark:bg-slate-800 [&>input]:dark:border-indigo-700 [&>input]:dark:text-white">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">วันที่</label>
+                        {{ form.bp2_date }}
+                    </div>
+                    <div
+                        class="[&>input]:w-full [&>input]:p-2.5 [&>input]:rounded-lg [&>input]:border [&>input]:border-indigo-200 [&>input]:bg-white [&>input]:text-slate-900 [&>input]:dark:bg-slate-800 [&>input]:dark:border-indigo-700 [&>input]:dark:text-white">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">เวลา</label>
+                        {{ form.bp2_time }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Layout -->
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+
+                <!-- Group 1: Steam & De-superheat -->
+                <div
+                    class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <h3
+                        class="font-bold text-lg text-cyan-600 dark:text-cyan-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex items-center gap-2">
+                        <i data-lucide="cloud" class="w-5 h-5"></i>Steam & De-superheat
+                    </h3>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div><label class="text-[10px] text-slate-500">Steam Flow</label>{{ form.bp2_main_steam_flow }}
+                        </div>
+                        <div><label class="text-[10px] text-slate-500">Steam Press</label>{{ form.bp2_main_steam_pressure }}
+                        </div>
+                        <div><label class="text-[10px] text-slate-500">Steam Temp</label>{{ form.bp2_main_steam_temp }}
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                        <div><label class="text-[10px] text-slate-500">De-superheat
+                                Valve</label>{{form.bp2_desuperheat_valve }}
+                        </div>
+                        <div><label class="text-[10px] text-slate-500">De-superheat Inlet
+                                Temp</label>{{form.bp2_desuperheat_in_temp }}
+                        </div>
+                        <div><label class="text-[10px] text-slate-500">De-superheat Outlet
+                                Temp</label>{{form.bp2_desuperheat_out_temp}}</div>
+                    </div>
+                </div>
+
+                <!-- Group 2: Water System -->
+                <div
+                    class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <h3
+                        class="font-bold text-lg text-blue-600 dark:text-blue-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex items-center gap-2">
+                        <i data-lucide="droplets" class="w-5 h-5"></i>Water System
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div><label class="text-[10px] text-slate-500">Drum Level</label>{{ form.bp2_drum_level }}</div>
+                        <div><label class="text-[10px] text-slate-500">Drum Press</label>{{ form.bp2_drum_pressure }}</div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <div><label class="text-[10px] text-slate-500">Feed Water Flow</label>{{ form.bp2_feed_water_flow }}
+                        </div>
+                        <div><label class="text-[10px] text-slate-500">Feed Water
+                                Press</label>{{form.bp2_feed_water_pressure }}
+                        </div>
+                        <div><label class="text-[10px] text-slate-500">Feed Water Inlet
+                                Temp</label>{{form.bp2_feed_water_in_temp }}
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 pt-2 mt-2 border-t border-slate-200 dark:border-slate-700">
+                        <div><label class="text-[10px] text-slate-500">Eco Out Temp</label>{{ form.bp2_eco_out_temp }}</div>
+                        <div><label class="text-[10px] text-slate-500">Eco Out Press</label>{{ form.bp2_eco_out_pressure }}
+                        </div>
+                        <div><label class="text-[10px] text-slate-500">Blowdown Flow</label>{{ form.bp2_bd_flow }}</div>
+                        <div><label class="text-[10px] text-slate-500">Continous Blowdown
+                                Valve</label>{{form.bp2_cbd_valve}}</div>
+                    </div>
+                </div>
+
+                <!-- Group 3: Air, Fans, Feeder -->
+                <div
+                    class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700 xl:col-span-2">
+                    <h3
+                        class="font-bold text-lg text-orange-600 dark:text-orange-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex items-center gap-2">
+                        <i data-lucide="wind" class="w-5 h-5"></i>Air System & Bagasse Feeder
+                    </h3>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div><label class="text-[10px] text-slate-500">Main Bagasse
+                                Feeder(%)</label>{{form.bp2_main_feeder}}</div>
+                        <div><label class="text-[10px] text-slate-500">Under Grate
+                                Temp</label>{{form.bp2_under_grate_air_temp }}</div>
+                        <div><label class="text-[10px] text-slate-500">Under Grate
+                                Press</label>{{form.bp2_under_grate_air_press }}</div>
+                        <div><label class="text-[10px] text-slate-500">Compressed Air
+                                Press</label>{{form.bp2_ins_air_pressure }}
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Air Heater & FDF -->
+                        <div
+                            class="space-y-3 bg-white dark:bg-slate-900/50 p-2 rounded border border-slate-100 dark:border-slate-700">
+                            <span class="text-xs font-bold text-slate-500 block">Air Heater Air Side</span>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="text-[10px]">AH1 Outlet Press</label>{{ form.bp2_ah1_air_out_press }}
+                                </div>
+                                <div><label class="text-[10px]">AH1 Outlet Temp</label>{{ form.bp2_ah1_air_out_temp }}</div>
+                                <div><label class="text-[10px]">AH2 Outlet Press</label>{{ form.bp2_ah2_air_out_press }}
+                                </div>
+                            </div>
+
+                            <span class="text-xs font-bold text-slate-500 block mt-3">FDF</span>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="text-[10px]">Damper</label>{{ form.bp2_fdf_damper }}</div>
+                                <div><label class="text-[10px]">2nd FDF Damp</label>{{ form.bp2_fdf2_damper }}</div>
+                                <div><label class="text-[10px]">2nd Air Press</label>{{ form.bp2_fdf2_air_press }}</div>
+                            </div>
+                        </div>
+
+                        <!-- FAF/SDF & Other Dampers -->
+                        <div
+                            class="space-y-3 bg-white dark:bg-slate-900/50 p-2 rounded border border-slate-100 dark:border-slate-700">
+                            <span class="text-xs font-bold text-slate-500 block">FAF / SDF</span>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="text-[10px]">FAF Damper</label>{{ form.bp2_faf_damper }}</div>
+                                <div><label class="text-[10px]">FAF Press</label>{{ form.bp2_faf_air_press }}</div>
+                            </div>
+
+                            <span class="text-xs font-bold text-slate-500 block mt-3">Other Dampers</span>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="text-[10px]">Under Gate</label>{{ form.bp2_under_gate_damper }}</div>
+                                <div><label class="text-[10px]">IDF Damper</label>{{ form.bp2_idf_damper }}</div>
+                            </div>
+                        </div>
+
+                        <!-- Blow Down Air (Special) -->
+                        <div
+                            class="space-y-3 bg-white dark:bg-slate-900/50 p-2 rounded border border-slate-100 dark:border-slate-700">
+                            <span class="text-xs font-bold text-slate-500 block">Blow Down Air Preheater</span>
+                            <div><label class="text-[10px]">Inlet Press</label>{{ form.bp2_bd_ah1_in_press }}</div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="text-[10px]">Outlet Temp</label>{{ form.bp2_bd_ah1_out_temp }}</div>
+                                <div><label class="text-[10px]">Outlet Press</label>{{ form.bp2_bd_ah1_out_press }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 4: Gas, Stack, Furnace -->
+                <div
+                    class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <h3
+                        class="font-bold text-lg text-red-600 dark:text-red-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex items-center gap-2">
+                        <i data-lucide="flame" class="w-5 h-5"></i>Gas System, Stack, Furnace
+                    </h3>
+                    <div class="grid grid-cols-3 gap-3 mb-3">
+                        <div><label class="text-[10px] text-slate-500">Furnace Press</label>{{ form.bp2_furnace_pressure }}
+                        </div>
+                        <div><label class="text-[10px] text-slate-500">Gas Exit Temp</label>{{ form.bp2_gas_exit_temp }}
+                        </div>
+                        <div><label class="text-[10px] text-slate-500">Gas Exit Press</label>{{ form.bp2_gas_exit_pressure}}
+                        </div>
+                    </div>
+
+                    <span class="text-xs font-bold text-slate-500 block mt-3">Gas Path (Eco -> AH -> DC -> ESP ->
+                        AH1)</span>
+                    <div class="grid grid-cols-2 gap-3 mt-1">
+                        <div><label class="text-[10px]">Eco Outlet Temp</label>{{ form.bp2_eco_out_gas_temp }}</div>
+                        <div><label class="text-[10px]">Eco Outlet Press</label>{{ form.bp2_eco_out_gas_press }}</div>
+
+                        <div><label class="text-[10px]">AH2 Outlet Temp</label>{{ form.bp2_ah2_gas_out_temp }}</div>
+                        <div><label class="text-[10px]">AH2 Outlet Press</label>{{ form.bp2_ah2_gas_out_press }}</div>
+
+                        <div><label class="text-[10px]">DC Outlet Temp</label>{{ form.bp2_dc_gas_out_temp }}</div>
+                        <div><label class="text-[10px]">DC Outlet Press</label>{{ form.bp2_dc_gas_out_press }}</div>
+
+                        <div><label class="text-[10px]">ESP Inlet Temp</label>{{ form.bp2_esp_gas_in_temp }}</div>
+                        <div><label class="text-[10px]">ESP Inlet Press</label>{{ form.esp_gas_in_press }}</div>
+
+                        <div><label class="text-[10px]">AH1 Outlet Temp</label>{{ form.bp2_ah1_gas_out_temp }}</div>
+                        <div><label class="text-[10px]">AH1 Outlet Press</label>{{ form.bp2_ah1_gas_out_press }}</div>
+                    </div>
+                </div>
+
+                <!-- Group 5: ESP -->
+                <div
+                    class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <h3
+                        class="font-bold text-lg text-yellow-600 dark:text-yellow-400 border-b border-slate-200 dark:border-slate-700 pb-2 mb-4 flex items-center gap-2">
+                        <i data-lucide="zap" class="w-5 h-5"></i>ESP System
+                    </h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-white dark:bg-slate-900/50 p-2 rounded">
+                            <span class="text-xs font-bold block mb-1">Cell 1</span>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="text-[10px]">Volt</label>{{ form.bp2_esp_c1_volt }}</div>
+                                <div><label class="text-[10px]">Curr</label>{{ form.bp2_esp_c1_curr }}</div>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-slate-900/50 p-2 rounded">
+                            <span class="text-xs font-bold block mb-1">Cell 2</span>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="text-[10px]">Volt</label>{{ form.bp2_esp_c2_volt }}</div>
+                                <div><label class="text-[10px]">Curr</label>{{ form.bp2_esp_c2_curr }}</div>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-slate-900/50 p-2 rounded">
+                            <span class="text-xs font-bold block mb-1">Cell 3</span>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div><label class="text-[10px]">Volt</label>{{ form.bp2_esp_c3_volt }}</div>
+                                <div><label class="text-[10px]">Curr</label>{{ form.bp2_esp_c3_curr }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Remark -->
+            <div
+                class="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-lg border border-slate-200 dark:border-slate-700 [&>textarea]:w-full [&>textarea]:p-3 [&>textarea]:rounded-lg [&>textarea]:border [&>textarea]:border-slate-200 [&>textarea]:bg-white [&>textarea]:text-slate-700 [&>textarea]:dark:bg-slate-800 [&>textarea]:dark:border-slate-700 [&>textarea]:dark:text-slate-300 [&>textarea]:focus:ring-2 [&>textarea]:focus:ring-indigo-500 [&>textarea]:focus:border-indigo-500 [&>textarea]:transition-colors">
+                <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    {{ form.bp2_remark.label }}
+                </label>
+                {{ form.bp2_remark }}
+            </div>
+
+            <div class="flex items-center justify-end gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <a href="{% url 'operation_dashboard' %}"
+                    class="px-6 py-3 rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors">
+                    ยกเลิก
+                </a>
+                <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition-all shadow-md hover:shadow-lg flex items-center gap-2">
+                    <i data-lucide="save" class="w-5 h-5"></i> บันทึกข้อมูล
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

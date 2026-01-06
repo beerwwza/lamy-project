@@ -1,0 +1,456 @@
+{% extends 'myapp/base.html' %}
+
+{% block title %} Boiler & Production KPI | Factory OS {% endblock title %}
+
+{% block content %}
+<!-- Load ApexCharts -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<div id="boiler-section" class="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950">
+
+    <!-- Sidebar -->
+    <aside
+        class="w-64 flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 hidden md:flex flex-col transition-all duration-300">
+        <div class="h-16 flex items-center justify-center border-b border-slate-200 dark:border-slate-800">
+            <a href="{% url 'dashboard' %}"
+                class="flex items-center gap-2 font-bold text-xl tracking-tight text-indigo-600 dark:text-indigo-400">
+                <i data-lucide="cpu" class="w-6 h-6"></i>
+                <span>FACTORY OS</span>
+            </a>
+        </div>
+
+        <div class="flex-1 overflow-y-auto py-4">
+            <nav class="px-4 space-y-2">
+                <a href="{% url 'dashboard' %}"
+                    class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                    <span>Back to Main</span>
+                </a>
+
+                <div class="border-t border-slate-200 dark:border-slate-800 my-4"></div>
+
+                <p class="px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Boiler Menu</p>
+
+                <a href="#"
+                    class="flex items-center gap-3 px-4 py-3 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-300 rounded-lg transition-colors">
+                    <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
+                    <span>Production KPI</span>
+                </a>
+
+                <a href="{% url 'operation_dashboard' %}"
+                    class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                    <span>Operation View</span>
+                </a>
+
+                <a href="{% url 'boiler_kpi_form' %}"
+                    class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="edit" class="w-5 h-5"></i>
+                    <span>Record KPI Boiler</span>
+                </a>
+            </nav>
+        </div>
+
+        <div class="p-4 border-t border-slate-200 dark:border-slate-800">
+            <a href="{% url 'logout' %}" onclick="return confirm('ต้องการออกจากระบบใช่หรือไม่?')"
+                class="flex items-center justify-center gap-3 w-full px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                <i data-lucide="log-out" class="w-5 h-5"></i>
+                <span>ออกจากระบบ</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+
+        <!-- Mobile Header -->
+        <header
+            class="h-16 flex items-center justify-between px-6 bg-white dark:bg-slate-900 border-b border-slate-200 md:hidden">
+            <div class="font-bold text-lg">Factory KPI</div>
+            <button class="p-2"><i data-lucide="menu" class="w-6 h-6"></i></button>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8">
+
+            <!-- Title & Actions Section -->
+            <div class="flex flex-col xl:flex-row xl:justify-between xl:items-end gap-6">
+                <div>
+                    <h2 class="text-3xl font-bold mb-2 text-slate-800 dark:text-white">Production & Boiler KPI</h2>
+                    <p class="text-slate-500 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        System Normal | Data Date: <span class="font-medium text-slate-700 dark:text-slate-300">{{
+                            latest_kpi.date|default:"No Data" }}</span>
+                    </p>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{% url 'boiler_operation_add' %}"
+                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-indigo-600 text-white hover:bg-indigo-700">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> JT Log
+                    </a>
+                    <a href="{% url 'chengchen_operation_add' %}"
+                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> CC Log
+                    </a>
+                    <a href="{% url 'takuma_operation_add' %}"
+                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-green-600 text-white hover:bg-green-700">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> TK Log
+                    </a>
+                    <a href="{% url 'yoshimine_operation_add' %}"
+                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-pink-600 text-white hover:bg-pink-700">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> YM Log
+                    </a>
+                    <a href="{% url 'banpong1_operation_add' %}"
+                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-orange-500 text-white hover:bg-orange-600">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> BP1 Log
+                    </a>
+                    <a href="{% url 'banpong2_operation_add' %}"
+                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-slate-600 text-white hover:bg-slate-700">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> BP2 Log
+                    </a>
+                </div>
+            </div>
+
+            <!-- SECTION 1: Efficiency & Loss (Items 1-5) -->
+            <div>
+                <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
+                    <i data-lucide="alert-circle" class="w-5 h-5 text-orange-500"></i>
+                    Downtime & Capacity Loss (Items 1-5)
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <!-- Card 1: Downtime A -->
+                    <div
+                        class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-all hover:shadow-md group">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-semibold text-slate-500 uppercase">Downtime A</span>
+                        </div>
+                        <div class="text-2xl font-bold flex items-baseline gap-1 text-slate-800 dark:text-white">
+                            {{ latest_kpi.downtime_a|default:"-" }} <span
+                                class="text-sm font-normal text-slate-400">%</span>
+                        </div>
+                        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full bg-green-500"
+                                style="width: {% widthratio latest_kpi.downtime_a|default:0 5 100 %}%"></div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-2 font-medium">Target: < 1.01%</p>
+                    </div>
+
+                    <!-- Card 2: Downtime B -->
+                    <div
+                        class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-all hover:shadow-md group">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-semibold text-slate-500 uppercase">Downtime B</span>
+                        </div>
+                        <div
+                            class="text-2xl font-bold flex items-baseline gap-1 {% if latest_kpi.downtime_b|default:0 > 1.01 %}text-red-600{% else %}text-slate-800 dark:text-white{% endif %}">
+                            {{ latest_kpi.downtime_b|default:"-" }} <span
+                                class="text-sm font-normal text-slate-400">%</span>
+                        </div>
+                        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full {% if latest_kpi.downtime_b|default:0 > 1.01 %}bg-red-500{% else %}bg-green-500{% endif %}"
+                                style="width: {% widthratio latest_kpi.downtime_b|default:0 5 100 %}%"></div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-2 font-medium">Target: < 1.01%</p>
+                    </div>
+
+                    <!-- Card 3: Sugar Melt -->
+                    <div
+                        class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-all hover:shadow-md group">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-semibold text-slate-500 uppercase">ละลายน้ำตาล</span>
+                        </div>
+                        <div
+                            class="text-2xl font-bold flex items-baseline gap-1 {% if latest_kpi.downtime_sugar_melt|default:0 > 0.7 %}text-yellow-600{% else %}text-slate-800 dark:text-white{% endif %}">
+                            {{ latest_kpi.downtime_sugar_melt|default:"-" }} <span
+                                class="text-sm font-normal text-slate-400">%</span>
+                        </div>
+                        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full {% if latest_kpi.downtime_sugar_melt|default:0 > 0.7 %}bg-yellow-500{% else %}bg-green-500{% endif %}"
+                                style="width: {% widthratio latest_kpi.downtime_sugar_melt|default:0 2 100 %}%"></div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-2 font-medium">Target: < 0.70%</p>
+                    </div>
+
+                    <!-- Card 4: Reduce Cap A -->
+                    <div
+                        class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-all hover:shadow-md group">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-semibold text-slate-500 uppercase">ลดกำลังหีบ A</span>
+                        </div>
+                        <div class="text-2xl font-bold flex items-baseline gap-1 text-slate-800 dark:text-white">
+                            {{ latest_kpi.reduced_cap_a|default:"-" }} <span
+                                class="text-sm font-normal text-slate-400">%</span>
+                        </div>
+                        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full bg-green-500"
+                                style="width: {% widthratio latest_kpi.reduced_cap_a|default:0 5 100 %}%"></div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-2 font-medium">Target: < 1.02%</p>
+                    </div>
+
+                    <!-- Card 5: Reduce Cap B -->
+                    <div
+                        class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-all hover:shadow-md group">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-semibold text-slate-500 uppercase">ลดกำลังหีบ B</span>
+                        </div>
+                        <div class="text-2xl font-bold flex items-baseline gap-1 text-slate-800 dark:text-white">
+                            {{ latest_kpi.reduced_cap_b|default:"-" }} <span
+                                class="text-sm font-normal text-slate-400">%</span>
+                        </div>
+                        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full bg-green-500"
+                                style="width: {% widthratio latest_kpi.reduced_cap_b|default:0 5 100 %}%">
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-2 font-medium">Target: < 1.02%</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: Steam Station (Items 6-9) -->
+            <div>
+                <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
+                    <i data-lucide="gauge" class="w-5 h-5 text-blue-500"></i>
+                    Steam Station Monitoring (Items 6-9)
+                </h3>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- 20 Bar System -->
+                    <div
+                        class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center justify-between mb-6">
+                            <h4 class="text-xl font-bold text-indigo-600 dark:text-indigo-400">Header 20 Bar</h4>
+                            <span
+                                class="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-xs font-semibold">Medium
+                                Pressure</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-8 divide-x divide-slate-100 dark:divide-slate-700">
+                            <!-- Pressure -->
+                            <div class="text-center px-2">
+                                <p class="text-sm text-slate-500 mb-1">Pressure</p>
+                                <div class="text-3xl font-bold text-slate-800 dark:text-white mb-1">{{latest_kpi.pressure_20bar|default:"-" }}</div>
+                                <span class="text-sm text-slate-400">Bar</span>
+                                <div
+                                    class="mt-2 text-xs font-medium text-green-600 bg-green-50 inline-block px-2 py-0.5 rounded">
+                                    Target: 21</div>
+                            </div>
+                            <!-- Flow -->
+                            <div class="text-center px-2">
+                                <p class="text-sm text-slate-500 mb-1">Steam Flow</p>
+                                <div class="text-3xl font-bold text-slate-800 dark:text-white mb-1">{{latest_kpi.flow_20bar|default:"-" }}</div>
+                                <span class="text-sm text-slate-400">Ton/Hr</span>
+                                <div
+                                    class="mt-2 text-xs font-medium text-blue-600 bg-blue-50 inline-block px-2 py-0.5 rounded">
+                                    Target: 299</div>
+                            </div>
+                        </div>
+                        <div id="chart-20bar" class="mt-6"></div>
+                    </div>
+
+                    <!-- 40 Bar System -->
+                    <div
+                        class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center justify-between mb-6">
+                            <h4 class="text-xl font-bold text-orange-600 dark:text-orange-400">Header 40 Bar</h4>
+                            <span class="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-xs font-semibold">High
+                                Pressure</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-8 divide-x divide-slate-100 dark:divide-slate-700">
+                            <!-- Pressure -->
+                            <div class="text-center px-2">
+                                <p class="text-sm text-slate-500 mb-1">Pressure</p>
+                                <div class="text-3xl font-bold text-slate-800 dark:text-white mb-1">{{latest_kpi.pressure_40bar|default:"-" }}</div>
+                                <span class="text-sm text-slate-400">Bar</span>
+                                <div
+                                    class="mt-2 text-xs font-medium text-green-600 bg-green-50 inline-block px-2 py-0.5 rounded">
+                                    Target: 41</div>
+                            </div>
+                            <!-- Flow -->
+                            <div class="text-center px-2">
+                                <p class="text-sm text-slate-500 mb-1">Steam Flow</p>
+                                <div class="text-3xl font-bold text-slate-800 dark:text-white mb-1">{{latest_kpi.flow_40bar|default:"-" }}</div>
+                                <span class="text-sm text-slate-400">Ton/Hr</span>
+                                <div
+                                    class="mt-2 text-xs font-medium text-blue-600 bg-blue-50 inline-block px-2 py-0.5 rounded">
+                                    Target: 405</div>
+                            </div>
+                        </div>
+                        <div id="chart-40bar" class="mt-6"></div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- SECTION 3: Production & Alerts (Item 10) -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Cane Shredder -->
+                <div
+                    class="md:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2">
+                            <i data-lucide="layers" class="w-5 h-5 text-purple-500"></i>
+                            Cane Shredder Consumption
+                        </h3>
+                        <p class="text-slate-500 text-sm">ปริมาณการใช้เครื่องตีใบอ้อยประจำวัน (Item 10)</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-4xl font-bold text-purple-600 dark:text-purple-400">{{latest_kpi.shredder_consumption|default:"-" }}</div>
+                        <div class="text-slate-400 text-sm">Ton/Day</div>
+                        <div
+                            class="mt-2 inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                            <i data-lucide="trending-up" class="w-3 h-3"></i> Above Target (580)
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alerts Summary -->
+                <div
+                    class="bg-red-50 dark:bg-red-900/20 p-6 rounded-2xl border border-red-100 dark:border-red-900/30 flex flex-col justify-center">
+                    <h4 class="font-bold text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
+                        <i data-lucide="bell" class="w-4 h-4"></i> Critical Alerts
+                    </h4>
+                    <ul class="space-y-3 text-sm">
+                        {% if latest_kpi.downtime_b|default:0 > 1.01 %}
+                        <li class="flex items-start gap-2 text-red-700 dark:text-red-300">
+                            <i data-lucide="x-circle" class="w-4 h-4 mt-0.5 shrink-0"></i>
+                            <span>Downtime B สูงกว่าเกณฑ์ปกติ ({{ latest_kpi.downtime_b }}%)</span>
+                        </li>
+                        {% endif %}
+
+                        {% if latest_kpi.downtime_sugar_melt|default:0 > 0.7 %}
+                        <li class="flex items-start gap-2 text-yellow-700 dark:text-yellow-300">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 mt-0.5 shrink-0"></i>
+                            <span>ละลายน้ำตาล ใกล้ถึงจุดวิกฤต ({{ latest_kpi.downtime_sugar_melt }}%)</span>
+                        </li>
+                        {% endif %}
+
+                        {% if latest_kpi.downtime_b|default:0 <= 1.01 and latest_kpi.downtime_sugar_melt|default:0 <= 0.7 %}
+                        <li class="flex items-start gap-2 text-green-700 dark:text-green-300">
+                            <i data-lucide="check-circle" class="w-4 h-4 mt-0.5 shrink-0"></i>
+                            <span>ระบบปกติ ไม่มีแจ้งเตือนวิกฤต</span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Management Modules Links -->
+            <div class="pt-6 border-t border-slate-200 dark:border-slate-800">
+                <h3 class="text-xl font-bold mb-6 text-slate-700 dark:text-slate-200">Management Modules</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+                    <a href="{% url 'operation_dashboard' %}"
+                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
+                        <div
+                            class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform dark:bg-opacity-20 bg-cyan-100 text-cyan-600 group-hover:scale-110">
+                            <i data-lucide="play-circle" class="w-6 h-6"></i>
+                        </div>
+                        <h4
+                            class="font-bold text-lg mb-1 transition-colors dark:text-slate-200 group-hover:text-cyan-600">
+                            Operation</h4>
+                        <p class="text-sm text-slate-500">บันทึก Data Sheet</p>
+                    </a>
+                    <a href="#"
+                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
+                        <div
+                            class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform dark:bg-opacity-20 bg-orange-100 text-orange-600 group-hover:scale-110">
+                            <i data-lucide="wrench" class="w-6 h-6"></i>
+                        </div>
+                        <h4
+                            class="font-bold text-lg mb-1 transition-colors dark:text-slate-200 group-hover:text-orange-600">
+                            Maintenance</h4>
+                        <p class="text-sm text-slate-500">ประวัติซ่อม, PM</p>
+                    </a>
+                    <a href="#"
+                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
+                        <div
+                            class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform dark:bg-opacity-20 bg-emerald-100 text-emerald-600 group-hover:scale-110">
+                            <i data-lucide="dollar-sign" class="w-6 h-6"></i>
+                        </div>
+                        <h4
+                            class="font-bold text-lg mb-1 transition-colors dark:text-slate-200 group-hover:text-emerald-600">
+                            Budget</h4>
+                        <p class="text-sm text-slate-500">คุมงบประมาณ</p>
+                    </a>
+                    <a href="#"
+                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
+                        <div
+                            class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform dark:bg-opacity-20 bg-blue-100 text-blue-600 group-hover:scale-110">
+                            <i data-lucide="list" class="w-6 h-6"></i>
+                        </div>
+                        <h4
+                            class="font-bold text-lg mb-1 transition-colors dark:text-slate-200 group-hover:text-blue-600">
+                            Machine List</h4>
+                        <p class="text-sm text-slate-500">ทะเบียนเครื่องจักร</p>
+                    </a>
+                    <a href="#"
+                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
+                        <div
+                            class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform dark:bg-opacity-20 bg-purple-100 text-purple-600 group-hover:scale-110">
+                            <i data-lucide="book-open" class="w-6 h-6"></i>
+                        </div>
+                        <h4
+                            class="font-bold text-lg mb-1 transition-colors dark:text-slate-200 group-hover:text-purple-600">
+                            Manual</h4>
+                        <p class="text-sm text-slate-500">คู่มือปฏิบัติงาน</p>
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<script>
+    // ดึงข้อมูล JSON จาก Django View
+    let dates, press20, flow20, press40, flow40;
+
+    try {
+        // Attempt to parse Django context variables
+        dates = JSON.parse('{{ chart_dates|safe }}');
+        press20 = JSON.parse('{{ chart_press_20|safe }}');
+        flow20 = JSON.parse('{{ chart_flow_20|safe }}');
+        press40 = JSON.parse('{{ chart_press_40|safe }}');
+        flow40 = JSON.parse('{{ chart_flow_40|safe }}');
+    } catch (e) {
+        console.warn('Django template tags not rendered or data empty. Using mock data.');
+        dates = ["01/01", "02/01", "03/01", "04/01", "05/01", "06/01", "07/01"];
+        press20 = [21.0, 21.2, 21.5, 21.3, 21.5, 21.8, 21.4];
+        flow20 = [280, 285, 290, 295, 290, 300, 292];
+        press40 = [40.0, 40.2, 40.5, 40.3, 40.8, 41.0, 40.6];
+        flow40 = [390, 395, 400, 410, 405, 415, 408];
+    }
+
+    // --- Chart 1: 20 Bar System Trend ---
+    var options20 = {
+        series: [{ name: 'Pressure (Bar)', data: press20 }, { name: 'Flow (Ton/Hr)', data: flow20 }],
+        chart: { height: 220, type: 'line', toolbar: { show: false }, fontFamily: 'inherit' },
+        stroke: { width: [2, 2], curve: 'smooth' },
+        colors: ['#6366f1', '#3b82f6'],
+        yaxis: [{ title: { text: 'Pressure' }, min: 15, max: 25 }, { opposite: true, title: { text: 'Flow' }, min: 0 }],
+        dataLabels: { enabled: false },
+        grid: { borderColor: '#f1f5f9' },
+        xaxis: { categories: dates },
+        legend: { position: 'top' },
+        tooltip: { x: { format: 'dd/MM' } }
+    };
+    new ApexCharts(document.querySelector("#chart-20bar"), options20).render();
+
+    // --- Chart 2: 40 Bar System Trend ---
+    var options40 = {
+        series: [{ name: 'Pressure (Bar)', data: press40 }, { name: 'Flow (Ton/Hr)', data: flow40 }],
+        chart: { height: 220, type: 'line', toolbar: { show: false }, fontFamily: 'inherit' },
+        stroke: { width: [2, 2], curve: 'smooth' },
+        colors: ['#ea580c', '#f97316'],
+        yaxis: [{ title: { text: 'Pressure' }, min: 35, max: 45 }, { opposite: true, title: { text: 'Flow' }, min: 0 }],
+        dataLabels: { enabled: false },
+        grid: { borderColor: '#f1f5f9' },
+        xaxis: { categories: dates },
+        legend: { position: 'top' },
+        tooltip: { x: { format: 'dd/MM' } }
+    };
+    new ApexCharts(document.querySelector("#chart-40bar"), options40).render();
+</script>
+
+{% endblock content %}

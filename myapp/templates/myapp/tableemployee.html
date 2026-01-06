@@ -1,0 +1,40 @@
+{% extends 'myapp/base.html'%}
+
+{% block title %} ประวัติการสมัครงาน {% endblock title %}
+
+{% block content %}
+
+<div class="container mt-3">
+    <h2>ประวัติสมาชิก</h2>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">ชื่อ</th>
+                <th scope="col">รหัสพนักงาน</th>
+                <th scope="col">เบอร์โทรศัพท์</th>
+                <th scope="col">ฝ่าย</th>
+                <th scope="col">แผนก</th>
+            </tr>
+        </thead>
+        <tbody>
+
+            {% for j in Employee %}
+            <tr>
+                <th scope="row">{{ forloop.counter }}</th>
+                <td> <a href="{% url 'detail-job' j.id %}">{{j.name}}</a></td>
+                <td>{{j.employeeID}}</td>
+                <td>{{j.tel}}</td>
+                <td>{{j.group}}</td>
+                <td>{{j.department}}</td>
+            </tr>
+            {% endfor %}
+
+        </tbody>
+    </table>
+
+
+</div>
+
+{% endblock content %}

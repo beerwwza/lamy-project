@@ -1,0 +1,129 @@
+{% extends 'myapp/base.html' %}
+
+{% block title %} บันทึกงานซ่อม | Factory OS {% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100 dark:bg-slate-950 p-6 flex items-center justify-center">
+    <div
+        class="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+
+        <!-- Header -->
+        <div class="px-6 py-4 bg-indigo-600 border-b border-indigo-700 flex justify-between items-center">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <i data-lucide="wrench" class="w-5 h-5"></i> บันทึกงานซ่อม (Maintenance Log)
+            </h2>
+            <a href="{% url 'maintenance_dashboard' %}" class="text-indigo-100 hover:text-white transition-colors">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </a>
+        </div>
+
+        <!-- Form -->
+        <form method="POST" class="p-6 space-y-4">
+            {% csrf_token %}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">วันที่</label>
+                    {{ form.date }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">เครื่องจักร</label>
+                    {{ form.machine }}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">แผนก</label>
+                    {{ form.dept }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">หัวข้อปัญหา</label>
+                    {{ form.category }}
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">รายละเอียดปัญหา</label>
+                {{ form.problem }}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">สาเหตุ</label>
+                    {{ form.cause }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">การแก้ไข</label>
+                    {{ form.solution }}
+                </div>
+            </div>
+
+            <div
+                class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div>
+                    <label class="block text-xs font-bold text-red-600 dark:text-red-400 mb-1 uppercase">เสียเวลาหยุดหีบ
+                        (ชม.)</label>
+                    {{ form.downtime_stop }}
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-yellow-600 dark:text-yellow-400 mb-1 uppercase">ลดรอบ
+                        (ชม.)</label>
+                    {{ form.downtime_reduced }}
+                </div>
+                <div>
+                    <label
+                        class="block text-xs font-bold text-orange-600 dark:text-orange-400 mb-1 uppercase">เสียเวลาไม่หยุดหีบ
+                        (ชม.)</label>
+                    {{ form.downtime_non_stop }}
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 py-2">
+                <div class="flex items-center h-5">
+                    {{ form.is_leak }}
+                </div>
+                <label class="text-sm font-medium text-slate-700 dark:text-slate-300">พบการรั่วไหล (Leak)</label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+                <div>
+                    <label
+                        class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">อะไหล่ที่เปลี่ยน</label>
+                    {{ form.spare_part }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">จำนวน</label>
+                    {{ form.qty }}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">ผู้แจ้ง</label>
+                    {{ form.reporter }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">ผู้แก้ไข</label>
+                    {{ form.resolver }}
+                </div>
+            </div>
+
+            <div class="pt-4 flex justify-end gap-3">
+                <a href="{% url 'maintenance_dashboard' %}"
+                    class="px-4 py-2 text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-lg text-sm font-medium transition">ยกเลิก</a>
+                <button type="submit"
+                    class="px-6 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm font-medium shadow-md transition flex items-center gap-2">
+                    <i data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Load Lucide Icons Library -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+    lucide.createIcons();
+</script>
+{% endblock %}
