@@ -664,7 +664,7 @@ def mill(request):
         pol_bagasse__avg=Avg('pol_bagasse'),
         loss_bagasse__avg=Avg('loss_bagasse'),
         downtime__avg=Avg('downtime'),
-        overall_recovery__avg=Avg('overall_recovery')
+        trash__avg=Avg('trash')
     )
 
     latest_b = MillReport.objects.filter(line='B').order_by('-date', '-created_at').first()
@@ -680,7 +680,7 @@ def mill(request):
         pol_bagasse__avg=Avg('pol_bagasse'),
         loss_bagasse__avg=Avg('loss_bagasse'),
         downtime__avg=Avg('downtime'),
-        overall_recovery__avg=Avg('overall_recovery')
+        trash__avg=Avg('trash')
     )
 
     def format_data(report, total_sum_cane, averages):
@@ -718,7 +718,7 @@ def mill(request):
                 8: {'current': report.pol_bagasse, 'average': averages.get('pol_bagasse__avg') or 0},
                 9: {'current': report.loss_bagasse, 'average': averages.get('loss_bagasse__avg') or 0},
                 10: {'current': report.downtime, 'average': averages.get('downtime__avg') or 0},
-                11: {'current': report.overall_recovery, 'average': averages.get('overall_recovery__avg') or 0},
+                11: {'current': report.trash, 'average': averages.get('trash__avg') or 0},
             }
         }
 

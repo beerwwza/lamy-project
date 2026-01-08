@@ -553,7 +553,7 @@ class MillReport(models.Model):
     # --- KPIs: Extraction ---
     first_mill_extraction = models.FloatField(default=0, blank=True, null=True, verbose_name="1st Mill Extraction")
     reduced_pol_extraction = models.FloatField(default=0, blank=True, null=True, verbose_name="Reduced Pol Extraction")
-    overall_recovery = models.FloatField(default=0, blank=True, null=True, verbose_name="Overall Recovery")
+    trash = models.FloatField(default=0, blank=True, null=True, verbose_name="trash")
 
     # --- KPIs: Quality ---
     cane_preparation_index = models.FloatField(default=0, blank=True, null=True, verbose_name="Cane Preparation Index")
