@@ -565,7 +565,7 @@ class MillReport(models.Model):
     imbibition_cane = models.FloatField(default=0, blank=True, null=True, verbose_name="Imbibition % Cane")
     imbibition_fiber = models.FloatField(default=0, blank=True, null=True, verbose_name="Imbibition % Fiber")
     loss_bagasse = models.FloatField(default=0, blank=True, null=True, verbose_name="Loss in Bagasse")
-    downtime = models.FloatField(default=0, blank=True, null=True, verbose_name="Downtime")
+    ccs = models.FloatField(default=0, blank=True, null=True, verbose_name="Downtime")
 
     # Meta
     created_at = models.DateTimeField(auto_now_add=True)
@@ -573,8 +573,8 @@ class MillReport(models.Model):
 
     class Meta:
         ordering = ['-date', '-created_at']
-        verbose_name = "รายงานลูกหีบ (Mill Report)"
-        verbose_name_plural = "รายงานลูกหีบ (Mill Reports)"
+        verbose_name = "Mill Report"
+        verbose_name_plural = "Mill Reports"
 
     def __str__(self):
         return f"{self.date} - Line {self.line}"

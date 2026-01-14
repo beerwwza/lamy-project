@@ -25,6 +25,7 @@ urlpatterns = [
     
     path('mill/', mill, name='mill'),
     path('mill/report/', mill_report, name='mill_report'),
+    path('mill/import/', mill_import, name='mill_import'),
 
     # Path สำหรับ Import Data
     path('import-data/', import_data, name='import_data'),

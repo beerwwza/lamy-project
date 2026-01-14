@@ -26,11 +26,15 @@
                 class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl font-medium transition-colors">
                 <i data-lucide="file-text" class="w-5 h-5"></i> Daily Report
             </a>
+            
             <a href="{% url 'dashboard' %}"
                 class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                 <i data-lucide="arrow-left" class="w-5 h-5"></i>
                 <span>Back to Main</span>
             </a>
+            <button onclick="document.getElementById('importModal').classList.remove('hidden')" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl font-medium transition-colors">
+                <i data-lucide="upload" class="w-5 h-5"></i> Import Data
+            </button>
             <button
                 class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl font-medium transition-colors">
                 <i data-lucide="settings" class="w-5 h-5"></i> Settings
@@ -179,6 +183,59 @@
     </main>
 </div>
 
+<!-- Import Modal (เพิ่มใหม่) -->
+<div id="importModal" class="fixed inset-0 z-50 hidden bg-gray-900/50 backdrop-blur-sm flex items-center justify-center">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-200 dark:border-slate-700 transform transition-all scale-100">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <i data-lucide="upload-cloud" class="w-5 h-5 text-indigo-600"></i>
+                Import Data (Excel/CSV)
+            </h3>
+            <button onclick="document.getElementById('importModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <form action="{% url 'mill_import' %}" method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Select Production Line</label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="line" value="A" checked class="peer sr-only">
+                        <div class="rounded-xl border border-slate-200 dark:border-slate-600 p-3 text-center peer-checked:border-indigo-600 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/20 peer-checked:text-indigo-600 transition-all">
+                            Line A (ราง A)
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="line" value="B" class="peer sr-only">
+                        <div class="rounded-xl border border-slate-200 dark:border-slate-600 p-3 text-center peer-checked:border-indigo-600 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/20 peer-checked:text-indigo-600 transition-all">
+                            Line B (ราง B)
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Upload File</label>
+                <div class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 text-center hover:border-indigo-500 transition-colors bg-slate-50 dark:bg-slate-900/50">
+                    <input type="file" name="file" accept=".csv, .xlsx, .xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    <div class="flex flex-col items-center pointer-events-none">
+                        <i data-lucide="file-spreadsheet" class="w-8 h-8 text-slate-400 mb-2"></i>
+                        <span class="text-sm text-slate-500">Click to upload .xlsx or .csv</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button type="button" onclick="document.getElementById('importModal').classList.add('hidden')" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+                <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-600/30 transition-all">Upload</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     // --- Data Initialization with Fail-safe ---
     let serverDataA, serverDataB;
@@ -205,7 +262,7 @@
         { id: 7, name: "Cane Preparation Index", unit: "%", target: 91, criteria: { good: 91, warning: 90, critical_low: 89 }, type: 'higher_better' },
         { id: 8, name: "Pol % Bagasse", unit: "%", target: 1.8, criteria: { good: 1.8, warning: 2.0, critical_high: 2.2 }, type: 'lower_better' },
         { id: 9, name: "Loss in Bagasse", unit: "%", target: 0.5, criteria: { good: 0.5, warning: 0.6, critical_high: 0.7 }, type: 'lower_better' },
-        { id: 10, name: "Downtime", unit: "Hrs", target: 0.81, criteria: { good: 0.81, warning: 1.05, critical_high: 1.06 }, type: 'lower_better' },
+        { id: 10, name: "ccs", unit: "%", target: 12, criteria: { good: 12, warning: 10, critical_high: 12.5 }, type: 'lower_better' },
         { id: 11, name: "Trash&Sand % Cane", unit: "%", target: 5, criteria: { good: 3, warning: 4, critical_low: 5 }, type: 'higher_better' },
     ];
 
