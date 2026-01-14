@@ -583,6 +583,59 @@ def banpong2_operation_add(request):
     return render(request, 'myapp/banpong2_form.html', {'form': form})
 
 @login_required
+def boiler(request):
+    # 1. ดึงข้อมูล KPI ล่าสุดมาแสดงผลตัวเลข (Cards)
+    latest_kpi = BoilerDailyKPI.objects.order_by('-date').first()
+
+    # 2. ดึงข้อมูลย้อนหลัง 7 วันเพื่อทำกราฟ (เรียงตามวันที่)
+    history_kpi = BoilerDailyKPI.objects.order_by('-date')[:7]
+    history_kpi = reversed(list(history_kpi)) # กลับด้านให้เรียงจาก อดีต -> ปัจจุบัน
+
+    # 3. เตรียมข้อมูล Array สำหรับกราฟ
+    dates = []
+    press_20 = []
+    flow_20 = []
+    press_40 = []
+    flow_40 = []
+
+    for kpi in history_kpi:
+        # แปลงวันที่เป็นรูปแบบสั้น (เช่น 05/01)
+        dates.append(kpi.date.strftime('%d/%m'))
+        press_20.append(kpi.pressure_20bar or 0)
+        flow_20.append(kpi.flow_20bar or 0)
+        press_40.append(kpi.pressure_40bar or 0)
+        flow_40.append(kpi.flow_40bar or 0)
+
+    # Context ส่งไปที่ Template
+    context = {
+        'latest_kpi': latest_kpi,
+        # แปลงข้อมูล List เป็น JSON String เพื่อให้ JavaScript นำไปใช้ได้
+        'chart_dates': json.dumps(dates, cls=DjangoJSONEncoder),
+        'chart_press_20': json.dumps(press_20, cls=DjangoJSONEncoder),
+        'chart_flow_20': json.dumps(flow_20, cls=DjangoJSONEncoder),
+        'chart_press_40': json.dumps(press_40, cls=DjangoJSONEncoder),
+        'chart_flow_40': json.dumps(flow_40, cls=DjangoJSONEncoder),
+    }
+    return render(request, 'myapp/boiler.html', context)
+
+@login_required
+def boiler_kpi_form(request):    
+    if request.method == 'POST':
+        form = BoilerDailyKPIForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "บันทึกข้อมูล KPI เรียบร้อยแล้ว")
+            return redirect('boiler')
+        else:
+            messages.error(request, "เกิดข้อผิดพลาด กรุณาตรวจสอบข้อมูล")
+            print(form.errors) # ปริ้น Error ออกมาดูใน Terminal ถ้าบันทึกไม่ได้
+    else:
+        form = BoilerDailyKPIForm()
+    
+    return render(request, 'myapp/boiler_kpi_form.html', {'form': form})
+
+
+@login_required
 def maintenance_dashboard(request):
     logs = MaintenanceLog.objects.all().order_by('-date')
     logs_data = []
@@ -663,7 +716,7 @@ def mill(request):
         cane_preparation_index__avg=Avg('cane_preparation_index'),
         pol_bagasse__avg=Avg('pol_bagasse'),
         loss_bagasse__avg=Avg('loss_bagasse'),
-        downtime__avg=Avg('downtime'),
+        ccs__avg=Avg('ccs'),
         trash__avg=Avg('trash')
     )
 
@@ -679,7 +732,7 @@ def mill(request):
         cane_preparation_index__avg=Avg('cane_preparation_index'),
         pol_bagasse__avg=Avg('pol_bagasse'),
         loss_bagasse__avg=Avg('loss_bagasse'),
-        downtime__avg=Avg('downtime'),
+        ccs__avg=Avg('ccs'),
         trash__avg=Avg('trash')
     )
 
@@ -717,7 +770,7 @@ def mill(request):
                 7: {'current': report.cane_preparation_index, 'average': averages.get('cane_preparation_index__avg') or 0},
                 8: {'current': report.pol_bagasse, 'average': averages.get('pol_bagasse__avg') or 0},
                 9: {'current': report.loss_bagasse, 'average': averages.get('loss_bagasse__avg') or 0},
-                10: {'current': report.downtime, 'average': averages.get('downtime__avg') or 0},
+                10: {'current': report.ccs, 'average': averages.get('ccs__avg') or 0},
                 11: {'current': report.trash, 'average': averages.get('trash__avg') or 0},
             }
         }
@@ -741,55 +794,72 @@ def mill_report(request):
         form = MillReportForm()
     return render(request, 'myapp/mill_report.html', {'form': form})
 
-@login_required
-def boiler(request):
-    # 1. ดึงข้อมูล KPI ล่าสุดมาแสดงผลตัวเลข (Cards)
-    latest_kpi = BoilerDailyKPI.objects.order_by('-date').first()
+# 3. View สำหรับ Import Data
+# ---------------------------------------------------------
+def mill_import(request):
+    if request.method == 'POST' and request.FILES['file']:
+        line_selected = request.POST.get('line', 'A') # รับค่า Line ที่เลือก
+        uploaded_file = request.FILES['file']
+        
+        try:
+            # อ่านไฟล์ (รองรับทั้ง csv และ excel)
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file, header=1) # header=1 เพราะบรรทัดแรกเป็น Title 'Mill'
+            else:
+                df = pd.read_excel(uploaded_file, header=1)
+            
+            # ลบแถวที่ไม่มีวันที่
+            df = df.dropna(subset=['Date'])
 
-    # 2. ดึงข้อมูลย้อนหลัง 7 วันเพื่อทำกราฟ (เรียงตามวันที่)
-    history_kpi = BoilerDailyKPI.objects.order_by('-date')[:7]
-    history_kpi = reversed(list(history_kpi)) # กลับด้านให้เรียงจาก อดีต -> ปัจจุบัน
+            count = 0
+            for index, row in df.iterrows():
+                # แปลงวันที่
+                date_val = row['Date']
+                if isinstance(date_val, str):
+                    try:
+                        # ลองแปลง format วันที่ (ปรับตามไฟล์จริง เช่น DD/MM/YYYY)
+                        date_obj = datetime.strptime(date_val, '%Y-%m-%d').date()
+                    except ValueError:
+                        date_obj = datetime.now().date() # Fallback
+                else:
+                    date_obj = date_val.date()
 
-    # 3. เตรียมข้อมูล Array สำหรับกราฟ
-    dates = []
-    press_20 = []
-    flow_20 = []
-    press_40 = []
-    flow_40 = []
+                # สร้างหรืออัปเดตข้อมูล
+                MillReport.objects.create(
+                    date=date_obj,
+                    line=line_selected,
+                    shift='Morning', # Default shift สำหรับการ import รายวัน
+                    
+                    # Map Column ตามไฟล์ Excel (operation_mill.xlsx)
+                    cane_weight=pd.to_numeric(row.get('น้ำหนักอ้อย/วัน (ตัน) '), errors='coerce') or 0,
+                    target_crushing=pd.to_numeric(row.get('เป้าหีบอ้อย/วัน (ตัน) '), errors='coerce') or 0,
+                    
+                    first_mill_extraction=pd.to_numeric(row.get('1st Mill Extraction '), errors='coerce') or 0,
+                    reduced_pol_extraction=pd.to_numeric(row.get('Reduced Pol Extraction '), errors='coerce') or 0,
+                    
+                    cane_preparation_index=pd.to_numeric(row.get(' Cane Preparation Index : CPI  '), errors='coerce') or 0,
+                    
+                    imbibition_cane=pd.to_numeric(row.get('Imbibition % Cane '), errors='coerce') or 0,
+                    imbibition_fiber=pd.to_numeric(row.get('Imbibition % Fiber '), errors='coerce') or 0,
+                    
+                    bagasse_moisture=pd.to_numeric(row.get('Bagasse Moisture '), errors='coerce') or 0,
+                    pol_bagasse=pd.to_numeric(row.get('Pol % Bagasse '), errors='coerce') or 0,
+                    loss_bagasse=pd.to_numeric(row.get('Loss in Bagasse '), errors='coerce') or 0,
+                    
+                    purity_drop=pd.to_numeric(row.get('Purity Drop '), errors='coerce') or 0,
+                    
+                    ccs=pd.to_numeric(row.get('ccs'), errors='coerce') or 0,
+                    reduced_capacity_hours=pd.to_numeric(row.get('ชั่วโมงลดกำลังการผลิต '), errors='coerce') or 0,
+                    
+                    trash=pd.to_numeric(row.get('trash '), errors='coerce') or 0,# ไม่มีในไฟล์ Excel ตัวอย่าง ใส่ 0 ไว้ก่อน
+                )
+                count += 1
+            
+            print(f"Imported {count} rows successfully.")
+            return redirect('mill')
 
-    for kpi in history_kpi:
-        # แปลงวันที่เป็นรูปแบบสั้น (เช่น 05/01)
-        dates.append(kpi.date.strftime('%d/%m'))
-        press_20.append(kpi.pressure_20bar or 0)
-        flow_20.append(kpi.flow_20bar or 0)
-        press_40.append(kpi.pressure_40bar or 0)
-        flow_40.append(kpi.flow_40bar or 0)
+        except Exception as e:
+            print(f"Error importing file: {e}")
+            return redirect('mill')
 
-    # Context ส่งไปที่ Template
-    context = {
-        'latest_kpi': latest_kpi,
-        # แปลงข้อมูล List เป็น JSON String เพื่อให้ JavaScript นำไปใช้ได้
-        'chart_dates': json.dumps(dates, cls=DjangoJSONEncoder),
-        'chart_press_20': json.dumps(press_20, cls=DjangoJSONEncoder),
-        'chart_flow_20': json.dumps(flow_20, cls=DjangoJSONEncoder),
-        'chart_press_40': json.dumps(press_40, cls=DjangoJSONEncoder),
-        'chart_flow_40': json.dumps(flow_40, cls=DjangoJSONEncoder),
-    }
-    return render(request, 'myapp/boiler.html', context)
-
-@login_required
-def boiler_kpi_form(request):    
-    if request.method == 'POST':
-        form = BoilerDailyKPIForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "บันทึกข้อมูล KPI เรียบร้อยแล้ว")
-            return redirect('boiler')
-        else:
-            messages.error(request, "เกิดข้อผิดพลาด กรุณาตรวจสอบข้อมูล")
-            print(form.errors) # ปริ้น Error ออกมาดูใน Terminal ถ้าบันทึกไม่ได้
-    else:
-        form = BoilerDailyKPIForm()
-    
-    return render(request, 'myapp/boiler_kpi_form.html', {'form': form})
-
+    return redirect('mill')
