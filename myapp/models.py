@@ -548,7 +548,7 @@ class MillReport(models.Model):
     # แก้ไข: เพิ่ม blank=True, null=True เพื่อให้ฟอร์มไม่ error หากไม่ได้กรอกข้อมูลบางช่อง
     cane_weight = models.FloatField(default=0, blank=True, null=True, verbose_name="น้ำหนักอ้อย/วัน")
     target_crushing = models.FloatField(default=0, blank=True, null=True, verbose_name="เป้าหีบอ้อย/วัน")
-    reduced_capacity_hours = models.FloatField(default=0, blank=True, null=True, verbose_name="ชั่วโมงลดกำลังการผลิต")
+    #reduced_capacity_hours = models.FloatField(default=0, blank=True, null=True, verbose_name="ชั่วโมงลดกำลังการผลิต")
 
     # --- KPIs: Extraction ---
     first_mill_extraction = models.FloatField(default=0, blank=True, null=True, verbose_name="1st Mill Extraction")
@@ -565,7 +565,7 @@ class MillReport(models.Model):
     imbibition_cane = models.FloatField(default=0, blank=True, null=True, verbose_name="Imbibition % Cane")
     imbibition_fiber = models.FloatField(default=0, blank=True, null=True, verbose_name="Imbibition % Fiber")
     loss_bagasse = models.FloatField(default=0, blank=True, null=True, verbose_name="Loss in Bagasse")
-    ccs = models.FloatField(default=0, blank=True, null=True, verbose_name="Downtime")
+    ccs = models.FloatField(default=0, blank=True, null=True, verbose_name="ccs")
 
     # Meta
     created_at = models.DateTimeField(auto_now_add=True)
@@ -573,8 +573,8 @@ class MillReport(models.Model):
 
     class Meta:
         ordering = ['-date', '-created_at']
-        verbose_name = "Mill Report"
-        verbose_name_plural = "Mill Reports"
+        verbose_name = "รายงานลูกหีบ (Mill Report)"
+        verbose_name_plural = "รายงานลูกหีบ (Mill Reports)"
 
     def __str__(self):
         return f"{self.date} - Line {self.line}"

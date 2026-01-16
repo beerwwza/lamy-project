@@ -78,7 +78,7 @@ class KPIMetricAdmin(admin.ModelAdmin):
 
 @admin.register(MillReport)
 class MillReportAdmin(admin.ModelAdmin):
-    list_display = ('date', 'line', 'cane_weight', 'trash', 'target_crushing', 'reduced_capacity_hours', 'first_mill_extraction', 'reduced_pol_extraction', 'cane_preparation_index', 'purity_drop', 'bagasse_moisture', 'pol_bagasse', 'imbibition_cane', 'imbibition_fiber', 'loss_bagasse', 'ccs', 'created_at' )
+    list_display = ('date', 'line', 'cane_weight', 'trash', 'target_crushing', 'first_mill_extraction', 'reduced_pol_extraction', 'cane_preparation_index', 'purity_drop', 'bagasse_moisture', 'pol_bagasse', 'imbibition_cane', 'imbibition_fiber', 'loss_bagasse', 'ccs', 'created_at' )
     list_filter = ('date', 'line' )
     search_fields = ('date',)
     ordering = ('-date', 'line')

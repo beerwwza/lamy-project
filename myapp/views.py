@@ -746,7 +746,7 @@ def mill(request):
                         'cane_weight': 0,
                         'sum_cane_weight': total_sum_cane,
                         'target_crushing': 0,
-                        'reduced_capacity_hours': 0,
+                        
                     },
                     'kpis': {} 
                  }
@@ -758,7 +758,7 @@ def mill(request):
                 'cane_weight': report.cane_weight,
                 'sum_cane_weight': total_sum_cane,
                 'target_crushing': report.target_crushing,
-                'reduced_capacity_hours': report.reduced_capacity_hours,
+                
             },
             'kpis': {
                 1: {'current': report.first_mill_extraction, 'average': averages.get('first_mill_extraction__avg') or 0},
@@ -795,71 +795,154 @@ def mill_report(request):
     return render(request, 'myapp/mill_report.html', {'form': form})
 
 # 3. View สำหรับ Import Data
-# ---------------------------------------------------------
+@login_required
 def mill_import(request):
-    if request.method == 'POST' and request.FILES['file']:
-        line_selected = request.POST.get('line', 'A') # รับค่า Line ที่เลือก
+    if request.method == 'POST' and request.FILES.get('file'):
+        line_selected = request.POST.get('line', 'A')
         uploaded_file = request.FILES['file']
         
         try:
-            # อ่านไฟล์ (รองรับทั้ง csv และ excel)
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file, header=1) # header=1 เพราะบรรทัดแรกเป็น Title 'Mill'
+            # 1. ตรวจสอบและอ่านไฟล์ (Auto-detect Encoding & File Type)
+            df = None
+            detected_encoding = None
+            
+            if uploaded_file.name.lower().endswith('.csv'):
+                # เพิ่ม Encoding ภาษาไทยให้ครบถ้วน
+                encodings_to_try = ['utf-8-sig', 'utf-8', 'cp874', 'tis-620', 'iso-8859-11', 'windows-874', 'latin-1']
+                
+                for encoding in encodings_to_try:
+                    try:
+                        uploaded_file.seek(0)
+                        # ลองอ่าน 10 บรรทัดแรกเพื่อเช็ค Encoding
+                        pd.read_csv(uploaded_file, header=None, encoding=encoding, nrows=10)
+                        detected_encoding = encoding
+                        break 
+                    except Exception:
+                        continue 
+                
+                if detected_encoding:
+                    # ถ้าเจอ Encoding ที่ถูกต้อง ให้อ่านไฟล์ CSV
+                    uploaded_file.seek(0)
+                    df = pd.read_csv(uploaded_file, header=None, encoding=detected_encoding)
+                else:
+                    # Fallback: ถ้าอ่าน CSV ไม่ได้เลย อาจเป็นไฟล์ Excel ที่ตั้งชื่อเป็น .csv
+                    try:
+                        uploaded_file.seek(0)
+                        df = pd.read_excel(uploaded_file, header=None)
+                    except Exception:
+                        raise Exception("ไม่สามารถอ่านไฟล์ CSV ได้ (Encoding ไม่รองรับ หรือรูปแบบไฟล์ไม่ถูกต้อง)")
+            
             else:
-                df = pd.read_excel(uploaded_file, header=1)
+                # กรณีไฟล์ Excel (.xlsx, .xls)
+                try:
+                    df = pd.read_excel(uploaded_file, header=None)
+                except Exception as e:
+                     raise Exception(f"อ่านไฟล์ Excel ไม่สำเร็จ: {str(e)}")
+
+            # 2. ค้นหาบรรทัด Header (หาคำว่า "Date" หรือ "วันที่")
+            header_idx = -1
+            if df is not None:
+                for i, row in df.iterrows():
+                    row_str = row.astype(str).str.lower().tolist()
+                    if 'date' in row_str or 'วันที่' in row_str:
+                        header_idx = i
+                        break
+            
+            if header_idx == -1:
+                messages.error(request, "ไม่พบคอลัมน์ 'Date' หรือ 'วันที่' ในไฟล์")
+                return redirect('mill')
+
+            # 3. จัดการ Header และอ่านข้อมูลจริง
+            # ตั้งบรรทัดที่หาเจอเป็น Header
+            df.columns = df.iloc[header_idx] 
+            df = df.iloc[header_idx+1:].reset_index(drop=True)
+
+            # 4. Clean Header (ลบช่องว่างหน้าหลังชื่อคอลัมน์ออก)
+            df.columns = df.columns.astype(str).str.strip()
             
             # ลบแถวที่ไม่มีวันที่
-            df = df.dropna(subset=['Date'])
+            date_col_name = next((col for col in df.columns if col.lower() in ['date', 'วันที่']), None)
+            if date_col_name:
+                df = df.dropna(subset=[date_col_name])
+            else:
+                messages.error(request, "ไม่พบคอลัมน์วันที่ในการประมวลผล")
+                return redirect('mill')
 
             count = 0
             for index, row in df.iterrows():
-                # แปลงวันที่
-                date_val = row['Date']
-                if isinstance(date_val, str):
-                    try:
-                        # ลองแปลง format วันที่ (ปรับตามไฟล์จริง เช่น DD/MM/YYYY)
-                        date_obj = datetime.strptime(date_val, '%Y-%m-%d').date()
-                    except ValueError:
-                        date_obj = datetime.now().date() # Fallback
-                else:
-                    date_obj = date_val.date()
+                # --- จัดการเรื่องวันที่ ---
+                date_val = row.get(date_col_name)
+                date_obj = None
+                
+                if pd.isna(date_val): continue
 
-                # สร้างหรืออัปเดตข้อมูล
-                MillReport.objects.create(
+                if isinstance(date_val, (datetime, pd.Timestamp)):
+                    date_obj = date_val.date()
+                elif isinstance(date_val, str):
+                    date_val = date_val.strip()
+                    try:
+                        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%d/%m/%y'):
+                            try:
+                                date_obj = datetime.strptime(date_val, fmt).date()
+                                break
+                            except ValueError:
+                                pass
+                    except:
+                        pass
+                
+                if not date_obj: continue
+
+                # แก้ไขปี พ.ศ. เป็น ค.ศ.
+                if date_obj.year > 2400:
+                    try:
+                        date_obj = date_obj.replace(year=date_obj.year - 543)
+                    except ValueError:
+                        continue
+
+                # --- Helper Function แปลงตัวเลข ---
+                def get_num(col_name_part):
+                    col_match = [c for c in df.columns if col_name_part.lower() in c.lower()]
+                    if col_match:
+                        val = row.get(col_match[0])
+                        if isinstance(val, str):
+                            val = val.replace(',', '')
+                        return pd.to_numeric(val, errors='coerce') or 0
+                    return 0
+
+                # --- บันทึกข้อมูลลง Database ---
+                MillReport.objects.update_or_create(
                     date=date_obj,
                     line=line_selected,
-                    shift='Morning', # Default shift สำหรับการ import รายวัน
+                    defaults={
+                        'cane_weight': get_num('น้ำหนักอ้อย'),
+                        'target_crushing': get_num('เป้าหีบอ้อย'),
+                        
+                        'first_mill_extraction': get_num('1st Mill Extraction'),
+                        'reduced_pol_extraction': get_num('Reduced Pol Extraction'),
+                        
+                        'cane_preparation_index': get_num('Cane Preparation Index'),
+                        'purity_drop': get_num('Purity Drop'),
+                        'bagasse_moisture': get_num('Bagasse Moisture'),
+                        'pol_bagasse': get_num('Pol % Bagasse'),
+                        
+                        'imbibition_cane': get_num('Imbibition % Cane'),
+                        'imbibition_fiber': get_num('Imbibition % Fiber'),
+                        'loss_bagasse': get_num('Loss in Bagasse'),
+                        
                     
-                    # Map Column ตามไฟล์ Excel (operation_mill.xlsx)
-                    cane_weight=pd.to_numeric(row.get('น้ำหนักอ้อย/วัน (ตัน) '), errors='coerce') or 0,
-                    target_crushing=pd.to_numeric(row.get('เป้าหีบอ้อย/วัน (ตัน) '), errors='coerce') or 0,
-                    
-                    first_mill_extraction=pd.to_numeric(row.get('1st Mill Extraction '), errors='coerce') or 0,
-                    reduced_pol_extraction=pd.to_numeric(row.get('Reduced Pol Extraction '), errors='coerce') or 0,
-                    
-                    cane_preparation_index=pd.to_numeric(row.get(' Cane Preparation Index : CPI  '), errors='coerce') or 0,
-                    
-                    imbibition_cane=pd.to_numeric(row.get('Imbibition % Cane '), errors='coerce') or 0,
-                    imbibition_fiber=pd.to_numeric(row.get('Imbibition % Fiber '), errors='coerce') or 0,
-                    
-                    bagasse_moisture=pd.to_numeric(row.get('Bagasse Moisture '), errors='coerce') or 0,
-                    pol_bagasse=pd.to_numeric(row.get('Pol % Bagasse '), errors='coerce') or 0,
-                    loss_bagasse=pd.to_numeric(row.get('Loss in Bagasse '), errors='coerce') or 0,
-                    
-                    purity_drop=pd.to_numeric(row.get('Purity Drop '), errors='coerce') or 0,
-                    
-                    ccs=pd.to_numeric(row.get('ccs'), errors='coerce') or 0,
-                    reduced_capacity_hours=pd.to_numeric(row.get('ชั่วโมงลดกำลังการผลิต '), errors='coerce') or 0,
-                    
-                    trash=pd.to_numeric(row.get('trash '), errors='coerce') or 0,# ไม่มีในไฟล์ Excel ตัวอย่าง ใส่ 0 ไว้ก่อน
+                        
+                        'ccs': get_num('CCS') if get_num('CCS') else 0,
+                        'trash': get_num('Trash') if get_num('Trash') else 0,
+                    }
                 )
                 count += 1
             
-            print(f"Imported {count} rows successfully.")
+            messages.success(request, f"Import ข้อมูลสำเร็จ {count} รายการ (Line {line_selected})")
             return redirect('mill')
 
         except Exception as e:
-            print(f"Error importing file: {e}")
+            print(f"Error: {e}")
+            messages.error(request, f"เกิดข้อผิดพลาด: {str(e)}")
             return redirect('mill')
 
     return redirect('mill')
