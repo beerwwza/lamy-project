@@ -132,6 +132,7 @@ def dashboard(request):
     # ฟังก์ชันนี้จะเรียกไฟล์ template dashboard.html ที่เราเพิ่งแก้ไปมาแสดง
     return render(request, 'myapp/dashboard.html')
 
+# --- Boiler Overview (Split Lines) ---
 @login_required
 def boiler(request):
     # Helper: ดึงข้อมูลล่าสุด
@@ -172,8 +173,8 @@ def boiler(request):
         date_val = getattr(obj, f'{prefix}_date')
         time_val = getattr(obj, f'{prefix}_time')
 
-        # Logic สถานะ (ตัวอย่าง: ถ้า Pressure > 2 ถือว่า Run)
-        status = 'Running' if press and press > 2 else 'Offline'
+        # Logic สถานะ (ตัวอย่าง: ถ้า Pressure > 5 ถือว่า Run)
+        status = 'Running' if press and press > 5 else 'Offline'
 
         return {
             'name': name,
@@ -220,50 +221,41 @@ def boiler(request):
 
 @login_required
 def operation_dashboard(request):
-    """
-    ฟังก์ชันสำหรับแสดงหน้าจอรวม Operation ของเครื่องจักรทุกตัว
-    """
-    # Helper function เพื่อดึงค่าจาก Model อย่างปลอดภัย (ป้องกัน Error กรณีไม่มีข้อมูล)
     def get_val(obj, field, default="-"):
         return getattr(obj, field, default) if obj else default
 
-    # ดึงข้อมูลล่าสุดของแต่ละเครื่อง (สมมติว่าใช้ Field name ตาม Pattern เดียวกับ John Thomson แต่เปลี่ยน Prefix)
-    # ** หมายเหตุ: คุณต้องตรวจสอบชื่อ Field ใน models.py ของคุณให้ตรงกับด้านล่างนี้ **
     jt = BoilerOperationLog.objects.order_by('jt_date', 'jt_time').last()
-    ch = ChengchenLog.objects.order_by('ch_date', 'ch_time').last() # สมมติว่ามี timestamp หรือ id ให้เรียง
+    ch = ChengchenLog.objects.order_by('ch_date', 'ch_time').last()
     tk = TakumaLog.objects.order_by('tk_date', 'tk_time').last()
     yos = YoshimineLog.objects.order_by('yos_date', 'yos_time').last()
     bp1 = Banpong1Log.objects.order_by('bp1_date', 'bp1_time').last()
     bp2 = Banpong2Log.objects.order_by('bp2_date', 'bp2_time').last()
 
-    # สร้าง Dictionary ข้อมูลเพื่อส่งไปแปลงเป็น JSON
-    # หมายเหตุ: ผมใส่ชื่อ field สมมติไว้ (เช่น cc_steam_pressure) คุณต้องแก้ให้ตรงกับ Model จริงของคุณ
     machine_data = {
         'john_thomson': {
             'name': 'John Thomson',
             'press': get_val(jt, 'jt_steam_pressure'),
             'flow': get_val(jt, 'jt_steam_flow'),
             'temp': get_val(jt, 'jt_temp_steam'),
-            'fw_flow': get_val(jt, 'jt_feed_water_flow', '-'), # Field สมมติ
-            'dea_temp': get_val(jt, 'jt_deaerator_temp', '-'), # Field สมมติ
-            'stack_temp': get_val(jt, 'jt_stack_temp', '-'),   # Field สมมติ
-            'ph': get_val(jt, 'jt_ph', '-'),                   # Field สมมติ
-            'bd_flow': get_val(jt, 'jt_blowdown_flow', '-')    # Field สมมติ
+            'fw_flow': get_val(jt, 'jt_feed_water_flow', '-'),
+            'dea_temp': get_val(jt, 'jt_deaerator_temp', '-'),
+            'stack_temp': get_val(jt, 'jt_stack_temp', '-'),
+            'ph': get_val(jt, 'jt_ph', '-'),
+            'bd_flow': get_val(jt, 'jt_blowdown_flow', '-')
         },
         'chengchen': {
             'name': 'Chengchen',
-            'press': get_val(ch, 'ch_steam_pressure'), # แก้ชื่อ field ให้ตรงกับ Model ChengchenLog
+            'press': get_val(ch, 'ch_steam_pressure'),
             'flow': get_val(ch, 'ch_steam_flow'),
             'temp': get_val(ch, 'ch_steam_temp'),
             'fw_flow': get_val(ch, 'ch_feed_water_flow'),
             'dea_temp': get_val(ch, 'ch_dea_temp'),
             'stack_temp': get_val(ch, 'ch_stack_temp'),
             'ph': get_val(ch, 'ch_ph_water'), 
-            #'bd_flow': get_val(ch, ''),
         },
         'takuma': {
             'name': 'Takuma',
-            'press': get_val(tk, 'tk_steam_pressure'), # แก้ชื่อ field ให้ตรงกับ Model takama
+            'press': get_val(tk, 'tk_steam_pressure'),
             'flow': get_val(tk, 'tk_steam_flow'),
             'temp': get_val(tk, 'tk_steam_temp'),
             'fw_flow': get_val(tk, 'tk_feed_water_flow'),
@@ -273,7 +265,7 @@ def operation_dashboard(request):
         },
         'yoshimine': {
             'name': 'Yoshimine',
-            'press': get_val(yos, 'yos_main_steam_pressure'), # แก้ชื่อ field ให้ตรงกับ Model
+            'press': get_val(yos, 'yos_main_steam_pressure'),
             'flow': get_val(yos, 'yos_main_steam_flow'),
             'temp': get_val(yos, 'yos_main_steam_temp'),
             'fw_flow': get_val(yos, 'yos_feed_water_flow'),
@@ -284,24 +276,22 @@ def operation_dashboard(request):
         },
         'banpong1': {
             'name': 'Banpong 1',
-            'press': get_val(bp1, 'bp1_main_steam_pressure'), # แก้ชื่อ field ให้ตรงกับ Model
+            'press': get_val(bp1, 'bp1_main_steam_pressure'),
             'flow': get_val(bp1, 'bp1_main_steam_flow'),
             'temp': get_val(bp1, 'bp1_main_steam_temp'),
             'fw_flow': get_val(bp1, 'bp1_feed_water_flow'),
             'dea_temp': get_val(bp1, 'bp1_feed_water_in_temp'),
-            'stack_temp': get_val(bp1, 'bp1_ah1_gas_out_temp'),
-            #'ph': get_val(bp1, 'bp1_ph_boiler'),
+            'stack_temp': get_val(bp1, 'bp1_gas_exit_tempt_temp'),
             'bd_flow': get_val(bp1,'bp1_bd_flow'), 
         },
         'banpong2': {
             'name': 'Banpong 2',
-            'press': get_val(bp2, 'bp2_main_steam_pressure'), # แก้ชื่อ field ให้ตรงกับ Model
+            'press': get_val(bp2, 'bp2_main_steam_pressure'),
             'flow': get_val(bp2, 'bp2_main_steam_flow'),
             'temp': get_val(bp2, 'bp2_main_steam_temp'),
             'fw_flow': get_val(bp2, 'bp2_feed_water_flow'),
             'dea_temp': get_val(bp2, 'bp2_feed_water_in_temp'),
-            'stack_temp': get_val(bp2, 'bp2_gas_exit_temp'),
-            #'ph': get_val(bp2, 'bp2_ph_boiler'),
+            'stack_temp': get_val(bp2, 'bp2_gas_exit_tempt_temp'),
             'bd_flow': get_val(bp2,'bp2_bd_flow'), 
         },
     }
@@ -311,7 +301,7 @@ def operation_dashboard(request):
     }
     return render(request, 'myapp/boiler_operation.html', context)
 
-# --- Import Data Logic (Fixed Encoding & Dependency Check) ---
+# --- Import Data Logic (Fixed: NOT NULL constraint failed) ---
 @login_required
 def import_data(request):
     if request.method == 'POST' and request.FILES.get('file_upload'):
@@ -334,95 +324,69 @@ def import_data(request):
             return redirect('operation_dashboard')
 
         try:
+            # 1. READ FILE LOGIC
             df = None
-            
-            # Helper function to validate header
             def is_valid_header(dataframe):
-                if dataframe is None or dataframe.empty: return False
-                # คำค้นหาที่ควรเจอใน Header
-                check_cols = ['วันที่', 'Date', 'Main Steam Flow', 'Steam Flow', 'เวลา', 'Time', 'Data']
+                # ตรวจสอบคอลัมน์สำคัญ (Case Insensitive)
+                check_cols = ['Main Steam Flow', 'Steam Flow', 'Pressure', 'Temp', 'วันที่', 'Date']
                 cols_upper = [str(c).upper().strip() for c in dataframe.columns]
-                return any(c.upper() in cols_upper for c in check_cols)
+                return any(any(k.upper() in c for k in check_cols) for c in cols_upper)
 
-            # กำหนดค่า NaN
-            na_values = ['-', 'NaN', 'nan', '', ' ']
+            # กำหนดค่าที่ควรอ่านเป็น NaN
+            na_values = ['-', 'NaN', 'nan', '', ' ', 'NaT', 'None']
 
-            # -------------------------------------------------------
-            # 1. READ FILE LOGIC (Robust CSV/Excel Handling)
-            # -------------------------------------------------------
             if file.name.endswith('.csv'):
-                # ลอง Encoding หลายแบบ: utf-8-sig (Excel CSV), cp874 (Thai Windows), utf-8
-                encodings_to_try = ['utf-8-sig', 'cp874', 'tis-620', 'utf-8']
-                
-                for encoding in encodings_to_try:
+                encodings = ['utf-8-sig', 'utf-8', 'cp874', 'tis-620']
+                for encoding in encodings:
                     try:
-                        file.seek(0) # Reset file pointer
-                        # ลองอ่านบรรทัดแรก
-                        temp_df = pd.read_csv(file, encoding=encoding, na_values=na_values)
-                        
+                        file.seek(0)
+                        # Try reading header at row 0, 1, 2
+                        for i in range(3):
+                            try:
+                                temp_df = pd.read_csv(file, header=i, encoding=encoding, na_values=na_values)
+                                if is_valid_header(temp_df):
+                                    df = temp_df
+                                    break
+                            except: pass
+                            file.seek(0)
+                        if df is not None: break
+                    except UnicodeDecodeError: continue
+            else:
+                # Excel
+                for i in range(3):
+                    try:
+                        file.seek(0)
+                        temp_df = pd.read_excel(file, header=i, na_values=na_values)
                         if is_valid_header(temp_df):
                             df = temp_df
                             break
-                        
-                        # ถ้าบรรทัดแรกไม่ใช่ Header ลองอ่านบรรทัดที่ 2
-                        file.seek(0)
-                        temp_df = pd.read_csv(file, header=1, encoding=encoding, na_values=na_values)
-                        if is_valid_header(temp_df):
-                            df = temp_df
-                            break
-                    except UnicodeDecodeError:
-                        continue # ลอง encoding ถัดไป
-                    except Exception:
-                        continue
+                    except Exception: pass
+            
+            if df is None:
+                raise Exception("ไม่สามารถอ่านไฟล์ได้ กรุณาตรวจสอบ Header (Date, Time, Steam Flow)")
 
-                if df is None:
-                    raise Exception("ไม่สามารถอ่านไฟล์ CSV ได้ (Encoding Error) กรุณาลอง Save As CSV UTF-8")
-
-            else: # .xlsx, .xls files
-                try:
-                    # เช็คว่ามี openpyxl หรือไม่
-                    import openpyxl
-                except ImportError:
-                    raise Exception("Server ขาด Library 'openpyxl' กรุณาติดตั้ง: pip install openpyxl")
-
-                # อ่าน Excel
-                try:
-                    df = pd.read_excel(file, na_values=na_values)
-                    if not is_valid_header(df):
-                        file.seek(0)
-                        df = pd.read_excel(file, header=1, na_values=na_values)
-                except Exception as e:
-                    raise Exception(f"อ่านไฟล์ Excel ไม่สำเร็จ: {str(e)}")
-
-            if df is None or df.empty:
-                messages.error(request, "ไฟล์ว่างเปล่าหรือไม่พบ Header ที่ถูกต้อง")
-                return redirect('operation_dashboard')
-
-            # -------------------------------------------------------
-            # 2. PRE-PROCESS & MAPPING
-            # -------------------------------------------------------
+            # 2. CLEAN DATA
             df.columns = df.columns.str.strip() 
-            df = df.replace({np.nan: None})
+            # แทนค่า NaN/NaT เป็น None
+            df = df.where(pd.notnull(df), None)
             
             model_class = selected_config['model']
             prefix = selected_config['prefix']
             
+            # 3. MAPPING LOGIC
             col_to_field_map = {}
             model_fields = model_class._meta.get_fields()
             
             def normalize_name(name):
                 if not name: return ""
                 name = str(name).lower()
-                name = name.replace('.', '').replace('/', '').replace('#', '').replace(' ', '').replace('_', '')
-                name = name.replace('pressure', 'press')
-                name = name.replace('temperature', 'temp')
-                name = name.replace('outlet', 'out')
-                name = name.replace('inlet', 'in')
-                name = name.replace('flowcontrolvalve', 'valve')
-                name = name.replace('controlvalve', 'valve')
+                name = name.replace('.', '').replace('/', '').replace('#', '').replace(' ', '').replace('_', '').replace('\n', '')
+                name = name.replace('pressure', 'press').replace('temperature', 'temp')
+                name = name.replace('outlet', 'out').replace('inlet', 'in')
+                name = name.replace('flowcontrolvalve', 'valve').replace('controlvalve', 'valve')
+                name = name.replace('continuous', '').replace('continous', '')
                 return name
 
-            # Mapping จาก Verbose Name
             field_lookup = {}
             for field in model_fields:
                 if hasattr(field, 'verbose_name') and field.verbose_name:
@@ -431,75 +395,93 @@ def import_data(request):
             
             for col in df.columns:
                 norm_col = normalize_name(col)
-                
-                # Direct Match
                 if norm_col in field_lookup:
                     col_to_field_map[col] = field_lookup[norm_col]
-                
-                # Specific Mapping (Fallback)
                 else:
-                    if 'mainsteamtemp' in norm_col:
-                        col_to_field_map[col] = f'{prefix}_main_steam_temp'
-                    elif 'desuperheatflow' in norm_col:
-                        col_to_field_map[col] = f'{prefix}_desuperheat_valve'
-                    elif 'continousblowdown' in norm_col or 'continuousblowdown' in norm_col:
-                        col_to_field_map[col] = f'{prefix}_cbd_valve'
-                    elif 'date' == norm_col or 'วันที่' == norm_col:
-                        col_to_field_map[col] = f'{prefix}_date'
-                    elif 'time' == norm_col or 'เวลา' == norm_col or 'data' == norm_col: # เพิ่ม 'data'
-                        col_to_field_map[col] = f'{prefix}_time'
+                    # Specific Mapping
+                    if 'steamflow' in norm_col and 'main' in norm_col: col_to_field_map[col] = f'{prefix}_main_steam_flow'
+                    elif 'mainsteamtemp' in norm_col: col_to_field_map[col] = f'{prefix}_main_steam_temp'
+                    elif 'desuperheatflow' in norm_col: col_to_field_map[col] = f'{prefix}_desuperheat_valve'
+                    elif 'blowdownflow' in norm_col and ('continous' in norm_col or 'cbd' in norm_col): col_to_field_map[col] = f'{prefix}_cbd_valve'
+                    elif 'blowdownflow' in norm_col: col_to_field_map[col] = f'{prefix}_blowdown_flow' if prefix == 'yos' else f'{prefix}_bd_flow'
+                    
+                    if 'date' == norm_col or 'วันที่' == norm_col: col_to_field_map[col] = f'{prefix}_date'
+                    elif 'time' == norm_col or 'เวลา' == norm_col or 'data' == norm_col: col_to_field_map[col] = f'{prefix}_time'
 
+            # 4. CREATE OBJECTS
             objects_to_create = []
             
-            # -------------------------------------------------------
-            # 3. CREATE OBJECTS
-            # -------------------------------------------------------
             for index, row in df.iterrows():
+                # FIX: Skip Control Row (Check value in first few columns)
+                try:
+                    # ตรวจสอบ 3 คอลัมน์แรก ถ้าเจอเครื่องหมายช่วงค่า ให้ข้าม
+                    is_control_row = False
+                    for c_idx in range(min(5, len(row))):
+                        val_str = str(row.iloc[c_idx])
+                        if " - " in val_str or "<" in val_str or ">" in val_str:
+                            is_control_row = True
+                            break
+                    if is_control_row: continue
+                except: pass
+
                 obj = model_class()
                 has_date = False
                 has_time = False
                 
+                # วนลูปจับคู่ข้อมูล
                 for excel_col, db_field in col_to_field_map.items():
                     val = row.get(excel_col)
                     
-                    if val is None: continue
-                    
-                    # Clean Strings
-                    if isinstance(val, str):
-                        val = val.strip()
-                        if val == '' or val == '-': continue
+                    # Skip empty values
+                    if val is None or pd.isna(val) or str(val).strip() == "" or str(val).strip() == "-":
+                        continue
 
-                    # Handle Date
+                    # --- Handle Date ---
                     if 'date' in db_field:
-                        if isinstance(val, str):
-                            try:
-                                if '-' in val:
-                                    parts = val.split('-')
-                                    if len(parts) == 3 and int(parts[0]) > 2400: # 2568 -> 2025
-                                        val = f"{int(parts[0])-543}-{parts[1]}-{parts[2]}"
-                                has_date = True
-                            except: continue 
-                        elif isinstance(val, (datetime, pd.Timestamp)):
+                        if isinstance(val, (datetime, pd.Timestamp)):
+                             val = val.date()
                              has_date = True
+                        elif isinstance(val, str):
+                            try:
+                                val = val.strip().replace('/', '-').replace('\\', '-')
+                                parts = val.split('-')
+                                if len(parts) == 3:
+                                    y, m, d = 0, 0, 0
+                                    # Case: YYYY-MM-DD
+                                    if len(parts[0]) == 4: y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+                                    # Case: DD-MM-YYYY
+                                    elif len(parts[2]) == 4: d, m, y = int(parts[0]), int(parts[1]), int(parts[2])
+                                    
+                                    # Convert Buddhist Year
+                                    if y > 2400: y -= 543
+                                    
+                                    # Assign valid date
+                                    val = f"{y}-{m:02d}-{d:02d}"
+                                    has_date = True
+                            except: continue
                     
-                    # Handle Time
+                    # --- Handle Time ---
                     elif 'time' in db_field:
                         if isinstance(val, str):
-                            has_time = True
+                            val = val.replace('.', ':').strip()
+                            if ':' in val: has_time = True
                         elif isinstance(val, (datetime, time)):
                             val = val if isinstance(val, time) else val.time()
                             has_time = True
                         
-                    # Set Value
-                    try:
-                        # Convert string numbers (e.g. "1,200.50")
-                        if 'date' not in db_field and 'time' not in db_field and isinstance(val, str):
-                            val = float(val.replace(',', ''))
-                        
-                        setattr(obj, db_field, val)
-                    except:
-                        pass
-                
+                    # --- Handle Numbers ---
+                    else:
+                        try:
+                            if isinstance(val, str):
+                                val = float(val.replace(',', ''))
+                            setattr(obj, db_field, val)
+                        except: pass
+                    
+                    # Set Date/Time to object if valid
+                    if 'date' in db_field and has_date: setattr(obj, db_field, val)
+                    if 'time' in db_field and has_time: setattr(obj, db_field, val)
+
+                # *** CRITICAL FIX: Only save if BOTH Date and Time are present ***
                 if has_date and has_time:
                     objects_to_create.append(obj)
             
@@ -507,14 +489,14 @@ def import_data(request):
                 model_class.objects.bulk_create(objects_to_create)
                 messages.success(request, f'Import สำเร็จ: {len(objects_to_create)} รายการ ({machine_type})')
             else:
-                messages.warning(request, f'ไม่พบข้อมูลที่นำเข้าได้ ตรวจสอบคอลัมน์: {list(df.columns)}')
+                messages.warning(request, f'ไม่พบข้อมูลที่สมบูรณ์ (ต้องมีทั้งวันที่และเวลา) ตรวจสอบไฟล์: {file.name}')
                 
         except Exception as e:
-            messages.error(request, f'เกิดข้อผิดพลาด: {str(e)}')
+            messages.error(request, f'Error: {str(e)}')
             
     return redirect('operation_dashboard')
 
-
+# ... (Form Views) ...
 @login_required
 def boiler_operation_add(request):
     if request.method == 'POST':
@@ -526,7 +508,6 @@ def boiler_operation_add(request):
         form = BoilerOperationForm()
     return render(request, 'myapp/boiler_operation_form.html', {'form': form})
 
-# (Keep other views: yoshimine_operation_add, banpong1_operation_add, chengchen_operation_add, etc.)
 @login_required
 def yoshimine_operation_add(request):
     if request.method == 'POST':
@@ -534,9 +515,107 @@ def yoshimine_operation_add(request):
         if form.is_valid():
             form.save()
             return redirect('boiler')
+        else:
+            print(f"Yoshimine Form Errors: {form.errors}")
     else:
         form = YoshimineForm()
-    return render(request, 'myapp/yoshimine_form.html', {'form': form})
+    
+    # Control Values Configuration
+    control_values = {
+        'yos_main_steam_flow': "0 - 150",
+        'yos_main_steam_pressure': "40 - 43",
+        'yos_main_steam_temp': "450 - 470",
+        'yos_desuperheat_valve': "0 - 100",
+        'yos_desuperheat_in_temp': "105 - 130",
+        'yos_desuperheat_out_temp': "105 - 130",
+        'yos_drum_level': "0 - 100",
+        'yos_drum_pressure': "43 - 48",
+        'yos_feed_water_flow': "0 - 150",
+        'yos_feed_water_pressure': "50 - 65",
+        'yos_feed_water_in_temp': "105 - 110",
+        'yos_eco_out_temp': "180 - 230",
+        'yos_blowdown_flow': "0 - 5",
+        'yos_cbd_valve': "0 - 100",
+        'yos_ins_air_pressure': "0 - 50",
+        'yos_main_feeder': "0 - 100",
+        'yos_bd_ah1_in_temp': "< 200",
+        'yos_bd_ah1_in_press': "0 - 10",
+        'yos_bd_ah1_out_temp': "< 180",
+        'yos_ah1_air_out_press': "0 - 300",
+        'yos_ah1_air_out_temp': "130 - 160",
+        'yos_ah2_air_out_temp': "150 - 180",
+        'yos_sh_out_gas_temp': "< 800",
+        'yos_under_grate_press': "0 - 150",
+        'yos_furnace_pressure': "-5 - 0",
+        'yos_gas_exit_temp': "< 180",
+        'yos_gas_exit_press': "-40 - -20",
+        'yos_eco_out_gas_temp': "< 350",
+        'yos_eco_out_gas_press': "-15 - -5",
+        'yos_ah2_gas_out_temp': "< 250",
+        'yos_ah2_gas_out_press': "-25 - -15",
+        'yos_dc_gas_out_temp': "< 200",
+        'yos_dc_gas_out_press': "-50 - -30",
+        'yos_esp_gas_out_press': "-60 - -40",
+        'yos_ah1_gas_out_press': "-40 - -20",
+        'yos_sf_damper': "0 - 100",
+        'yos_sf_air_press': "0 - 1000",
+        'yos_fdf2_air_press': "0 - 400",
+        'yos_under_gate_damper': "0 - 100",
+        'yos_idf_damper': "0 - 100",
+        'yos_esp_c1_volt': "40 - 60",
+        'yos_esp_c1_curr': "200 - 800",
+        'yos_esp_c2_volt': "40 - 60",
+        'yos_esp_c2_curr': "200 - 800",
+        'yos_steam_sum': "-",
+        'yos_feed_water_sum': "-",
+        'yos_cem_so2': "< 60",
+        'yos_cem_no2': "< 200",
+        'yos_cem_nox': "< 200",
+        'yos_cem_co': "-",
+        'yos_cem_dust': "< 120",
+        'yos_cem_o2': "-",
+        'yos_steam_transform_level': "0 - 100",
+        'yos_steam_transform_valve': "0 - 100",
+        'yos_condensate_tank_level': "0 - 100",
+        'yos_header_temp': "< 450",
+        'yos_dea_level': "50 - 80",
+        'yos_dea_pressure': "0.2 - 0.5",
+        'yos_dea_valve': "0 - 100",
+        'yos_oxygen': "-",
+    }
+
+    # Prepare field groups for template
+    steam_water_fields = []
+    air_gas_fields = []
+    other_fields = []
+
+    for field in form:
+        # ** FIX: Attach control value directly to field object **
+        field.control_val = control_values.get(field.name)
+
+        if field.name in ['yos_date', 'yos_time']:
+            continue
+        
+        name = field.name.lower()
+        is_steam_water = 'steam' in name or 'water' in name or 'drum' in name
+        
+        # Note: logic: ('temp' in name and 'steam' not in name)
+        is_air_gas = 'air' in name or 'gas' in name or ('temp' in name and 'steam' not in name)
+
+        if is_steam_water:
+            steam_water_fields.append(field)
+        elif is_air_gas:
+            air_gas_fields.append(field)
+        else:
+            other_fields.append(field)
+
+    return render(request, 'myapp/yoshimine_form.html', {
+        'form': form,
+        # 'control_values': control_values, # No longer needed in context
+        'steam_water_fields': steam_water_fields,
+        'air_gas_fields': air_gas_fields,
+        'other_fields': other_fields,
+    })
 
 @login_required
 def banpong1_operation_add(request):

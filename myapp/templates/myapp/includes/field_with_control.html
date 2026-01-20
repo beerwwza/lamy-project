@@ -1,0 +1,28 @@
+<div class="relative group">
+    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 truncate" title="{{ field.label }}">
+        {{ field.label }}
+    </label>
+    <div class="relative">
+        {{ field }} <!-- Ensure your form widget adds proper classes like w-full, border, rounded -->
+        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+            <!-- Optional Unit Icon or Text if needed -->
+        </div>
+    </div>
+
+    <!-- Control Value Display -->
+    {% if field.control_val %}
+    <div class="mt-1 flex items-center gap-1.5">
+        <span class="text-[10px] uppercase font-bold text-slate-400">Control:</span>
+        <span
+            class="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded">
+            {{ field.control_val }}
+        </span>
+    </div>
+    {% else %}
+    <div class="mt-1 h-5"></div> <!-- Spacer -->
+    {% endif %}
+
+    {% if field.errors %}
+    <p class="text-xs text-red-500 mt-1">{{ field.errors.0 }}</p>
+    {% endif %}
+</div>

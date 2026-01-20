@@ -89,85 +89,94 @@ class BoilerOperationLog(models.Model):
     def __str__(self):
         return f"Log {self.jt_date} {self.jt_time}"
 
+# Updated YoshimineLog based on new Excel Structure
 class YoshimineLog(models.Model):
     yos_date = models.DateField(verbose_name="วันที่")
     yos_time = models.TimeField(verbose_name="เวลา")
-
-    # --- Group 1: Steam & De-superheat (1-6, 45) ---
-    yos_main_steam_flow = models.FloatField(verbose_name="1) Main Steam Flow (Ton)", blank=True, null=True)
-    yos_main_steam_pressure = models.FloatField(verbose_name="2) Main Steam Pressure (kg/cm2)", blank=True, null=True)
-    yos_main_steam_temp = models.FloatField(verbose_name="3) Main Steam Outlet Temp (C)", blank=True, null=True)
-    yos_desuperheat_valve = models.FloatField(verbose_name="4) De-Superheat Valve (%)", blank=True, null=True)
-    yos_desuperheat_in_temp = models.FloatField(verbose_name="5) De-Superheat Inlet Temp (C)", blank=True, null=True)
-    yos_desuperheat_out_temp = models.FloatField(verbose_name="6) De-Superheat Outlet Temp (C)", blank=True, null=True)
-    yos_steam_sum = models.FloatField(verbose_name="45) Steam Sum (Ton)", blank=True, null=True)
-
-    # --- Group 2: Feed Water, Drum, Eco, Blowdown, Deaerator (7-14, 46, 58-60) ---
-    yos_drum_level = models.FloatField(verbose_name="7) Drum Level (mm.H2O)", blank=True, null=True)
-    yos_drum_pressure = models.FloatField(verbose_name="8) Drum Pressure (kg/cm2)", blank=True, null=True)
-    yos_feed_water_flow = models.FloatField(verbose_name="9) Feed Water Flow (T/H)", blank=True, null=True)
-    yos_feed_water_pressure = models.FloatField(verbose_name="10) Feed Water Pressure (kg/cm2)", blank=True, null=True)
-    yos_feed_water_in_temp = models.FloatField(verbose_name="Deaerator Temp (C)", blank=True, null=True)
-    yos_eco_out_temp = models.FloatField(verbose_name="12) Eco Outlet Temp (C)", blank=True, null=True)
+    
+    # Steam
+    yos_main_steam_flow = models.FloatField(verbose_name="Main Steam Flow", blank=True, null=True)
+    yos_main_steam_pressure = models.FloatField(verbose_name="Main Steam Pressure", blank=True, null=True)
+    yos_main_steam_temp = models.FloatField(verbose_name="Main Steam Outlet Temp", blank=True, null=True)
+    yos_desuperheat_valve = models.FloatField(verbose_name="De-Superheat Flow Control Valve", blank=True, null=True)
+    yos_desuperheat_in_temp = models.FloatField(verbose_name=".De-Superheat Inlet Temp", blank=True, null=True)
+    yos_desuperheat_out_temp = models.FloatField(verbose_name="De-Superheat Outlet Temp", blank=True, null=True)
+    
+    # Water & Drum
+    yos_drum_level = models.FloatField(verbose_name="Drum Level", blank=True, null=True)
+    yos_drum_pressure = models.FloatField(verbose_name="Drum Pressure", blank=True, null=True)
+    yos_feed_water_flow = models.FloatField(verbose_name="Feed Water Flow", blank=True, null=True)
+    yos_feed_water_pressure = models.FloatField(verbose_name="Feed Water Pressure", blank=True, null=True)
+    yos_feed_water_in_temp = models.FloatField(verbose_name="Feed Water Inlet Temp", blank=True, null=True)
+    yos_eco_out_temp = models.FloatField(verbose_name="Eco Outlet Temp", blank=True, null=True)
     
     # Blowdown
-    yos_blowdown_flow = models.FloatField(verbose_name="13) Blow Down Flow (T/H)", blank=True, null=True)
-    yos_cbd_valve = models.FloatField(verbose_name="14) CBD Valve (%)", blank=True, null=True)
-    yos_feed_water_sum = models.FloatField(verbose_name="46) Feed Water Sum (Ton)", blank=True, null=True)
-
+    yos_blowdown_flow = models.FloatField(verbose_name=".Blow Down Flow", blank=True, null=True)
+    yos_cbd_valve = models.FloatField(verbose_name="Continous Blow Down Flow Control Valve", blank=True, null=True)
+    
+    # Air
+    yos_ins_air_pressure = models.FloatField(verbose_name="Ins. Air Pressure", blank=True, null=True)
+    yos_main_feeder = models.FloatField(verbose_name="Main Feeder", blank=True, null=True)
+    yos_bd_ah1_in_temp = models.FloatField(verbose_name="Blow Down Air Preheater#1 Inlet Temp", blank=True, null=True)
+    yos_bd_ah1_in_press = models.FloatField(verbose_name="Blow Down Air Preheater#1 Inlet Pressure", blank=True, null=True)
+    yos_bd_ah1_out_temp = models.FloatField(verbose_name="Blow Down Air Preheater#1 Outlet Temp", blank=True, null=True)
+    yos_ah1_air_out_press = models.FloatField(verbose_name="A/H# 1 Air Outlet Pressure", blank=True, null=True)
+    yos_ah1_air_out_temp = models.FloatField(verbose_name="A/H# 1 Air Outlet Temp", blank=True, null=True)
+    yos_ah2_air_out_temp = models.FloatField(verbose_name="A/H# 2 Air Outlet Temp", blank=True, null=True)
+    yos_sh_out_gas_temp = models.FloatField(verbose_name="1st sH Outlet Gas Temp", blank=True, null=True)
+    yos_under_grate_press = models.FloatField(verbose_name="Under Grate Air Pressure", blank=True, null=True)
+    
+    # Furnace & Gas
+    yos_furnace_pressure = models.FloatField(verbose_name="Furnace Pressure", blank=True, null=True)
+    yos_gas_exit_temp = models.FloatField(verbose_name="Gas Exit Temp", blank=True, null=True)
+    yos_gas_exit_press = models.FloatField(verbose_name="Gas Exit Pressure", blank=True, null=True)
+    yos_eco_out_gas_temp = models.FloatField(verbose_name="Eco Outlet Gas Temp", blank=True, null=True)
+    yos_eco_out_gas_press = models.FloatField(verbose_name="Eco Outlet Gas Pressure", blank=True, null=True)
+    yos_ah2_gas_out_temp = models.FloatField(verbose_name="A/H#2 Gas Outlet Temp", blank=True, null=True)
+    yos_ah2_gas_out_press = models.FloatField(verbose_name="A/H#2 Gas Outlet Pressure", blank=True, null=True)
+    yos_dc_gas_out_temp = models.FloatField(verbose_name="D/C Gas Outlet Temp", blank=True, null=True)
+    yos_dc_gas_out_press = models.FloatField(verbose_name="D/C Gas Outlet Pressure", blank=True, null=True)
+    yos_esp_gas_out_press = models.FloatField(verbose_name="Esp Gas Outlet Pressure", blank=True, null=True)
+    yos_ah1_gas_out_press = models.FloatField(verbose_name="A/H#1 Gas Outlet Pressure", blank=True, null=True)
+    
+    # Dampers
+    yos_sf_damper = models.FloatField(verbose_name="SF. Damper แดมป์เปอร์ลมเป่ากากอ้อย", blank=True, null=True)
+    yos_sf_air_press = models.FloatField(verbose_name="SF. Air Pressure", blank=True, null=True)
+    yos_fdf2_air_press = models.FloatField(verbose_name="2nd FDF. Air Pressure", blank=True, null=True)
+    yos_under_gate_damper = models.FloatField(verbose_name="Under Gate Damper", blank=True, null=True)
+    yos_idf_damper = models.FloatField(verbose_name="IDF. Damper", blank=True, null=True)
+    
+    # ESP
+    yos_esp_c1_volt = models.FloatField(verbose_name="Esp Cell1 Voltage", blank=True, null=True)
+    yos_esp_c1_curr = models.FloatField(verbose_name="Esp Cell1 Current", blank=True, null=True)
+    yos_esp_c2_volt = models.FloatField(verbose_name="Esp Cell2 Voltage", blank=True, null=True)
+    yos_esp_c2_curr = models.FloatField(verbose_name="Esp Cell2 Current", blank=True, null=True)
+    
+    # Sums
+    yos_steam_sum = models.FloatField(verbose_name="Steam Sum", blank=True, null=True)
+    yos_feed_water_sum = models.FloatField(verbose_name="Feed Water Sum", blank=True, null=True)
+    
+    # CEM
+    yos_cem_so2 = models.FloatField(verbose_name="Continous Emissions Monitoring (SO2)", blank=True, null=True)
+    yos_cem_no2 = models.FloatField(verbose_name="Continous Emissions Monitoring (NO2)", blank=True, null=True)
+    yos_cem_nox = models.FloatField(verbose_name="Continous Emissions Monitoring (NOX)", blank=True, null=True)
+    yos_cem_co = models.FloatField(verbose_name="Continous Emissions Monitoring (CO)", blank=True, null=True)
+    yos_cem_dust = models.FloatField(verbose_name="Continous Emissions Monitoring (Dust)", blank=True, null=True)
+    yos_cem_o2 = models.FloatField(verbose_name="Continous Emissions Monitoring (O2)", blank=True, null=True)
+    
+    # Tanks
+    yos_steam_transform_level = models.FloatField(verbose_name="Steam Tremformer Level", blank=True, null=True)
+    yos_steam_transform_valve = models.FloatField(verbose_name="Steam Tremformer Control valve", blank=True, null=True)
+    yos_condensate_tank_level = models.FloatField(verbose_name="Condensate Tank Level", blank=True, null=True)
+    yos_header_temp = models.FloatField(verbose_name="Header Temp", blank=True, null=True)
+    
     # Deaerator
-    yos_dea_level = models.FloatField(verbose_name="58) Deaerator Level (mm)", blank=True, null=True)
-    yos_dea_pressure = models.FloatField(verbose_name="59) Deaerator Pressure (kg/cm2)", blank=True, null=True)
-    yos_dea_valve = models.FloatField(verbose_name="60) Deaerator Valve (%)", blank=True, null=True)
-
-    # --- Group 3: Air, Fans, Feeder (15-22, 24, 31-40?, 47) ---
-    yos_ins_air_pressure = models.FloatField(verbose_name="15) Ins. Air Pressure (kg/cm2)", blank=True, null=True)
-    yos_main_feeder = models.FloatField(verbose_name="16) Main Feeder (%)", blank=True, null=True)
-    yos_o2_percent = models.FloatField(verbose_name="Oxygen(%)", blank=True, null=True)
+    yos_dea_level = models.FloatField(verbose_name="Deaerator Level", blank=True, null=True)
+    yos_dea_pressure = models.FloatField(verbose_name="Deaerator Pressure", blank=True, null=True)
+    yos_dea_valve = models.FloatField(verbose_name="Deaerator Control valve", blank=True, null=True)
     
-    # Air Preheater (Air Side)
-    yos_bd_ah1_in_temp = models.FloatField(verbose_name="17) BD AH#1 Inlet Temp", blank=True, null=True)
-    yos_bd_ah1_in_press = models.FloatField(verbose_name="18) BD AH#1 Inlet Press", blank=True, null=True)
-    yos_bd_ah1_out_temp = models.FloatField(verbose_name="19) BD AH#1 Outlet Temp", blank=True, null=True)
-    yos_ah1_air_out_press = models.FloatField(verbose_name="20) AH#1 Air Outlet Press", blank=True, null=True)
-    yos_ah1_air_out_temp = models.FloatField(verbose_name="21) AH#1 Air Outlet Temp", blank=True, null=True)
-    yos_ah2_air_out_temp = models.FloatField(verbose_name="22) AH#2 Air Outlet Temp", blank=True, null=True)
-    
-    yos_under_grate_press = models.FloatField(verbose_name="24) Under Grate Air Press", blank=True, null=True)
-    yos_bagasse_moisture = models.FloatField(verbose_name="pH boiler", blank=True, null=True)
-
-    # Fans
-    yos_fdf_amp = models.FloatField(verbose_name="FDF Amp", blank=True, null=True)
-    yos_fdf_damper = models.FloatField(verbose_name="FDF Damper", blank=True, null=True)
-    yos_idf_amp = models.FloatField(verbose_name="IDF Amp", blank=True, null=True)
-    yos_idf_damper = models.FloatField(verbose_name="IDF Damper", blank=True, null=True)
-    yos_sdf_amp = models.FloatField(verbose_name="SDF Amp", blank=True, null=True)
-    yos_sdf_damper = models.FloatField(verbose_name="SDF Damper", blank=True, null=True)
-
-    # --- Group 4: Gas, Stack, Furnace (23, 25-30, 48-53) ---
-    yos_sh_out_gas_temp = models.FloatField(verbose_name="23) 1st SH Outlet Gas Temp", blank=True, null=True)
-    yos_furnace_pressure = models.FloatField(verbose_name="25) Furnace Pressure", blank=True, null=True)
-    yos_gas_exit_temp = models.FloatField(verbose_name="26) Gas Stack Temp", blank=True, null=True)
-    yos_gas_exit_press = models.FloatField(verbose_name="27) Gas Exit Press", blank=True, null=True)
-    yos_eco_out_gas_temp = models.FloatField(verbose_name="28) Eco Outlet Gas Temp", blank=True, null=True)
-    yos_eco_out_gas_press = models.FloatField(verbose_name="29) Eco Outlet Gas Press", blank=True, null=True)
-    yos_ah2_gas_out_temp = models.FloatField(verbose_name="30) AH#2 Gas Outlet Temp", blank=True, null=True)
-
-    # Emissions (CEM)
-    yos_cem_co = models.FloatField(verbose_name="48) CEM CO", blank=True, null=True)
-    yos_cem_o2 = models.FloatField(verbose_name="49) CEM O2 (%)", blank=True, null=True)
-    yos_cem_no2 = models.FloatField(verbose_name="50) CEM NO2", blank=True, null=True)
-    yos_cem_sox = models.FloatField(verbose_name="51) CEM SOX", blank=True, null=True)
-    yos_cem_nox = models.FloatField(verbose_name="52) CEM NOX", blank=True, null=True)
-    yos_cem_so2c = models.FloatField(verbose_name="53) CEM SO2C", blank=True, null=True)
-
-    # --- Group 5: ESP (41-44) ---
-    yos_esp_c1_volt = models.FloatField(verbose_name="41) ESP Cell 1 Volt", blank=True, null=True)
-    yos_esp_c1_curr = models.FloatField(verbose_name="42) ESP Cell 1 Curr", blank=True, null=True)
-    yos_esp_c2_volt = models.FloatField(verbose_name="43) ESP Cell 2 Volt", blank=True, null=True)
-    yos_esp_c2_curr = models.FloatField(verbose_name="44) ESP Cell 2 Curr", blank=True, null=True)
-
-    yos_remark = models.TextField(verbose_name="61) ปัญหาสาเหตุ/หมายเหตุ", blank=True, null=True)
+    yos_oxygen = models.FloatField(verbose_name="Oxygen (O2)", blank=True, null=True)
+    yos_remark = models.TextField(verbose_name="หมายเหตุ", blank=True, null=True)
     yos_created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

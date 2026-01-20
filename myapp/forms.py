@@ -53,10 +53,19 @@ class YoshimineForm(forms.ModelForm):
         model = YoshimineLog
         fields = '__all__'
         widgets = {
-            'yos_date': forms.DateInput(attrs={'type': 'date'}),
-            'yos_time': forms.TimeInput(attrs={'type': 'time'}),
-            'yos_remark': forms.Textarea(attrs={'rows': 3}),
+            'yos_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'yos_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
         }
+
+#class YoshimineForm(forms.ModelForm):
+    #class Meta:
+        #model = YoshimineLog
+        #fields = '__all__'
+        #widgets = {
+            #'yos_date': forms.DateInput(attrs={'type': 'date'}),
+            #'yos_time': forms.TimeInput(attrs={'type': 'time'}),
+            #'yos_remark': forms.Textarea(attrs={'rows': 3}),
+        #}
 
     def __init__(self, *args, **kwargs):
         super(YoshimineForm, self).__init__(*args, **kwargs)

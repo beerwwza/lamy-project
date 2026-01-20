@@ -36,7 +36,7 @@ class TakumaLogAdmin(admin.ModelAdmin):
 # 4. Yoshimine Log ,bagasse_moisture ตัวแปรของ ph boiler
 @admin.register(YoshimineLog)
 class YoshimineLogAdmin(admin.ModelAdmin):
-    list_display = ('yos_date', 'yos_time', 'yos_main_steam_pressure', 'yos_main_steam_flow', 'yos_main_steam_temp', 'yos_feed_water_flow', 'yos_feed_water_in_temp', 'yos_bagasse_moisture', 'yos_gas_exit_temp', 'yos_blowdown_flow' ) 
+    list_display = ('yos_date', 'yos_time', 'yos_main_steam_pressure', 'yos_main_steam_flow', 'yos_main_steam_temp', 'yos_feed_water_flow', 'yos_feed_water_in_temp', 'yos_gas_exit_temp', 'yos_blowdown_flow' ) 
     list_filter = ('yos_date',)
     search_fields = ('yos_remark',)
     ordering = ('-yos_date', '-yos_time')
