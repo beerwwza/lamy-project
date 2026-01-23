@@ -30,9 +30,9 @@ class BoilerOperationForm(forms.ModelForm):
         model = BoilerOperationLog
         fields = '__all__'
         widgets = {
-            'jt_date': forms.DateInput(attrs={'type': 'date', 'class': 'w-full p-2 border rounded'}),
-            'jt_time': forms.TimeInput(attrs={'type': 'time', 'class': 'w-full p-2 border rounded'}),
-            'jt_problem_cause': forms.Textarea(attrs={'rows': 3, 'class': 'w-full p-2 border rounded'}),
+            'jt_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'jt_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'jt_problem_cause': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -57,15 +57,6 @@ class YoshimineForm(forms.ModelForm):
             'yos_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
         }
 
-#class YoshimineForm(forms.ModelForm):
-    #class Meta:
-        #model = YoshimineLog
-        #fields = '__all__'
-        #widgets = {
-            #'yos_date': forms.DateInput(attrs={'type': 'date'}),
-            #'yos_time': forms.TimeInput(attrs={'type': 'time'}),
-            #'yos_remark': forms.Textarea(attrs={'rows': 3}),
-        #}
 
     def __init__(self, *args, **kwargs):
         super(YoshimineForm, self).__init__(*args, **kwargs)
@@ -104,10 +95,11 @@ class ChengchenForm(forms.ModelForm):
         model = ChengchenLog
         fields = '__all__'
         widgets = {
-            'ch_date': forms.DateInput(attrs={'type': 'date'}),
-            'ch_time': forms.TimeInput(attrs={'type': 'time'}),
-            'ch_remark': forms.Textarea(attrs={'rows': 3}),
+            'ch_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'ch_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'ch_remark': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
         }
+        
 
     def __init__(self, *args, **kwargs):
         super(ChengchenForm, self).__init__(*args, **kwargs)

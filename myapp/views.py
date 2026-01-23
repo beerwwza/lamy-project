@@ -238,9 +238,9 @@ def operation_dashboard(request):
             'flow': get_val(jt, 'jt_steam_flow'),
             'temp': get_val(jt, 'jt_temp_steam'),
             'fw_flow': get_val(jt, 'jt_feed_water_flow', '-'),
-            'dea_temp': get_val(jt, 'jt_deaerator_temp', '-'),
-            'stack_temp': get_val(jt, 'jt_stack_temp', '-'),
-            'ph': get_val(jt, 'jt_ph', '-'),
+            'dea_temp': get_val(jt, 'jt_temp_deaerator', '-'),
+            'stack_temp': get_val(jt, 'jt_temp_gas_stack', '-'),
+            'ph': get_val(jt, 'jt_ph_boiler', '-'),
             'bd_flow': get_val(jt, 'jt_blowdown_flow', '-')
         },
         'chengchen': {
@@ -496,7 +496,6 @@ def import_data(request):
             
     return redirect('operation_dashboard')
 
-# ... (Form Views) ...
 @login_required
 def boiler_operation_add(request):
     if request.method == 'POST':
@@ -504,9 +503,80 @@ def boiler_operation_add(request):
         if form.is_valid():
             form.save()
             return redirect('boiler') 
+        else:
+            print(f"Boiler Form Errors: {form.errors}")
     else:
         form = BoilerOperationForm()
-    return render(request, 'myapp/boiler_operation_form.html', {'form': form})
+
+    # Control Values Configuration (Taken from JT.csv Row 2)
+    control_values = {
+        'jt_steam_flow': "100 - 150",
+        'jt_steam_pressure': "17 - 21",
+        'jt_o2_gas': "4 - 7",
+        'jt_feeder_speed': "0 - 100",
+        'jt_damper_fdf': "0 - 100",
+        'jt_damper_idf': "0 - 100",
+        'jt_amp_oaf': "0 - 150",
+        'jt_amp_fdf': "0 - 300",
+        'jt_amp_idf': "0 - 350",
+        'jt_drum_level': "0 - 100",
+        'jt_feed_water_valve': "0 - 100",
+        'jt_feed_water_flow': "100 - 150",
+        'jt_deaerator_level': "50 - 80",
+        'jt_deaerator_valve': "0 - 100",
+        'jt_ph_boiler': "9.5 - 11.5",
+        'jt_tds_boiler': "< 2500",
+        'jt_temp_steam': "240 - 280",
+        'jt_temp_deaerator': "102 - 105",
+        'jt_temp_feed_water_eco': "130 - 180",
+        'jt_temp_air_out_ah': "130 - 170",
+        'jt_temp_gas_in_ah': "220 - 270",
+        'jt_temp_gas_in_eco': "280 - 350",
+        'jt_temp_gas_stack': "< 180",
+        'jt_press_furnace': "-5 - 0",
+        'yos_ah1_gas_out_press': "-40 - -20", # (Example) No direct map in JT CSV for this?
+        'jt_press_gas_out_ah': "-50 - -30",
+        'jt_press_gas_out_eco': "-25 - -15",
+        'jt_press_gas_out_dc': "-60 - -40",
+        'jt_inlet_wet_scrubber': "-80 - -50",
+        'jt_outlet_wet_scrubber': "-100 - -80",
+        'jt_inlet_stack': "-120 - -100",
+        # Add more mappings as needed from Row 2
+    }
+
+    # Grouping Fields
+    field_groups = {
+        'steam_combustion': [],
+        'water_drum': [],
+        'air_gas': [],
+        'chemistry': [],
+        'emissions': [],
+        'others': []
+    }
+
+    for field in form:
+        field.control_val = control_values.get(field.name)
+        
+        name = field.name
+        if name in ['jt_date', 'jt_time']: continue
+        
+        if 'steam' in name or 'o2' in name or 'feeder' in name or 'amp' in name:
+            field_groups['steam_combustion'].append(field)
+        elif 'water' in name or 'drum' in name or 'deaerator' in name:
+            field_groups['water_drum'].append(field)
+        elif 'gas' in name or 'air' in name or 'press' in name or 'stack' in name or 'scrubber' in name:
+            field_groups['air_gas'].append(field)
+        elif 'ph' in name or 'tds' in name:
+            field_groups['chemistry'].append(field)
+        elif 'cem' in name:
+            field_groups['emissions'].append(field)
+        else:
+            field_groups['others'].append(field)
+
+    return render(request, 'myapp/boiler_operation_form.html', {
+        'form': form,
+        'field_groups': field_groups
+    })
 
 @login_required
 def yoshimine_operation_add(request):
@@ -635,9 +705,76 @@ def chengchen_operation_add(request):
         if form.is_valid():
             form.save()
             return redirect('boiler')
+        else:
+            print(f"Chengchen Form Errors: {form.errors}")
     else:
         form = ChengchenForm()
-    return render(request, 'myapp/chengchen_form.html', {'form': form})
+    
+    # Control Values (Row 2 from CSV)
+    control_values = {
+        'ch_steam_flow': "40 - 70",
+        'ch_steam_pressure': "18 - 22",
+        'ch_o2_percent': "3.5 - 6",
+        'ch_feeder_control': "%", # No specific range in CSV, just unit
+        'ch_fdf_damper': "%",
+        'ch_idf_damper': "%",
+        'ch_fdf_amp': "< 241",
+        'ch_saf_amp_left': "< 86",
+        'ch_saf_amp_right': "< 86",
+        'ch_idf_amp': "< 131",
+        'ch_drum_level': "40 - 60",
+        'ch_feed_water_valve': "%",
+        'ch_feed_water_flow': "40 - 75",
+        'ch_ph_water': "9.5 - 11.5",
+        'ch_tds_water': "< 2500",
+        'ch_steam_temp': "360 - 410",
+        'ch_dea_temp': "102 - 105",
+        'ch_eco_out_temp': "140 - 190",
+        'ch_air_heater_out_temp': "150 - 180",
+        'ch_gas_furnace_ah_temp': "280 - 350",
+        'ch_gas_in_eco_temp': "350 - 450",
+        'ch_stack_temp': "< 180",
+        'ch_furnace_pressure': "-5 - 0",
+        'ch_gas_out_eco_pressure': "-30 - -10",
+        'ch_gas_out_dc_pressure': "-60 - -30",
+        'ch_inlet_wet_scrubber_press': "-100 - -60",
+        'ch_outlet_wet_scrubber_press': "-120 - -80",
+        'ch_inlet_stack_press': "-130 - -100",
+    }
+
+    # Grouping Fields
+    field_groups = {
+        'steam_combustion': [],
+        'control_fans': [],
+        'water_drum': [],
+        'temperature': [],
+        'pressure_draft': [],
+        'others': []
+    }
+
+    for field in form:
+        field.control_val = control_values.get(field.name)
+        
+        name = field.name
+        if name in ['ch_date', 'ch_time']: continue
+        
+        if 'steam' in name or 'o2' in name:
+            field_groups['steam_combustion'].append(field)
+        elif 'feeder' in name or 'damper' in name or 'amp' in name:
+            field_groups['control_fans'].append(field)
+        elif 'water' in name or 'drum' in name or 'dea_level' in name or 'ph' in name or 'tds' in name:
+            field_groups['water_drum'].append(field)
+        elif 'temp' in name:
+            field_groups['temperature'].append(field)
+        elif 'pressure' in name and 'steam' not in name:
+             field_groups['pressure_draft'].append(field)
+        else:
+            field_groups['others'].append(field)
+
+    return render(request, 'myapp/chengchen_form.html', {
+        'form': form,
+        'field_groups': field_groups
+    })
 
 @login_required
 def takuma_operation_add(request):

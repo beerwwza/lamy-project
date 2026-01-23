@@ -38,56 +38,65 @@ class Profile(models.Model):
 # ==========================================
 
 class BoilerOperationLog(models.Model):
+    # Main Fields (1-30 + Date/Time)
     jt_date = models.DateField(verbose_name="วันที่")
     jt_time = models.TimeField(verbose_name="เวลา")
     
-    # 1-3: Main Steam
     jt_steam_flow = models.FloatField(verbose_name="1) ไอน้ำจ่าย (T/H)", blank=True, null=True)
     jt_steam_pressure = models.FloatField(verbose_name="2) ความดันไอน้ำ (bar)", blank=True, null=True)
     jt_o2_gas = models.FloatField(verbose_name="3) O2 แก๊สออกจากเตา (%)", blank=True, null=True)
     
-    # 4-9: Machines & Fans
     jt_feeder_speed = models.FloatField(verbose_name="4) เครื่องป้อนกากอ้อย (%)", blank=True, null=True)
-    jt_damper_fdf = models.FloatField(verbose_name="5) แดมป์เปอร์ FDF (%)", blank=True, null=True)
-    jt_damper_idf = models.FloatField(verbose_name="6) แดมป์เปอร์ IDF (%)", blank=True, null=True)
-    jt_amp_oaf = models.FloatField(verbose_name="7) แอมป์ OAF (Amps)", blank=True, null=True)
-    jt_amp_fdf = models.FloatField(verbose_name="8) แอมป์ FDF (Amps)", blank=True, null=True)
-    jt_amp_idf = models.FloatField(verbose_name="9) แอมป์ IDF (Amps)", blank=True, null=True)
+    jt_damper_fdf = models.FloatField(verbose_name="5) แดมป์เปอร์ พัดลมเป่า FDF", blank=True, null=True)
+    jt_damper_idf = models.FloatField(verbose_name="6) แดมป์เปอร์ พัดลมดูด IDF", blank=True, null=True)
+    jt_amp_oaf = models.FloatField(verbose_name="7) แอมป์ พัดลมเป่าเย็น OAF", blank=True, null=True)
+    jt_amp_fdf = models.FloatField(verbose_name="8) แอมป์ พัดลมเป่า FDF", blank=True, null=True)
+    jt_amp_idf = models.FloatField(verbose_name="9) แอมป์ พัดลมดูด IDF", blank=True, null=True)
     
-    # 10-14: Water System
-    jt_drum_level = models.FloatField(verbose_name="10) ระดับน้ำหม้อบน (%)", blank=True, null=True)
-    jt_feed_water_valve = models.FloatField(verbose_name="11) วาล์วน้ำป้อน (%)", blank=True, null=True)
-    jt_feed_water_flow = models.FloatField(verbose_name="12) ปริมาตรน้ำป้อน (T/H)", blank=True, null=True)
-    jt_deaerator_level = models.FloatField(verbose_name="13) ระดับน้ำถังดีแอร์ (%)", blank=True, null=True)
-    jt_deaerator_valve = models.FloatField(verbose_name="14) วาล์วน้ำถังดีแอร์ (%)", blank=True, null=True)
+    jt_drum_level = models.FloatField(verbose_name="10) ระดับน้ำหม้อบน", blank=True, null=True)
+    jt_feed_water_valve = models.FloatField(verbose_name="11) วาล์วน้ำป้อน", blank=True, null=True)
+    jt_feed_water_flow = models.FloatField(verbose_name="12) ปริมาตรน้ำป้อน", blank=True, null=True)
+    jt_deaerator_level = models.FloatField(verbose_name="13) ระดับน้ำถังดีแอร์", blank=True, null=True)
+    jt_deaerator_valve = models.FloatField(verbose_name="14) วาล์วน้ำถังดีแอร์", blank=True, null=True)
     
-    # 15-16: Chemistry
     jt_ph_boiler = models.FloatField(verbose_name="15) pH น้ำในเตา", blank=True, null=True)
-    jt_tds_boiler = models.FloatField(verbose_name="16) TDS น้ำในเตา (ppm)", blank=True, null=True)
+    jt_tds_boiler = models.FloatField(verbose_name="16) TDS น้ำในเตา", blank=True, null=True)
     
-    # 17-23: Temperatures
-    jt_temp_steam = models.FloatField(verbose_name="17) อุณหภูมิไอน้ำ (ºC)", blank=True, null=True)
-    jt_temp_deaerator = models.FloatField(verbose_name="18) อุณหภูมิน้ำถังดีแอร์ (ºC)", blank=True, null=True)
-    jt_temp_feed_water_eco = models.FloatField(verbose_name="19) อุณหภูมิน้ำป้อนออกอีโค (ºC)", blank=True, null=True)
-    jt_temp_air_out_ah = models.FloatField(verbose_name="20) อากาศออกแอร์ฮีทเตอร์ (ºC)", blank=True, null=True)
-    jt_temp_gas_in_ah = models.FloatField(verbose_name="21) แก๊สเข้าแอร์ฮีทเตอร์ (ºC)", blank=True, null=True)
-    jt_temp_gas_in_eco = models.FloatField(verbose_name="22) แก๊สเข้าอีโค (ºC)", blank=True, null=True)
-    jt_temp_gas_stack = models.FloatField(verbose_name="23) แก๊สออกปล่อง (ºC)", blank=True, null=True)
+    jt_temp_steam = models.FloatField(verbose_name="17) อุณหภูมิไอน้ำ", blank=True, null=True)
+    jt_temp_deaerator = models.FloatField(verbose_name="18) อุณหภูมิน้ำถังดีแอร์", blank=True, null=True)
+    jt_temp_feed_water_eco = models.FloatField(verbose_name="19) อุณหภูมิน้ำป้อนออกอีโค", blank=True, null=True)
+    jt_temp_air_out_ah = models.FloatField(verbose_name="20) อากาศออกแอร์ฮีทเตอร์", blank=True, null=True)
+    jt_temp_gas_in_ah = models.FloatField(verbose_name="21) แก๊สเข้าแอร์ฮีทเตอร์", blank=True, null=True)
+    jt_temp_gas_in_eco = models.FloatField(verbose_name="22) แก๊สเข้าอีโค", blank=True, null=True)
+    jt_temp_gas_stack = models.FloatField(verbose_name="23) แก๊สออกปล่อง", blank=True, null=True)
     
-    # 24-29: Pressures (Drafts)
-    jt_press_furnace = models.FloatField(verbose_name="24) ความดันในเตา (mmH₂O)", blank=True, null=True)
-    jt_press_gas_out_ah = models.FloatField(verbose_name="25) ความดันแก๊สออก AH (mmH₂O)", blank=True, null=True)
-    jt_press_gas_out_eco = models.FloatField(verbose_name="26) ความดันแก๊สออก Eco (mmH₂O)", blank=True, null=True)
-    jt_press_gas_out_dc = models.FloatField(verbose_name="27) ความดันแก๊สออก DC (mmH₂O)", blank=True, null=True)
-    jt_press_wet_scrubber_1 = models.FloatField(verbose_name="28) ความดัน Wet Scrubber 1 (mmH₂O)", blank=True, null=True)
-    jt_press_wet_scrubber_2 = models.FloatField(verbose_name="29) ความดัน Wet Scrubber 2 (mmH₂O)", blank=True, null=True)
+    jt_press_furnace = models.FloatField(verbose_name="24) ความดันในเตา", blank=True, null=True)
+    jt_press_gas_out_ah = models.FloatField(verbose_name="25) ความดันแก๊สออกแอร์ฮีทเตอร์", blank=True, null=True)
+    jt_press_gas_out_eco = models.FloatField(verbose_name="26) ความดันแก๊สออกจากโค", blank=True, null=True)
+    jt_press_gas_out_dc = models.FloatField(verbose_name="27) ความดันแก๊สออก DC", blank=True, null=True)
     
-    # Remark
-    jt_problem_cause = models.TextField(verbose_name="สาเหตุปัญหา/หมายเหตุ", blank=True, null=True)
+    jt_inlet_wet_scrubber = models.FloatField(verbose_name="28) Inlet wet scrubber", blank=True, null=True)
+    jt_outlet_wet_scrubber = models.FloatField(verbose_name="29) Outlet wet scrubber", blank=True, null=True)
+    jt_inlet_stack = models.FloatField(verbose_name="30) Inlet stack", blank=True, null=True)
+    
+    # Remark & Sums
+    jt_problem_cause = models.TextField(verbose_name="ปัญหาและสาเหตุ", blank=True, null=True)
+    
+    jt_sum_steam = models.FloatField(verbose_name="SUM ไอจ่าย", blank=True, null=True)
+    jt_sum_feed_water = models.FloatField(verbose_name="SUM น้ำป้อน", blank=True, null=True)
+    
+    # CEM
+    jt_cem_so2 = models.FloatField(verbose_name="Continous Emissions Monitoring (SO2)", blank=True, null=True)
+    jt_cem_no2 = models.FloatField(verbose_name="Continous Emissions Monitoring (NO2)", blank=True, null=True)
+    jt_cem_nox = models.FloatField(verbose_name="Continous Emissions Monitoring (NOX)", blank=True, null=True)
+    jt_cem_co = models.FloatField(verbose_name="Continous Emissions Monitoring (CO)", blank=True, null=True)
+    jt_cem_dust = models.FloatField(verbose_name="Continous Emissions Monitoring (Dust)", blank=True, null=True)
+    jt_cem_o2 = models.FloatField(verbose_name="Continous Emissions Monitoring (O2)", blank=True, null=True)
+
     jt_created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Log {self.jt_date} {self.jt_time}"
+        return f"JT Log {self.jt_date} {self.jt_time}"
 
 # Updated YoshimineLog based on new Excel Structure
 class YoshimineLog(models.Model):
@@ -269,47 +278,48 @@ class Banpong1Log(models.Model):
 class ChengchenLog(models.Model):
     ch_date = models.DateField(verbose_name="วันที่")
     ch_time = models.TimeField(verbose_name="เวลา")
-
-    # 1-3 Steam & Combustion Quality
-    ch_steam_flow = models.FloatField(verbose_name="1) ไอน้ำจ่าย (Ton)", blank=True, null=True)
-    ch_steam_pressure = models.FloatField(verbose_name="2) แรงดันไอน้ำ (kg/cm2)", blank=True, null=True)
-    ch_o2_percent = models.FloatField(verbose_name="3) O2 อากาศออกปล่อง (%)", blank=True, null=True)
-
-    # 4-9 Fans & Feeders (Control/Damper/Amp)
-    ch_feeder_control = models.FloatField(verbose_name="4) คอลโทรลเครื่องป้อนกากอ้อย (%)", blank=True, null=True)
-    ch_fdf_damper = models.FloatField(verbose_name="5) แดมเปอร์ FDF (%)", blank=True, null=True)
-    ch_idf_damper = models.FloatField(verbose_name="6) แดมเปอร์ IDF (%)", blank=True, null=True)
-    ch_fdf_amp = models.FloatField(verbose_name="7) แอมป์ FDF (A)", blank=True, null=True)
     
-    # แยกซ้ายขวาตาม CSV "แอมป์ พัดลมช่วย SAF ซ้าย,ขวา"
-    ch_saf_amp_left = models.FloatField(verbose_name="8.1) แอมป์ SAF ซ้าย (A)", blank=True, null=True)
-    ch_saf_amp_right = models.FloatField(verbose_name="8.2) แอมป์ SAF ขวา (A)", blank=True, null=True)
-    
-    ch_idf_amp = models.FloatField(verbose_name="9) แอมป์ IDF (A)", blank=True, null=True)
+    # Steam & Combustion (1-3)
+    ch_steam_flow = models.FloatField(verbose_name="1) ไอน้ำจ่าย", blank=True, null=True)
+    ch_steam_pressure = models.FloatField(verbose_name="2) แรงดันไอน้ำ", blank=True, null=True)
+    ch_o2_percent = models.FloatField(verbose_name="3) O2 ภายในเตา", blank=True, null=True)
 
-    # 10-14 Water System
-    ch_drum_level = models.FloatField(verbose_name="10) ระดับน้ำหม้อบน (mm)", blank=True, null=True)
-    ch_feed_water_valve = models.FloatField(verbose_name="11) คอลโทรลวาล์วน้ำป้อน (%)", blank=True, null=True)
-    ch_feed_water_flow = models.FloatField(verbose_name="12) ปริมาตรน้ำป้อน (m3/h)", blank=True, null=True)
+    # Control & Fans (4-9)
+    ch_feeder_control = models.FloatField(verbose_name="4) คอลโทรลเครื่องป้อนกากอ้อย", blank=True, null=True)
+    ch_fdf_damper = models.FloatField(verbose_name="5) แดมเปอร์ พัดลมเป่า (FDF)", blank=True, null=True)
+    ch_idf_damper = models.FloatField(verbose_name="6) แดมเปอร์ พัดลมดูด (IDF)", blank=True, null=True)
+    ch_fdf_amp = models.FloatField(verbose_name="7) แอมป์ พัดลมเป่า (FDF)", blank=True, null=True)
+    ch_saf_amp_left = models.FloatField(verbose_name="8) แอมป์ พัดลมช่วย SAF ซ้าย", blank=True, null=True)
+    ch_saf_amp_right = models.FloatField(verbose_name="8) แอมป์ พัดลมช่วย SAF ขวา", blank=True, null=True)
+    ch_idf_amp = models.FloatField(verbose_name="9) แอมป์ พัดลมดูด (IDF)", blank=True, null=True)
+
+    # Water System (10-14)
+    ch_drum_level = models.FloatField(verbose_name="10) ระดับน้ำหม้อบน", blank=True, null=True)
+    ch_feed_water_valve = models.FloatField(verbose_name="11) คอลโทรลวาล์วน้ำป้อน", blank=True, null=True)
+    ch_feed_water_flow = models.FloatField(verbose_name="12) ปริมาตรน้ำป้อน", blank=True, null=True)
     ch_ph_water = models.FloatField(verbose_name="13) pH น้ำในเตา", blank=True, null=True)
-    ch_tds_water = models.FloatField(verbose_name="14) TDS น้ำในเตา (ppm)", blank=True, null=True)
+    ch_tds_water = models.FloatField(verbose_name="14) TDS น้ำในเตา", blank=True, null=True)
 
-    # 15-21 Temperatures
-    ch_steam_temp = models.FloatField(verbose_name="15) อุณหภูมิไอน้ำ (C)", blank=True, null=True)
-    ch_dea_temp = models.FloatField(verbose_name="16) อุณหภูมิน้ำถังดีแอร์ (C)", blank=True, null=True)
-    ch_eco_out_temp = models.FloatField(verbose_name="17) อุณหภูมิน้ำป้อนออกอีโค (C)", blank=True, null=True)
-    ch_air_heater_out_temp = models.FloatField(verbose_name="18) อากาศออกแอร์ฮีทเตอร์ (C)", blank=True, null=True)
-    ch_gas_furnace_ah_temp = models.FloatField(verbose_name="19) แก๊สออกจากเตาเข้า AH (C)", blank=True, null=True)
-    ch_gas_in_eco_temp = models.FloatField(verbose_name="20) แก๊สเข้าอีโค (C)", blank=True, null=True)
-    ch_stack_temp = models.FloatField(verbose_name="21) แก๊สออกปล่อง (C)", blank=True, null=True)
+    # Temperature (15-21)
+    ch_steam_temp = models.FloatField(verbose_name="15) อุณหภูมิไอน้ำ", blank=True, null=True)
+    ch_dea_temp = models.FloatField(verbose_name="16) อุณหภูมิน้ำถังดีแอร์", blank=True, null=True)
+    ch_eco_out_temp = models.FloatField(verbose_name="17) อุณหภูมิน้ำป้อนออกอีโค", blank=True, null=True)
+    ch_air_heater_out_temp = models.FloatField(verbose_name="18) อากาศออกแอร์ฮีทเตอร์", blank=True, null=True)
+    ch_gas_furnace_ah_temp = models.FloatField(verbose_name="19) แก๊สออกจากเตาเข้าแอร์ฮีทเตอร์", blank=True, null=True)
+    ch_gas_in_eco_temp = models.FloatField(verbose_name="20) แก๊สเข้าอีโค", blank=True, null=True)
+    ch_stack_temp = models.FloatField(verbose_name="21) แก๊สออกปล่อง", blank=True, null=True)
 
-    # 22-24 Pressures (Draft)
-    ch_furnace_pressure = models.FloatField(verbose_name="22) ความดันในเตา (mmH2O)", blank=True, null=True)
-    ch_gas_out_eco_pressure = models.FloatField(verbose_name="23) ความดันแก๊สออกจากอีโค (mmH2O)", blank=True, null=True)
-    ch_gas_out_dc_pressure = models.FloatField(verbose_name="24) ความดันแก๊สออก DC (mmH2O)", blank=True, null=True)
+    # Pressure (22-24)
+    ch_furnace_pressure = models.FloatField(verbose_name="22) ความดันในเตา", blank=True, null=True)
+    ch_gas_out_eco_pressure = models.FloatField(verbose_name="23) ความดันแก๊สออกจากอีโค", blank=True, null=True)
+    ch_gas_out_dc_pressure = models.FloatField(verbose_name="24) ความดันแก๊สออก DC", blank=True, null=True)
+    
+    # Scrubbers (25-27)
+    ch_inlet_wet_scrubber_press = models.FloatField(verbose_name="25) Inlet wet scrubber gas pressure", blank=True, null=True)
+    ch_outlet_wet_scrubber_press = models.FloatField(verbose_name="26) Outlet wet scrubber gas pressure", blank=True, null=True)
+    ch_inlet_stack_press = models.FloatField(verbose_name="27) Inlet stack gas pressure", blank=True, null=True)
 
-    # Remark
-    ch_remark = models.TextField(verbose_name="ปัญหาสาเหตุ/หมายเหตุ", blank=True, null=True)
+    ch_remark = models.TextField(verbose_name="ปัญหาสาเหตุ/การแก้ไข", blank=True, null=True)
     ch_created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
