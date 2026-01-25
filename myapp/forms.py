@@ -32,7 +32,6 @@ class BoilerOperationForm(forms.ModelForm):
         widgets = {
             'jt_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'jt_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
-            'jt_problem_cause': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):

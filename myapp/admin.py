@@ -13,7 +13,7 @@ admin.site.register(Profile)
 
 @admin.register(BoilerOperationLog)
 class BoilerOperationLogAdmin(admin.ModelAdmin):
-    list_display = ('jt_date', 'jt_time', 'jt_steam_pressure', 'jt_steam_flow', 'jt_temp_steam', 'jt_feed_water_flow', 'jt_temp_deaerator', 'jt_temp_gas_stack', 'jt_ph_boiler')
+    list_display = ('jt_date', 'jt_time', 'jt_steam_pressure', 'jt_steam_flow', 'jt_temp_steam', 'jt_o2_gas', 'jt_feeder_speed' , 'jt_feed_water_flow', 'jt_temp_deaerator', 'jt_temp_gas_stack', 'jt_ph_boiler')
     list_filter = ('jt_date',)
     search_fields = ('jt_problem_cause',)
     ordering = ('-jt_date', '-jt_time')

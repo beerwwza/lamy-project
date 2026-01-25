@@ -19,6 +19,7 @@ urlpatterns = [
     path('boiler/operation/', operation_dashboard, name='operation_dashboard'),
     path('boiler/kpi/add/', boiler_kpi_form, name='boiler_kpi_form'),
 
+
     path('maintenance/', maintenance_dashboard, name='maintenance_dashboard'),
     path('maintenance/add/', maintenance_log_add, name='maintenance_log_add'),
     path('maintenance/kpi/add/', maintenance_kpi_metric_add, name='maintenance_kpi_metric_add'),

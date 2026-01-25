@@ -534,14 +534,20 @@ def boiler_operation_add(request):
         'jt_temp_gas_in_eco': "280 - 350",
         'jt_temp_gas_stack': "< 180",
         'jt_press_furnace': "-5 - 0",
-        'yos_ah1_gas_out_press': "-40 - -20", # (Example) No direct map in JT CSV for this?
         'jt_press_gas_out_ah': "-50 - -30",
         'jt_press_gas_out_eco': "-25 - -15",
         'jt_press_gas_out_dc': "-60 - -40",
         'jt_inlet_wet_scrubber': "-80 - -50",
         'jt_outlet_wet_scrubber': "-100 - -80",
         'jt_inlet_stack': "-120 - -100",
-        # Add more mappings as needed from Row 2
+        'jt_sum_steam': "-",
+        'jt_sum_feed_water': "-",
+        'jt_cem_so2': "< 60",
+        'jt_cem_no2': "< 200",
+        'jt_cem_nox': "< 200",
+        'jt_cem_co': "-",
+        'jt_cem_dust': "< 120",
+        'jt_cem_o2': "-",
     }
 
     # Grouping Fields
@@ -1229,3 +1235,4 @@ def mill_import(request):
             return redirect('mill')
 
     return redirect('mill')
+

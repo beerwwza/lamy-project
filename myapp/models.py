@@ -72,7 +72,7 @@ class BoilerOperationLog(models.Model):
     
     jt_press_furnace = models.FloatField(verbose_name="24) ความดันในเตา", blank=True, null=True)
     jt_press_gas_out_ah = models.FloatField(verbose_name="25) ความดันแก๊สออกแอร์ฮีทเตอร์", blank=True, null=True)
-    jt_press_gas_out_eco = models.FloatField(verbose_name="26) ความดันแก๊สออกจากโค", blank=True, null=True)
+    jt_press_gas_out_eco = models.FloatField(verbose_name="26) ความดันแก๊สออกจากโค", blank=True, null=True) # Typo in CSV: โค -> Eco? Assume Eco
     jt_press_gas_out_dc = models.FloatField(verbose_name="27) ความดันแก๊สออก DC", blank=True, null=True)
     
     jt_inlet_wet_scrubber = models.FloatField(verbose_name="28) Inlet wet scrubber", blank=True, null=True)
@@ -97,6 +97,7 @@ class BoilerOperationLog(models.Model):
 
     def __str__(self):
         return f"JT Log {self.jt_date} {self.jt_time}"
+
 
 # Updated YoshimineLog based on new Excel Structure
 class YoshimineLog(models.Model):
