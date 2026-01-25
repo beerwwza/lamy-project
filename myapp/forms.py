@@ -116,9 +116,9 @@ class TakumaForm(forms.ModelForm):
         model = TakumaLog
         fields = '__all__'
         widgets = {
-            'tk_date': forms.DateInput(attrs={'type': 'date'}),
-            'tk_time': forms.TimeInput(attrs={'type': 'time'}),
-            'tk_remark': forms.Textarea(attrs={'rows': 3}),
+            'tk_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'tk_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'tk_remark': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):

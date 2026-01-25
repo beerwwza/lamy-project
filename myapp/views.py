@@ -783,9 +783,76 @@ def takuma_operation_add(request):
         if form.is_valid():
             form.save()
             return redirect('boiler')
+        else:
+            print(f"Takuma Form Errors: {form.errors}")
     else:
         form = TakumaForm()
-    return render(request, 'myapp/takuma_form.html', {'form': form})
+    
+    # Control Values (Row 2 from CSV)
+    control_values = {
+        'tk_steam_flow': "40 - 70",
+        'tk_steam_pressure': "18 - 22",
+        'tk_o2_percent': "3.5 - 6",
+        'tk_feeder_control': "%", # No specific range
+        'tk_fdf_damper': "%",
+        'tk_idf_damper': "%",
+        'tk_fdf_amp': "< 241",
+        'tk_saf_amp_left': "< 86",
+        'tk_saf_amp_right': "< 86",
+        'tk_idf_amp': "< 131",
+        'tk_drum_level': "30 - 75",
+        'tk_feed_water_valve': "%",
+        'tk_feed_water_flow': "T/H",
+        'tk_ph_water': "10.5 - 11.5",
+        'tk_tds_water': "< 3000",
+        'tk_steam_temp': "350 +/- 20",
+        'tk_dea_temp': "95 - 105",
+        'tk_eco_out_temp': "< 190", # Not in CSV but common
+        'tk_air_heater_out_temp': "150 - 190",
+        'tk_gas_furnace_ah_temp': "280 - 360",
+        'tk_gas_in_eco_temp': "350 - 450", # Not in CSV
+        'tk_stack_temp': "< 180",
+        'tk_furnace_pressure': "-5 - 0",
+        'tk_gas_out_eco_pressure': "-30 - -10", # Not in CSV
+        'tk_gas_out_dc_pressure': "-60 - -30",
+        'tk_inlet_wet_scrubber_press': "-100 - -60",
+        'tk_outlet_wet_scrubber_press': "-120 - -80",
+        'tk_inlet_stack_press': "-130 - -100",
+    }
+
+    # Grouping Fields
+    field_groups = {
+        'steam_combustion': [],
+        'control_fans': [],
+        'water_drum': [],
+        'temperature': [],
+        'pressure_draft': [],
+        'others': []
+    }
+
+    for field in form:
+        field.control_val = control_values.get(field.name)
+        
+        name = field.name
+        if name in ['tk_date', 'tk_time']: continue
+        
+        if 'steam' in name or 'o2' in name:
+            field_groups['steam_combustion'].append(field)
+        elif 'feeder' in name or 'damper' in name or 'amp' in name:
+            field_groups['control_fans'].append(field)
+        elif 'water' in name or 'drum' in name or 'dea_level' in name or 'ph' in name or 'tds' in name:
+            field_groups['water_drum'].append(field)
+        elif 'temp' in name:
+            field_groups['temperature'].append(field)
+        elif 'pressure' in name and 'steam' not in name:
+             field_groups['pressure_draft'].append(field)
+        else:
+            field_groups['others'].append(field)
+
+    return render(request, 'myapp/takuma_form.html', {
+        'form': form,
+        'field_groups': field_groups
+    })
 
 @login_required
 def banpong2_operation_add(request):

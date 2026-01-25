@@ -328,47 +328,45 @@ class ChengchenLog(models.Model):
 class TakumaLog(models.Model):
     tk_date = models.DateField(verbose_name="วันที่")
     tk_time = models.TimeField(verbose_name="เวลา")
-
-    # 1-3 Steam & Combustion Quality
-    tk_steam_flow = models.FloatField(verbose_name="1) ไอน้ำจ่าย (Ton)", blank=True, null=True)
-    tk_steam_pressure = models.FloatField(verbose_name="2) แรงดันไอน้ำ (kg/cm2)", blank=True, null=True)
-    tk_o2_percent = models.FloatField(verbose_name="3) O2 อากาศออกปล่อง (%)", blank=True, null=True)
-
-    # 4-9 Fans & Feeders (Control/Damper/Amp)
-    tk_feeder_control = models.FloatField(verbose_name="4) คอลโทรลเครื่องป้อนกากอ้อย (%)", blank=True, null=True)
-    tk_fdf_damper = models.FloatField(verbose_name="5) แดมเปอร์ FDF (%)", blank=True, null=True)
-    tk_idf_damper = models.FloatField(verbose_name="6) แดมเปอร์ IDF (%)", blank=True, null=True)
-    tk_fdf_amp = models.FloatField(verbose_name="7) แอมป์ FDF (A)", blank=True, null=True)
     
-    # แยกซ้ายขวาตาม CSV "แอมป์ พัดลมช่วย SAF ซ้าย,ขวา"
-    tk_saf_amp_left = models.FloatField(verbose_name="8.1) แอมป์ SAF ซ้าย (A)", blank=True, null=True)
-    tk_saf_amp_right = models.FloatField(verbose_name="8.2) แอมป์ SAF ขวา (A)", blank=True, null=True)
+    # Steam & Combustion (1-3)
+    tk_steam_flow = models.FloatField(verbose_name="1) ไอน้ำจ่าย", blank=True, null=True)
+    tk_steam_pressure = models.FloatField(verbose_name="2) แรงดันไอน้ำ", blank=True, null=True)
+    tk_o2_percent = models.FloatField(verbose_name="3) O2 ภายในเตา", blank=True, null=True)
     
-    tk_idf_amp = models.FloatField(verbose_name="9) แอมป์ IDF (A)", blank=True, null=True)
-
-    # 10-14 Water System
-    tk_drum_level = models.FloatField(verbose_name="10) ระดับน้ำหม้อบน (mm)", blank=True, null=True)
-    tk_feed_water_valve = models.FloatField(verbose_name="11) คอลโทรลวาล์วน้ำป้อน (%)", blank=True, null=True)
-    tk_feed_water_flow = models.FloatField(verbose_name="12) ปริมาตรน้ำป้อน (m3/h)", blank=True, null=True)
+    # Control & Fans (4-9)
+    tk_feeder_control = models.FloatField(verbose_name="4) เครื่องป้อนกากอ้อย", blank=True, null=True)
+    tk_fdf_damper = models.FloatField(verbose_name="5) แดมเปอร์ พัดลมเป่า (FDF)", blank=True, null=True)
+    tk_idf_damper = models.FloatField(verbose_name="6) แดมเปอร์ พัดลมดูด (IDF)", blank=True, null=True)
+    tk_fdf_amp = models.FloatField(verbose_name="7) แอมป์ พัดลมเป่า (FDF)", blank=True, null=True)
+    tk_saf_amp_left = models.FloatField(verbose_name="8) แอมป์ พัดลมช่วย SAF ซ้าย", blank=True, null=True)
+    tk_saf_amp_right = models.FloatField(verbose_name="8) แอมป์ พัดลมช่วย SAF ขวา", blank=True, null=True)
+    tk_idf_amp = models.FloatField(verbose_name="9) แอมป์ พัดลมดูด (IDF)", blank=True, null=True)
+    
+    # Water System (10-14)
+    tk_drum_level = models.FloatField(verbose_name="10) ระดับน้ำหม้อบน", blank=True, null=True)
+    tk_feed_water_valve = models.FloatField(verbose_name="11) คอลโทรลวาล์วน้ำป้อน", blank=True, null=True)
+    tk_feed_water_flow = models.FloatField(verbose_name="12) ปริมาตรน้ำป้อน", blank=True, null=True)
     tk_ph_water = models.FloatField(verbose_name="13) pH น้ำในเตา", blank=True, null=True)
-    tk_tds_water = models.FloatField(verbose_name="14) TDS น้ำในเตา (ppm)", blank=True, null=True)
+    tk_tds_water = models.FloatField(verbose_name="14) TDS น้ำในเตา", blank=True, null=True)
+    
+    # Temperature (15-19)
+    tk_steam_temp = models.FloatField(verbose_name="15) อุณหภูมิไอน้ำ", blank=True, null=True)
+    tk_dea_temp = models.FloatField(verbose_name="16) อุณหภูมิน้ำถังดีแอร์", blank=True, null=True)
+    tk_air_heater_out_temp = models.FloatField(verbose_name="17) อากาศออกแอร์ฮีทเตอร์", blank=True, null=True)
+    tk_gas_furnace_ah_temp = models.FloatField(verbose_name="18) แก๊สออกจากเตาเข้าแอร์ฮีทเตอร์", blank=True, null=True)
+    tk_stack_temp = models.FloatField(verbose_name="19) แก๊สออกปล่อง", blank=True, null=True)
+    
+    # Pressure (20-21)
+    tk_furnace_pressure = models.FloatField(verbose_name="20) ความดันในเตา", blank=True, null=True)
+    tk_gas_out_dc_pressure = models.FloatField(verbose_name="21) ความดันแก๊สออก DC", blank=True, null=True)
+    
+    # Scrubbers (22-24)
+    tk_inlet_wet_scrubber_press = models.FloatField(verbose_name="22) Inlet wet scrubber gas pressure", blank=True, null=True)
+    tk_outlet_wet_scrubber_press = models.FloatField(verbose_name="23) Outlet wet scrubber gas pressure", blank=True, null=True)
+    tk_inlet_stack_press = models.FloatField(verbose_name="24) Inlet stack gas pressure", blank=True, null=True)
 
-    # 15-21 Temperatures
-    tk_steam_temp = models.FloatField(verbose_name="15) อุณหภูมิไอน้ำ (C)", blank=True, null=True)
-    tk_dea_temp = models.FloatField(verbose_name="16) อุณหภูมิน้ำถังดีแอร์ (C)", blank=True, null=True)
-    tk_eco_out_temp = models.FloatField(verbose_name="17) อุณหภูมิน้ำป้อนออกอีโค (C)", blank=True, null=True)
-    tk_air_heater_out_temp = models.FloatField(verbose_name="18) อากาศออกแอร์ฮีทเตอร์ (C)", blank=True, null=True)
-    tk_gas_furnace_ah_temp = models.FloatField(verbose_name="19) แก๊สออกจากเตาเข้า AH (C)", blank=True, null=True)
-    tk_gas_in_eco_temp = models.FloatField(verbose_name="20) แก๊สเข้าอีโค (C)", blank=True, null=True)
-    tk_stack_temp = models.FloatField(verbose_name="21) แก๊สออกปล่อง (C)", blank=True, null=True)
-
-    # 22-24 Pressures (Draft)
-    tk_furnace_pressure = models.FloatField(verbose_name="22) ความดันในเตา (mmH2O)", blank=True, null=True)
-    tk_gas_out_eco_pressure = models.FloatField(verbose_name="23) ความดันแก๊สออกจากอีโค (mmH2O)", blank=True, null=True)
-    tk_gas_out_dc_pressure = models.FloatField(verbose_name="24) ความดันแก๊สออก DC (mmH2O)", blank=True, null=True)
-
-    # Remark
-    tk_remark = models.TextField(verbose_name="ปัญหาสาเหตุ/หมายเหตุ", blank=True, null=True)
+    tk_remark = models.TextField(verbose_name="ปัญหาสาเหตุ / การแก้ไข", blank=True, null=True)
     tk_created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
