@@ -36,7 +36,7 @@ class TakumaLogAdmin(admin.ModelAdmin):
 # 4. Yoshimine Log ,bagasse_moisture ตัวแปรของ ph boiler
 @admin.register(YoshimineLog)
 class YoshimineLogAdmin(admin.ModelAdmin):
-    list_display = ('yos_date', 'yos_time', 'yos_main_steam_pressure', 'yos_main_steam_flow', 'yos_main_steam_temp', 'yos_feed_water_flow', 'yos_feed_water_in_temp', 'yos_gas_exit_temp', 'yos_blowdown_flow' ) 
+    list_display = ('yos_date', 'yos_time', 'yos_main_steam_pressure', 'yos_main_steam_flow', 'yos_main_steam_temp', 'yos_feed_water_flow', 'yos_feed_water_in_temp', 'yos_dc_gas_out_temp', 'yos_blowdown_flow' ) 
     list_filter = ('yos_date',)
     search_fields = ('yos_remark',)
     ordering = ('-yos_date', '-yos_time')
@@ -44,7 +44,7 @@ class YoshimineLogAdmin(admin.ModelAdmin):
 # 5. Banpong 1 Log (เพิ่มใหม่)
 @admin.register(Banpong1Log)
 class Banpong1LogAdmin(admin.ModelAdmin):
-    list_display = ('bp1_date', 'bp1_time', 'bp1_main_steam_pressure', 'bp1_main_steam_flow', 'bp1_main_steam_temp', 'bp1_feed_water_flow', 'bp1_feed_water_in_temp', 'bp1_gas_exit_temp')
+    list_display = ('bp1_date', 'bp1_time', 'bp1_main_steam_pressure', 'bp1_main_steam_flow', 'bp1_main_steam_temp', 'bp1_feed_water_flow', 'bp1_feed_water_in_temp', 'bp1_ah1_gas_out_temp')
     list_filter = ('bp1_date',)
     search_fields = ('bp1_remark',)
     ordering = ('-bp1_date', '-bp1_time')
@@ -52,7 +52,7 @@ class Banpong1LogAdmin(admin.ModelAdmin):
 # 6. Banpong 2 Log (เพิ่มใหม่)
 @admin.register(Banpong2Log)
 class Banpong2LogAdmin(admin.ModelAdmin):
-    list_display = ('bp2_date', 'bp2_time', 'bp2_main_steam_pressure', 'bp2_main_steam_flow', 'bp2_main_steam_temp', 'bp2_feed_water_flow', 'bp2_feed_water_in_temp', 'bp2_gas_exit_temp')
+    list_display = ('bp2_date', 'bp2_time', 'bp2_main_steam_pressure', 'bp2_main_steam_flow', 'bp2_main_steam_temp', 'bp2_feed_water_flow', 'bp2_feed_water_in_temp', 'bp2_ah1_gas_out_temp')
     list_filter = ('bp2_date',)
     search_fields = ('bp2_remark',)
     ordering = ('-bp2_date', '-bp2_time')
@@ -78,7 +78,7 @@ class KPIMetricAdmin(admin.ModelAdmin):
 
 @admin.register(MillReport)
 class MillReportAdmin(admin.ModelAdmin):
-    list_display = ('date', 'line', 'cane_weight', 'trash', 'target_crushing', 'first_mill_extraction', 'reduced_pol_extraction', 'cane_preparation_index', 'purity_drop', 'bagasse_moisture', 'pol_bagasse', 'imbibition_cane', 'imbibition_fiber', 'loss_bagasse', 'ccs', 'created_at' )
+    list_display = ('date', 'line', 'cane_weight', 'target_crushing', 'first_mill_extraction', 'reduced_pol_extraction', 'cane_preparation_index', 'purity_drop', 'bagasse_moisture', 'pol_bagasse', 'imbibition_cane', 'imbibition_fiber', 'loss_bagasse', 'ccs', 'created_at' ) #เอา tash ออก 26/1/69
     list_filter = ('date', 'line' )
     search_fields = ('date',)
     ordering = ('-date', 'line')

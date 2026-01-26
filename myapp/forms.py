@@ -73,9 +73,8 @@ class Banpong1Form(forms.ModelForm):
         model = Banpong1Log
         fields = '__all__'
         widgets = {
-            'bp1_date': forms.DateInput(attrs={'type': 'date'}),
-            'bp1_time': forms.TimeInput(attrs={'type': 'time'}),
-            'bp1_remark': forms.Textarea(attrs={'rows': 3}),
+            'bp1_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'bp1_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):

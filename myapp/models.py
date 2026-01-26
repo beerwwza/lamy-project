@@ -144,7 +144,7 @@ class YoshimineLog(models.Model):
     yos_eco_out_gas_press = models.FloatField(verbose_name="Eco Outlet Gas Pressure", blank=True, null=True)
     yos_ah2_gas_out_temp = models.FloatField(verbose_name="A/H#2 Gas Outlet Temp", blank=True, null=True)
     yos_ah2_gas_out_press = models.FloatField(verbose_name="A/H#2 Gas Outlet Pressure", blank=True, null=True)
-    yos_dc_gas_out_temp = models.FloatField(verbose_name="D/C Gas Outlet Temp", blank=True, null=True)
+    yos_dc_gas_out_temp = models.FloatField(verbose_name="D/C Gas Outlet Temp", blank=True, null=True) #stack_temp
     yos_dc_gas_out_press = models.FloatField(verbose_name="D/C Gas Outlet Pressure", blank=True, null=True)
     yos_esp_gas_out_press = models.FloatField(verbose_name="Esp Gas Outlet Pressure", blank=True, null=True)
     yos_ah1_gas_out_press = models.FloatField(verbose_name="A/H#1 Gas Outlet Pressure", blank=True, null=True)
@@ -195,80 +195,80 @@ class YoshimineLog(models.Model):
 class Banpong1Log(models.Model):
     bp1_date = models.DateField(verbose_name="วันที่")
     bp1_time = models.TimeField(verbose_name="เวลา")
-
+    
     # --- Group 1: Steam & De-superheat ---
     bp1_main_steam_flow = models.FloatField(verbose_name="Main Steam Flow", blank=True, null=True)
     bp1_main_steam_pressure = models.FloatField(verbose_name="Main Steam Pressure", blank=True, null=True)
     bp1_main_steam_temp = models.FloatField(verbose_name="Main Steam Outlet Temp", blank=True, null=True)
-    bp1_desuperheat_valve = models.FloatField(verbose_name="De-Superheat Valve", blank=True, null=True)
-    bp1_desuperheat_in_temp = models.FloatField(verbose_name="De-Superheat Inlet Temp", blank=True, null=True)
-    bp1_desuperheat_out_temp = models.FloatField(verbose_name="De-Superheat Outlet Temp", blank=True, null=True)
-
-    # --- Group 2: Water System ---
+    bp1_desuperheat_valve = models.FloatField(verbose_name="De-Superheat Flow Control Valve", blank=True, null=True)
+    bp1_desuperheat_in_temp = models.FloatField(verbose_name="De-Superheat Inlet Temp.", blank=True, null=True)
+    bp1_desuperheat_out_temp = models.FloatField(verbose_name="De-Superheat Outlet Temp.", blank=True, null=True)
+    
+    # --- Group 2: Feed water, Drum, Eco, Blowdown ---
     bp1_drum_level = models.FloatField(verbose_name="Drum Level", blank=True, null=True)
     bp1_drum_pressure = models.FloatField(verbose_name="Drum Pressure", blank=True, null=True)
     bp1_feed_water_flow = models.FloatField(verbose_name="Feed Water Flow", blank=True, null=True)
     bp1_feed_water_pressure = models.FloatField(verbose_name="Feed Water Pressure", blank=True, null=True)
-    bp1_feed_water_in_temp = models.FloatField(verbose_name="Feed Water Inlet Temp", blank=True, null=True)
+    bp1_feed_water_in_temp = models.FloatField(verbose_name="Feed Water Inlet Temp.", blank=True, null=True)
     bp1_eco_out_temp = models.FloatField(verbose_name="Eco Outlet Temp", blank=True, null=True)
     bp1_eco_out_pressure = models.FloatField(verbose_name="Eco Outlet Pressure", blank=True, null=True)
     bp1_bd_flow = models.FloatField(verbose_name="Blow Down Flow", blank=True, null=True)
-    bp1_cbd_valve = models.FloatField(verbose_name="CBD Valve", blank=True, null=True)
-    #bp1_ph_boiler = models.FloatField(verbose_name="pH_boiler", blank=True, null=True)
-
-    # --- Group 3: Air, Fans, Feeder ---
-    bp1_main_feeder = models.FloatField(verbose_name="Main Feeder", blank=True, null=True)
-    bp1_under_grate_air_temp = models.FloatField(verbose_name="Under Grate Air Temp", blank=True, null=True)
-    bp1_under_grate_air_press = models.FloatField(verbose_name="Under Grate Air Press", blank=True, null=True)
+    bp1_cbd_valve = models.FloatField(verbose_name="Continous Blow Down Flow Control Valve", blank=True, null=True)
+    
+    # --- Group 3: Air, Damper, FAN, FDF, IDF, SDF, Feeder ---
     bp1_ins_air_pressure = models.FloatField(verbose_name="Ins. Air Pressure", blank=True, null=True)
-    
-    # Air Heater Air Side
-    bp1_ah1_air_out_press = models.FloatField(verbose_name="AH1 Air Out Press", blank=True, null=True)
-    bp1_ah1_air_out_temp = models.FloatField(verbose_name="AH1 Air Out Temp", blank=True, null=True)
-    bp1_ah2_air_out_press = models.FloatField(verbose_name="AH2 Air Out Press", blank=True, null=True)
-    
-    # FDF
-    bp1_fdf_damper = models.FloatField(verbose_name="FDF Damper", blank=True, null=True)
-    bp1_fdf2_damper = models.FloatField(verbose_name="2nd FDF Damper", blank=True, null=True)
-    bp1_fdf2_air_press = models.FloatField(verbose_name="2nd FDF Air Press", blank=True, null=True)
-    
-    # FAF/SDF
-    bp1_faf_damper = models.FloatField(verbose_name="FAF Damper", blank=True, null=True)
-    bp1_faf_air_press = models.FloatField(verbose_name="FAF Air Press", blank=True, null=True)
-    
-    # Other Dampers
-    bp1_under_gate_damper = models.FloatField(verbose_name="Under Gate Damper", blank=True, null=True)
-    bp1_idf_damper = models.FloatField(verbose_name="IDF Damper", blank=True, null=True)
-    
-    # Blow Down Air
-    bp1_bd_ah1_in_press = models.FloatField(verbose_name="BD AH1 In Press", blank=True, null=True)
-    bp1_bd_ah1_out_temp = models.FloatField(verbose_name="BD AH1 Out Temp", blank=True, null=True)
-    bp1_bd_ah1_out_press = models.FloatField(verbose_name="BD AH1 Out Press", blank=True, null=True)
-
-    # --- Group 4: Gas System ---
+    bp1_main_feeder = models.FloatField(verbose_name="Main Feeder", blank=True, null=True)
+    bp1_bd_ah1_in_temp = models.FloatField(verbose_name="Blow Down Air Preheater#1 Inlet Temp", blank=True, null=True)
+    bp1_bd_ah1_in_press = models.FloatField(verbose_name="Blow Down Air Preheater#1 Inlet Pressure", blank=True, null=True)
+    bp1_bd_ah1_out_temp = models.FloatField(verbose_name="Blow Down Air Preheater#1 Outlet Temp", blank=True, null=True)
+    bp1_bd_ah1_out_press = models.FloatField(verbose_name="Blow Down Air Preheater#1 Outlet Pressure", blank=True, null=True)
+    bp1_ah1_air_out_press = models.FloatField(verbose_name="A/H# 1 Air Outlet Pressure", blank=True, null=True)
+    bp1_ah1_air_out_temp = models.FloatField(verbose_name="A/H# 1 Air Outlet Temp", blank=True, null=True)
+    bp1_ah2_air_out_temp = models.FloatField(verbose_name="A/H# 2 Air Outlet Temp", blank=True, null=True)
+    bp1_under_grate_air_temp = models.FloatField(verbose_name="Under Grate Air Temp", blank=True, null=True)
+    bp1_under_grate_air_press = models.FloatField(verbose_name="Under Grate Air Pressure", blank=True, null=True)
     bp1_furnace_pressure = models.FloatField(verbose_name="Furnace Pressure", blank=True, null=True)
     bp1_gas_exit_temp = models.FloatField(verbose_name="Gas Exit Temp", blank=True, null=True)
     bp1_gas_exit_pressure = models.FloatField(verbose_name="Gas Exit Pressure", blank=True, null=True)
+    bp1_eco_out_gas_temp = models.FloatField(verbose_name="Eco Outlet Gas Temp", blank=True, null=True)
+    bp1_eco_out_gas_press = models.FloatField(verbose_name="Eco Outlet Gas Pressure", blank=True, null=True)
+    bp1_ah2_gas_out_temp = models.FloatField(verbose_name="A/H#2 Gas Outlet Temp", blank=True, null=True)
+    bp1_ah2_gas_out_press = models.FloatField(verbose_name="A/H#2 Gas Outlet Pressure", blank=True, null=True)
+    bp1_dc_gas_out_temp = models.FloatField(verbose_name="D/C Gas Outlet Temp", blank=True, null=True)
+    bp1_dc_gas_out_press = models.FloatField(verbose_name="D/C Gas Outlet Pressure", blank=True, null=True)
+    bp1_esp_gas_in_temp = models.FloatField(verbose_name="Esp Gas Inlet Pressure", blank=True, null=True) # Wait, CSV says "Esp Gas Inlet Pressure" but value might be Temp? Model field should match header exactly
+    bp1_esp_gas_out_temp = models.FloatField(verbose_name="Esp Gas Outlet Temp", blank=True, null=True)
+    bp1_esp_gas_out_press = models.FloatField(verbose_name="Esp Gas Outlet Pressure", blank=True, null=True)
+    bp1_ah1_gas_out_temp = models.FloatField(verbose_name="A/H#1 Gas Outlet Temp", blank=True, null=True) #stack temp
+    bp1_ah1_gas_out_press = models.FloatField(verbose_name="A/H#1 Gas Outlet Pressure", blank=True, null=True)
+    bp1_fdf_damper = models.FloatField(verbose_name="FDF. Damper", blank=True, null=True)
+    bp1_faf_damper = models.FloatField(verbose_name="FAF. Damper", blank=True, null=True)
+    bp1_faf_air_press = models.FloatField(verbose_name="FAF. Air Pressure", blank=True, null=True)
+    bp1_fdf2_damper = models.FloatField(verbose_name="2nd FDF. Damper", blank=True, null=True)
+    bp1_fdf2_air_press = models.FloatField(verbose_name="2nd FDF. Air Pressure", blank=True, null=True)
+    bp1_under_gate_damper = models.FloatField(verbose_name="Under Gate Damper", blank=True, null=True)
+    bp1_idf_damper = models.FloatField(verbose_name="IDF. Damper", blank=True, null=True)
     
-    # Gas Path
-    bp1_eco_out_gas_temp = models.FloatField(verbose_name="Eco Out Gas Temp", blank=True, null=True)
-    bp1_eco_out_gas_press = models.FloatField(verbose_name="Eco Out Gas Press", blank=True, null=True)
-    bp1_ah2_gas_out_temp = models.FloatField(verbose_name="AH2 Gas Out Temp", blank=True, null=True)
-    bp1_ah2_gas_out_press = models.FloatField(verbose_name="AH2 Gas Out Press", blank=True, null=True)
-    bp1_dc_gas_out_temp = models.FloatField(verbose_name="DC Gas Out Temp", blank=True, null=True)
-    bp1_dc_gas_out_press = models.FloatField(verbose_name="DC Gas Out Press", blank=True, null=True)
-    bp1_esp_gas_in_temp = models.FloatField(verbose_name="ESP Gas In Temp", blank=True, null=True)
-    bp1_esp_gas_in_press = models.FloatField(verbose_name="ESP Gas In Press", blank=True, null=True)
-    bp1_ah1_gas_out_temp = models.FloatField(verbose_name="AH1 Gas Out Temp", blank=True, null=True)
-    bp1_ah1_gas_out_press = models.FloatField(verbose_name="AH1 Gas Out Press", blank=True, null=True)
-
     # --- Group 5: ESP ---
-    bp1_esp_c1_volt = models.FloatField(verbose_name="ESP C1 Volt", blank=True, null=True)
-    bp1_esp_c1_curr = models.FloatField(verbose_name="ESP C1 Curr", blank=True, null=True)
-    bp1_esp_c2_volt = models.FloatField(verbose_name="ESP C2 Volt", blank=True, null=True)
-    bp1_esp_c2_curr = models.FloatField(verbose_name="ESP C2 Curr", blank=True, null=True)
-    bp1_esp_c3_volt = models.FloatField(verbose_name="ESP C3 Volt", blank=True, null=True)
-    bp1_esp_c3_curr = models.FloatField(verbose_name="ESP C3 Curr", blank=True, null=True)
+    bp1_esp_c1_volt = models.FloatField(verbose_name="Esp Cell1 Voltage", blank=True, null=True)
+    bp1_esp_c1_curr = models.FloatField(verbose_name="Esp Cell1 Current", blank=True, null=True)
+    bp1_esp_c2_volt = models.FloatField(verbose_name="Esp Cell2 Voltage", blank=True, null=True)
+    bp1_esp_c2_curr = models.FloatField(verbose_name="Esp Cell2 Current", blank=True, null=True)
+    bp1_esp_c3_volt = models.FloatField(verbose_name="Esp Cell3 Voltage", blank=True, null=True)
+    bp1_esp_c3_curr = models.FloatField(verbose_name="Esp Cell3 Current", blank=True, null=True)
+    
+    # Sums
+    bp1_steam_sum = models.FloatField(verbose_name="Steam Sum", blank=True, null=True)
+    bp1_feed_water_sum = models.FloatField(verbose_name="Feed Water Sum", blank=True, null=True)
+    bp1_blowdown_sum = models.FloatField(verbose_name="Sum Blow Down", blank=True, null=True)
+    
+    # CEM
+    bp1_cem_so2 = models.FloatField(verbose_name="Continous Emissions Monitoring (SO2)", blank=True, null=True)
+    bp1_cem_no2 = models.FloatField(verbose_name="Continous Emissions Monitoring (NO2)", blank=True, null=True)
+    bp1_cem_nox = models.FloatField(verbose_name="Continous Emissions Monitoring (NOX)", blank=True, null=True)
+    bp1_cem_co = models.FloatField(verbose_name="Comtinous Emissions Monitoring (CO)", blank=True, null=True) # Typo in CSV
+    bp1_cem_tsp = models.FloatField(verbose_name="Continous Emissions Monitoring (TSP)", blank=True, null=True)
+    bp1_cem_o2 = models.FloatField(verbose_name="Continous Emissions Monitoring (O2)", blank=True, null=True)
 
     bp1_remark = models.TextField(verbose_name="หมายเหตุ", blank=True, null=True)
     bp1_created_at = models.DateTimeField(auto_now_add=True)
@@ -441,7 +441,7 @@ class Banpong2Log(models.Model):
     bp2_esp_gas_in_temp = models.FloatField(verbose_name="ESP Gas Inlet Temp", blank=True, null=True)
     bp2_esp_gas_in_press = models.FloatField(verbose_name="ESP Gas Inlet Pressure", blank=True, null=True)
     
-    bp2_ah1_gas_out_temp = models.FloatField(verbose_name="AH#1 Gas Outlet Temp", blank=True, null=True)
+    bp2_ah1_gas_out_temp = models.FloatField(verbose_name="AH#1 Gas Outlet Temp", blank=True, null=True) #Stack_Temp
     bp2_ah1_gas_out_press = models.FloatField(verbose_name="AH#1 Gas Outlet Pressure", blank=True, null=True)
 
     # --- Group 5: ESP ---

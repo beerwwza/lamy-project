@@ -270,7 +270,7 @@ def operation_dashboard(request):
             'temp': get_val(yos, 'yos_main_steam_temp'),
             'fw_flow': get_val(yos, 'yos_feed_water_flow'),
             'dea_temp': get_val(yos, 'yos_feed_water_in_temp'),
-            'stack_temp': get_val(yos, 'yos_gas_exit_temp'),
+            'stack_temp': get_val(yos, 'yos_dc_gas_out_temp'),
             'ph': get_val(yos, 'yos_bagasse_moisture'),
             'bd_flow': get_val(yos,'yos_blowdown_flow'), 
         },
@@ -281,7 +281,7 @@ def operation_dashboard(request):
             'temp': get_val(bp1, 'bp1_main_steam_temp'),
             'fw_flow': get_val(bp1, 'bp1_feed_water_flow'),
             'dea_temp': get_val(bp1, 'bp1_feed_water_in_temp'),
-            'stack_temp': get_val(bp1, 'bp1_gas_exit_tempt_temp'),
+            'stack_temp': get_val(bp1, 'bp1_ah1_gas_out_temp'),
             'bd_flow': get_val(bp1,'bp1_bd_flow'), 
         },
         'banpong2': {
@@ -291,7 +291,7 @@ def operation_dashboard(request):
             'temp': get_val(bp2, 'bp2_main_steam_temp'),
             'fw_flow': get_val(bp2, 'bp2_feed_water_flow'),
             'dea_temp': get_val(bp2, 'bp2_feed_water_in_temp'),
-            'stack_temp': get_val(bp2, 'bp2_gas_exit_tempt_temp'),
+            'stack_temp': get_val(bp2, 'bp2_ah1_gas_out_temp'),
             'bd_flow': get_val(bp2,'bp2_bd_flow'), 
         },
     }
@@ -700,9 +700,116 @@ def banpong1_operation_add(request):
         if form.is_valid():
             form.save()
             return redirect('boiler')
+        else:
+            print(f"Banpong1 Form Errors: {form.errors}")
     else:
         form = Banpong1Form()
-    return render(request, 'myapp/banpong1_form.html', {'form': form})
+
+    # Control Values (Row 2 from CSV)
+    control_values = {
+        'bp1_main_steam_flow': "< 150",
+        'bp1_main_steam_pressure': "40 - 43",
+        'bp1_main_steam_temp': "450 - 470",
+        'bp1_desuperheat_valve': "< 99.5%",
+        'bp1_desuperheat_in_temp': "390 - 450",
+        'bp1_desuperheat_out_temp': "450 - 500",
+        'bp1_drum_level': "100 - 200",
+        'bp1_drum_pressure': "42 - 45",
+        'bp1_feed_water_flow': "< 180",
+        'bp1_feed_water_pressure': "61 - 66.5",
+        'bp1_feed_water_in_temp': "50 - 110",
+        'bp1_eco_out_temp': "150 - 200",
+        'bp1_eco_out_pressure': "42 - 50",
+        'bp1_bd_flow': "< 4",
+        'bp1_cbd_valve': "< 99.5%",
+        'bp1_ins_air_pressure': "> 7",
+        'bp1_main_feeder': "16 - 100",
+        'bp1_bd_ah1_in_temp': "-  C", # Placeholder
+        'bp1_bd_ah1_in_press': "250 - 400",
+        'bp1_bd_ah1_out_temp': "40 - 150",
+        'bp1_bd_ah1_out_press': "0 - 10",
+        'bp1_ah1_air_out_press': "150 - 200",
+        'bp1_ah1_air_out_temp': "140 - 165",
+        'bp1_ah2_air_out_temp': "140 - 165",
+        'bp1_under_grate_air_temp': "< 165",
+        'bp1_under_grate_air_press': "< 200",
+        'bp1_furnace_pressure': "-5 - 0",
+        'bp1_gas_exit_temp': "< 180",
+        'bp1_gas_exit_pressure': "-35 - -20",
+        'bp1_eco_out_gas_temp': "< 350",
+        'bp1_eco_out_gas_press': "-15 - -5",
+        'bp1_ah2_gas_out_temp': "< 260",
+        'bp1_ah2_gas_out_press': "-25 - -15",
+        'bp1_dc_gas_out_temp': "< 200",
+        'bp1_dc_gas_out_press': "-35 - -20",
+        'bp1_esp_gas_in_temp': "-40 - -25", # CSV Header says Inlet Pressure? but value seems temp range for pressure?
+        'bp1_esp_gas_out_temp': "150 - 170",
+        'bp1_esp_gas_out_press': "-50 - -30",
+        'bp1_ah1_gas_out_temp': "< 200",
+        'bp1_ah1_gas_out_press': "-35 - -20",
+        'bp1_fdf_damper': "0 - 100",
+        'bp1_faf_damper': "0 - 100",
+        'bp1_faf_air_press': "< 1000",
+        'bp1_fdf2_damper': "0 - 100",
+        'bp1_fdf2_air_press': "< 400",
+        'bp1_under_gate_damper': "0 - 100",
+        'bp1_idf_damper': "0 - 100",
+        'bp1_esp_c1_volt': "40 - 60",
+        'bp1_esp_c1_curr': "200 - 800",
+        'bp1_esp_c2_volt': "40 - 60",
+        'bp1_esp_c2_curr': "200 - 800",
+        'bp1_esp_c3_volt': "40 - 60",
+        'bp1_esp_c3_curr': "200 - 800",
+        'bp1_steam_sum': "-",
+        'bp1_feed_water_sum': "-",
+        'bp1_blowdown_sum': "-",
+        'bp1_cem_so2': "< 60",
+        'bp1_cem_no2': "< 200",
+        'bp1_cem_nox': "< 200",
+        'bp1_cem_co': "-",
+        'bp1_cem_tsp': "< 120",
+        'bp1_cem_o2': "-",
+    }
+
+    # Grouping Fields
+    steam_water = []
+    air_gas = []
+    dampers_fans = []
+    esp_system = []
+    emissions = []
+    others = []
+
+    for field in form:
+        field.control_val = control_values.get(field.name)
+        
+        name = field.name
+        if name in ['bp1_date', 'bp1_time']: continue
+        
+        if 'steam' in name or 'water' in name or 'drum' in name or 'eco' in name or 'blowdown' in name or 'cbd' in name or 'desuperheat' in name:
+            steam_water.append(field)
+        elif 'air' in name or 'gas' in name or 'furnace' in name or 'press' in name or 'temp' in name:
+            if 'esp' not in name:
+                air_gas.append(field)
+            else:
+                esp_system.append(field)
+        elif 'damper' in name or 'feeder' in name:
+            dampers_fans.append(field)
+        elif 'esp' in name:
+            esp_system.append(field)
+        elif 'cem' in name:
+            emissions.append(field)
+        else:
+            others.append(field)
+
+    return render(request, 'myapp/banpong1_form.html', {
+        'form': form,
+        'steam_water': steam_water,
+        'air_gas': air_gas,
+        'dampers_fans': dampers_fans,
+        'esp_system': esp_system,
+        'emissions': emissions,
+        'others': others,
+    })
 
 @login_required
 def chengchen_operation_add(request):
