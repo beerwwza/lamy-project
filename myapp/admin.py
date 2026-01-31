@@ -44,7 +44,9 @@ class YoshimineLogAdmin(admin.ModelAdmin):
 # 5. Banpong 1 Log (เพิ่มใหม่)
 @admin.register(Banpong1Log)
 class Banpong1LogAdmin(admin.ModelAdmin):
-    list_display = ('bp1_date', 'bp1_time', 'bp1_main_steam_pressure', 'bp1_main_steam_flow', 'bp1_main_steam_temp', 'bp1_feed_water_flow', 'bp1_feed_water_in_temp', 'bp1_ah1_gas_out_temp')
+    list_display = ('bp1_date', 'bp1_time', 'bp1_main_steam_pressure', 'bp1_main_steam_flow',
+                     'bp1_main_steam_temp', 'bp1_desuperheat_valve', 'bp1_desuperheat_in_temp', 
+                     'bp1_desuperheat_out_temp', 'bp1_drum_level', 'bp1_drum_pressure', 'bp1_feed_water_flow', 'bp1_feed_water_pressure', 'bp1_feed_water_in_temp', 'bp1_eco_out_temp', 'bp1_eco_out_pressure', 'bp1_bd_flow', 'bp1_cbd_valve', 'bp1_ins_air_pressure', 'bp1_main_feeder', 'bp1_bd_ah1_in_temp', 'bp1_bd_ah1_in_press', 'bp1_bd_ah1_out_temp', 'bp1_bd_ah1_out_press', 'bp1_ah1_air_out_press', 'bp1_ah1_air_out_temp', 'bp1_ah2_air_out_temp', 'bp1_under_grate_air_temp', 'bp1_under_grate_air_press', 'bp1_furnace_pressure', 'bp1_gas_exit_temp', 'bp1_gas_exit_pressure', 'bp1_eco_out_gas_temp', 'bp1_eco_out_gas_press', 'bp1_ah2_gas_out_temp', 'bp1_ah2_gas_out_press', 'bp1_dc_gas_out_temp', 'bp1_dc_gas_out_press', 'bp1_esp_gas_in_temp', 'bp1_esp_gas_out_temp', 'bp1_esp_gas_out_press', 'bp1_ah1_gas_out_temp', 'bp1_ah1_gas_out_press', 'bp1_fdf_damper', 'bp1_faf_damper', 'bp1_faf_air_press','bp1_fdf2_damper', 'bp1_fdf2_air_press', 'bp1_under_gate_damper', 'bp1_idf_damper', 'bp1_esp_c1_volt', 'bp1_esp_c1_curr', 'bp1_esp_c2_volt', 'bp1_esp_c2_curr', 'bp1_esp_c3_volt', 'bp1_esp_c3_curr', 'bp1_steam_sum', 'bp1_feed_water_sum', 'bp1_blowdown_sum', 'bp1_cem_so2', 'bp1_cem_no2', 'bp1_cem_nox','bp1_cem_co', 'bp1_cem_tsp', 'bp1_cem_o2',)
     list_filter = ('bp1_date',)
     search_fields = ('bp1_remark',)
     ordering = ('-bp1_date', '-bp1_time')
