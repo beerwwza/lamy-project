@@ -5,6 +5,9 @@
 {% block content %}
 <!-- Use Google Fonts for Modern Typography -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
     body {
         font-family: 'Inter', sans-serif;
@@ -152,218 +155,68 @@
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
 
                     <!-- Pressure Card -->
-                    <div
-                        class="bg-white dark:bg-[#1e293b] rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden group hover:border-cyan-200 transition-colors">
-                        <div
-                            class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
-                            <i data-lucide="gauge" class="w-32 h-32 text-cyan-500"></i>
+                    <div onclick="openDrillDown('press')"
+                        class="cursor-pointer bg-white dark:bg-[#1e293b] rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden group hover:border-cyan-200 transition-colors flex flex-col items-center justify-between min-h-[250px]">
+
+                        <div class="absolute top-4 left-6 z-10">
+                            <h3 class="text-lg font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                Steam Pressure</h3>
                         </div>
-                        <div class="flex flex-col h-full justify-between relative z-10">
-                            <div class="flex items-center gap-3 mb-2">
-                                <div class="p-2 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 rounded-lg">
-                                    <i data-lucide="gauge" class="w-5 h-5"></i>
-                                </div>
-                                <span
-                                    class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Steam
-                                    Pressure</span>
-                            </div>
-                            <div class="mt-4">
-                                <div class="flex items-baseline gap-1">
-                                    <span class="text-5xl font-bold text-slate-800 dark:text-white tracking-tighter"
-                                        id="val-press">--</span>
-                                    <span class="text-lg text-slate-400 font-medium">Bar</span>
-                                </div>
-                                <div
-                                    class="mt-4 w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                                    <div id="prog-press"
-                                        class="h-full bg-cyan-500 rounded-full transition-all duration-1000"
-                                        style="width: 0%"></div>
-                                </div>
-                                <div class="flex justify-between mt-3 text-xs font-medium text-slate-400">
-                                    <span>Target: <span id="target-press"
-                                            class="text-slate-600 dark:text-slate-300">--</span></span>
-                                    <span id="status-press" class="text-cyan-600 font-bold">--</span>
-                                </div>
-                            </div>
+
+                        <div class="relative h-44 w-full mt-4 flex justify-center" id="svg-container-press">
+                            <!-- SVG Injected Here -->
+                        </div>
+
+                        <div class="mt-[-10px] text-center z-10">
+                            <div class="text-xs text-slate-400 mt-1">Target: <span id="target-press">--</span> Bar</div>
                         </div>
                     </div>
 
                     <!-- Flow Card -->
-                    <div
-                        class="bg-white dark:bg-[#1e293b] rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden group hover:border-blue-200 transition-colors">
-                        <div
-                            class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
-                            <i data-lucide="wind" class="w-32 h-32 text-blue-500"></i>
+                    <div onclick="openDrillDown('flow')"
+                        class="cursor-pointer bg-white dark:bg-[#1e293b] rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden group hover:border-blue-200 transition-colors flex flex-col items-center justify-between min-h-[250px]">
+
+                        <div class="absolute top-4 left-6 z-10">
+                            <h3 class="text-lg font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                Steam Flow</h3>
                         </div>
-                        <div class="flex flex-col h-full justify-between relative z-10">
-                            <div class="flex items-center gap-3 mb-2">
-                                <div class="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg">
-                                    <i data-lucide="wind" class="w-5 h-5"></i>
-                                </div>
-                                <span
-                                    class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Steam
-                                    Flow</span>
-                            </div>
-                            <div class="mt-4">
-                                <div class="flex items-baseline gap-1">
-                                    <span class="text-5xl font-bold text-slate-800 dark:text-white tracking-tighter"
-                                        id="val-flow">--</span>
-                                    <span class="text-lg text-slate-400 font-medium">T/H</span>
-                                </div>
-                                <div
-                                    class="mt-4 w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                                    <div id="prog-flow"
-                                        class="h-full bg-blue-500 rounded-full transition-all duration-1000"
-                                        style="width: 0%"></div>
-                                </div>
-                                <div class="flex justify-between mt-3 text-xs font-medium text-slate-400">
-                                    <span>Target: <span id="target-flow"
-                                            class="text-slate-600 dark:text-slate-300">--</span></span>
-                                    <span id="status-flow" class="text-blue-600 font-bold">--</span>
-                                </div>
-                            </div>
+
+                        <div class="relative h-44 w-full mt-4 flex justify-center" id="svg-container-flow">
+                            <!-- SVG Injected Here -->
+                        </div>
+
+                        <div class="mt-[-10px] text-center z-10">
+                            <div class="text-xs text-slate-400 mt-1">Target: <span id="target-flow">--</span> T/H</div>
                         </div>
                     </div>
 
                     <!-- Temp Card -->
-                    <div
-                        class="bg-white dark:bg-[#1e293b] rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden group hover:border-orange-200 transition-colors">
-                        <div
-                            class="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
-                            <i data-lucide="thermometer" class="w-32 h-32 text-orange-500"></i>
+                    <div onclick="openDrillDown('temp')"
+                        class="cursor-pointer bg-white dark:bg-[#1e293b] rounded-3xl p-6 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden group hover:border-orange-200 transition-colors flex flex-col items-center justify-between min-h-[250px]">
+
+                        <div class="absolute top-4 left-6 z-10">
+                            <h3 class="text-lg font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                Steam Temp</h3>
                         </div>
-                        <div class="flex flex-col h-full justify-between relative z-10">
-                            <div class="flex items-center gap-3 mb-2">
-                                <div class="p-2 bg-orange-50 dark:bg-orange-900/20 text-orange-600 rounded-lg">
-                                    <i data-lucide="thermometer" class="w-5 h-5"></i>
-                                </div>
-                                <span
-                                    class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Steam
-                                    Temp</span>
-                            </div>
-                            <div class="mt-4">
-                                <div class="flex items-baseline gap-1">
-                                    <span class="text-5xl font-bold text-slate-800 dark:text-white tracking-tighter"
-                                        id="val-temp">--</span>
-                                    <span class="text-lg text-slate-400 font-medium">°C</span>
-                                </div>
-                                <div
-                                    class="mt-4 w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                                    <div id="prog-temp"
-                                        class="h-full bg-orange-500 rounded-full transition-all duration-1000"
-                                        style="width: 0%"></div>
-                                </div>
-                                <div class="flex justify-between mt-3 text-xs font-medium text-slate-400">
-                                    <span>Target: <span id="target-temp"
-                                            class="text-slate-600 dark:text-slate-300">--</span></span>
-                                    <span id="status-temp" class="text-orange-600 font-bold">--</span>
-                                </div>
-                            </div>
+
+                        <div class="relative h-44 w-full mt-4 flex justify-center" id="svg-container-temp">
+                            <!-- SVG Injected Here -->
+                        </div>
+
+                        <div class="mt-[-10px] text-center z-10">
+                            <div class="text-xs text-slate-400 mt-1">Target: <span id="target-temp">--</span> °C</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Secondary Metrics Grid -->
-                <div class="flex items-center gap-2 mb-4 px-1">
+                <!-- All Parameters Grid (Dynamic) -->
+                <div class="flex items-center gap-2 mb-4 px-1 mt-8">
                     <div class="w-1 h-6 bg-indigo-500 rounded-full"></div>
-                    <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">Secondary Parameters</h3>
+                    <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">All Parameters</h3>
                 </div>
 
-                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-
-                    <!-- Feed Water -->
-                    <div
-                        class="bg-white dark:bg-[#1e293b] p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:shadow-md transition-all group">
-                        <div class="flex items-center justify-between mb-3">
-                            <span class="text-xs font-semibold text-slate-500 uppercase">Feed Water</span>
-                            <i data-lucide="droplets"
-                                class="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform"></i>
-                        </div>
-                        <div class="flex items-baseline gap-1">
-                            <span class="text-2xl font-bold text-slate-800 dark:text-white" id="val-fw_flow">--</span>
-                            <span class="text-xs text-slate-400">T/H</span>
-                        </div>
-                        <div class="w-full bg-slate-100 dark:bg-slate-700 h-1.5 mt-3 rounded-full overflow-hidden">
-                            <div id="prog-fw_flow" class="h-full bg-indigo-500 rounded-full transition-all duration-700"
-                                style="width: 0%"></div>
-                        </div>
-                    </div>
-
-                    <!-- Deaerator -->
-                    <div
-                        class="bg-white dark:bg-[#1e293b] p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-orange-400 hover:shadow-md transition-all group">
-                        <div class="flex items-center justify-between mb-3">
-                            <span class="text-xs font-semibold text-slate-500 uppercase">Deaerator</span>
-                            <i data-lucide="sun"
-                                class="w-4 h-4 text-orange-500 group-hover:scale-110 transition-transform"></i>
-                        </div>
-                        <div class="flex items-baseline gap-1">
-                            <span class="text-2xl font-bold text-slate-800 dark:text-white" id="val-dea_temp">--</span>
-                            <span class="text-xs text-slate-400">°C</span>
-                        </div>
-                        <div class="w-full bg-slate-100 dark:bg-slate-700 h-1.5 mt-3 rounded-full overflow-hidden">
-                            <div id="prog-dea_temp"
-                                class="h-full bg-orange-500 rounded-full transition-all duration-700" style="width: 0%">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Stack Temp -->
-                    <div
-                        class="bg-white dark:bg-[#1e293b] p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-gray-400 hover:shadow-md transition-all group">
-                        <div class="flex items-center justify-between mb-3">
-                            <span class="text-xs font-semibold text-slate-500 uppercase">Stack Temp</span>
-                            <i data-lucide="cloud"
-                                class="w-4 h-4 text-gray-500 group-hover:scale-110 transition-transform"></i>
-                        </div>
-                        <div class="flex items-baseline gap-1">
-                            <span class="text-2xl font-bold text-slate-800 dark:text-white"
-                                id="val-stack_temp">--</span>
-                            <span class="text-xs text-slate-400">°C</span>
-                        </div>
-                        <div class="w-full bg-slate-100 dark:bg-slate-700 h-1.5 mt-3 rounded-full overflow-hidden">
-                            <div id="prog-stack_temp"
-                                class="h-full bg-gray-500 rounded-full transition-all duration-700" style="width: 0%">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- pH -->
-                    <div
-                        class="bg-white dark:bg-[#1e293b] p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-purple-400 hover:shadow-md transition-all group">
-                        <div class="flex items-center justify-between mb-3">
-                            <span class="text-xs font-semibold text-slate-500 uppercase">pH Boiler</span>
-                            <i data-lucide="flask-conical"
-                                class="w-4 h-4 text-purple-500 group-hover:scale-110 transition-transform"></i>
-                        </div>
-                        <div class="flex items-baseline gap-1">
-                            <span class="text-2xl font-bold text-slate-800 dark:text-white" id="val-ph">--</span>
-                            <span class="text-xs text-slate-400">pH</span>
-                        </div>
-                        <div class="w-full bg-slate-100 dark:bg-slate-700 h-1.5 mt-3 rounded-full overflow-hidden">
-                            <div id="prog-ph" class="h-full bg-purple-500 rounded-full transition-all duration-700"
-                                style="width: 0%"></div>
-                        </div>
-                    </div>
-
-                    <!-- Blowdown -->
-                    <div
-                        class="bg-white dark:bg-[#1e293b] p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:shadow-md transition-all group">
-                        <div class="flex items-center justify-between mb-3">
-                            <span class="text-xs font-semibold text-slate-500 uppercase">Blowdown</span>
-                            <i data-lucide="arrow-down-circle"
-                                class="w-4 h-4 text-emerald-500 group-hover:scale-110 transition-transform"></i>
-                        </div>
-                        <div class="flex items-baseline gap-1">
-                            <span class="text-2xl font-bold text-slate-800 dark:text-white" id="val-bd_flow">--</span>
-                            <span class="text-xs text-slate-400">T/H</span>
-                        </div>
-                        <div class="w-full bg-slate-100 dark:bg-slate-700 h-1.5 mt-3 rounded-full overflow-hidden">
-                            <div id="prog-bd_flow"
-                                class="h-full bg-emerald-500 rounded-full transition-all duration-700"
-                                style="width: 0%"></div>
-                        </div>
-                    </div>
+                <div id="dynamic-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    <!-- Javascript will populate this -->
                 </div>
 
             </div>
@@ -444,6 +297,56 @@
         </div>
     </div>
 
+    <!-- Drill Down Modal -->
+    <div id="drillDownModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onclick="closeDrillDown()"></div>
+        <div class="fixed inset-0 z-10 overflow-y-auto">
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div
+                    class="relative w-full max-w-4xl transform rounded-2xl bg-white dark:bg-[#1e293b] p-6 text-left shadow-2xl transition-all border border-slate-200 dark:border-slate-700">
+
+                    <!-- Header -->
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-900 dark:text-white" id="dd-title">History Analysis
+                            </h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">7 Days Historical Data</p>
+                        </div>
+                        <button onclick="closeDrillDown()"
+                            class="p-2 text-slate-400 hover:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+
+                    <!-- Controls -->
+                    <div class="flex flex-wrap gap-4 mb-6 items-end bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">Start Date</label>
+                            <input type="date" id="dd-start"
+                                class="rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 mb-1">End Date</label>
+                            <input type="date" id="dd-end"
+                                class="rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm focus:ring-indigo-500">
+                        </div>
+                        <button onclick="fetchHistoryData()"
+                            class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-600/20">
+                            Apply Filter
+                        </button>
+                    </div>
+
+                    <!-- Chart -->
+                    <div class="relative h-80 w-full">
+                        <canvas id="historyChart"></canvas>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+
 </div>
 
 <!-- JavaScript Logic -->
@@ -519,6 +422,97 @@
         switchMachine(currentMachine);
     }
 
+    // --- SVG Gauge Logic (Ported from Mill) ---
+    function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
+        var angleInRadians = (angleInDegrees - 180) * Math.PI / 180.0;
+        return {
+            x: centerX + (radius * Math.cos(angleInRadians)),
+            y: centerY + (radius * Math.sin(angleInRadians))
+        };
+    }
+
+    function describeArcStroke(x, y, radius, startAngle, endAngle) {
+        var start = polarToCartesian(x, y, radius, endAngle);
+        var end = polarToCartesian(x, y, radius, startAngle);
+        var largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+        return [
+            "M", start.x, start.y,
+            "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y
+        ].join(" ");
+    }
+
+    function renderSVGGauge(type, val, target) {
+        const container = document.getElementById(`svg-container-${type}`);
+        const elTgt = document.getElementById(`target-${type}`);
+
+        if (!val || val === '-') {
+            container.innerHTML = '<span class="text-slate-400 self-center">No Data</span>';
+            elTgt.innerText = target || '-';
+            return;
+        }
+
+        const v = parseFloat(val);
+        const t = parseFloat(target || 1);
+        elTgt.innerText = t;
+
+        // Logic for Boiler: Center (Target) is best
+        // Range: 0 to Target * 2 ? Or Target +/- 50%?
+        // Let's use 0 to Target*2 for symmetry, putting Target at 90 deg (Top Center)
+
+        const minVal = 0;
+        const maxVal = t * 2;
+
+        // Clamp percentage
+        let percent = ((v - minVal) / (maxVal - minVal)) * 100;
+        percent = Math.min(100, Math.max(0, percent));
+
+        const needleAngle = (percent / 100) * 180;
+
+        // Colors for segments
+        // 0-60 (Low) = Yellow/Red
+        // 60-120 (Target Zone) = Green
+        // 120-180 (High) = Yellow/Red
+
+        const col1 = "#eab308"; // Yellow
+        const col2 = "#22c55e"; // Green
+        const col3 = "#ef4444"; // Red
+
+        const unit = type === 'press' ? 'Bar' : (type === 'flow' ? 'T/H' : '°C');
+
+        const svg = `
+            <div class="w-full h-full flex flex-col justify-end items-center">
+                <svg class="w-48 h-28 overflow-visible" viewBox="0 0 200 110" preserveAspectRatio="xMidYMax">
+                    <!-- Segments -->
+                    <path d="${describeArcStroke(100, 100, 80, 0, 60)}" fill="none" stroke="${col1}" stroke-width="20" opacity="0.8" />
+                    <path d="${describeArcStroke(100, 100, 80, 60, 120)}" fill="none" stroke="${col2}" stroke-width="20" opacity="0.8" />
+                    <path d="${describeArcStroke(100, 100, 80, 120, 180)}" fill="none" stroke="${col3}" stroke-width="20" opacity="0.8" />
+                    
+                    <!-- Labels -->
+                    <text x="25" y="105" text-anchor="middle" class="text-[10px] font-bold fill-slate-400">0</text>
+                    <text x="100" y="15" text-anchor="middle" class="text-[10px] font-bold fill-slate-400">${t}</text>
+                    <text x="175" y="105" text-anchor="middle" class="text-[10px] font-bold fill-slate-400">${maxVal}</text>
+
+                    <!-- Needle -->
+                    <line x1="100" y1="100" 
+                          x2="${100 + 70 * Math.cos((needleAngle - 180) * Math.PI / 180)}" 
+                          y2="${100 + 70 * Math.sin((needleAngle - 180) * Math.PI / 180)}" 
+                          stroke="#334155" stroke-width="4" stroke-linecap="round" 
+                          class="dark:stroke-white transition-all duration-1000 ease-out origin-bottom" />
+                    <circle cx="100" cy="100" r="5" fill="#334155" class="dark:fill-white" />
+                </svg>
+                
+                <!-- Value Text (Moved below SVG with margin) -->
+                <div class="text-center mt-2 z-10">
+                    <div class="text-3xl font-bold text-slate-800 dark:text-white leading-none">${v}</div>
+                    <div class="text-xs text-slate-400 font-medium">${unit}</div>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = svg;
+    }
+
+    // Refactored switchMachine to use new updateGauge
     function switchMachine(key) {
         currentMachine = key;
         const data = machineData[key] || {};
@@ -529,10 +523,8 @@
         machineList.forEach(m => {
             const btn = document.getElementById(`tab-${m.id}`);
             if (m.id === key) {
-                // Active Style
                 btn.className = "whitespace-nowrap px-6 py-3 rounded-2xl text-sm font-bold bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 transform scale-105 transition-all duration-300";
             } else {
-                // Inactive Style
                 btn.className = "whitespace-nowrap px-6 py-3 rounded-2xl text-sm font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all duration-300";
             }
         });
@@ -542,78 +534,156 @@
         document.getElementById('last-update-time').innerText = (new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
         document.getElementById('btn-add-log').href = machineInfo.url;
 
-        // Update Hero Cards
-        updateCard('press', data.press, tgt.press);
-        updateCard('flow', data.flow, tgt.flow);
-        updateCard('temp', data.temp, tgt.temp);
+        // Update Gauges (SVG)
+        renderSVGGauge('press', data.press, tgt.press);
+        renderSVGGauge('flow', data.flow, tgt.flow);
+        renderSVGGauge('temp', data.temp, tgt.temp);
 
-        // Update Mini Cards
-        updateMiniCard('fw_flow', data.fw_flow, tgt.fw_flow);
-        updateMiniCard('dea_temp', data.dea_temp, tgt.dea_temp);
-        updateMiniCard('stack_temp', data.stack_temp, tgt.stack_temp);
-        updateMiniCard('ph', data.ph, tgt.ph);
-        updateMiniCard('bd_flow', data.bd_flow, tgt.bd_flow);
+        // Update All Fields Grid
+        const container = document.getElementById('dynamic-cards');
+        container.innerHTML = '';
+
+        if (data.all_fields && data.all_fields.length > 0) {
+            data.all_fields.forEach(field => {
+                // Shorten some verbose names for UI
+                let label = field.label || field.name;
+                label = label.replace("Continous Emissions Monitoring", "CEM");
+
+                // Determine Icon based on name logic
+                let icon = 'activity';
+                if (label.toLowerCase().includes('pressure')) icon = 'gauge';
+                if (label.toLowerCase().includes('flow')) icon = 'wind';
+                if (label.toLowerCase().includes('temp')) icon = 'thermometer';
+                if (label.toLowerCase().includes('level')) icon = 'bar-chart-2';
+                if (label.toLowerCase().includes('valve')) icon = 'settings-2';
+                if (label.toLowerCase().includes('damper')) icon = 'fan';
+                if (label.toLowerCase().includes('amp')) icon = 'zap';
+
+                const card = `
+                    <div onclick="openDrillDown('${field.name}')" 
+                        class="cursor-pointer bg-white dark:bg-[#1e293b] p-4 rounded-2xl border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:shadow-md transition-all group">
+                        <div class="flex items-start justify-between mb-3 min-h-[40px]">
+                            <span class="text-xs font-semibold text-slate-500 uppercase line-clamp-2">${label}</span>
+                            <i data-lucide="${icon}" class="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform flex-shrink-0 ml-2"></i>
+                        </div>
+                        <div class="flex items-baseline gap-1">
+                            <span class="text-lg font-bold text-slate-800 dark:text-white truncate" title="${field.value}">${field.value}</span>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', card);
+            });
+
+            // Re-init icons for new content
+            if (window.lucide) window.lucide.createIcons();
+
+        } else {
+            container.innerHTML = `<div class="col-span-full text-center text-slate-400 py-10">No detailed parameters available</div>`;
+        }
+
     }
 
+    // Deprecated updateCard
     function updateCard(type, val, target) {
-        const elVal = document.getElementById(`val-${type}`);
-        const elTgt = document.getElementById(`target-${type}`);
-        const elProg = document.getElementById(`prog-${type}`);
-        const elStatus = document.getElementById(`status-${type}`);
-
-        if (!val || val === '-') {
-            elVal.innerText = '-';
-            elProg.style.width = '0%';
-            elStatus.innerText = 'No Data';
-            elStatus.className = 'text-slate-400 font-medium';
-            return;
-        }
-
-        const v = parseFloat(val);
-        const t = parseFloat(target || 1);
-        const pct = Math.min((v / t) * 100, 100);
-
-        elVal.innerText = v;
-        elTgt.innerText = t;
-        elProg.style.width = `${pct}%`;
-
-        // Logic Color
-        if (pct < 80 || pct > 120) {
-            elProg.className = "h-full rounded-full transition-all duration-1000 bg-red-500";
-            elStatus.className = "text-red-500 font-bold";
-            elStatus.innerText = "Critical";
-        } else if (pct < 90 || pct > 110) {
-            elProg.className = "h-full rounded-full transition-all duration-1000 bg-yellow-500";
-            elStatus.className = "text-yellow-600 font-bold";
-            elStatus.innerText = "Warning";
-        } else {
-            elProg.className = "h-full rounded-full transition-all duration-1000 bg-emerald-500";
-            elStatus.className = "text-emerald-600 font-bold";
-            elStatus.innerText = "Normal";
-        }
+        // ... replaced by updateGauge
     }
 
     function updateMiniCard(type, val, target) {
-        const elVal = document.getElementById(`val-${type}`);
-        const elProg = document.getElementById(`prog-${type}`);
+        // Deprecated by dynamic grid, keeping blank for safety if called elsewhere
+    }
 
-        if (!val || val === '-') {
-            elVal.innerText = '-';
-            if (elProg) elProg.style.width = '0%';
-            return;
+    // --- Drill Down Logic ---
+    let currentMetric = 'press';
+    let chartInstance = null;
+
+    function openDrillDown(metric) {
+        currentMetric = metric;
+        const modal = document.getElementById('drillDownModal');
+        const title = document.getElementById('dd-title');
+
+        let label = metric;
+        // Generic cleanup
+        label = label.replace(/_/g, ' ').replace(/(^\w{1})|(\s+\w{1})/g, letter => letter.toUpperCase());
+
+        title.innerText = `${machineData[currentMachine].name} - ${label}`;
+
+        // Default Dates (Last 7 Days)
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - 7);
+
+        document.getElementById('dd-end').valueAsDate = end;
+        document.getElementById('dd-start').valueAsDate = start;
+
+        modal.classList.remove('hidden');
+        fetchHistoryData();
+    }
+
+    function closeDrillDown() {
+        document.getElementById('drillDownModal').classList.add('hidden');
+    }
+
+    async function fetchHistoryData() {
+        const start = document.getElementById('dd-start').value;
+        const end = document.getElementById('dd-end').value;
+        const url = `{% url 'boiler_history_api' %}?machine=${currentMachine}&metric=${currentMetric}&start_date=${start}&end_date=${end}`;
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            renderChart(data.labels, data.data, data.metric_label || currentMetric);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to load data");
+        }
+    }
+
+    function renderChart(labels, data, label) {
+        const ctx = document.getElementById('historyChart').getContext('2d');
+
+        if (chartInstance) {
+            chartInstance.destroy();
         }
 
-        const v = parseFloat(val);
-        elVal.innerText = v;
+        // Color Logic
+        let color = '#6366f1'; // Indigo
+        if (currentMetric === 'press') color = '#06b6d4'; // Cyan
+        if (currentMetric === 'flow') color = '#3b82f6'; // Blue
+        if (currentMetric === 'temp') color = '#f97316'; // Orange
 
-        if (elProg && target) {
-            const t = parseFloat(target);
-            const pct = Math.min((v / t) * 100, 100);
-            elProg.style.width = `${pct}%`;
-
-            if (pct < 80 || pct > 120) elProg.className = "h-full rounded-full bg-red-500 transition-all duration-700";
-            else elProg.className = "h-full rounded-full bg-indigo-500 transition-all duration-700";
-        }
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: label,
+                    data: data,
+                    borderColor: color,
+                    backgroundColor: color + '20', // Opacity
+                    borderWidth: 2,
+                    pointRadius: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { border: { dash: [4, 4] } }
+                }
+            }
+        });
     }
 
     // Init

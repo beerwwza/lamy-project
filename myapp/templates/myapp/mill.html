@@ -3,6 +3,7 @@
 {% block title %} Mill Room | Factory OS {% endblock title %}
 
 {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <div
     class="flex h-screen overflow-hidden bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-[#f1f5f9] transition-colors duration-300 font-sans">
 
@@ -26,13 +27,14 @@
                 class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl font-medium transition-colors">
                 <i data-lucide="file-text" class="w-5 h-5"></i> Daily Report
             </a>
-            
+
             <a href="{% url 'dashboard' %}"
                 class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                 <i data-lucide="arrow-left" class="w-5 h-5"></i>
                 <span>Back to Main</span>
             </a>
-            <button onclick="document.getElementById('importModal').classList.remove('hidden')" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl font-medium transition-colors">
+            <button onclick="document.getElementById('importModal').classList.remove('hidden')"
+                class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl font-medium transition-colors">
                 <i data-lucide="upload" class="w-5 h-5"></i> Import Data
             </button>
             <button
@@ -89,6 +91,15 @@
                         <div class="text-indigo-100 text-lg font-medium mb-6 flex items-center gap-2">
                             <i data-lucide="scale" class="w-5 h-5"></i>
                             ปริมาณอ้อยเข้าหีบสะสม (Total Accumulated)
+                        </div>
+
+                        <div
+                            class="text-center mb-8 bg-white/10 rounded-2xl p-4 backdrop-blur-sm border border-white/10">
+                            <div class="text-indigo-100 text-sm font-bold uppercase tracking-wider mb-1">Grand Total
+                                (Total Accumulated)</div>
+                            <div class="text-5xl font-bold tracking-tight text-white">
+                                {{combined_sum|default:"0"|floatformat:2 }} <span
+                                    class="text-2xl font-medium text-indigo-200">Ton</span></div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-8">
@@ -162,6 +173,20 @@
                 </div>
             </div>
 
+            <!-- Cane Production Graph -->
+            <div
+                class="bg-white dark:bg-[#1e293b] rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <i data-lucide="trending-up" class="w-5 h-5 text-indigo-600"></i>
+                        Cane Production Trends (Last 30 Days)
+                    </h3>
+                </div>
+                <div class="h-[300px] w-full">
+                    <canvas id="caneTrendChart"></canvas>
+                </div>
+            </div>
+
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
                     <span
@@ -184,33 +209,39 @@
 </div>
 
 <!-- Import Modal (เพิ่มใหม่) -->
-<div id="importModal" class="fixed inset-0 z-50 hidden bg-gray-900/50 backdrop-blur-sm flex items-center justify-center">
-    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-200 dark:border-slate-700 transform transition-all scale-100">
+<div id="importModal"
+    class="fixed inset-0 z-50 hidden bg-gray-900/50 backdrop-blur-sm flex items-center justify-center">
+    <div
+        class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6 border border-slate-200 dark:border-slate-700 transform transition-all scale-100">
         <div class="flex justify-between items-center mb-6">
             <h3 class="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <i data-lucide="upload-cloud" class="w-5 h-5 text-indigo-600"></i>
                 Import Data (Excel/CSV)
             </h3>
-            <button onclick="document.getElementById('importModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <button onclick="document.getElementById('importModal').classList.add('hidden')"
+                class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
 
         <form action="{% url 'mill_import' %}" method="POST" enctype="multipart/form-data">
             {% csrf_token %}
-            
+
             <div class="mb-4">
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Select Production Line</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Select Production
+                    Line</label>
                 <div class="grid grid-cols-2 gap-3">
                     <label class="cursor-pointer">
                         <input type="radio" name="line" value="A" checked class="peer sr-only">
-                        <div class="rounded-xl border border-slate-200 dark:border-slate-600 p-3 text-center peer-checked:border-indigo-600 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/20 peer-checked:text-indigo-600 transition-all">
+                        <div
+                            class="rounded-xl border border-slate-200 dark:border-slate-600 p-3 text-center peer-checked:border-indigo-600 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/20 peer-checked:text-indigo-600 transition-all">
                             Line A (ราง A)
                         </div>
                     </label>
                     <label class="cursor-pointer">
                         <input type="radio" name="line" value="B" class="peer sr-only">
-                        <div class="rounded-xl border border-slate-200 dark:border-slate-600 p-3 text-center peer-checked:border-indigo-600 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/20 peer-checked:text-indigo-600 transition-all">
+                        <div
+                            class="rounded-xl border border-slate-200 dark:border-slate-600 p-3 text-center peer-checked:border-indigo-600 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/20 peer-checked:text-indigo-600 transition-all">
                             Line B (ราง B)
                         </div>
                     </label>
@@ -219,8 +250,10 @@
 
             <div class="mb-6">
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Upload File</label>
-                <div class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 text-center hover:border-indigo-500 transition-colors bg-slate-50 dark:bg-slate-900/50">
-                    <input type="file" name="file" accept=".csv, .xlsx, .xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                <div
+                    class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 text-center hover:border-indigo-500 transition-colors bg-slate-50 dark:bg-slate-900/50">
+                    <input type="file" name="file" accept=".csv, .xlsx, .xls" required
+                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                     <div class="flex flex-col items-center pointer-events-none">
                         <i data-lucide="file-spreadsheet" class="w-8 h-8 text-slate-400 mb-2"></i>
                         <span class="text-sm text-slate-500">Click to upload .xlsx or .csv</span>
@@ -229,10 +262,57 @@
             </div>
 
             <div class="flex gap-3">
-                <button type="button" onclick="document.getElementById('importModal').classList.add('hidden')" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
-                <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-600/30 transition-all">Upload</button>
+                <button type="button" onclick="document.getElementById('importModal').classList.add('hidden')"
+                    class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+                <button type="submit"
+                    class="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-600/30 transition-all">Upload</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- Drill Down Modal -->
+<div id="drillDownModal"
+    class="fixed inset-0 z-50 hidden bg-gray-900/50 backdrop-blur-sm flex items-center justify-center">
+    <div
+        class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-4xl p-6 border border-slate-200 dark:border-slate-700 transform transition-all scale-100">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h3 class="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2" id="drill-title">
+                    <i data-lucide="bar-chart" class="w-6 h-6 text-indigo-600"></i>
+                    KPI History Analysis
+                </h3>
+                <p class="text-xs text-slate-500 mt-1">View historical performance and trends</p>
+            </div>
+            <button onclick="closeDrillDown()"
+                class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-700 p-2 rounded-lg transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Filter Bar -->
+        <div
+            class="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl mb-6 flex flex-wrap items-end gap-4 border border-slate-100 dark:border-slate-700">
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Start Date</label>
+                <input type="date" id="filter-start-date"
+                    class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">End Date</label>
+                <input type="date" id="filter-end-date"
+                    class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <button onclick="fetchHistoryData()"
+                class="px-5 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2">
+                <i data-lucide="filter" class="w-4 h-4"></i> Filter
+            </button>
+        </div>
+
+        <!-- Chart Area -->
+        <div class="relative h-[400px] w-full bg-white dark:bg-slate-800 rounded-xl">
+            <canvas id="drillChart"></canvas>
+        </div>
     </div>
 </div>
 
@@ -343,45 +423,80 @@
         }
     }
 
+    // --- Gauge Helper Functions ---
+    function polarToCartesian(centerX, centerY, radius, angleInDegrees) {
+        var angleInRadians = (angleInDegrees - 180) * Math.PI / 180.0;
+        return {
+            x: centerX + (radius * Math.cos(angleInRadians)),
+            y: centerY + (radius * Math.sin(angleInRadians))
+        };
+    }
+
+    function describeArcStroke(x, y, radius, startAngle, endAngle) {
+        var start = polarToCartesian(x, y, radius, endAngle);
+        var end = polarToCartesian(x, y, radius, startAngle);
+        var largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+        return [
+            "M", start.x, start.y,
+            "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y
+        ].join(" ");
+    }
+
     function renderGaugeCard(kpi, current, average) {
-        const status = determineStatus(kpi, current);
-        const colors = { good: "text-green-500", warning: "text-yellow-500", critical: "text-red-500" };
-        const statusColor = colors[status];
         const rangeMin = kpi.target * 0.7;
         const rangeMax = kpi.target * 1.3;
         const span = rangeMax - rangeMin;
-        const getPercent = (val) => Math.min(100, Math.max(0, ((val - rangeMin) / span) * 100));
-        const currentPct = getPercent(current);
-        const avgPct = getPercent(average);
-        const targetPct = getPercent(kpi.target);
-        const radius = 40;
-        const circumference = Math.PI * radius;
-        const strokeDashoffset = circumference - (currentPct / 100) * circumference;
-        const targetDeg = -90 + (targetPct / 100) * 180;
-        const avgDeg = -90 + (avgPct / 100) * 180;
+
+        let percent = ((current - rangeMin) / span) * 100;
+        percent = Math.min(100, Math.max(0, percent));
+
+        const needleAngle = (percent / 100) * 180;
+
+        let col1, col2, col3;
+        if (kpi.type === 'higher_better') {
+            col1 = "#ef4444"; // Red
+            col2 = "#eab308"; // Yellow
+            col3 = "#22c55e"; // Green
+        } else {
+            col1 = "#22c55e"; // Green
+            col2 = "#eab308"; // Yellow
+            col3 = "#ef4444"; // Red
+        }
 
         return `
-            <div class="bg-white dark:bg-[#1e293b] p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700/50 hover:shadow-lg transition-all duration-300 relative overflow-hidden">
-                <div class="flex justify-between items-start mb-2">
-                    <h3 class="text-sm font-medium text-slate-500 dark:text-slate-400 truncate pr-2" title="${kpi.name}">${kpi.name}</h3>
-                    <span class="text-xs font-bold ${statusColor} px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">${current.toFixed(2)}</span>
+            <div onclick="openDrillDown(${kpi.id}, '${kpi.name}')" class="bg-white dark:bg-[#1e293b] p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700/50 hover:shadow-lg transition-all duration-300 relative overflow-hidden cursor-pointer group">
+                <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i data-lucide="bar-chart-2" class="w-4 h-4 text-indigo-500"></i>
                 </div>
-                <div class="relative flex justify-center items-end h-24 mt-2">
-                    <svg class="w-full h-full" viewBox="0 0 100 60" preserveAspectRatio="xMidYMax">
-                        <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#e2e8f0" stroke-width="10" stroke-linecap="round" class="dark:stroke-slate-700"/>
-                        <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round" class="${statusColor} transition-all duration-1000 ease-out" stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" />
-                    </svg>
-                    <div class="absolute bottom-0 text-center">
-                        <div class="text-2xl font-bold text-slate-800 dark:text-white leading-none">${current.toFixed(2)}</div>
-                        <div class="text-[10px] text-slate-400">${kpi.unit}</div>
+                <div class="flex justify-between items-start mb-1">
+                     <h3 class="text-sm font-medium text-slate-500 dark:text-slate-400 truncate pr-2" title="${kpi.name}">${kpi.name}</h3>
+                </div>
+                
+                <div class="flex flex-col items-center mt-2">
+                    <div class="relative w-full h-24">
+                        <svg class="w-full h-full" viewBox="0 0 200 110" preserveAspectRatio="xMidYMax">
+                            <path d="${describeArcStroke(100, 100, 80, 0, 60)}" fill="none" stroke="${col1}" stroke-width="25" />
+                            <path d="${describeArcStroke(100, 100, 80, 60, 120)}" fill="none" stroke="${col2}" stroke-width="25" />
+                            <path d="${describeArcStroke(100, 100, 80, 120, 180)}" fill="none" stroke="${col3}" stroke-width="25" />
+                            
+                            <!-- Labels: Increased size and contrast -->
+                            <text x="20" y="105" text-anchor="middle" class="text-xs font-bold fill-slate-500 dark:fill-slate-300">${rangeMin.toFixed(0)}</text>
+                            <text x="100" y="25" text-anchor="middle" class="text-xs font-bold fill-slate-500 dark:fill-slate-300">${kpi.target}</text>
+                            <text x="180" y="105" text-anchor="middle" class="text-xs font-bold fill-slate-500 dark:fill-slate-300">${rangeMax.toFixed(0)}</text>
+
+                            <!-- Needle -->
+                            <line x1="100" y1="100" x2="${100 + 70 * Math.cos((needleAngle - 180) * Math.PI / 180)}" y2="${100 + 70 * Math.sin((needleAngle - 180) * Math.PI / 180)}" stroke="#1e293b" stroke-width="4" stroke-linecap="round" class="dark:stroke-white transition-all duration-700 ease-out origin-bottom" />
+                            <circle cx="100" cy="100" r="6" fill="#1e293b" class="dark:fill-white" />
+                        </svg>
                     </div>
-                    <div class="absolute bottom-[10px] w-full h-[40px] pointer-events-none flex justify-center items-end">
-                        <div class="w-0.5 h-4 bg-slate-800 dark:bg-white absolute bottom-[38px]" style="transform: rotate(${targetDeg}deg); transform-origin: bottom center; opacity: 0.6;"></div>
-                    </div>
-                    <div class="absolute bottom-[10px] w-full h-[40px] pointer-events-none flex justify-center items-end">
-                        <div class="w-2 h-2 bg-blue-500 rounded-full border border-white absolute bottom-[36px]" style="transform: rotate(${avgDeg}deg); transform-origin: bottom center; box-shadow: 0 0 4px rgba(0,0,0,0.3);"></div>
+                    
+                    <!-- Value Display: Moved OUTSIDE SVG and BELOW -->
+                    <div class="text-center mt-[-5px] mb-2 z-10">
+                        <div class="text-3xl font-bold text-slate-800 dark:text-white leading-none">${current.toFixed(2)}</div>
+                        <div class="text-xs text-slate-400">${kpi.unit}</div>
                     </div>
                 </div>
+
                 <div class="mt-2 flex justify-between text-[10px] text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-700">
                     <div class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-blue-500 rounded-full"></span><span>Avg: ${average.toFixed(2)}</span></div>
                     <div class="flex items-center gap-1"><span class="w-0.5 h-2 bg-slate-400"></span><span>Target: ${kpi.target}</span></div>
@@ -403,7 +518,214 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         loadData();
+        fetchCaneTrendData();
         if (window.lucide) window.lucide.createIcons();
     });
+
+    // --- Drill Down Logic ---
+    let drillChartInstance = null;
+    let currentDrillKPI = null;
+    let currentDrillTitle = '';
+
+    function openDrillDown(kpiId, kpiName) {
+        currentDrillKPI = kpiId;
+        currentDrillTitle = kpiName;
+        document.getElementById('drill-title').innerHTML = `
+            <i data-lucide="bar-chart" class="w-6 h-6 text-indigo-600"></i> ${kpiName} History
+        `;
+        document.getElementById('drillDownModal').classList.remove('hidden');
+        if (window.lucide) activeLucide();
+
+        // Default to last 7 days
+        const today = new Date();
+        const lastWeek = new Date();
+        lastWeek.setDate(today.getDate() - 6);
+
+        document.getElementById('filter-end-date').valueAsDate = today;
+        document.getElementById('filter-start-date').valueAsDate = lastWeek;
+
+        fetchHistoryData();
+    }
+
+    function closeDrillDown() {
+        document.getElementById('drillDownModal').classList.add('hidden');
+    }
+
+    async function fetchHistoryData() {
+        if (!currentDrillKPI) return;
+
+        const startDate = document.getElementById('filter-start-date').value;
+        const endDate = document.getElementById('filter-end-date').value;
+
+        try {
+            const response = await fetch(`/mill/api/history/?line=${selectedLine}&start_date=${startDate}&end_date=${endDate}`);
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                renderChart(result.data);
+            } else {
+                console.error("API Error:", result.message);
+            }
+        } catch (error) {
+            console.error("Fetch Error:", error);
+        }
+    }
+
+    function renderChart(data) {
+        const ctx = document.getElementById('drillChart').getContext('2d');
+
+        if (drillChartInstance) {
+            drillChartInstance.destroy();
+        }
+
+        const labels = data.map(d => d.date);
+        const values = data.map(d => d.kpis[currentDrillKPI] || 0);
+
+        // Find KPI config for target line
+        const kpiConfig = KPI_CONFIG.find(k => k.id === currentDrillKPI);
+        const target = kpiConfig ? kpiConfig.target : 0;
+
+        drillChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: currentDrillTitle,
+                        data: values,
+                        borderColor: '#4f46e5', // Indigo 600
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#4f46e5',
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        tension: 0.3, // Smooth curves
+                        fill: true
+                    },
+                    {
+                        label: 'Target',
+                        data: Array(labels.length).fill(target),
+                        borderColor: '#ef4444', // Red 500
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        padding: 12,
+                        titleFont: { size: 14 },
+                        bodyFont: { size: 13 },
+                        cornerRadius: 8,
+                        displayColors: true
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        grid: {
+                            color: '#e2e8f0' // Slate 200
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // --- Cane Trend Chart Logic ---
+    let caneChartInstance = null;
+
+    async function fetchCaneTrendData() {
+        try {
+            const today = new Date();
+            const lastWeek = new Date();
+            lastWeek.setDate(today.getDate() - 29);
+
+            const endStr = today.toISOString().split('T')[0];
+            const startStr = lastWeek.toISOString().split('T')[0];
+
+            const response = await fetch(`/mill/api/history/?line=ALL&start_date=${startStr}&end_date=${endStr}`);
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                renderCaneTrendChart(result.data);
+            }
+        } catch (e) {
+            console.error("Trend Graph Error:", e);
+        }
+    }
+
+    function renderCaneTrendChart(data) {
+        const ctx = document.getElementById('caneTrendChart').getContext('2d');
+        if (caneChartInstance) caneChartInstance.destroy();
+
+        const labels = data.map(d => d.date);
+
+        caneChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Line A',
+                        data: data.map(d => d.cane_a),
+                        backgroundColor: '#6366f1',
+                        stack: 'Stack 0',
+                    },
+                    {
+                        label: 'Line B',
+                        data: data.map(d => d.cane_b),
+                        backgroundColor: '#8b5cf6',
+                        stack: 'Stack 0',
+                    },
+                    {
+                        type: 'line',
+                        label: 'Total Cane',
+                        data: data.map(d => d.total),
+                        borderColor: '#10b981',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#fff',
+                        tension: 0.3,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: { grid: { display: false }, stacked: true },
+                    y: { beginAtZero: true, stacked: true }
+                }
+            }
+        });
+    }
+
+    function activeLucide() {
+        lucide.createIcons();
+    }
 </script>
 {% endblock content %}

@@ -9,6 +9,7 @@ urlpatterns = [
     #path('table-employee/', table_employee, name='table-employee'),
     #path('detail-job/<int:ID>/', detail_job, name='detail-job'),
     path('dashboard/', dashboard, name='dashboard'),
+    path('dashboard/api/', dashboard_api, name='dashboard_api'),
     path('boiler/', boiler, name='boiler'),
     path('boiler/operation/add/', boiler_operation_add, name='boiler_operation_add'), 
     path('boiler/yoshimine/add/', yoshimine_operation_add, name='yoshimine_operation_add'),
@@ -17,6 +18,8 @@ urlpatterns = [
     path('boiler/takuma/add/', takuma_operation_add, name='takuma_operation_add'),
     path('boiler/banpong2/add/', banpong2_operation_add, name='banpong2_operation_add'),
     path('boiler/operation/', operation_dashboard, name='operation_dashboard'),
+    path('boiler/api/history/', boiler_history_api, name='boiler_history_api'),
+
     path('boiler/kpi/add/', boiler_kpi_form, name='boiler_kpi_form'),
 
 
@@ -27,6 +30,8 @@ urlpatterns = [
     path('mill/', mill, name='mill'),
     path('mill/report/', mill_report, name='mill_report'),
     path('mill/import/', mill_import, name='mill_import'),
+    path('mill/api/history/', mill_history_api, name='mill_history_api'),
+    path('lathe/', lathe_dashboard, name='lathe_dashboard'),
 
     # Path สำหรับ Import Data
     path('import-data/', import_data, name='import_data'),

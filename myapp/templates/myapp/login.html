@@ -3,89 +3,190 @@
 {% block title %} เข้าสู่ระบบ | Smart Factory {% endblock title %}
 
 {% block content %}
-<section id="login-section" class="flex items-center justify-center min-h-screen relative">
-    <!-- Background Elements -->
-    <div class="absolute inset-0 overflow-hidden -z-10">
-        <div
-            class="absolute -top-40 -left-40 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob">
-        </div>
-        <div
-            class="absolute top-0 -right-20 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000">
-        </div>
-        <div
-            class="absolute -bottom-40 left-20 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000">
-        </div>
-    </div>
+<!-- External Libraries for Vanta.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.net.min.js"></script>
 
+<div class="flex min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 font-sans">
+
+    <!-- Left Section: Interactive Visualization (Hidden on Mobile) -->
     <div
-        class="w-full max-w-md p-8 bg-white/70 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl glass-panel mx-4">
-        <div class="text-center mb-8">
+        class="hidden lg:flex w-1/2 relative flex-col justify-center items-center overflow-hidden bg-slate-900 text-white">
+        <!-- Vanta.js background container -->
+        <div id="vanta-bg" class="absolute inset-0 z-0"></div>
+
+        <!-- Content Overlay -->
+        <div class="relative z-10 p-12 text-center max-w-lg">
             <div
-                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 mb-4 shadow-lg">
-                <i data-lucide="factory" class="w-8 h-8 text-white"></i>
+                class="inline-flex items-center justify-center w-24 h-24 mb-6 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl animate-fade-in-down">
+                <i data-lucide="factory" class="w-12 h-12 text-blue-400"></i>
             </div>
             <h1
-                class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400">
+                class="text-5xl font-bold mb-4 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400 animate-slide-in-up">
                 Smart Factory
             </h1>
-            <p class="text-sm text-slate-500 dark:text-slate-400 mt-2">ระบบบริหารจัดการโรงงานอัจฉริยะ</p>
+            <p class="text-lg text-slate-300 mb-8 animate-slide-in-up delay-100">
+                ขับเคลื่อนอนาคตอุตสาหกรรมด้วยระบบอัจฉริยะแบบเรียลไทม์
+            </p>
+            <div class="flex gap-4 justify-center animate-slide-in-up delay-200">
+                <div class="flex flex-col items-center">
+                    <span class="text-2xl font-bold">24/7</span>
+                    <span class="text-xs text-slate-400 uppercase tracking-wider">Monitoring</span>
+                </div>
+                <div class="h-12 w-px bg-white/20"></div>
+                <div class="flex flex-col items-center">
+                    <span class="text-2xl font-bold">IoT</span>
+                    <span class="text-xs text-slate-400 uppercase tracking-wider">Connected</span>
+                </div>
+                <div class="h-12 w-px bg-white/20"></div>
+                <div class="flex flex-col items-center">
+                    <span class="text-2xl font-bold">AI</span>
+                    <span class="text-xs text-slate-400 uppercase tracking-wider">Powered</span>
+                </div>
+            </div>
         </div>
 
-        <!-- Login Form -->
-        <!-- หมายเหตุ: ใน Django จริง action ควรเป็น {% url 'login' %} -->
-        <form id="auth-form" method="POST" action="{% url 'login' %}" class="space-y-6">
-            {% csrf_token %}
-            <div>
-                <label class="block text-sm font-medium mb-2">Username (ชื่อผู้ใช้)</label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                        <i data-lucide="user" class="w-5 h-5"></i>
-                    </span>
-                    <input type="text" name="username" required
-                        class="w-full pl-10 pr-4 py-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                        placeholder="กรอก Username ของคุณ">
-                </div>
-            </div>
-            <div>
-                <label class="block text-sm font-medium mb-2">รหัสผ่าน</label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                        <i data-lucide="lock" class="w-5 h-5"></i>
-                    </span>
-                    <input type="password" name="password" required
-                        class="w-full pl-10 pr-4 py-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                        placeholder="••••••••">
-                </div>
-            </div>
-
-            <div class="flex items-center justify-between text-sm">
-                <label class="flex items-center cursor-pointer">
-                    <input type="checkbox" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                    <span class="ml-2 text-slate-500">จำรหัสผ่าน</span>
-                </label>
-                <a href="#" class="text-indigo-600 dark:text-indigo-400 hover:underline">ลืมรหัสผ่าน?</a>
-            </div>
-
-            <button type="submit"
-                class="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5">
-                เข้าสู่ระบบ
-            </button>
-        </form>
-
-        <div class="mt-6 text-center text-sm text-slate-500">
-            ยังไม่มีบัญชีผู้ใช้?
-            <a href="{% url 'register' %}"
-                class="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">สมัครสมาชิก</a>
+        <!-- Overlay Gradient -->
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent z-0 opacity-80">
         </div>
     </div>
-</section>
+
+    <!-- Right Section: Login Form -->
+    <div class="flex-1 flex items-center justify-center p-6 relative">
+        <!-- Decoration blobb -->
+        <div
+            class="absolute -top-10 -right-10 w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob">
+        </div>
+        <div
+            class="absolute -bottom-10 -left-10 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000">
+        </div>
+
+        <div
+            class="w-full max-w-md bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl border border-white/50 dark:border-slate-700 p-8 rounded-3xl shadow-2xl relative z-10 transform hover:scale-[1.01] transition-all duration-300">
+
+            <div class="mb-8 text-center lg:text-left">
+                <div
+                    class="lg:hidden inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-purple-600 mb-4 shadow-lg">
+                    <i data-lucide="factory" class="w-8 h-8 text-white"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-slate-800 dark:text-white mb-2">ยินดีต้อนรับ</h2>
+                <p class="text-slate-500 dark:text-slate-400">กรุณาเข้าสู่ระบบเพื่อจัดการโรงงาน</p>
+            </div>
+
+            <form method="POST" action="{% url 'login' %}" class="space-y-6">
+                {% csrf_token %}
+
+                <div class="space-y-2 group">
+                    <label
+                        class="block text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors group-focus-within:text-blue-600">
+                        Username
+                    </label>
+                    <div class="relative">
+                        <span
+                            class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 group-focus-within:text-blue-600 transition-colors">
+                            <i data-lucide="user" class="w-5 h-5"></i>
+                        </span>
+                        <input type="text" name="username" required
+                            class="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-400 dark:text-white hover:border-blue-400"
+                            placeholder="ชื่อผู้ใช้งาน">
+                    </div>
+                </div>
+
+                <div class="space-y-2 group">
+                    <div class="flex justify-between items-center">
+                        <label
+                            class="block text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors group-focus-within:text-blue-600">
+                            Password
+                        </label>
+                    </div>
+                    <div class="relative">
+                        <span
+                            class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 group-focus-within:text-blue-600 transition-colors">
+                            <i data-lucide="lock" class="w-5 h-5"></i>
+                        </span>
+                        <input type="password" name="password" required
+                            class="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all placeholder:text-slate-400 dark:text-white hover:border-blue-400"
+                            placeholder="รหัสผ่าน">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between text-sm">
+                    <label class="flex items-center cursor-pointer select-none">
+                        <input type="checkbox"
+                            class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 transition-all">
+                        <span class="ml-2 text-slate-600 dark:text-slate-400">จดจำฉันไว้</span>
+                    </label>
+                    <a href="#" class="text-blue-600 hover:text-blue-700 font-medium transition-colors">ลืมรหัสผ่าน?</a>
+                </div>
+
+                <button type="submit"
+                    class="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg hover:shadow-blue-500/30 transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2">
+                    <i data-lucide="log-in" class="w-5 h-5"></i>
+                    เข้าสู่ระบบ
+                </button>
+            </form>
+
+            <div class="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700 text-center">
+                <p class="text-sm text-slate-500 dark:text-slate-400">
+                    ยังไม่มีบัญชีใช่หรือไม่?
+                    <a href="{% url 'register' %}"
+                        class="text-blue-600 hover:text-blue-700 font-bold hover:underline transition-colors">สมัครมาชิกใหม่</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="absolute bottom-4 text-xs text-slate-400 text-center w-full">
+            &copy; 2024 Smart Factory System. All rights reserved.
+        </div>
+    </div>
+</div>
 
 <script>
-    // Mock function สำหรับ Demo (ถ้าใช้ Django form จริง ให้ลบส่วนนี้ออก)
-    //function handleLoginMock(e) {
-    //e.preventDefault();
-    // ปล่อยให้ Form submit ตามปกติไปที่ URL /dashboard/ หรือตามที่ Django กำหนด
-    //return true;
-    //}
+    // Initialize Vanta.js
+    document.addEventListener('DOMContentLoaded', () => {
+        // Only init Vanta if the element exists (Desktop logic essentially, but checking element is safer)
+        const vantaEl = document.getElementById('vanta-bg');
+        if (vantaEl) {
+            try {
+                VANTA.NET({
+                    el: "#vanta-bg",
+                    mouseControls: true,
+                    touchControls: true,
+                    gyroControls: false,
+                    minHeight: 200.00,
+                    minWidth: 200.00,
+                    scale: 1.00,
+                    scaleMobile: 1.00,
+                    color: 0x6366f1,       // Indigo-500
+                    backgroundColor: 0x0f172a, // Slate-900
+                    points: 10.00,
+                    maxDistance: 22.00,
+                    spacing: 18.00
+                })
+            } catch (e) {
+                console.error("Vanta JS failed to load", e);
+            }
+        }
+    });
+
+    // Add custom animation classes via JS if needed, or rely on Tailwind utility hacks
+    // Defining simple keyframes for fade effects via Inline style injection for simplicity
+    const styleSheet = document.createElement("style");
+    styleSheet.innerText = `
+        @keyframes fade-in-down {
+            0% { opacity: 0; transform: translateY(-20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slide-in-up {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-down { animation: fade-in-down 0.8s ease-out forwards; }
+        .animate-slide-in-up { animation: slide-in-up 0.8s ease-out forwards; }
+        .delay-100 { animation-delay: 0.1s; }
+        .delay-200 { animation-delay: 0.2s; }
+    `;
+    document.head.appendChild(styleSheet);
 </script>
 {% endblock content %}

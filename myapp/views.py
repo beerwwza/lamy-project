@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from django.shortcuts import render, redirect
-from django.db.models import Sum, Avg
+from django.db.models import Sum, Avg, Count
 from django.http import HttpResponse, JsonResponse
 from .models import *
 from django.contrib.auth.models import User
@@ -128,9 +128,267 @@ def detail_job(request,ID):
     context = {'Employee':Employee}
     return render(request,'myapp/detail-job.html',context)
 
+@login_required
 def dashboard(request):
-    # ฟังก์ชันนี้จะเรียกไฟล์ template dashboard.html ที่เราเพิ่งแก้ไปมาแสดง
-    return render(request, 'myapp/dashboard.html')
+    # 1. Milling Data (Latest)
+    mill_obj = MillReport.objects.order_by('-date').first()
+    mill_data = {
+        'cane_weight': f"{mill_obj.cane_weight:,.0f}" if mill_obj and mill_obj.cane_weight else "0",
+        'ccs': f"{mill_obj.ccs:.2f}" if mill_obj and mill_obj.ccs else "0.00",
+        'trash': f"{mill_obj.trash:.2f}" if mill_obj and mill_obj.trash else "0.00",
+        'purity_drop': f"{mill_obj.purity_drop:.2f}" if mill_obj and mill_obj.purity_drop else "0.00",
+    }
+
+    # 2. Boiler Data (Yoshimine as Example)
+    boiler_obj = YoshimineLog.objects.order_by('-yos_date', '-yos_time').first()
+    boiler_data = {
+        'steam_flow': f"{boiler_obj.yos_main_steam_flow:.1f}" if boiler_obj and boiler_obj.yos_main_steam_flow else "0.0",
+        'pressure': f"{boiler_obj.yos_main_steam_pressure:.1f}" if boiler_obj and boiler_obj.yos_main_steam_pressure else "0.0",
+        'temp': f"{boiler_obj.yos_main_steam_temp:.0f}" if boiler_obj and boiler_obj.yos_main_steam_temp else "0",
+        'eco': f"{boiler_obj.yos_eco_out_temp:.0f}" if boiler_obj and boiler_obj.yos_eco_out_temp else "0",
+    }
+
+    # 3. Maintenance Data (Latest) & 4. Lathe Data (Latest)
+    # Since MaintenanceLog is transactional, we might want "Today's Stats" or just "Latest Ticket"
+    # For dashboard summary, let's show "Today's Downtime" if available, else 0
+    today = datetime.now().date()
+    
+    # Maintenance (Exclude Lathe)
+    maint_qs = MaintenanceLog.objects.filter(date=today).exclude(dept='โรงกลึง')
+    maint_downtime = maint_qs.aggregate(Sum('downtime_stop'))['downtime_stop__sum'] or 0
+    maint_tickets = maint_qs.count()
+
+    # Lathe (Dept = 'โรงกลึง')
+    lathe_qs = MaintenanceLog.objects.filter(date=today, dept='โรงกลึง')
+    lathe_downtime = lathe_qs.aggregate(Sum('downtime_stop'))['downtime_stop__sum'] or 0
+    lathe_jobs = lathe_qs.count()
+
+    context = {
+        'mill': mill_data,
+        'boiler': boiler_data,
+        'maint': {
+            'downtime': maint_downtime,
+            'tickets': maint_tickets
+        },
+        'lathe': {
+            'downtime': lathe_downtime,
+            'jobs': lathe_jobs
+        }
+    }
+    return render(request, 'myapp/dashboard.html', context)
+
+@login_required
+def dashboard_api(request):
+    department = request.GET.get('department')
+    metric = request.GET.get('metric')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    if not all([department, metric]):
+        return JsonResponse({'error': 'Missing parameters'}, status=400)
+
+    # Date Filtering
+    try:
+        if start_date:
+            start = datetime.strptime(start_date, '%Y-%m-%d').date()
+        else:
+             # Default to last 7 days
+            start = datetime.now().date() - pd.Timedelta(days=7)
+        
+        if end_date:
+            end = datetime.strptime(end_date, '%Y-%m-%d').date()
+        else:
+            end = datetime.now().date()
+    except ValueError:
+        return JsonResponse({'error': 'Invalid date format'}, status=400)
+    
+    data = []
+    labels = []
+
+    if department == 'milling':
+        qs = MillReport.objects.filter(date__range=[start, end]).order_by('date')
+        
+        # Mapping metric to field
+        field_map = {
+            'cane_weight': 'cane_weight',
+            'ccs': 'ccs',
+            'trash': 'trash',
+            'purity': 'purity_drop'
+        }
+        field = field_map.get(metric)
+        if field:
+            for item in qs:
+                val = getattr(item, field, 0)
+                labels.append(item.date.strftime('%Y-%m-%d'))
+                data.append(val or 0)
+
+    elif department == 'boiler':
+        # Using Yoshimine as representative
+        # Note: Logs are frequent (hourly?), so we should probably AVG per day for the graph
+        # OR just show all data points if range is small.
+        # Let's Aggregate by Day for clarity in "History"
+        
+        qs = YoshimineLog.objects.filter(yos_date__range=[start, end])
+        
+        field_map = {
+            'steam_flow': 'yos_main_steam_flow',
+            'pressure': 'yos_main_steam_pressure',
+            'temp': 'yos_main_steam_temp',
+            'eco': 'yos_eco_out_temp'
+        }
+        field = field_map.get(metric)
+
+        if field:
+            # Aggregate avg per day
+            daily_data = qs.values('yos_date').annotate(avg_val=Avg(field)).order_by('yos_date')
+            for item in daily_data:
+                labels.append(item['yos_date'].strftime('%Y-%m-%d'))
+                data.append(round(item['avg_val'] or 0, 2))
+
+    elif department == 'maintenance':
+        qs = MaintenanceLog.objects.filter(date__range=[start, end]).exclude(dept='โรงกลึง')
+        
+        if metric == 'downtime':
+             daily_data = qs.values('date').annotate(total=Sum('downtime_stop')).order_by('date')
+             for item in daily_data:
+                labels.append(item['date'].strftime('%Y-%m-%d'))
+                data.append(item['total'])
+        elif metric == 'tickets':
+             daily_data = qs.values('date').annotate(count=Count('id')).order_by('date')
+             for item in daily_data:
+                labels.append(item['date'].strftime('%Y-%m-%d'))
+                data.append(item['count'])
+
+    elif department == 'lathe':
+        qs = MaintenanceLog.objects.filter(date__range=[start, end], dept='โรงกลึง')
+        
+        if metric == 'downtime':
+             daily_data = qs.values('date').annotate(total=Sum('downtime_stop')).order_by('date')
+             for item in daily_data:
+                labels.append(item['date'].strftime('%Y-%m-%d'))
+                data.append(item['total'])
+        elif metric == 'jobs':
+             daily_data = qs.values('date').annotate(count=Count('id')).order_by('date')
+             for item in daily_data:
+                labels.append(item['date'].strftime('%Y-%m-%d'))
+                data.append(item['count'])
+
+    return JsonResponse({
+        'labels': labels,
+        'data': data,
+        'metric_label': metric.replace('_', ' ').title()
+    })
+
+
+@login_required
+def boiler_history_api(request):
+    machine = request.GET.get('machine')
+    metric = request.GET.get('metric')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    if not all([machine, metric]):
+        return JsonResponse({'error': 'Missing parameters'}, status=400)
+
+    # 1. Date Parsing
+    try:
+        if start_date:
+            start = datetime.strptime(start_date, '%Y-%m-%d').date()
+        else:
+            start = datetime.now().date() - timedelta(days=7)
+        
+        if end_date:
+            end = datetime.strptime(end_date, '%Y-%m-%d').date()
+        else:
+            end = datetime.now().date()
+    except ValueError:
+        return JsonResponse({'error': 'Invalid date format'}, status=400)
+
+    # 2. Config & Mapping
+    # Structure: machine_key: (ModelClass, prefix)
+    config = {
+        'john_thomson': (BoilerOperationLog, 'jt'),
+        'chengchen': (ChengchenLog, 'ch'),
+        'takuma': (TakumaLog, 'tk'),
+        'yoshimine': (YoshimineLog, 'yos'),
+        'banpong1': (Banpong1Log, 'bp1'),
+        'banpong2': (Banpong2Log, 'bp2'),
+    }
+
+    if machine not in config:
+        return JsonResponse({'error': 'Invalid machine'}, status=400)
+
+    model_class, prefix = config[machine]
+
+    # Map generic metric names to specific DB fields
+    # metric input ex: 'press', 'flow', 'temp', 'fw_flow'
+    field_map = {
+        'press': f'{prefix}_steam_pressure' if prefix in ['jt','ch','tk'] else f'{prefix}_main_steam_pressure',
+        'flow': f'{prefix}_steam_flow' if prefix in ['jt','ch','tk'] else f'{prefix}_main_steam_flow',
+        'temp': f'{prefix}_steam_temp' if prefix in ['jt','ch','tk'] else f'{prefix}_main_steam_temp',
+        'fw_flow': f'{prefix}_feed_water_flow',
+        'dea_temp': f'{prefix}_temp_deaerator' if prefix == 'jt' else (f'{prefix}_dea_temp' if prefix in ['ch','tk'] else f'{prefix}_feed_water_in_temp'), # Yos/BP uses feed_water_in_temp for Dea? Let's check model... Yos: feed_water_in_temp ok.
+        'stack_temp': f'{prefix}_temp_gas_stack' if prefix == 'jt' else (f'{prefix}_stack_temp' if prefix in ['ch','tk'] else (f'{prefix}_dc_gas_out_temp' if prefix == 'yos' else f'{prefix}_ah1_gas_out_temp')),
+        'ph': f'{prefix}_ph_boiler' if prefix == 'jt' else (f'{prefix}_ph_water' if prefix in ['ch','tk'] else f'{prefix}_bagasse_moisture'), # Placeholder for others if not present
+        'bd_flow': f'{prefix}_blowdown_flow' if prefix == 'yos' else f'{prefix}_bd_flow',
+    }
+    
+    # Specific fix for JT ph/tds/others if needed, but generic logic covers most.
+    # Note: 'ph' for Yos/BP might not exist or be different? 
+    # Yos Model: No pH field visible in previous `view_file` (checked lines 102-194). 
+    # Wait, Yos has 'yos_bagasse_moisture' mapped in `operation_dashboard`? 
+    # Line 421 of views.py: 'ph': get_val(yos, 'yos_bagasse_moisture'), <- User's existing code used this, I will stick to it or return specific failure.
+
+    # Try mapped fields first, then direct attribute
+    db_field = field_map.get(metric)
+    if not db_field:
+        # Security check: ensure the field actually exists on the model
+        try:
+            model_class._meta.get_field(metric)
+            db_field = metric
+        except:
+            return JsonResponse({'error': f'Invalid metric: {metric}'}, status=400)
+    
+    data = []
+    labels = []
+
+    # 3. Query
+    if db_field:
+        date_field = f'{prefix}_date'
+        time_field = f'{prefix}_time'
+        
+        # Order by Date, Time
+        qs = model_class.objects.filter(**{f'{date_field}__range': [start, end]}).order_by(date_field, time_field)
+        
+        for item in qs:
+            d = getattr(item, date_field)
+            t = getattr(item, time_field)
+            val = getattr(item, db_field, 0)
+            
+            if d and t:
+                # Combine for chart label
+                full_dt = datetime.combine(d, t)
+                labels.append(full_dt.strftime('%Y-%m-%d %H:%M'))
+                data.append(val if val is not None else 0)
+
+    label_map = {
+        'press': 'Steam Pressure (Bar)',
+        'flow': 'Steam Flow (T/H)',
+        'temp': 'Steam Temperature (°C)',
+        'fw_flow': 'Feed Water Flow (T/H)',
+        'dea_temp': 'Deaerator Temp (°C)',
+        'stack_temp': 'Stack Temp (°C)',
+        'ph': 'pH / Moisture',
+        'bd_flow': 'Blowdown Flow (T/H)'
+    }
+
+    return JsonResponse({
+        'labels': labels,
+        'data': data,
+        'machine': machine,
+        'metric': metric,
+        'metric_label': label_map.get(metric, metric.title())
+    })
 
 # --- Boiler Overview (Split Lines) ---
 @login_required
@@ -224,6 +482,31 @@ def operation_dashboard(request):
     def get_val(obj, field, default="-"):
         return getattr(obj, field, default) if obj else default
 
+    # Helper to get all fields dynamically
+    def get_all_fields(obj, prefix):
+        if not obj: return []
+        fields_data = []
+        # Exclude internal/header fields
+        exclude = ['id', f'{prefix}_date', f'{prefix}_time', 'created_at', 'updated_at', 'yos_created_at', 'tk_created_at', 'ch_created_at', 'bp1_created_at', 'bp2_created_at', 'jt_created_at']
+        
+        for field in obj._meta.fields:
+            if field.name in exclude: continue
+            
+            # Get values
+            val = getattr(obj, field.name)
+            if val is None: val = "-"
+            elif isinstance(val, float): val = round(val, 2)
+            
+            # Determine unit from verbose name (simple heuristic or just show label)
+            label = field.verbose_name
+            
+            fields_data.append({
+                'name': field.name,
+                'label': label,
+                'value': val
+            })
+        return fields_data
+
     jt = BoilerOperationLog.objects.order_by('jt_date', 'jt_time').last()
     ch = ChengchenLog.objects.order_by('ch_date', 'ch_time').last()
     tk = TakumaLog.objects.order_by('tk_date', 'tk_time').last()
@@ -237,62 +520,42 @@ def operation_dashboard(request):
             'press': get_val(jt, 'jt_steam_pressure'),
             'flow': get_val(jt, 'jt_steam_flow'),
             'temp': get_val(jt, 'jt_temp_steam'),
-            'fw_flow': get_val(jt, 'jt_feed_water_flow', '-'),
-            'dea_temp': get_val(jt, 'jt_temp_deaerator', '-'),
-            'stack_temp': get_val(jt, 'jt_temp_gas_stack', '-'),
-            'ph': get_val(jt, 'jt_ph_boiler', '-'),
-            'bd_flow': get_val(jt, 'jt_blowdown_flow', '-')
+            'all_fields': get_all_fields(jt, 'jt')
         },
         'chengchen': {
             'name': 'Chengchen',
             'press': get_val(ch, 'ch_steam_pressure'),
             'flow': get_val(ch, 'ch_steam_flow'),
             'temp': get_val(ch, 'ch_steam_temp'),
-            'fw_flow': get_val(ch, 'ch_feed_water_flow'),
-            'dea_temp': get_val(ch, 'ch_dea_temp'),
-            'stack_temp': get_val(ch, 'ch_stack_temp'),
-            'ph': get_val(ch, 'ch_ph_water'), 
+            'all_fields': get_all_fields(ch, 'ch')
         },
         'takuma': {
             'name': 'Takuma',
             'press': get_val(tk, 'tk_steam_pressure'),
             'flow': get_val(tk, 'tk_steam_flow'),
             'temp': get_val(tk, 'tk_steam_temp'),
-            'fw_flow': get_val(tk, 'tk_feed_water_flow'),
-            'dea_temp': get_val(tk, 'tk_dea_temp'),
-            'stack_temp': get_val(tk, 'tk_stack_temp'),
-            'ph': get_val(tk, 'tk_ph_water'), 
+            'all_fields': get_all_fields(tk, 'tk')
         },
         'yoshimine': {
             'name': 'Yoshimine',
             'press': get_val(yos, 'yos_main_steam_pressure'),
             'flow': get_val(yos, 'yos_main_steam_flow'),
             'temp': get_val(yos, 'yos_main_steam_temp'),
-            'fw_flow': get_val(yos, 'yos_feed_water_flow'),
-            'dea_temp': get_val(yos, 'yos_feed_water_in_temp'),
-            'stack_temp': get_val(yos, 'yos_dc_gas_out_temp'),
-            'ph': get_val(yos, 'yos_bagasse_moisture'),
-            'bd_flow': get_val(yos,'yos_blowdown_flow'), 
+            'all_fields': get_all_fields(yos, 'yos')
         },
         'banpong1': {
             'name': 'Banpong 1',
             'press': get_val(bp1, 'bp1_main_steam_pressure'),
             'flow': get_val(bp1, 'bp1_main_steam_flow'),
             'temp': get_val(bp1, 'bp1_main_steam_temp'),
-            'fw_flow': get_val(bp1, 'bp1_feed_water_flow'),
-            'dea_temp': get_val(bp1, 'bp1_feed_water_in_temp'),
-            'stack_temp': get_val(bp1, 'bp1_ah1_gas_out_temp'),
-            'bd_flow': get_val(bp1,'bp1_bd_flow'), 
+            'all_fields': get_all_fields(bp1, 'bp1')
         },
         'banpong2': {
             'name': 'Banpong 2',
             'press': get_val(bp2, 'bp2_main_steam_pressure'),
             'flow': get_val(bp2, 'bp2_main_steam_flow'),
             'temp': get_val(bp2, 'bp2_main_steam_temp'),
-            'fw_flow': get_val(bp2, 'bp2_feed_water_flow'),
-            'dea_temp': get_val(bp2, 'bp2_feed_water_in_temp'),
-            'stack_temp': get_val(bp2, 'bp2_ah1_gas_out_temp'),
-            'bd_flow': get_val(bp2,'bp2_bd_flow'), 
+            'all_fields': get_all_fields(bp2, 'bp2')
         },
     }
 
@@ -1174,9 +1437,81 @@ def mill(request):
     context = {
         'data_a': json.dumps(format_data(latest_a, sum_cane_a, avg_a)),
         'data_b': json.dumps(format_data(latest_b, sum_cane_b, avg_b)),
+        'combined_sum': sum_cane_a + sum_cane_b, # Add combined sum
     }
     
+    
     return render(request, 'myapp/mill.html', context)
+
+def mill_history_api(request):
+    try:
+        line = request.GET.get('line', 'A')
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+
+        # Default to last 7 days if no date provided
+        if not end_date_str:
+            end_date = datetime.now().date()
+        else:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            
+        if not start_date_str:
+            start_date = end_date - timedelta(days=6) # 7 days total (inclusive)
+        else:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+
+        if line == 'ALL':
+             reports_a = MillReport.objects.filter(line='A', date__range=[start_date, end_date]).values('date', 'cane_weight')
+             reports_b = MillReport.objects.filter(line='B', date__range=[start_date, end_date]).values('date', 'cane_weight')
+             
+             # Convert to dict for easy lookup
+             dict_a = {r['date']: r['cane_weight'] or 0 for r in reports_a}
+             dict_b = {r['date']: r['cane_weight'] or 0 for r in reports_b}
+             
+             # Merge dates
+             all_dates = sorted(list(set(list(dict_a.keys()) + list(dict_b.keys()))))
+             
+             data = []
+             for d in all_dates:
+                 val_a = dict_a.get(d, 0)
+                 val_b = dict_b.get(d, 0)
+                 data.append({
+                     'date': d.strftime('%Y-%m-%d'),
+                     'cane_a': val_a,
+                     'cane_b': val_b,
+                     'total': val_a + val_b
+                 })
+                 
+             return JsonResponse({'status': 'success', 'data': data})
+
+        reports = MillReport.objects.filter(
+            line=line,
+            date__range=[start_date, end_date]
+        ).order_by('date')
+
+        data = []
+        for r in reports:
+            data.append({
+                'date': r.date.strftime('%Y-%m-%d'), ### Format for Chart.js
+                'cane_weight': r.cane_weight,
+                'kpis': {
+                    1: r.first_mill_extraction,
+                    2: r.reduced_pol_extraction,
+                    3: r.purity_drop,
+                    4: r.imbibition_cane,
+                    5: r.imbibition_fiber,
+                    6: r.bagasse_moisture,
+                    7: r.cane_preparation_index,
+                    8: r.pol_bagasse,
+                    9: r.loss_bagasse,
+                    10: r.ccs,
+                    11: r.trash,
+                }
+            })
+
+        return JsonResponse({'status': 'success', 'data': data})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 def mill_report(request):
     if request.method == 'POST':
@@ -1343,3 +1678,22 @@ def mill_import(request):
 
     return redirect('mill')
 
+
+@login_required
+def lathe_dashboard(request):
+    # Filter logs for 'โรงกลึง'
+    logs = MaintenanceLog.objects.filter(dept='โรงกลึง').order_by('-date')
+    
+    # Simple stats for today
+    today = datetime.now().date()
+    today_logs = logs.filter(date=today)
+    
+    stats = {
+        'today_count': today_logs.count(),
+        'today_downtime': today_logs.aggregate(Sum('downtime_stop'))['downtime_stop__sum'] or 0
+    }
+    
+    return render(request, 'myapp/lathe.html', {
+        'logs': logs,
+        'stats': stats
+    })

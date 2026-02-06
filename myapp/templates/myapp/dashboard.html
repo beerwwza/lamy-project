@@ -1,209 +1,785 @@
-{% extends 'myapp/base.html' %}
+<!DOCTYPE html>
+<html lang="th" class="light">
 
-{% block title %} Dashboard | Factory OS {% endblock title %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factory Management System</title>
 
-{% block content %}
-<!-- ลบ class 'hidden' ออกเพื่อให้แสดงผลทันที -->
-<div id="dashboard-section" class="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950">
+    <!-- Fonts: Kanit for Thai support -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
 
-    <!-- Sidebar -->
-    <aside
-        class="w-64 flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 hidden md:flex flex-col transition-all duration-300">
-        <div class="h-16 flex items-center justify-center border-b border-slate-200 dark:border-slate-800">
-            <div class="flex items-center gap-2 font-bold text-xl tracking-tight text-indigo-600 dark:text-indigo-400">
-                <i data-lucide="cpu" class="w-6 h-6"></i>
-                <span>FACTORY OS</span>
-            </div>
-        </div>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
-        <div class="flex-1 overflow-y-auto py-4">
-            <nav class="px-4 space-y-2">
-                <p class="px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Main Menu</p>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
 
-                <a href="#"
-                    class="flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300 rounded-lg transition-colors">
-                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
-                    <span>Dashboard</span>
-                </a>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
 
-                <a href="#"
-                    class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors group">
-                    <i data-lucide="list" class="w-5 h-5 group-hover:text-indigo-500"></i>
-                    <span>Machine List</span>
-                </a>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-                <a href="#"
-                    class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors group">
-                    <i data-lucide="wrench" class="w-5 h-5 group-hover:text-orange-500"></i>
-                    <span>แจ้งซ่อมเครื่องจักร</span>
-                </a>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-                <div class="border-t border-slate-200 dark:border-slate-800 my-4"></div>
+    <!-- Markdown Parser (for AI responses) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-                <p class="px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Settings</p>
-                <a href="#"
-                    class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
-                    <i data-lucide="settings" class="w-5 h-5"></i>
-                    <span>ตั้งค่าระบบ</span>
-                </a>
-            </nav>
-        </div>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Kanit', 'sans-serif'] },
+                    colors: {
+                        dark: { bg: '#0f172a', card: '#1e293b', text: '#f1f5f9' },
+                        light: { bg: '#f8fafc', card: '#ffffff', text: '#1e293b' }
+                    }
+                }
+            }
+        }
+    </script>
 
-        <div class="p-4 border-t border-slate-200 dark:border-slate-800">
-            <!-- แก้ไขปุ่ม Logout ให้เป็น Link ธรรมดา หรือ Form Post -->
-            <a href="/" onclick="return confirm('ต้องการออกจากระบบใช่หรือไม่?')"
-                class="flex items-center justify-center gap-3 w-full px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-pointer">
-                <i data-lucide="log-out" class="w-5 h-5"></i>
-                <span>ออกจากระบบ</span>
-            </a>
-        </div>
-    </aside>
+    <style>
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
 
-        <!-- Top Header (Mobile view) -->
-        <header
-            class="h-16 flex items-center justify-between px-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 md:hidden">
-            <div class="font-bold text-lg">Smart Factory</div>
-            <button class="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800">
-                <i data-lucide="menu" class="w-6 h-6"></i>
-            </button>
-        </header>
+        .dark .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
 
-        <!-- Dashboard Content Scrollable Area -->
-        <div class="flex-1 overflow-y-auto p-6 lg:p-10">
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
 
-            <div class="mb-8">
-                <h2 class="text-3xl font-bold mb-2">ภาพรวมโรงงาน</h2>
-                <p class="text-slate-500 dark:text-slate-400">ข้อมูลสถานะการทำงานแบบ Real-time</p>
-            </div>
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
 
-            <!-- Summary Dashboard (Stats) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                <!-- Stat Card 1 -->
-                <div
-                    class="p-6 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <span class="text-slate-500 dark:text-slate-400 text-sm font-medium">ประสิทธิภาพรวม</span>
-                        <span class="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-lg">
-                            <i data-lucide="activity" class="w-4 h-4"></i>
-                        </span>
-                    </div>
-                    <div class="text-3xl font-bold">92.4%</div>
-                    <div class="text-xs text-green-500 mt-2 flex items-center">
-                        <i data-lucide="arrow-up-right" class="w-3 h-3 mr-1"></i> +2.1% จากเมื่อวาน
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+
+        /* Markdown Styles */
+        .prose h3 {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+        }
+
+        .prose ul {
+            list-style-type: disc;
+            padding-left: 1.2em;
+            margin-bottom: 1em;
+        }
+
+        .prose p {
+            margin-bottom: 0.8em;
+        }
+
+        .prose strong {
+            color: #4f46e5;
+        }
+
+        .dark .prose strong {
+            color: #818cf8;
+        }
+    </style>
+</head>
+
+<body
+    class="font-sans antialiased bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen relative overflow-x-hidden transition-colors duration-300">
+
+    <!-- Theme Toggle Button -->
+    <button onclick="toggleTheme()"
+        class="fixed top-5 right-5 z-50 p-3 rounded-full bg-white/80 dark:bg-slate-800/80 shadow-lg hover:scale-110 transition-transform border border-slate-200 dark:border-slate-700">
+        <i id="theme-icon" data-lucide="moon" class="w-6 h-6 text-indigo-600 dark:text-yellow-400"></i>
+    </button>
+
+    <!-- React App Root -->
+    <div id="root"></div>
+
+    <!-- Global Scripts for Theme -->
+    <script>
+        // Initialize Icons (Will be handled by React mostly, but keeping for static parts)
+
+        const html = document.documentElement;
+        const themeIcon = document.getElementById('theme-icon');
+
+        function toggleTheme() {
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                if (themeIcon) themeIcon.setAttribute('data-lucide', 'moon');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.add('dark');
+                if (themeIcon) themeIcon.setAttribute('data-lucide', 'sun');
+                localStorage.setItem('theme', 'dark');
+            }
+            lucide.createIcons();
+        }
+
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            html.classList.add('dark');
+            if (themeIcon) themeIcon.setAttribute('data-lucide', 'sun');
+        } else {
+            html.classList.remove('dark');
+            if (themeIcon) themeIcon.setAttribute('data-lucide', 'moon');
+        }
+    </script>
+
+    <!-- React Application Logic -->
+    {% verbatim %}
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // --- Gemini API Helper ---
+        const callGeminiAPI = async (prompt) => {
+            const apiKey = ""; // API Key provided by environment
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+
+            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            const retries = 3;
+
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                    const data = await response.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text || "ไม่สามารถประมวลผลได้ในขณะนี้";
+                } catch (error) {
+                    if (i === retries - 1) return "เกิดข้อผิดพลาดในการเชื่อมต่อกับ AI: " + error.message;
+                    await delay(1000 * Math.pow(2, i));
+                }
+            }
+        };
+
+        // --- Mock Data Generation based on Excel Headers ---
+        // Generating 30 days of data
+        const generateData = () => {
+            const data = [];
+            const today = new Date();
+            for (let i = 29; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toISOString().split('T')[0];
+
+                // Random helper
+                const r = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
+                const f = (min, max) => (Math.random() * (max - min) + min).toFixed(2);
+
+                data.push({
+                    date: dateStr,
+                    // แผนกลูกหีบ (Milling)
+                    cane_weight: r(8000, 12000), // นน. อ้อย/วัน (ตัน)
+                    extraction_1st: f(70, 80), // 1st Mill Extraction
+                    pol_extraction: f(94, 97), // Reduced Pol Extraction
+                    imbibition: f(200, 250), // Imbibition % Fiber
+                    purity_drop: f(1.5, 3.0), // Purity Drop
+
+                    // แผนกหม้อน้ำ (Boiler)
+                    steam_production: r(150, 220), // การผลิตไอน้ำ (ตัน/ชม)
+                    bagasse_moisture: f(48, 52), // ความชื้นกากอ้อย
+                    leaf_trash: r(5, 15), // ปริมาณใบอ้อย
+
+                    // แผนกซ่อมบำรุง (Maintenance)
+                    downtime_a: r(0, 120), // Downtime ราง A (นาที)
+                    downtime_b: r(0, 60),  // Downtime ราง B (นาที)
+                    mttr: r(30, 90), // Mean Time To Repair
+                    pm_completion: r(80, 100), // % PM Complete
+
+                    // แผนกโรงกลึง (Lathe)
+                    jobs_completed: r(5, 15),
+                    backlog_hours: r(10, 50),
+                    urgent_jobs: r(0, 3)
+                });
+            }
+            return data;
+        };
+
+        const DATASET = generateData();
+
+        // --- Icons Mapping ---
+        const Icon = ({ name, size = 20, className = "" }) => {
+            useEffect(() => {
+                lucide.createIcons();
+            }, [name]);
+            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+        };
+
+        // --- Chart Component (Drill-down) ---
+        const DrillDownChart = ({ data, metricKey, label, color }) => {
+            const canvasRef = useRef(null);
+            const chartRef = useRef(null);
+
+            useEffect(() => {
+                if (canvasRef.current) {
+                    const ctx = canvasRef.current.getContext('2d');
+
+                    if (chartRef.current) {
+                        chartRef.current.destroy();
+                    }
+
+                    // Filter last 7 days from the provided data slice
+                    const chartLabels = data.map(d => d.date);
+                    const chartValues = data.map(d => d[metricKey]);
+
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+                    const textColor = isDark ? '#cbd5e1' : '#475569';
+
+                    chartRef.current = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: chartLabels,
+                            datasets: [{
+                                label: label,
+                                data: chartValues,
+                                borderColor: color,
+                                backgroundColor: color + '20', // transparent version
+                                borderWidth: 3,
+                                tension: 0.4,
+                                fill: true,
+                                pointBackgroundColor: color,
+                                pointRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    mode: 'index',
+                                    intersect: false,
+                                    backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                                    titleColor: isDark ? '#f1f5f9' : '#0f172a',
+                                    bodyColor: isDark ? '#cbd5e1' : '#475569',
+                                    borderColor: gridColor,
+                                    borderWidth: 1
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    grid: { display: false },
+                                    ticks: { color: textColor }
+                                },
+                                y: {
+                                    grid: { color: gridColor },
+                                    ticks: { color: textColor }
+                                }
+                            }
+                        }
+                    });
+                }
+                return () => {
+                    if (chartRef.current) chartRef.current.destroy();
+                };
+            }, [data, metricKey, label, color]);
+
+            return <div className="h-64 w-full"><canvas ref={canvasRef}></canvas></div>;
+        };
+
+        // --- AI Modal Component ---
+        const AIModal = ({ isOpen, onClose, title, content, isLoading }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-indigo-200 dark:border-indigo-900 transform transition-all animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[80vh]">
+                        <div className="p-4 border-b border-indigo-100 dark:border-slate-800 flex justify-between items-center bg-indigo-50/50 dark:bg-indigo-900/20 rounded-t-2xl">
+                            <h2 className="text-lg font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
+                                <Icon name="sparkles" className="text-yellow-500" />
+                                {title}
+                            </h2>
+                            <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
+                                <Icon name="x" size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto prose dark:prose-invert max-w-none">
+                            {isLoading ? (
+                                <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+                                    <p className="text-slate-500 animate-pulse">Gemini is analyzing factory data...</p>
+                                </div>
+                            ) : (
+                                <div dangerouslySetInnerHTML={{ __html: marked.parse(content || "") }} />
+                            )}
+                        </div>
                     </div>
                 </div>
+            );
+        };
 
-                <!-- Stat Card 2 -->
-                <div
-                    class="p-6 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <span class="text-slate-500 dark:text-slate-400 text-sm font-medium">เครื่องจักรทำงาน</span>
-                        <span class="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg">
-                            <i data-lucide="zap" class="w-4 h-4"></i>
-                        </span>
-                    </div>
-                    <div class="text-3xl font-bold">24/28</div>
-                    <div class="text-xs text-slate-500 mt-2">Active Machines</div>
+        // --- Main App Component ---
+        const App = () => {
+            const [currentTab, setCurrentTab] = useState('milling');
+            const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+            const [modalData, setModalData] = useState(null); // Drill down modal
+            const [isSidebarOpen, setSidebarOpen] = useState(true);
+
+            // AI States
+            const [aiModalOpen, setAiModalOpen] = useState(false);
+            const [aiContent, setAiContent] = useState("");
+            const [aiLoading, setAiLoading] = useState(false);
+            const [aiTitle, setAiTitle] = useState("");
+
+            // Data Logic
+            const filteredData = useMemo(() => {
+                return DATASET.filter(d => d.date <= selectedDate);
+            }, [selectedDate]);
+
+            const currentDayData = filteredData[filteredData.length - 1] || {};
+
+            const getDrillDownData = () => filteredData.slice(-7);
+
+            const openDrillDown = (key, label, color) => {
+                setModalData({ key, label, color, trendAnalysis: null });
+            };
+
+            const closeModal = () => setModalData(null);
+
+            // --- AI Features ---
+            const generateDailyReport = async () => {
+                setAiTitle(`Daily Factory Summary: ${selectedDate}`);
+                setAiModalOpen(true);
+                setAiLoading(true);
+
+                const prompt = `
+                    Act as a Senior Factory Engineer. Analyze the following production data for date: ${selectedDate}.
+                    Provide a professional "Daily Executive Summary" in Thai language.
+                    
+                    Data: ${JSON.stringify(currentDayData)}
+                    
+                    Structure the report as:
+                    1. **Overall Status**: Brief sentence.
+                    2. **Critical Issues**: (Only if any metric is bad, e.g., low extraction, high downtime).
+                    3. **Department Performance**: Brief bullet points for Milling, Boiler, Maintenance.
+                    4. **Recommendations**: 1-2 key actions for tomorrow.
+                    
+                    Use emojis sparingly. Keep it concise.
+                `;
+
+                const result = await callGeminiAPI(prompt);
+                setAiContent(result);
+                setAiLoading(false);
+            };
+
+            const analyzeTrend = async (metricKey, label) => {
+                // We use a separate state inside the drill-down modal or just update the AI modal
+                // Let's use the main AI modal for simplicity but title it differently
+                setAiTitle(`Trend Analysis: ${label}`);
+                setAiModalOpen(true);
+                setAiLoading(true);
+
+                const trendData = getDrillDownData().map(d => ({ date: d.date, value: d[metricKey] }));
+
+                const prompt = `
+                    Analyze the following 7-day trend for the factory metric "${label}".
+                    Data: ${JSON.stringify(trendData)}
+                    
+                    Please explain in Thai:
+                    1. Is the trend increasing, decreasing, or stable?
+                    2. Are there any anomalies or sudden spikes/drops?
+                    3. Is this trend concerning? (Assume standard factory context).
+                `;
+
+                const result = await callGeminiAPI(prompt);
+                setAiContent(result);
+                setAiLoading(false);
+            };
+
+            // Metrics Configuration
+            const departments = {
+                milling: {
+                    name: 'ลูกหีบ (Milling)',
+                    color: '#3b82f6', // blue
+                    metrics: [
+                        { key: 'cane_weight', label: 'นน. อ้อย/วัน (ตัน)', icon: 'scale', color: '#3b82f6' },
+                        { key: 'extraction_1st', label: '1st Mill Extraction (%)', icon: 'droplet', color: '#10b981' },
+                        { key: 'pol_extraction', label: 'Reduced Pol Extraction (%)', icon: 'percent', color: '#8b5cf6' },
+                        { key: 'imbibition', label: 'Imbibition % Fiber', icon: 'flask-conical', color: '#f59e0b' },
+                        { key: 'purity_drop', label: 'Purity Drop', icon: 'trending-down', color: '#ef4444' },
+                    ]
+                },
+                boiler: {
+                    name: 'หม้อน้ำ (Boiler)',
+                    color: '#f97316', // orange
+                    metrics: [
+                        { key: 'steam_production', label: 'การผลิตไอน้ำ (Ton/Hr)', icon: 'cloud', color: '#f97316' },
+                        { key: 'bagasse_moisture', label: 'ความชื้นกากอ้อย (%)', icon: 'droplet', color: '#06b6d4' },
+                        { key: 'leaf_trash', label: 'ปริมาณใบอ้อย (%)', icon: 'leaf', color: '#84cc16' },
+                    ]
+                },
+                maintenance: {
+                    name: 'ซ่อมบำรุง (Maintenance)',
+                    color: '#ef4444', // red
+                    metrics: [
+                        { key: 'downtime_a', label: 'Downtime ราง A (นาที)', icon: 'clock', color: '#ef4444' },
+                        { key: 'downtime_b', label: 'Downtime ราง B (นาที)', icon: 'clock', color: '#f43f5e' },
+                        { key: 'mttr', label: 'MTTR (นาที)', icon: 'wrench', color: '#d946ef' },
+                        { key: 'pm_completion', label: '% PM Complete', icon: 'check-circle', color: '#10b981' },
+                    ]
+                },
+                lathe: {
+                    name: 'โรงกลึง (Lathe)',
+                    color: '#6366f1', // indigo
+                    metrics: [
+                        { key: 'jobs_completed', label: 'งานที่เสร็จ (Job)', icon: 'check-square', color: '#6366f1' },
+                        { key: 'backlog_hours', label: 'งานคงค้าง (ชม.)', icon: 'hourglass', color: '#f59e0b' },
+                        { key: 'urgent_jobs', label: 'งานด่วน (Job)', icon: 'alert-triangle', color: '#ef4444' },
+                    ]
+                }
+            };
+
+            const sidebarItems = [
+                { name: 'Machine List', icon: 'server' },
+                { name: 'แจ้งซ่อมเครื่องจักร', icon: 'clipboard-list' },
+                { name: 'ประวัติงานซ่อม', icon: 'history' },
+                { name: 'Inventory', icon: 'package' },
+                { name: 'Budget', icon: 'dollar-sign' },
+                { name: 'Knowledge Center', icon: 'book-open' },
+                { name: 'Manual List', icon: 'file-text' },
+            ];
+
+            return (
+                <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+
+                    {/* Sidebar */}
+                    <aside className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-20 flex flex-col ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+                        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800">
+                            <span className={`font-bold text-xl text-indigo-600 dark:text-indigo-400 truncate ${!isSidebarOpen && 'hidden'}`}>Factory OS</span>
+                            <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
+                                <Icon name={isSidebarOpen ? 'chevron-left' : 'menu'} />
+                            </button>
+                        </div>
+
+                        <nav className="flex-1 overflow-y-auto py-4">
+                            <ul className="space-y-1 px-2">
+                                {sidebarItems.map((item, idx) => (
+                                    <li key={idx}>
+                                        <a href="#" className="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors group">
+                                            <div className="flex-shrink-0"><Icon name={item.icon} /></div>
+                                            <span className={`whitespace-nowrap ${!isSidebarOpen && 'hidden'}`}>{item.name}</span>
+                                        </a>
+                                    </li>
+                                ))}
+                            </ul>
+                        </nav>
+
+                        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">A</div>
+                                <div className={`flex flex-col ${!isSidebarOpen && 'hidden'}`}>
+                                    <span className="text-sm font-medium dark:text-slate-200">Admin User</span>
+                                    <span className="text-xs text-slate-500">Engineering Head</span>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+
+                    {/* Main Content */}
+                    <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+                        {/* Header */}
+                        <header className="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 transition-colors duration-300">
+                            <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Engineering Dashboard</h1>
+
+                            <div className="flex items-center gap-4">
+                                {/* AI Generate Button */}
+                                <button
+                                    onClick={generateDailyReport}
+                                    className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-4 py-1.5 rounded-lg shadow-md transition-all hover:scale-105 font-medium text-sm"
+                                >
+                                    <Icon name="sparkles" size={16} />
+                                    <span>AI Summary</span>
+                                </button>
+
+                                <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-2"></div>
+
+                                <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
+                                    <span className="text-sm text-slate-500">Filter Date:</span>
+                                    <input
+                                        type="date"
+                                        value={selectedDate}
+                                        onChange={(e) => setSelectedDate(e.target.value)}
+                                        className="bg-transparent text-sm font-medium text-slate-700 dark:text-slate-200 outline-none"
+                                    />
+                                </div>
+                            </div>
+                        </header>
+
+                        {/* Scrollable Content */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+                            {/* --- Department Navigation Cards (New Request) --- */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <a href="/mill/" className="group relative bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all flex items-center gap-3">
+                                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg group-hover:scale-110 transition-transform">
+                                        <Icon name="factory" size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-700 dark:text-slate-200">Milling</h3>
+                                        <span className="text-xs text-slate-500">ลูกหีบ</span>
+                                    </div>
+                                    <Icon name="external-link" size={16} className="absolute top-4 right-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors" />
+                                </a>
+
+                                <a href="/boiler/" className="group relative bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-500 transition-all flex items-center gap-3">
+                                    <div className="p-3 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg group-hover:scale-110 transition-transform">
+                                        <Icon name="flame" size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-700 dark:text-slate-200">Boiler</h3>
+                                        <span className="text-xs text-slate-500">หม้อน้ำ</span>
+                                    </div>
+                                    <Icon name="external-link" size={16} className="absolute top-4 right-4 text-slate-300 dark:text-slate-600 group-hover:text-orange-500 transition-colors" />
+                                </a>
+
+                                <a href="/maintenance/" className="group relative bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-red-400 dark:hover:border-red-500 transition-all flex items-center gap-3">
+                                    <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg group-hover:scale-110 transition-transform">
+                                        <Icon name="wrench" size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-700 dark:text-slate-200">Maintenance</h3>
+                                        <span className="text-xs text-slate-500">ซ่อมบำรุง</span>
+                                    </div>
+                                    <Icon name="external-link" size={16} className="absolute top-4 right-4 text-slate-300 dark:text-slate-600 group-hover:text-red-500 transition-colors" />
+                                </a>
+
+                                <a href="/lathe/" className="group relative bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-500 transition-all flex items-center gap-3">
+                                    <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg group-hover:scale-110 transition-transform">
+                                        <Icon name="settings" size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-700 dark:text-slate-200">Lathe</h3>
+                                        <span className="text-xs text-slate-500">โรงกลึง</span>
+                                    </div>
+                                    <Icon name="external-link" size={16} className="absolute top-4 right-4 text-slate-300 dark:text-slate-600 group-hover:text-indigo-500 transition-colors" />
+                                </a>
+                            </div>
+
+                            {/* Department Tabs */}
+                            <div className="flex gap-2 overflow-x-auto pb-2">
+                                {Object.keys(departments).map(key => (
+                                    <button
+                                        key={key}
+                                        onClick={() => setCurrentTab(key)}
+                                        className={`px-5 py-2.5 rounded-xl font-medium text-sm transition-all shadow-sm flex items-center gap-2 whitespace-nowrap
+                                            ${currentTab === key
+                                                ? 'bg-indigo-600 text-white shadow-indigo-200 dark:shadow-none'
+                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                            }`}
+                                    >
+                                        {departments[key].name}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Stat Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                {departments[currentTab].metrics.map((metric) => {
+                                    const value = currentDayData[metric.key];
+                                    return (
+                                        <div
+                                            key={metric.key}
+                                            onClick={() => openDrillDown(metric.key, metric.label, metric.color)}
+                                            className="group relative bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-lg hover:border-indigo-300 dark:hover:border-indigo-700 transition-all cursor-pointer overflow-hidden"
+                                        >
+                                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                                <Icon name={metric.icon} size={64} className={`text-[${metric.color}]`} />
+                                            </div>
+
+                                            <div className="flex items-center gap-3 mb-4">
+                                                <div className="p-3 rounded-lg" style={{ backgroundColor: `${metric.color}20`, color: metric.color }}>
+                                                    <Icon name={metric.icon} size={24} />
+                                                </div>
+                                                <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">{metric.label}</h3>
+                                            </div>
+
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+                                                    {value !== undefined ? value : '-'}
+                                                </span>
+                                            </div>
+
+                                            <div className="mt-4 flex items-center gap-1 text-xs text-indigo-500 font-medium">
+                                                <span>Click for details</span>
+                                                <Icon name="arrow-right" size={12} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* History / Log Section */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {/* Activity Log */}
+                                <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                    <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                                        <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                            <Icon name="activity" size={18} className="text-indigo-500" />
+                                            Operations History
+                                        </h3>
+                                        <button className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline">View All</button>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400">
+                                            <thead className="text-xs text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
+                                                <tr>
+                                                    <th className="px-6 py-3">Date</th>
+                                                    <th className="px-6 py-3">Department</th>
+                                                    <th className="px-6 py-3">Status</th>
+                                                    <th className="px-6 py-3">Note</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {getDrillDownData().reverse().map((d, i) => (
+                                                    <tr key={i} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
+                                                        <td className="px-6 py-4">{d.date}</td>
+                                                        <td className="px-6 py-4">{departments[currentTab].name.split(' ')[0]}</td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">Normal</span>
+                                                        </td>
+                                                        <td className="px-6 py-4">Data recorded successfully.</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Quick Summary or Notifications */}
+                                <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-6 text-white shadow-lg">
+                                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                        <Icon name="bell" size={20} />
+                                        Alerts & Summary
+                                    </h3>
+                                    <div className="space-y-4">
+                                        <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <span className="text-xs font-semibold text-orange-200">Maintenance</span>
+                                                <span className="text-[10px] text-white/60">2h ago</span>
+                                            </div>
+                                            <p className="text-sm">PM Check for Boiler Feed Pump is due tomorrow.</p>
+                                        </div>
+                                        <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <span className="text-xs font-semibold text-blue-200">Milling</span>
+                                                <span className="text-[10px] text-white/60">5h ago</span>
+                                            </div>
+                                            <p className="text-sm">Extraction rate dropped slightly below target.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+
+                    {/* Drill-Down Modal */}
+                    {modalData && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeModal}></div>
+                            <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden relative border border-slate-200 dark:border-slate-700 transform transition-all animate-in fade-in zoom-in-95 duration-200">
+                                <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                                    <div>
+                                        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">{modalData.label}</h2>
+                                        <p className="text-sm text-slate-500">7-Day Trend Analysis</p>
+                                    </div>
+                                    <button onClick={closeModal} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
+                                        <Icon name="x" size={20} />
+                                    </button>
+                                </div>
+                                <div className="p-6">
+                                    <DrillDownChart
+                                        data={getDrillDownData()}
+                                        metricKey={modalData.key}
+                                        label={modalData.label}
+                                        color={modalData.color}
+                                    />
+
+                                    <div className="mt-6 flex justify-between items-end">
+                                        <div className="grid grid-cols-3 gap-4 text-center flex-1 mr-4">
+                                            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                                <p className="text-xs text-slate-500 mb-1">Average</p>
+                                                <p className="font-semibold dark:text-slate-200">
+                                                    {(getDrillDownData().reduce((acc, curr) => acc + parseFloat(curr[modalData.key]), 0) / 7).toFixed(1)}
+                                                </p>
+                                            </div>
+                                            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                                <p className="text-xs text-slate-500 mb-1">Max</p>
+                                                <p className="font-semibold text-green-600">
+                                                    {Math.max(...getDrillDownData().map(d => parseFloat(d[modalData.key])))}
+                                                </p>
+                                            </div>
+                                            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                                <p className="text-xs text-slate-500 mb-1">Min</p>
+                                                <p className="font-semibold text-red-500">
+                                                    {Math.min(...getDrillDownData().map(d => parseFloat(d[modalData.key])))}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* AI Trend Analysis Button */}
+                                        <button
+                                            onClick={() => analyzeTrend(modalData.key, modalData.label)}
+                                            className="flex items-center gap-2 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/60 px-4 py-3 rounded-xl transition-colors font-medium text-sm border border-indigo-200 dark:border-indigo-800"
+                                        >
+                                            <Icon name="sparkles" size={16} />
+                                            Analyze Trend
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* AI Result Modal */}
+                    <AIModal
+                        isOpen={aiModalOpen}
+                        onClose={() => setAiModalOpen(false)}
+                        title={aiTitle}
+                        content={aiContent}
+                        isLoading={aiLoading}
+                    />
                 </div>
+            );
+        };
 
-                <!-- Stat Card 3 -->
-                <div
-                    class="p-6 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <span class="text-slate-500 dark:text-slate-400 text-sm font-medium">แจ้งซ่อมรออนุมัติ</span>
-                        <span class="p-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-lg">
-                            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-                        </span>
-                    </div>
-                    <div class="text-3xl font-bold">3</div>
-                    <div class="text-xs text-orange-500 mt-2">ต้องการการตรวจสอบด่วน</div>
-                </div>
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    {% endverbatim %}
+</body>
 
-                <!-- Stat Card 4 -->
-                <div
-                    class="p-6 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700">
-                    <div class="flex items-center justify-between mb-4">
-                        <span class="text-slate-500 dark:text-slate-400 text-sm font-medium">พลังงานที่ใช้</span>
-                        <span class="p-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-lg">
-                            <i data-lucide="battery-charging" class="w-4 h-4"></i>
-                        </span>
-                    </div>
-                    <div class="text-3xl font-bold">450 kW</div>
-                    <div class="text-xs text-slate-500 mt-2">ค่าเฉลี่ยปกติ</div>
-                </div>
-            </div>
-
-            <!-- Main Section Selection -->
-            <h3 class="text-xl font-bold mb-6 flex items-center gap-2">
-                <i data-lucide="grid" class="w-5 h-5 text-indigo-500"></i> แผนกปฏิบัติการ
-            </h3>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                <!-- Example Box 1 -->
-                <a href="{% url 'mill' %}"
-                    class="group relative overflow-hidden rounded-2xl p-6 h-48 flex flex-col justify-between transition-all hover:scale-[1.02] shadow-lg hover:shadow-xl">
-                    <div
-                        class="absolute inset-0 bg-gradient-to-br from-orange-500 to-red-600 opacity-90 group-hover:opacity-100 transition-opacity">
-                    </div>
-                    <div class="relative z-10">
-                        <div class="p-3 bg-white/20 w-fit rounded-xl backdrop-blur-sm mb-4">
-                            <i data-lucide="hammer" class="w-8 h-8 text-white"></i>
-                        </div>
-                        <h3 class="text-2xl font-bold text-white tracking-wide">ลูกหีบ</h3>
-                        <p class="text-orange-100 text-sm">Crusher / Mill Section</p>
-                    </div>
-                </a>
-
-                <!-- Example Box 2 -->
-                <a href="{% url 'boiler' %}"
-                    class="group relative overflow-hidden rounded-2xl p-6 h-48 flex flex-col justify-between transition-all hover:scale-[1.02] shadow-lg hover:shadow-xl">
-                    <div
-                        class="absolute inset-0 bg-gradient-to-br from-cyan-500 to-blue-600 opacity-90 group-hover:opacity-100 transition-opacity">
-                    </div>
-                    <div class="relative z-10">
-                        <div class="p-3 bg-white/20 w-fit rounded-xl backdrop-blur-sm mb-4">
-                            <i data-lucide="thermometer" class="w-8 h-8 text-white"></i>
-                        </div>
-                        <h3 class="text-2xl font-bold text-white tracking-wide">หม้อน้ำ</h3>
-                        <p class="text-cyan-100 text-sm">Boiler Room</p>
-                    </div>
-                </a>
-
-                <!-- Example Box 3 -->
-                <a href="{% url 'maintenance_dashboard' %}"
-                    class="group relative overflow-hidden rounded-2xl p-6 h-48 flex flex-col justify-between transition-all hover:scale-[1.02] shadow-lg hover:shadow-xl">
-                    <div
-                        class="absolute inset-0 bg-gradient-to-br from-emerald-500 to-green-600 opacity-90 group-hover:opacity-100 transition-opacity">
-                    </div>
-                    <div class="relative z-10">
-                        <div class="p-3 bg-white/20 w-fit rounded-xl backdrop-blur-sm mb-4">
-                            <i data-lucide="wrench" class="w-8 h-8 text-white"></i>
-                        </div>
-                        <h3 class="text-2xl font-bold text-white tracking-wide">ซ่อมบำรุง</h3>
-                        <p class="text-emerald-100 text-sm">Mechanical Maintenance</p>
-                    </div>
-                </a>
-
-                <!-- Example Box 4 -->
-                <a href="#"
-                    class="group relative overflow-hidden rounded-2xl p-6 h-48 flex flex-col justify-between transition-all hover:scale-[1.02] shadow-lg hover:shadow-xl">
-                    <div
-                        class="absolute inset-0 bg-gradient-to-br from-violet-500 to-purple-700 opacity-90 group-hover:opacity-100 transition-opacity">
-                    </div>
-                    <div class="relative z-10">
-                        <div class="p-3 bg-white/20 w-fit rounded-xl backdrop-blur-sm mb-4">
-                            <i data-lucide="settings-2" class="w-8 h-8 text-white"></i>
-                        </div>
-                        <h3 class="text-2xl font-bold text-white tracking-wide">โรงกลึง</h3>
-                        <p class="text-violet-100 text-sm">Machine Shop / Lathe</p>
-                    </div>
-                </a>
-            </div>
-
-        </div>
-    </main>
-</div>
-{% endblock content %}
+</html>
