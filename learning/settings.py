@@ -26,6 +26,10 @@ SECRET_KEY = 'django-insecure-4j0gfeg!-td@^ff&)p@a^2yfw%b7-1*fg8bg6_nh%l4zy=+y&q
 DEBUG = True
 
 ALLOWED_HOSTS = ['*'] #run web in network (mobile phone in same network)
+# อนุญาตให้ Django รับ Request จากโดเมนนี้ได้
+CSRF_TRUSTED_ORIGINS = [
+    'https://lamy23.cloud',
+]
 
 
 # Application definition
