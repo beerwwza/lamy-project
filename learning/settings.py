@@ -29,7 +29,6 @@ ALLOWED_HOSTS = ['*'] #run web in network (mobile phone in same network)
 # อนุญาตให้ Django รับ Request จากโดเมนนี้ได้
 CSRF_TRUSTED_ORIGINS = [
     'https://lamy23.cloud',
-    'https://lamy23.cloud/admin',
 ]
 
 
