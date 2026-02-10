@@ -1456,7 +1456,7 @@ def mill_history_api(request):
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
             
         if not start_date_str:
-            start_date = end_date - timedelta(days=6) # 7 days total (inclusive)
+            start_date = end_date - timedelta(days=29) # 30 days total (inclusive)
         else:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
 
@@ -1574,8 +1574,9 @@ def mill_import(request):
             header_idx = -1
             if df is not None:
                 for i, row in df.iterrows():
-                    row_str = row.astype(str).str.lower().tolist()
-                    if 'date' in row_str or 'วันที่' in row_str:
+                    # Convert row to string, lowercase, and strip whitespace for flexible matching
+                    row_values = [str(val).lower().strip() for val in row.values]
+                    if any(x in ['date', 'วันที่', 'วัน/เดือน/ปี'] for x in row_values):
                         header_idx = i
                         break
             
@@ -1592,7 +1593,7 @@ def mill_import(request):
             df.columns = df.columns.astype(str).str.strip()
             
             # ลบแถวที่ไม่มีวันที่
-            date_col_name = next((col for col in df.columns if col.lower() in ['date', 'วันที่']), None)
+            date_col_name = next((col for col in df.columns if str(col).lower().strip() in ['date', 'วันที่', 'วัน/เดือน/ปี']), None)
             if date_col_name:
                 df = df.dropna(subset=[date_col_name])
             else:
