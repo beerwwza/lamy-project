@@ -1363,7 +1363,9 @@ def maintenance_kpi_metric_add(request):
 
 def mill(request):
     # (Same as provided logic)
-    latest_a = MillReport.objects.filter(line='A').order_by('-date', '-created_at').first()
+    today = datetime.now().date()
+    # Get latest report that actually has data (cane_weight is not null)
+    latest_a = MillReport.objects.filter(line='A', cane_weight__isnull=False).order_by('-date', '-created_at').first()
     sum_cane_a = MillReport.objects.filter(line='A').aggregate(total=Sum('cane_weight'))['total'] or 0
     avg_a = MillReport.objects.filter(line='A').aggregate(
         first_mill_extraction__avg=Avg('first_mill_extraction'),
@@ -1379,7 +1381,7 @@ def mill(request):
         trash__avg=Avg('trash')
     )
 
-    latest_b = MillReport.objects.filter(line='B').order_by('-date', '-created_at').first()
+    latest_b = MillReport.objects.filter(line='B', cane_weight__isnull=False).order_by('-date', '-created_at').first()
     sum_cane_b = MillReport.objects.filter(line='B').aggregate(total=Sum('cane_weight'))['total'] or 0
     avg_b = MillReport.objects.filter(line='B').aggregate(
         first_mill_extraction__avg=Avg('first_mill_extraction'),
