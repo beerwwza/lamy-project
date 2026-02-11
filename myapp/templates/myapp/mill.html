@@ -79,6 +79,26 @@
 
         <div class="flex-1 overflow-y-auto p-6 md:p-8 scroll-smooth" id="main-scroll">
 
+            <!-- Alerts/Messages -->
+            {% if messages %}
+            <div class="mb-6 space-y-2">
+                {% for message in messages %}
+                <div
+                    class="p-4 rounded-xl flex items-center gap-3 shadow-sm border 
+                    {% if message.tags == 'success' %} bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800
+                    {% elif message.tags == 'error' %} bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800
+                    {% else %} bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 {% endif %}">
+
+                    {% if message.tags == 'success' %} <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    {% elif message.tags == 'error' %} <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                    {% else %} <i data-lucide="info" class="w-5 h-5"></i> {% endif %}
+
+                    <span class="font-medium text-sm">{{ message }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <!-- Main Card: Total Cane Intake (สะสม) -->
                 <div
@@ -443,6 +463,10 @@
     }
 
     function renderGaugeCard(kpi, current, average) {
+        // Fallback for null/undefined values to prevent .toFixed() errors
+        current = (current === null || current === undefined) ? 0 : current;
+        average = (average === null || average === undefined) ? 0 : average;
+
         const rangeMin = kpi.target * 0.7;
         const rangeMax = kpi.target * 1.3;
         const span = rangeMax - rangeMin;
@@ -536,10 +560,10 @@
         document.getElementById('drillDownModal').classList.remove('hidden');
         if (window.lucide) activeLucide();
 
-        // Default to last 7 days
+        // Default to last 30 days
         const today = new Date();
         const lastWeek = new Date();
-        lastWeek.setDate(today.getDate() - 6);
+        lastWeek.setDate(today.getDate() - 29);
 
         document.getElementById('filter-end-date').valueAsDate = today;
         document.getElementById('filter-start-date').valueAsDate = lastWeek;
