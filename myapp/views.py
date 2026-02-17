@@ -130,13 +130,36 @@ def detail_job(request,ID):
 
 @login_required
 def dashboard(request):
-    # 1. Milling Data (Latest)
-    mill_obj = MillReport.objects.order_by('-date').first()
+    # 1. Milling Data
+    # A. Total Accumulated Cane & Avg Trash (All Records)
+    mill_agg = MillReport.objects.aggregate(
+        total_cane=Sum('cane_weight'),
+        avg_trash=Avg('trash')
+    )
+    
+    # B. Latest Records for Line A & Line B (Filter out empty/future records)
+    line_a_obj = MillReport.objects.filter(line='A', cane_weight__gt=0).order_by('-date').first()
+    line_b_obj = MillReport.objects.filter(line='B', cane_weight__gt=0).order_by('-date').first()
+    
     mill_data = {
-        'cane_weight': f"{mill_obj.cane_weight:,.0f}" if mill_obj and mill_obj.cane_weight else "0",
-        'ccs': f"{mill_obj.ccs:.2f}" if mill_obj and mill_obj.ccs else "0.00",
-        'trash': f"{mill_obj.trash:.2f}" if mill_obj and mill_obj.trash else "0.00",
-        'purity_drop': f"{mill_obj.purity_drop:.2f}" if mill_obj and mill_obj.purity_drop else "0.00",
+        'total_cane': f"{mill_agg['total_cane']:,.0f}" if mill_agg['total_cane'] else "0",
+        'avg_trash': f"{mill_agg['avg_trash']:.2f}" if mill_agg['avg_trash'] else "0.00",
+        'line_a': {
+            'date': line_a_obj.date.strftime('%Y-%m-%d') if line_a_obj else "-",
+            'cane_weight': f"{line_a_obj.cane_weight:,.0f}" if line_a_obj and line_a_obj.cane_weight else "0",
+            'ccs': f"{line_a_obj.ccs:.2f}" if line_a_obj and line_a_obj.ccs else "0.00",
+            'extraction_1st': f"{line_a_obj.first_mill_extraction:.2f}" if line_a_obj and line_a_obj.first_mill_extraction else "0.00",
+            'pol_extraction': f"{line_a_obj.reduced_pol_extraction:.2f}" if line_a_obj and line_a_obj.reduced_pol_extraction else "0.00",
+            'purity_drop': f"{line_a_obj.purity_drop:.2f}" if line_a_obj and line_a_obj.purity_drop else "0.00",
+        },
+        'line_b': {
+            'date': line_b_obj.date.strftime('%Y-%m-%d') if line_b_obj else "-",
+            'cane_weight': f"{line_b_obj.cane_weight:,.0f}" if line_b_obj and line_b_obj.cane_weight else "0",
+            'ccs': f"{line_b_obj.ccs:.2f}" if line_b_obj and line_b_obj.ccs else "0.00",
+            'extraction_1st': f"{line_b_obj.first_mill_extraction:.2f}" if line_b_obj and line_b_obj.first_mill_extraction else "0.00",
+            'pol_extraction': f"{line_b_obj.reduced_pol_extraction:.2f}" if line_b_obj and line_b_obj.reduced_pol_extraction else "0.00",
+            'purity_drop': f"{line_b_obj.purity_drop:.2f}" if line_b_obj and line_b_obj.purity_drop else "0.00",
+        }
     }
 
     # 2. Boiler Data (Yoshimine as Example)
