@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import csv
+import io
 from datetime import datetime, time, timedelta
 from django.shortcuts import render, redirect
 from django.db.models import Sum, Avg, Count
@@ -9,6 +11,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
 import json
 from django.core.serializers.json import DjangoJSONEncoder
 from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log, Banpong2Log, BoilerDailyKPI
@@ -1384,6 +1387,112 @@ def maintenance_kpi_metric_add(request):
         form = KPIMetricForm()
     return render(request, 'myapp/maintenance_kpi_metric_form.html', {'form': form})
 
+@login_required
+def maintenance_import_csv(request):
+    if request.method == 'POST' and request.FILES.get('file'):
+        csv_file = request.FILES['file']
+        
+        # ตรวจสอบนามสกุลไฟล์
+        if not csv_file.name.endswith('.csv'):
+            return JsonResponse({'success': False, 'error': 'กรุณาอัปโหลดไฟล์นามสกุล .csv เท่านั้น'})
+            
+        try:
+            # อ่านไฟล์และจัดการภาษาไทย (utf-8-sig เพื่อตัด BOM)
+            decoded_file = csv_file.read().decode('utf-8-sig')
+            io_string = io.StringIO(decoded_file)
+            reader = csv.DictReader(io_string)
+            
+            headers = reader.fieldnames
+            if not headers:
+                return JsonResponse({'success': False, 'error': 'ไฟล์ CSV ว่างเปล่าหรือไม่ถูกต้อง'})
+                
+            success_count = 0
+            import_type = 'unknown'
+
+            # -----------------------------------------------------
+            # 1. ตรวจสอบว่าเป็นไฟล์ KPI
+            # -----------------------------------------------------
+            if 'name' in headers or 'หัวข้อ KPI' in headers or 'weight' in headers:
+                import_type = 'kpi'
+                for row in reader:
+                    name_val = row.get('name') or row.get('หัวข้อ KPI')
+                    if not name_val:
+                        continue # ข้ามแถวที่ไม่มีชื่อ KPI
+                        
+                    def to_float(val):
+                        try: return float(val) if val else 0.0
+                        except ValueError: return 0.0
+                        
+                    def to_int(val):
+                        try: return int(float(val)) if val else 0
+                        except ValueError: return 0
+
+                    KPIMetric.objects.create(
+                        name=name_val.strip(),
+                        category=row.get('category') or row.get('หมวดหมู่') or 'General',
+                        target=to_float(row.get('target') or row.get('เป้าหมาย')),
+                        unit=row.get('unit') or row.get('หน่วย') or '',
+                        weight=to_float(row.get('weight') or row.get('น้ำหนัก')),
+                        actual=to_float(row.get('actual') or row.get('ผลลัพธ์')),
+                        score=to_int(row.get('score') or row.get('คะแนน'))
+                    )
+                    success_count += 1
+            
+            # -----------------------------------------------------
+            # 2. กรณีที่เป็นไฟล์ งานซ่อมเครื่องจักร (Maintenance Log)
+            # -----------------------------------------------------
+            else:
+                import_type = 'maintenance'
+                for row in reader:
+                    date_str = row.get('date') or row.get('วันที่')
+                    machine_name = row.get('machine') or row.get('ชื่อเครื่องจักร')
+                    
+                    if not date_str or not machine_name:
+                        continue # ข้ามแถวที่ข้อมูลหลักไม่ครบ
+                        
+                    try:
+                        d, m, y = map(int, date_str.split('/'))
+                        if y > 2400: y -= 543 # แปลง พ.ศ. เป็น ค.ศ.
+                        parsed_date = datetime(y, m, d).date()
+                    except Exception:
+                        parsed_date = datetime.now().date()
+                    
+                    def to_float(val):
+                        try: return float(val) if val else 0.0
+                        except ValueError: return 0.0
+                    
+                    problem_text = row.get('problem') or row.get('ปัญหาที่เกิด') or '-'
+                    cause_text = row.get('cause') or row.get('สาเหตุที่เกิด') or '-'
+                    
+                    is_leak_val = str(row.get('isLeak') or row.get('รั่วไหล') or '').lower()
+                    is_leak = is_leak_val in ['true', '1', 'yes', 'ใช่'] or 'รั่ว' in problem_text or 'รั่ว' in cause_text
+
+                    MaintenanceLog.objects.create(
+                        date=parsed_date,
+                        machine=machine_name.strip(),
+                        dept=row.get('dept') or row.get('แผนก') or 'ไม่ระบุ',
+                        problem=problem_text,
+                        cause=cause_text,
+                        solution=row.get('solution') or row.get('การแก้ไข') or '-',
+                        downtime_stop=to_float(row.get('downtimeStop') or row.get('เสียเวลาหยุดหีบ')),
+                        downtime_reduced=to_float(row.get('downtimeReduced') or row.get('ลดรอบ')),
+                        downtime_non_stop=to_float(row.get('downtimeNonStop') or row.get('เสียเวลาไม่หยุดหีบ')),
+                        category=row.get('category') or row.get('หัวข้อ') or 'อื่นๆ',
+                        is_leak=is_leak,
+                        spare_part=row.get('sparePart') or row.get('อะไหล่ที่เปลี่ยน') or '-',
+                        qty=to_float(row.get('qty') or row.get('จำนวน')),
+                        reporter=row.get('reporter') or row.get('ผู้แจ้ง') or '-',
+                        resolver=row.get('resolver') or row.get('ผู้แก้ไข') or '-'
+                    )
+                    success_count += 1
+                    
+            return JsonResponse({'success': True, 'count': success_count, 'type': import_type})
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+            
+    return JsonResponse({'success': False, 'error': 'ไม่มีไฟล์ถูกส่งมา'})
+    
 def mill(request):
     # (Same as provided logic)
     today = datetime.now().date()

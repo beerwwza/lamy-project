@@ -35,6 +35,7 @@ urlpatterns = [
 
     # Path สำหรับ Import Data
     path('import-data/', import_data, name='import_data'),
+    path('maintenance/import_csv/', maintenance_import_csv, name='maintenance_import_csv'),
 
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]

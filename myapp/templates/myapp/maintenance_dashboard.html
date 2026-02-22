@@ -1,515 +1,1244 @@
 {% extends 'myapp/base.html' %}
 {% load static %}
 
-{% block title %} Maintenance Dashboard | Factory OS {% endblock title %}
+{% block title %} Dashboard การซ่อมเครื่องจักรหน้าหีบ 2568/69 {% endblock title %}
 
 {% block content %}
-<div id="dashboard-section" class="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950 font-sans">
-
-    <!-- Sidebar -->
-    <aside
-        class="w-64 flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 hidden md:flex flex-col">
-        <div class="h-16 flex items-center justify-center border-b border-slate-200 dark:border-slate-800">
-            <span class="font-bold text-xl text-indigo-600">FACTORY OS</span>
-        </div>
-        <div class="p-4">
-            <a href="{% url 'dashboard' %}"
-                class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
-                <i data-lucide="arrow-left" class="w-5 h-5"></i> Back to Main
-            </a>
-            <a href="#"
-                class="flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg mt-2">
-                <i data-lucide="wrench" class="w-5 h-5"></i> Maintenance
-            </a>
-        </div>
-    </aside>
-
-    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
-        <!-- Header -->
-        <div class="bg-gradient-to-r from-blue-900 to-slate-900 text-white p-4 shadow-lg sticky top-0 z-50">
-            <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="bg-white/10 p-2 rounded-lg backdrop-blur-sm"><i data-lucide="wrench"
-                            class="w-6 h-6 text-white"></i></div>
-                    <div>
-                        <h1 class="text-xl font-bold tracking-tight">Dashboard ซ่อมบำรุง & KPI</h1>
-                        <p class="text-xs text-blue-200 opacity-80 font-light">ฝ่ายวิศวกรรมจักรกล - ประจำปี 2568/69</p>
-                    </div>
-                </div>
-                <div
-                    class="flex items-center gap-2 bg-white/10 p-1.5 rounded-lg border border-white/20 backdrop-blur-sm">
-                    <button onclick="switchTab('maintenance')" id="btn-maintenance"
-                        class="px-3 py-1.5 rounded-md text-sm font-semibold transition bg-white text-blue-900 shadow-sm">งานซ่อม</button>
-                    <button onclick="switchTab('kpi')" id="btn-kpi"
-                        class="px-3 py-1.5 rounded-md text-sm font-semibold transition text-blue-100 hover:bg-white/10">KPI</button>
-                    <div class="h-4 w-px bg-white/20 mx-1"></div>
-
-                    <!-- Add Buttons -->
-                    <a href="{% url 'maintenance_log_add' %}"
-                        class="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold transition text-white hover:bg-blue-600 bg-blue-700/50 border border-blue-500/30">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> งานซ่อม
-                    </a>
-                    <a href="{% url 'maintenance_kpi_metric_add' %}"
-                        class="flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-semibold transition text-white hover:bg-emerald-600 bg-emerald-700/50 border border-emerald-500/30">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> KPI
-                    </a>
-
-                    <div class="h-4 w-px bg-white/20 mx-1"></div>
-                    <button onclick="window.print()"
-                        class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-md transition text-xs font-bold shadow-sm ml-1 flex items-center gap-2">
-                        <i data-lucide="printer" class="w-4 h-4"></i> PDF
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Content Area -->
-        <div class="flex-1 overflow-y-auto p-6">
-            <div class="max-w-7xl mx-auto">
-
-                <!-- Maintenance Tab -->
-                <div id="tab-maintenance" class="space-y-6">
-                    <!-- Stats Cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                        <div
-                            class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-blue-500 shadow-sm relative overflow-hidden">
-                            <div class="relative z-10">
-                                <p
-                                    class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
-                                    ซ่อม (ครั้ง)</p>
-                                <h2 class="text-3xl font-bold text-slate-800 dark:text-white" id="stat-total-failures">0
-                                </h2>
-                            </div>
-                            <div
-                                class="absolute right-2 top-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-full text-blue-500 opacity-50">
-                                <i data-lucide="clipboard-list" class="w-6 h-6"></i></div>
-                        </div>
-                        <div
-                            class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-red-500 shadow-sm relative overflow-hidden">
-                            <div class="relative z-10">
-                                <p
-                                    class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
-                                    หยุดหีบ (ชม.)</p>
-                                <h2 class="text-3xl font-bold text-red-600" id="stat-stop-time">0</h2>
-                            </div>
-                            <div
-                                class="absolute right-2 top-2 bg-red-50 dark:bg-red-900/20 p-2 rounded-full text-red-500 opacity-50">
-                                <i data-lucide="alert-octagon" class="w-6 h-6"></i></div>
-                        </div>
-                        <div
-                            class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-yellow-500 shadow-sm relative overflow-hidden">
-                            <div class="relative z-10">
-                                <p
-                                    class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
-                                    ลดรอบ (ชม.)</p>
-                                <h2 class="text-3xl font-bold text-yellow-600" id="stat-reduced-time">0</h2>
-                            </div>
-                            <div
-                                class="absolute right-2 top-2 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded-full text-yellow-600 opacity-50">
-                                <i data-lucide="activity" class="w-6 h-6"></i></div>
-                        </div>
-                        <div
-                            class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-cyan-500 shadow-sm relative overflow-hidden">
-                            <div class="relative z-10">
-                                <p
-                                    class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
-                                    รั่วไหล (ครั้ง)</p>
-                                <h2 class="text-3xl font-bold text-cyan-600" id="stat-leaks">0</h2>
-                            </div>
-                            <div
-                                class="absolute right-2 top-2 bg-cyan-100 dark:bg-cyan-900/20 p-2 rounded-full text-cyan-600 opacity-50">
-                                <i data-lucide="droplet" class="w-6 h-6"></i></div>
-                        </div>
-                        <div
-                            class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-indigo-500 shadow-sm relative overflow-hidden">
-                            <div class="relative z-10">
-                                <p
-                                    class="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">
-                                    MTTR (ชม.)</p>
-                                <h2 class="text-3xl font-bold text-indigo-600" id="stat-mttr">0</h2>
-                            </div>
-                            <div
-                                class="absolute right-2 top-2 bg-indigo-50 dark:bg-indigo-900/20 p-2 rounded-full text-indigo-500 opacity-50">
-                                <i data-lucide="timer" class="w-6 h-6"></i></div>
-                        </div>
-                    </div>
-
-                    <!-- Filters -->
-                    <div
-                        class="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm flex flex-wrap items-center gap-3 border border-slate-100 dark:border-slate-700">
-                        <div
-                            class="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-semibold text-sm px-2">
-                            <i data-lucide="filter" class="w-4 h-4"></i> ตัวกรอง:
-                        </div>
-                        <select id="filter-dept" onchange="renderDashboard()"
-                            class="border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-md px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500">
-                            <option value="All">ทุกแผนก</option>
-                        </select>
-                        <select id="filter-category" onchange="renderDashboard()"
-                            class="border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-md px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500">
-                            <option value="All">ทุกประเภทปัญหา</option>
-                        </select>
-                        <div class="relative flex-grow md:flex-grow-0 md:ml-auto">
-                            <i data-lucide="search"
-                                class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
-                            <input type="text" id="search-term" onkeyup="renderDashboard()"
-                                placeholder="ค้นหาเครื่องจักร..."
-                                class="pl-9 pr-4 py-1.5 border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 dark:text-white rounded-md text-sm w-full outline-none focus:ring-1 focus:ring-blue-500" />
-                        </div>
-                    </div>
-
-                    <!-- Charts Row -->
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div
-                            class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h3
-                                class="text-md font-bold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
-                                <i data-lucide="bar-chart-2" class="w-5 h-5 text-blue-600"></i> เวลาสูญเสียตามแผนก (ชม.)
-                            </h3>
-                            <div class="h-64">
-                                <canvas id="chart-dept"></canvas>
-                            </div>
-                        </div>
-                        <div
-                            class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            <h3
-                                class="text-md font-bold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
-                                <i data-lucide="pie-chart" class="w-5 h-5 text-purple-600"></i> สัดส่วนปัญหา (%)
-                            </h3>
-                            <div class="h-64 flex justify-center">
-                                <canvas id="chart-category"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Table -->
-                    <div
-                        class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-                        <div
-                            class="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
-                            <h3 class="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2 text-sm">
-                                <i data-lucide="file-text" class="w-4 h-4"></i> บันทึกรายละเอียด
-                            </h3>
-                            <span class="text-xs text-slate-400" id="table-count">แสดง 0 รายการ</span>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead
-                                    class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wider font-semibold">
-                                    <tr>
-                                        <th class="p-3 w-24">วันที่</th>
-                                        <th class="p-3">เครื่องจักร</th>
-                                        <th class="p-3">ปัญหา/สาเหตุ</th>
-                                        <th class="p-3 w-32">ผู้แจ้ง</th>
-                                        <th class="p-3 w-24 text-right">หยุด (ชม.)</th>
-                                        <th class="p-3 w-24 text-right text-orange-600 dark:text-orange-400">ไม่หยุด
-                                            (ชม.)</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="maintenance-table-body"
-                                    class="divide-y divide-slate-100 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-300">
-                                    <!-- JS will populate rows here -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- KPI Tab -->
-                <div id="tab-kpi" class="space-y-6 hidden">
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border-l-4 border-emerald-500">
-                            <p class="text-slate-500 dark:text-slate-400 text-sm">คะแนน KPI รวม</p>
-                            <h2 class="text-4xl font-bold text-emerald-600"><span id="kpi-total-score">0</span> <span
-                                    class="text-lg text-slate-400">/ <span id="kpi-max-score">0</span></span></h2>
-                        </div>
-                        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border-l-4 border-blue-500">
-                            <p class="text-slate-500 dark:text-slate-400 text-sm">เกรดประเมิน</p>
-                            <h2 class="text-5xl font-bold text-blue-600 inline-block rounded" id="kpi-grade">-</h2>
-                        </div>
-                    </div>
-
-                    <div
-                        class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-                        <table class="w-full text-left border-collapse">
-                            <thead
-                                class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs uppercase font-semibold">
-                                <tr>
-                                    <th class="p-4">หัวข้อ KPI</th>
-                                    <th class="p-4 text-center">เป้าหมาย</th>
-                                    <th class="p-4 text-center">ผลลัพธ์</th>
-                                    <th class="p-4 text-center">คะแนน</th>
-                                </tr>
-                            </thead>
-                            <tbody id="kpi-table-body"
-                                class="divide-y divide-slate-100 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-300">
-                                <!-- JS will populate rows here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </main>
-</div>
-
-<!-- Scripts -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
-
-<!-- Data from Django Views -->
+<!-- ประกาศ URL และ CSRF Token ให้ JS ใช้งาน -->
+<meta name="csrf-token" content="{{ csrf_token }}">
 {{ logs_json|json_script:"logs-data" }}
 {{ kpi_json|json_script:"kpi-data" }}
 
 <script>
-    // Initialize Lucide Icons
-    lucide.createIcons();
+    window.DJANGO_URLS = {
+        dashboard: "{% url 'dashboard' %}",
+        maintenanceAdd: "{% url 'maintenance_log_add' %}",
+        kpiAdd: "{% url 'maintenance_kpi_metric_add' %}",
+        importCsv: "{% url 'maintenance_import_csv' %}"
+    };
+</script>
 
-    // --- Data Management (Real Data Only) ---
-    function getSafeData(id) {
+<div id="dashboard-section"
+    class="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950 font-sans transition-colors duration-300">
+
+    <!-- Sidebar -->
+    <aside
+        class="w-64 flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 hidden md:flex flex-col z-10 overflow-y-auto transition-colors duration-300">
+        <div class="h-16 flex items-center justify-center border-b border-slate-200 dark:border-slate-800">
+            <span class="font-bold text-xl text-indigo-600 dark:text-indigo-400">FACTORY OS</span>
+        </div>
+        <div class="p-4 flex-1 flex flex-col gap-2">
+            <!-- เมนูนำทางหลักและ Tab Switching -->
+            <p class="px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">เมนูหลัก</p>
+            <a href="{% url 'dashboard' %}"
+                class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i> Back to Main
+            </a>
+
+            <!-- ปุ่มสลับ Tab ใน Sidebar -->
+            <button onclick="window.switchTab('maintenance')" id="side-btn-maintenance"
+                class="w-full flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg transition-colors text-left">
+                <i data-lucide="wrench" class="w-5 h-5"></i> งานซ่อม (Logs)
+            </button>
+            <button onclick="window.switchTab('kpi')" id="side-btn-kpi"
+                class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors text-left">
+                <i data-lucide="target" class="w-5 h-5"></i> สรุป KPI
+            </button>
+
+            <!-- ส่วนเครื่องมือจัดการข้อมูล -->
+            <div class="mt-4 border-t border-slate-200 dark:border-slate-800 pt-4 space-y-2">
+                <p class="px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    เครื่องมือจัดการข้อมูล</p>
+
+                <!-- ปุ่มไปหน้าฟอร์มบันทึกข้อมูล -->
+                <a href="{% url 'maintenance_log_add' %}"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 mx-2 text-sm text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 border border-blue-300 dark:border-blue-700 rounded-lg transition-colors text-left shadow-sm">
+                    <i data-lucide="file-plus" class="w-4 h-4"></i> <span class="font-bold">บันทึกงานซ่อม</span>
+                </a>
+
+                <a href="{% url 'maintenance_kpi_metric_add' %}"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 mx-2 text-sm text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/40 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 border border-emerald-300 dark:border-emerald-700 rounded-lg transition-colors text-left shadow-sm">
+                    <i data-lucide="file-plus" class="w-4 h-4"></i> <span class="font-bold">บันทึก KPI</span>
+                </a>
+
+                <div class="border-t border-slate-200 dark:border-slate-700 my-2 mx-2"></div>
+
+                <!-- เลือก Template & Download -->
+                <div class="flex gap-2 px-2 pb-1">
+                    <select id="template-type"
+                        class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs rounded-md px-2 py-2 flex-1 outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="maintenance">Template: งานซ่อม</option>
+                        <option value="kpi">Template: KPI</option>
+                    </select>
+                    <button onclick="window.DashboardAPI.downloadTemplate()"
+                        class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 p-2 rounded-md transition shadow-sm"
+                        title="ดาวน์โหลด Template">
+                        <i data-lucide="file-down" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Import CSV -->
+                <label
+                    class="flex items-center gap-3 px-3 py-2.5 mx-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-colors cursor-pointer border border-transparent">
+                    <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                    <span class="font-medium">Import CSV</span>
+                    <input type="file" accept=".csv" class="hidden" onchange="handleBackendUpload(event)" />
+                </label>
+
+                <!-- Export Excel -->
+                <button onclick="window.DashboardAPI.exportExcel()"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 mx-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-800 rounded-lg transition-colors text-left shadow-sm">
+                    <i data-lucide="table" class="w-4 h-4"></i> <span class="font-bold">Export Excel</span>
+                </button>
+
+                <!-- Export PDF -->
+                <button onclick="window.DashboardAPI.exportPDF()"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 mx-2 text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors text-left shadow-sm">
+                    <i data-lucide="printer" class="w-4 h-4"></i> <span class="font-bold">Export PDF</span>
+                </button>
+
+                <!-- Reset Filters -->
+                <button onclick="window.DashboardAPI.clearFilters()"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 mx-2 mt-4 text-sm text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-left border border-transparent shadow-sm"
+                    title="รีเซ็ตการค้นหาและตัวกรองทั้งหมด">
+                    <i data-lucide="filter-x" class="w-4 h-4"></i> <span class="font-bold">Reset Filter</span>
+                </button>
+            </div>
+
+            <!-- Dark Mode Toggle -->
+            <div class="mt-auto pt-4 border-t border-slate-200 dark:border-slate-800">
+                <button onclick="toggleDarkMode()"
+                    class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors text-left">
+                    <i data-lucide="moon" id="dark-mode-icon" class="w-5 h-5"></i>
+                    <span id="dark-mode-text" class="font-medium">โหมดกลางคืน</span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative transition-colors duration-300">
+        <div id="root" class="h-full overflow-y-auto"></div>
+    </main>
+</div>
+
+<!-- Libraries -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- ตั้งค่า Tailwind ให้รองรับ Class-based Dark Mode -->
+<script>
+    tailwind.config = {
+        darkMode: 'class',
+        theme: { extend: {} }
+    }
+</script>
+<script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+
+<style>
+    body {
+        font-family: 'Sarabun', sans-serif;
+        background-color: #f1f5f9;
+    }
+
+    .dark body {
+        background-color: #020617;
+    }
+
+    /* slate-950 */
+
+    .card {
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transition: all 0.3s ease;
+    }
+
+    .card:hover {
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    /* KPI Colors Light */
+    .kpi-score-4 {
+        background-color: #dcfce7;
+        color: #166534;
+        border: 1px solid #86efac;
+    }
+
+    .kpi-score-3 {
+        background-color: #fef9c3;
+        color: #854d0e;
+        border: 1px solid #fde047;
+    }
+
+    .kpi-score-2 {
+        background-color: #ffedd5;
+        color: #9a3412;
+        border: 1px solid #fdba74;
+    }
+
+    .kpi-score-1 {
+        background-color: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fca5a5;
+    }
+
+    /* KPI Colors Dark */
+    .dark .kpi-score-4 {
+        background-color: rgba(22, 101, 52, 0.3);
+        color: #4ade80;
+        border-color: #065f46;
+    }
+
+    .dark .kpi-score-3 {
+        background-color: rgba(133, 77, 14, 0.3);
+        color: #facc15;
+        border-color: #854d0e;
+    }
+
+    .dark .kpi-score-2 {
+        background-color: rgba(154, 52, 18, 0.3);
+        color: #fb923c;
+        border-color: #9a3412;
+    }
+
+    .dark .kpi-score-1 {
+        background-color: rgba(153, 27, 27, 0.3);
+        color: #f87171;
+        border-color: #991b1b;
+    }
+
+    .grade-A {
+        background-color: #10b981;
+        color: white;
+    }
+
+    .grade-B-plus {
+        background-color: #3b82f6;
+        color: white;
+    }
+
+    .grade-B {
+        background-color: #60a5fa;
+        color: white;
+    }
+
+    .grade-C-plus {
+        background-color: #f59e0b;
+        color: white;
+    }
+
+    .grade-C {
+        background-color: #fbbf24;
+        color: white;
+    }
+
+    .grade-D {
+        background-color: #ef4444;
+        color: white;
+    }
+
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+
+    .dark ::-webkit-scrollbar-thumb {
+        background: #475569;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+
+        aside {
+            display: none !important;
+        }
+
+        body {
+            background-color: white;
+        }
+
+        .dark body {
+            background-color: white;
+        }
+
+        /* Force light on print */
+        .card {
+            box-shadow: none;
+            border: 1px solid #e2e8f0;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+    }
+</style>
+
+<!-- สคริปต์จัดการ Theme และ Upload -->
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        lucide.createIcons();
+        initTheme();
+    });
+
+    function initTheme() {
+        const savedTheme = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+
+        if (isDark) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        updateDarkModeIcon(isDark);
+    }
+
+    function toggleDarkMode() {
+        const html = document.documentElement;
+        const isDark = html.classList.toggle('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        updateDarkModeIcon(isDark);
+        window.dispatchEvent(new Event('theme-changed'));
+    }
+
+    function updateDarkModeIcon(isDark) {
+        const icon = document.getElementById('dark-mode-icon');
+        const text = document.getElementById('dark-mode-text');
+        if (icon && text) {
+            icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+            text.innerText = isDark ? 'โหมดกลางวัน' : 'โหมดกลางคืน';
+            lucide.createIcons();
+        }
+    }
+
+    async function handleBackendUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const originalText = event.target.previousElementSibling.innerText;
+        event.target.previousElementSibling.innerText = "กำลังอัปโหลด...";
+
+        const formData = new FormData();
+        formData.append('file', file);
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+        try {
+            const response = await fetch(window.DJANGO_URLS.importCsv, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`นำเข้าข้อมูลและบันทึกลงฐานข้อมูลสำเร็จจำนวน ${result.count} รายการ\nระบบจะทำการรีเฟรชหน้าเพื่อแสดงข้อมูลล่าสุด`);
+                window.location.reload();
+            } else {
+                alert(`เกิดข้อผิดพลาด: ${result.error}`);
+            }
+        } catch (error) {
+            console.error("Upload error:", error);
+            alert("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์");
+        } finally {
+            event.target.value = '';
+            event.target.previousElementSibling.innerText = originalText;
+        }
+    }
+</script>
+
+<!-- React Application -->
+{% verbatim %}
+<script type="text/babel">
+    window.process = { env: { NODE_ENV: 'production' } };
+
+    const { useState, useMemo, useEffect, useRef } = React;
+    const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Line } = window.Recharts;
+
+    const Icon = ({ name, size = 20, color = "currentColor", className = "" }) => {
+        const icons = {
+            Wrench: <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />,
+            Plus: <><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></>,
+            ClipboardList: <><rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M12 11h4" /><path d="M12 16h4" /><path d="M8 11h.01" /><path d="M8 16h.01" /></>,
+            AlertOctagon: <><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></>,
+            Timer: <><line x1="10" x2="14" y1="2" y2="2" /><line x1="12" x2="15" y1="14" y2="11" /><circle cx="12" cy="14" r="8" /></>,
+            Filter: <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />,
+            Search: <><circle cx="11" cy="11" r="8" /><line x1="21" x2="16.65" y1="21" y2="16.65" /></>,
+            BarChart2: <><line x1="18" x2="18" y1="20" y2="10" /><line x1="12" x2="12" y1="20" y2="4" /><line x1="6" x2="6" y1="20" y2="14" /></>,
+            PieChart: <><path d="M21.21 15.89A10 10 0 1 1 8 2.83" /><path d="M22 12A10 10 0 0 0 12 2v10z" /></>,
+            FileText: <><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" x2="8" y1="13" y2="13" /><line x1="16" x2="8" y1="17" y2="17" /><line x1="10" x2="8" y1="9" y2="9" /></>,
+            Droplet: <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />,
+            Activity: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />,
+            Trophy: <><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></>,
+            History: <><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></>,
+            Target: <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></>,
+            Box: <><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" x2="12" y1="22.08" y2="12" /></>,
+            User: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>,
+            UserCheck: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><polyline points="16 11 18 13 22 9" /></>,
+            Award: <><circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" /></>,
+            Users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
+            RefreshCw: <><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></>,
+            Thermometer: <><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z" /><line x1="12" x2="12" y1="3" y2="12" /></>,
+            Clock: <><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></>
+        };
+        return <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{icons[name]}</svg>;
+    };
+
+    const getSafeData = (id) => {
         const el = document.getElementById(id);
         if (el && el.textContent) {
             try {
                 let parsed = JSON.parse(el.textContent);
-                // Handle potential double serialization if Django view dumped it first
-                if (typeof parsed === 'string') {
-                    parsed = JSON.parse(parsed);
-                }
+                if (typeof parsed === 'string') parsed = JSON.parse(parsed);
                 return Array.isArray(parsed) ? parsed : [];
-            } catch (e) {
-                console.error("JSON parse error:", e);
-                return [];
-            }
+            } catch (e) { return []; }
         }
         return [];
-    }
-
-    // Get Real Data
-    const logsData = getSafeData('logs-data');
-    const kpiData = getSafeData('kpi-data');
-
-    let chartDeptInstance = null;
-    let chartCatInstance = null;
-
-    // --- Main Render Function ---
-    function renderDashboard() {
-        const filterDept = document.getElementById('filter-dept').value;
-        const filterCat = document.getElementById('filter-category').value;
-        const searchTerm = document.getElementById('search-term').value.toLowerCase();
-
-        // Filter Data
-        const filtered = logsData.filter(item => {
-            const matchDept = filterDept === 'All' || item.dept === filterDept;
-            const matchCat = filterCat === 'All' || item.category === filterCat;
-            const matchSearch = (item.machine || "").toLowerCase().includes(searchTerm) ||
-                (item.problem || "").toLowerCase().includes(searchTerm);
-            return matchDept && matchCat && matchSearch;
-        });
-
-        // 1. Render Stats
-        updateStats(filtered);
-
-        // 2. Render Charts
-        updateCharts(filtered);
-
-        // 3. Render Table
-        renderTable(filtered);
-    }
-
-    function updateStats(data) {
-        const totalFailures = data.length;
-        // Parse floats to ensure calculation works correctly
-        const stopTime = data.reduce((acc, curr) => acc + (parseFloat(curr.downtimeStop) || 0), 0);
-        const reducedTime = data.reduce((acc, curr) => acc + (parseFloat(curr.downtimeReduced) || 0), 0);
-        const leaks = data.filter(i => i.isLeak).length;
-        const mttr = totalFailures > 0 ? ((stopTime + reducedTime) / totalFailures) : 0;
-
-        document.getElementById('stat-total-failures').innerText = totalFailures;
-        document.getElementById('stat-stop-time').innerText = stopTime.toFixed(2);
-        document.getElementById('stat-reduced-time').innerText = reducedTime.toFixed(2);
-        document.getElementById('stat-leaks').innerText = leaks;
-        document.getElementById('stat-mttr').innerText = mttr.toFixed(2);
-    }
-
-    function renderTable(data) {
-        const tbody = document.getElementById('maintenance-table-body');
-        document.getElementById('table-count').innerText = `แสดง ${data.length} รายการ`;
-
-        if (data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 italic">ไม่พบข้อมูลในระบบ (กรุณาเพิ่มข้อมูลงานซ่อม)</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = data.slice(0, 50).map(row => `
-            <tr class="hover:bg-blue-50/50 dark:hover:bg-slate-700/50 transition-colors border-b border-slate-100 dark:border-slate-700">
-                <td class="p-3 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">${row.date}</td>
-                <td class="p-3 font-medium text-blue-700 dark:text-blue-400">
-                    <div class="flex items-center gap-2">
-                        ${row.isLeak ? '<i data-lucide="droplet" class="w-3 h-3 text-cyan-500"></i>' : ''} 
-                        ${row.machine}
-                    </div>
-                </td>
-                <td class="p-3 max-w-xs">
-                    <div class="font-semibold text-xs truncate dark:text-slate-200">${row.problem}</div>
-                    <div class="text-[10px] text-slate-400 truncate">${row.cause || '-'}</div>
-                </td>
-                <td class="p-3 text-xs text-slate-600 dark:text-slate-400">
-                    ${row.reporter || '-'}
-                </td>
-                <td class="p-3 text-right font-mono text-xs font-bold text-red-600 dark:text-red-400">
-                    ${row.downtimeStop > 0 ? parseFloat(row.downtimeStop).toFixed(2) : '-'}
-                </td>
-                <td class="p-3 text-right font-mono text-xs text-orange-600 dark:text-orange-400">
-                    ${row.downtimeNonStop > 0 ? parseFloat(row.downtimeNonStop).toFixed(2) : '-'}
-                </td>
-            </tr>
-        `).join('');
-
-        lucide.createIcons();
-    }
-
-    function updateCharts(data) {
-        // Group Data for Dept Chart
-        const deptGroups = {};
-        data.forEach(item => {
-            const val = (parseFloat(item.downtimeStop) || 0) + (parseFloat(item.downtimeReduced) || 0);
-            if (val > 0) {
-                deptGroups[item.dept] = (deptGroups[item.dept] || 0) + val;
-            }
-        });
-        const deptLabels = Object.keys(deptGroups);
-        const deptValues = Object.values(deptGroups);
-
-        // Group Data for Category Chart
-        const catGroups = {};
-        data.forEach(item => {
-            catGroups[item.category] = (catGroups[item.category] || 0) + 1;
-        });
-        const catLabels = Object.keys(catGroups);
-        const catValues = Object.values(catGroups);
-
-        // Init/Update Chart Dept
-        const ctxDept = document.getElementById('chart-dept').getContext('2d');
-        if (chartDeptInstance) chartDeptInstance.destroy();
-
-        chartDeptInstance = new Chart(ctxDept, {
-            type: 'bar',
-            data: {
-                labels: deptLabels,
-                datasets: [{
-                    label: 'เวลาสูญเสีย (ชม.)',
-                    data: deptValues,
-                    backgroundColor: '#3b82f6',
-                    borderRadius: 4
-                }]
-            },
-            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
-        });
-
-        // Init/Update Chart Category
-        const ctxCat = document.getElementById('chart-category').getContext('2d');
-        if (chartCatInstance) chartCatInstance.destroy();
-        chartCatInstance = new Chart(ctxCat, {
-            type: 'doughnut',
-            data: {
-                labels: catLabels,
-                datasets: [{
-                    data: catValues,
-                    backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'],
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-    }
-
-    function initFilters() {
-        const depts = [...new Set(logsData.map(d => d.dept))].filter(Boolean);
-        const cats = [...new Set(logsData.map(d => d.category))].filter(Boolean);
-
-        const deptSel = document.getElementById('filter-dept');
-        depts.forEach(d => deptSel.innerHTML += `<option value="${d}">${d}</option>`);
-
-        const catSel = document.getElementById('filter-category');
-        cats.forEach(c => catSel.innerHTML += `<option value="${c}">${c}</option>`);
-    }
-
-    // --- KPI Logic ---
-    function renderKPI() {
-        const tbody = document.getElementById('kpi-table-body');
-        let totalScore = 0;
-        let totalWeight = 0;
-
-        if (kpiData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-400 italic">ไม่พบข้อมูล KPI (กรุณาเพิ่มข้อมูล KPI)</td></tr>`;
-            document.getElementById('kpi-grade').innerText = "-";
-            return;
-        }
-
-        tbody.innerHTML = kpiData.map(row => {
-            const scoreVal = parseFloat(row.score) || 0;
-            const weightVal = parseFloat(row.weight) || 0;
-            const rowTotal = scoreVal * weightVal;
-            totalScore += rowTotal;
-            totalWeight += (weightVal * 4); // Max score 4
-
-            let scoreClass = 'bg-slate-100 text-slate-700';
-            if (scoreVal === 4) scoreClass = 'bg-green-100 text-green-700 border border-green-200';
-            if (scoreVal === 3) scoreClass = 'bg-yellow-100 text-yellow-800 border border-yellow-200';
-            if (scoreVal <= 2) scoreClass = 'bg-red-100 text-red-700 border border-red-200';
-
-            return `
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700">
-                    <td class="p-4 font-medium text-slate-700 dark:text-slate-200">${row.name}</td>
-                    <td class="p-4 text-center text-slate-500 dark:text-slate-400 font-mono">${row.target} ${row.unit}</td>
-                    <td class="p-4 text-center font-bold text-blue-600 dark:text-blue-400 font-mono">${row.actual}</td>
-                    <td class="p-4 text-center">
-                        <span class="px-3 py-1 rounded-full text-xs font-bold ${scoreClass}">${row.score}</span>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-
-        document.getElementById('kpi-total-score').innerText = totalScore;
-        document.getElementById('kpi-max-score').innerText = totalWeight;
-
-        const percent = totalWeight > 0 ? (totalScore / totalWeight) * 100 : 0;
-        let grade = 'D';
-        if (percent >= 80) grade = 'A';
-        else if (percent >= 75) grade = 'B+';
-        else if (percent >= 70) grade = 'B';
-        else if (percent >= 65) grade = 'C+';
-        else if (percent >= 60) grade = 'C';
-
-        document.getElementById('kpi-grade').innerText = grade;
-    }
-
-    // --- Tab Switching ---
-    window.switchTab = function (tabName) {
-        const tabMaint = document.getElementById('tab-maintenance');
-        const tabKPI = document.getElementById('tab-kpi');
-        const btnMaint = document.getElementById('btn-maintenance');
-        const btnKPI = document.getElementById('btn-kpi');
-
-        if (tabName === 'maintenance') {
-            tabMaint.classList.remove('hidden');
-            tabKPI.classList.add('hidden');
-            btnMaint.className = "px-3 py-1.5 rounded-md text-sm font-semibold transition bg-white text-blue-900 shadow-sm";
-            btnKPI.className = "px-3 py-1.5 rounded-md text-sm font-semibold transition text-blue-100 hover:bg-white/10";
-        } else {
-            tabMaint.classList.add('hidden');
-            tabKPI.classList.remove('hidden');
-            btnMaint.className = "px-3 py-1.5 rounded-md text-sm font-semibold transition text-blue-100 hover:bg-white/10";
-            btnKPI.className = "px-3 py-1.5 rounded-md text-sm font-semibold transition bg-white text-blue-900 shadow-sm";
-        }
     };
 
-    // --- Init ---
-    document.addEventListener('DOMContentLoaded', () => {
-        initFilters();
-        renderDashboard();
-        renderKPI();
-    });
+    const KpiTab = ({ kpiData, kpiStats }) => (
+        <div className="space-y-6 animate-fade-in pb-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="card bg-white dark:bg-slate-800 p-6 flex items-center justify-between border-l-4 border-emerald-500">
+                    <div>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold mb-1">คะแนน KPI รวม</p>
+                        <h2 className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">{kpiStats.totalScore} <span className="text-lg text-slate-400 dark:text-slate-500">/ {kpiStats.totalMaxScore}</span></h2>
+                    </div>
+                    <div className="bg-emerald-100 dark:bg-emerald-900/30 p-4 rounded-full text-emerald-600 dark:text-emerald-400"><Icon name="Target" size={32} /></div>
+                </div>
+                <div className="card bg-white dark:bg-slate-800 p-6 flex items-center justify-between border-l-4 border-blue-500">
+                    <div>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold mb-1">ความสำเร็จ (Achievement)</p>
+                        <h2 className="text-4xl font-bold text-blue-600 dark:text-blue-400">{kpiStats.percent.toFixed(1)}%</h2>
+                    </div>
+                    <div className="h-16 w-16">
+                        <ResponsiveContainer>
+                            <PieChart>
+                                <Pie data={[{ value: kpiStats.percent }, { value: 100 - kpiStats.percent }]} dataKey="value" cx="50%" cy="50%" innerRadius={20} outerRadius={35} startAngle={90} endAngle={-270}>
+                                    <Cell fill="#3b82f6" /><Cell fill="#cbd5e1" />
+                                </Pie>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+                <div className={`card bg-white dark:bg-slate-800 p-6 flex items-center justify-between border-l-4 ${kpiStats.gradeInfo.class.replace('grade-', 'border-')}`}>
+                    <div>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold mb-1">เกรดประเมิน (Grade)</p>
+                        <h2 className={`text-5xl font-bold px-4 py-1 rounded-lg ${kpiStats.gradeInfo.class}`}>{kpiStats.gradeInfo.grade}</h2>
+                    </div>
+                    <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"><Icon name="Award" size={32} /></div>
+                </div>
+                <div className="card bg-white dark:bg-slate-800 p-6 border-l-4 border-purple-500">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold mb-3">เกรดคะแนนรายข้อ</p>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[4, 3, 2, 1].map(score => (
+                            <div key={score} className={`text-center p-1 rounded border ${score === 4 ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : score === 3 ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800' : score === 2 ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'}`}>
+                                <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">ระดับ {score}</div>
+                                <div className="text-lg font-bold text-slate-800 dark:text-slate-200">{kpiStats.scoreCounts[score] || 0}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
 
+            <div className="card bg-white dark:bg-slate-800 p-6 border-l-4 border-cyan-500 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                    <div>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold mb-1">การพัฒนาบุคลากร (People Dev)</p>
+                        <h2 className="text-2xl font-bold text-cyan-600 dark:text-cyan-400">ความคืบหน้าตามระดับ (L1-L3)</h2>
+                    </div>
+                    <div className="bg-cyan-100 dark:bg-cyan-900/30 p-3 rounded-full text-cyan-600 dark:text-cyan-400"><Icon name="Users" size={24} /></div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {kpiData.filter(k => k.name.includes("L1") || k.name.includes("L2") || k.name.includes("L3")).map(kpi => (
+                        <div key={kpi.id} className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg border border-slate-100 dark:border-slate-600">
+                            <div className="flex justify-between items-end mb-2">
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{kpi.name.replace('พัฒนาบุคลากร', '')}</span>
+                                <span className="text-xs font-semibold text-cyan-600 dark:text-cyan-400">{kpi.actual} / {kpi.target} คน</span>
+                            </div>
+                            <div className="w-full bg-gray-200 dark:bg-slate-600 rounded-full h-2">
+                                <div className={`h-2 rounded-full ${kpi.actual >= kpi.target ? 'bg-green-500' : 'bg-cyan-500'}`} style={{ width: `${Math.min((kpi.actual / kpi.target) * 100, 100)}%` }}></div>
+                            </div>
+                            <div className="mt-2 text-right">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${kpi.score >= 3 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'}`}>Score: {kpi.score}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="card bg-white dark:bg-slate-800 overflow-hidden">
+                <div className="p-4 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2"><Icon name="Target" size={20} className="text-blue-600 dark:text-blue-400" />รายละเอียดตัวชี้วัด (KPI Details)</h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-100 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 text-xs uppercase font-semibold">
+                            <tr>
+                                <th className="p-4 w-1/3">หัวข้อ KPI</th><th className="p-4">หมวดหมู่</th><th className="p-4 text-center">เป้าหมาย</th><th className="p-4 text-center">ผลลัพธ์</th><th className="p-4 text-center">น้ำหนัก</th><th className="p-4 text-center">คะแนน</th><th className="p-4 text-center">รวม</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
+                            {kpiData.length === 0 ? <tr><td colSpan="7" className="p-8 text-center text-slate-400 italic">ไม่พบข้อมูล KPI ในระบบ</td></tr> : kpiData.map((item, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                                    <td className="p-4 font-medium text-slate-700 dark:text-slate-300">{item.name}</td>
+                                    <td className="p-4 text-slate-500 dark:text-slate-400"><span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded-full text-xs border border-slate-200 dark:border-slate-600">{item.category}</span></td>
+                                    <td className="p-4 text-center font-mono text-slate-600 dark:text-slate-400">{item.target} {item.unit}</td>
+                                    <td className="p-4 text-center font-mono font-bold text-blue-600 dark:text-blue-400">{item.actual}</td>
+                                    <td className="p-4 text-center text-slate-500 dark:text-slate-400">{item.weight}</td>
+                                    <td className="p-4 text-center"><span className={`px-3 py-1 rounded-full font-bold text-xs kpi-score-${item.score}`}>{item.score}</span></td>
+                                    <td className="p-4 text-center font-bold text-slate-800 dark:text-slate-200">{item.weightedScore}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+
+    const MaintenanceTab = ({
+        maintenanceStats, filterDept, setFilterDept, filterCategory, setFilterCategory,
+        searchTerm, setSearchTerm, startDate, setStartDate, endDate, setEndDate,
+        departments, categories, filteredData, COLORS, historicalData, isDark
+    }) => (
+        <div className="space-y-6 animate-fade-in pb-8">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="card bg-white dark:bg-slate-800 p-5 border-l-4 border-blue-500 relative overflow-hidden">
+                    <div className="relative z-10">
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">ซ่อม (ครั้ง)</p>
+                        <h2 className="text-3xl font-bold text-slate-800 dark:text-white">{maintenanceStats.totalFailures}</h2>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 bg-blue-50 dark:bg-blue-900/30 inline-block px-2 py-0.5 rounded">รวม {maintenanceStats.totalDowntimeAll.toFixed(2)} ชม.</p>
+                    </div>
+                    <div className="absolute right-2 top-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-full text-blue-500 dark:text-blue-400 opacity-50"><Icon name="ClipboardList" size={24} /></div>
+                </div>
+                <div className="card bg-white dark:bg-slate-800 p-5 border-l-4 border-indigo-500 relative overflow-hidden">
+                    <div className="relative z-10"><p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">MTTR (ชม./ครั้ง)</p><h2 className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{maintenanceStats.mttr.toFixed(2)}</h2></div>
+                    <div className="absolute right-2 top-2 bg-indigo-50 dark:bg-indigo-900/20 p-2 rounded-full text-indigo-500 dark:text-indigo-400 opacity-50"><Icon name="Timer" size={24} /></div>
+                </div>
+                <div className="card bg-white dark:bg-slate-800 p-5 border-l-4 border-red-500 relative overflow-hidden">
+                    <div className="relative z-10">
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">หยุดหีบ (ชม.)</p>
+                        <h2 className="text-3xl font-bold text-red-600 dark:text-red-400">{maintenanceStats.totalStopMilling.toFixed(2)}</h2>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 bg-red-50 dark:bg-red-900/30 inline-block px-2 py-0.5 rounded">{maintenanceStats.countStopMilling} ครั้ง</p>
+                    </div>
+                    <div className="absolute right-2 top-2 bg-red-50 dark:bg-red-900/20 p-2 rounded-full text-red-500 dark:text-red-400 opacity-50"><Icon name="AlertOctagon" size={24} /></div>
+                </div>
+                <div className="card bg-white dark:bg-slate-800 p-5 border-l-4 border-yellow-500 relative overflow-hidden">
+                    <div className="relative z-10">
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">ลดรอบ (ชม.)</p>
+                        <h2 className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{maintenanceStats.totalReducedMilling.toFixed(2)}</h2>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 bg-yellow-50 dark:bg-yellow-900/30 inline-block px-2 py-0.5 rounded">{maintenanceStats.countReducedMilling} ครั้ง</p>
+                    </div>
+                    <div className="absolute right-2 top-2 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded-full text-yellow-600 dark:text-yellow-400 opacity-50"><Icon name="Activity" size={24} /></div>
+                </div>
+                <div className="card bg-white dark:bg-slate-800 p-5 border-l-4 border-pink-500 relative overflow-hidden">
+                    <div className="relative z-10">
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">หยุดละลาย (ชม.)</p>
+                        <h2 className="text-3xl font-bold text-pink-600 dark:text-pink-400">{maintenanceStats.totalDissolve.toFixed(2)}</h2>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 bg-pink-50 dark:bg-pink-900/30 inline-block px-2 py-0.5 rounded">{maintenanceStats.countDissolve} ครั้ง</p>
+                    </div>
+                    <div className="absolute right-2 top-2 bg-pink-50 dark:bg-pink-900/20 p-2 rounded-full text-pink-500 dark:text-pink-400 opacity-50"><Icon name="Thermometer" size={24} /></div>
+                </div>
+                <div className="card bg-white dark:bg-slate-800 p-5 border-l-4 border-cyan-500 relative overflow-hidden">
+                    <div className="relative z-10">
+                        <p className="text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">รั่วไหล (ครั้ง)</p>
+                        <h2 className="text-3xl font-bold text-cyan-600 dark:text-cyan-400">{maintenanceStats.totalLeaks}</h2>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 bg-cyan-50 dark:bg-cyan-900/30 inline-block px-2 py-0.5 rounded">จุด</p>
+                    </div>
+                    <div className="absolute right-2 top-2 bg-cyan-50 dark:bg-cyan-900/20 p-2 rounded-full text-cyan-500 dark:text-cyan-400 opacity-50"><Icon name="Droplet" size={24} /></div>
+                </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm flex flex-wrap items-center gap-3 border border-slate-100 dark:border-slate-700 no-print sticky top-0 z-40">
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-semibold text-sm px-2"><Icon name="Filter" size={16} /> ตัวกรอง:</div>
+                <select className="border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 rounded-md px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500" value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
+                    <option value="All">ทุกแผนก</option>{departments.filter(d => d !== "All").map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <select className="border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 rounded-md px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                    <option value="All">ทุกประเภทปัญหา</option>{categories.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <div className="flex items-center gap-2 border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 rounded-md px-2 py-1">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">วันที่:</span>
+                    <input type="date" className="bg-transparent text-xs outline-none w-28 text-slate-700 dark:text-slate-200" style={{ colorScheme: isDark ? 'dark' : 'light' }} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    <span className="text-xs text-slate-400">-</span>
+                    <input type="date" className="bg-transparent text-xs outline-none w-28 text-slate-700 dark:text-slate-200" style={{ colorScheme: isDark ? 'dark' : 'light' }} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                </div>
+                <div className="relative flex-grow md:flex-grow-0 md:ml-auto">
+                    <Icon name="Search" size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                    <input type="text" placeholder="ค้นหาเครื่องจักร, ปัญหา..." className="pl-9 pr-4 py-1.5 border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 rounded-md text-sm w-full outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="card bg-white dark:bg-slate-800 p-6">
+                    <h3 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><Icon name="BarChart2" size={18} className="text-blue-600 dark:text-blue-400" />เวลาสูญเสียตามแผนก (ชม.)</h3>
+                    <div className="h-80 w-full overflow-y-auto pr-2 custom-scrollbar">
+                        <div style={{ height: Math.max(maintenanceStats.deptData.length * 40, 300), minWidth: '100%' }}>
+                            <ResponsiveContainer>
+                                <BarChart data={maintenanceStats.deptData} layout="vertical" margin={{ left: 0, right: 10, top: 10, bottom: 10 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={isDark ? '#334155' : '#e2e8f0'} />
+                                    <XAxis type="number" tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b' }} />
+                                    <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 11, fill: isDark ? '#e2e8f0' : '#475569' }} interval={0} />
+                                    <Tooltip cursor={{ fill: isDark ? '#334155' : '#f1f5f9' }} content={({ active, payload }) => {
+                                        if (active && payload && payload.length) {
+                                            const data = payload[0].payload;
+                                            return (
+                                                <div className="bg-white dark:bg-slate-800 p-3 border border-slate-100 dark:border-slate-700 shadow-lg rounded-lg">
+                                                    <p className="font-bold text-slate-700 dark:text-slate-200 mb-1">{data.name}</p>
+                                                    <p className="text-sm text-blue-600 dark:text-blue-400 font-semibold">เวลา: {data.hours.toFixed(2)} ชม.</p>
+                                                    <p className="text-sm text-slate-500 dark:text-slate-400">จำนวน: {data.count} ครั้ง</p>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    }} />
+                                    <Bar dataKey="hours" fill={isDark ? '#60A5FA' : '#3B82F6'} radius={[0, 4, 4, 0]} barSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+                <div className="card bg-white dark:bg-slate-800 p-6">
+                    <h3 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><Icon name="PieChart" size={18} className="text-purple-600 dark:text-purple-400" />สัดส่วนปัญหา (%)</h3>
+                    <div className="h-64 w-full flex items-center justify-center">
+                        <ResponsiveContainer>
+                            <PieChart>
+                                <Pie data={maintenanceStats.catData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2} dataKey="value" stroke="none"
+                                    label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value, x, y }) => {
+                                        if (percent === 0) return null;
+                                        return (
+                                            <text x={x} y={y} fill={isDark ? '#cbd5e1' : '#475569'} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize="10px">
+                                                {`${name} (${value} ครั้ง) ${(percent * 100).toFixed(0)}%`}
+                                            </text>
+                                        );
+                                    }}
+                                >
+                                    {maintenanceStats.catData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                </Pie>
+                                <Tooltip
+                                    contentStyle={{ borderRadius: '8px', border: isDark ? '1px solid #334155' : '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', backgroundColor: isDark ? '#1e293b' : '#fff', color: isDark ? '#f1f5f9' : '#334155' }}
+                                    formatter={(value, name, props) => [`${value} ครั้ง (${(props.payload.percent * 100).toFixed(1)}%)`, name]}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="card bg-white dark:bg-slate-800 p-6 flex flex-col">
+                    <h3 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><Icon name="User" size={18} className="text-indigo-500 dark:text-indigo-400" />Top 5 ผู้แจ้งซ่อม</h3>
+                    <div className="flex-1 overflow-y-auto pr-1 h-48 custom-scrollbar">
+                        {maintenanceStats.topReporters.length > 0 ? (
+                            <div className="space-y-2">
+                                {maintenanceStats.topReporters.map((person, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded border border-indigo-100 dark:border-indigo-800/50 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition" onClick={() => setSearchTerm(person.name)}>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-5 h-5 rounded-full bg-indigo-200 dark:bg-indigo-800 flex items-center justify-center text-[10px] font-bold text-indigo-700 dark:text-indigo-300">{idx + 1}</div>
+                                            <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{person.name}</span>
+                                        </div>
+                                        <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400">{person.count} ครั้ง</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <div className="flex items-center justify-center h-full text-slate-400 text-sm">ไม่มีข้อมูล</div>}
+                    </div>
+                </div>
+                <div className="card bg-white dark:bg-slate-800 p-6 flex flex-col">
+                    <h3 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><Icon name="UserCheck" size={18} className="text-teal-500 dark:text-teal-400" />Top 5 ผู้แก้ไข (ช่าง)</h3>
+                    <div className="flex-1 overflow-y-auto pr-1 h-48 custom-scrollbar">
+                        {maintenanceStats.topResolvers.length > 0 ? (
+                            <div className="space-y-2">
+                                {maintenanceStats.topResolvers.map((person, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-2 bg-teal-50 dark:bg-teal-900/20 rounded border border-teal-100 dark:border-teal-800/50 cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-900/40 transition" onClick={() => setSearchTerm(person.name)}>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-5 h-5 rounded-full bg-teal-200 dark:bg-teal-800 flex items-center justify-center text-[10px] font-bold text-teal-700 dark:text-teal-300">{idx + 1}</div>
+                                            <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{person.name}</span>
+                                        </div>
+                                        <span className="text-xs font-bold text-teal-700 dark:text-teal-400">{person.count} ครั้ง</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <div className="flex items-center justify-center h-full text-slate-400 text-sm">ไม่มีข้อมูล</div>}
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="card bg-white dark:bg-slate-800 p-6 flex flex-col">
+                    <h3 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><Icon name="Trophy" size={18} className="text-yellow-500 dark:text-yellow-400" />Top 5 เสียบ่อย (ครั้ง)</h3>
+                    <div className="flex-1 overflow-y-auto pr-1 h-48 custom-scrollbar">
+                        {maintenanceStats.topMachines.length > 0 ? (
+                            <div className="space-y-2">
+                                {maintenanceStats.topMachines.map((machine, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded border border-slate-100 dark:border-slate-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition cursor-pointer" onClick={() => setSearchTerm(machine.name)}>
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${idx === 0 ? 'bg-yellow-400 dark:bg-yellow-500' : 'bg-slate-300 dark:bg-slate-600'}`}>{idx + 1}</div>
+                                            <div className="flex flex-col overflow-hidden">
+                                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate" title={machine.name}>{machine.name}</span>
+                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{machine.dept}</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right flex-shrink-0 ml-2">
+                                            <span className="block text-xs font-bold text-red-500 dark:text-red-400">{machine.count} ครั้ง</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <div className="flex items-center justify-center h-full text-slate-400 text-sm">ไม่มีข้อมูล</div>}
+                    </div>
+                </div>
+
+                <div className="card bg-white dark:bg-slate-800 p-6 flex flex-col">
+                    <h3 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><Icon name="Clock" size={18} className="text-red-500 dark:text-red-400" />Top 5 นานที่สุด (ชม.)</h3>
+                    <div className="flex-1 overflow-y-auto pr-1 h-48 custom-scrollbar">
+                        {maintenanceStats.topMachinesByTime.length > 0 ? (
+                            <div className="space-y-2">
+                                {maintenanceStats.topMachinesByTime.map((machine, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded border border-slate-100 dark:border-slate-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition cursor-pointer" onClick={() => setSearchTerm(machine.name)}>
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 ${idx === 0 ? 'bg-red-400 dark:bg-red-500' : 'bg-slate-300 dark:bg-slate-600'}`}>{idx + 1}</div>
+                                            <div className="flex flex-col overflow-hidden">
+                                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate" title={machine.name}>{machine.name}</span>
+                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{machine.dept}</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right flex-shrink-0 ml-2">
+                                            <span className="block text-xs font-bold text-red-600 dark:text-red-400">{machine.hours.toFixed(2)} ชม.</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <div className="flex items-center justify-center h-full text-slate-400 text-sm">ไม่มีข้อมูล</div>}
+                    </div>
+                </div>
+
+                <div className="card bg-white dark:bg-slate-800 p-6 flex flex-col">
+                    <h3 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><Icon name="Droplet" size={18} className="text-cyan-500 dark:text-cyan-400" />Top 5 รั่วไหลบ่อย</h3>
+                    <div className="flex-1 overflow-y-auto pr-1 h-48 custom-scrollbar">
+                        {maintenanceStats.topLeakingMachines.length > 0 ? (
+                            <div className="space-y-2">
+                                {maintenanceStats.topLeakingMachines.map((machine, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-2 bg-cyan-50 dark:bg-cyan-900/20 rounded border border-cyan-100 dark:border-cyan-800/50 hover:bg-cyan-100 dark:hover:bg-cyan-900/40 transition cursor-pointer" onClick={() => setSearchTerm(machine.name)}>
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-cyan-700 dark:text-cyan-300 bg-cyan-200 dark:bg-cyan-800 flex-shrink-0`}>{idx + 1}</div>
+                                            <div className="flex flex-col overflow-hidden">
+                                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate" title={machine.name}>{machine.name}</span>
+                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{machine.dept}</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right flex-shrink-0 ml-2">
+                                            <span className="text-xs font-bold text-cyan-700 dark:text-cyan-300 bg-white dark:bg-slate-700 px-2 py-0.5 rounded shadow-sm">{machine.count} ครั้ง</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <div className="flex items-center justify-center h-full text-slate-400 text-sm">ไม่มีข้อมูลการรั่วไหล</div>}
+                    </div>
+                </div>
+
+                <div className="card bg-white dark:bg-slate-800 p-6 flex flex-col">
+                    <h3 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><Icon name="Box" size={18} className="text-orange-500 dark:text-orange-400" />Top 5 อะไหล่สิ้นเปลือง</h3>
+                    <div className="flex-1 overflow-y-auto pr-1 h-48 custom-scrollbar">
+                        {maintenanceStats.topSpareParts.length > 0 ? (
+                            <div className="space-y-2">
+                                {maintenanceStats.topSpareParts.map((part, idx) => (
+                                    <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded border border-slate-100 dark:border-slate-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition cursor-pointer" onClick={() => setSearchTerm(part.name)}>
+                                        <span className="text-xs font-medium text-slate-700 dark:text-slate-200" title={part.name}>{part.name}</span>
+                                        <span className="text-xs font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded flex-shrink-0 ml-2">{part.qty} {part.unit}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : <div className="flex items-center justify-center h-full text-slate-400 text-sm">ไม่มีข้อมูลอะไหล่</div>}
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                <div className="card bg-white dark:bg-slate-800 p-6">
+                    <h3 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><Icon name="Activity" size={18} className="text-green-600 dark:text-green-400" />แนวโน้มรายเดือน (Current Season)</h3>
+                    <div className="h-48 w-full">
+                        <ResponsiveContainer>
+                            <ComposedChart data={maintenanceStats.monthlyData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#e2e8f0'} />
+                                <XAxis dataKey="name" tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b' }} />
+                                <YAxis yAxisId="left" tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b' }} label={{ value: 'ชม.', angle: -90, position: 'insideLeft', fill: isDark ? '#94a3b8' : '#64748b', fontSize: 10 }} />
+                                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b' }} label={{ value: 'ครั้ง', angle: 90, position: 'insideRight', fill: isDark ? '#94a3b8' : '#64748b', fontSize: 10 }} />
+                                <Tooltip contentStyle={{ borderRadius: '8px', border: isDark ? '1px solid #334155' : 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', backgroundColor: isDark ? '#1e293b' : '#fff', color: isDark ? '#f1f5f9' : '#334155' }} />
+                                <Bar yAxisId="left" dataKey="stopTime" stackId="a" name="หยุด" fill="#EF4444" barSize={30} />
+                                <Bar yAxisId="left" dataKey="nonStopTime" stackId="a" name="ไม่หยุด" fill="#F97316" barSize={30} radius={[4, 4, 0, 0]} />
+                                <Line yAxisId="right" type="monotone" dataKey="count" name="จำนวนครั้ง" stroke="#10B981" strokeWidth={2} dot={{ r: 3 }} />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+                <div className="card bg-white dark:bg-slate-800 p-6">
+                    <h3 className="text-md font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2"><Icon name="History" size={18} className="text-blue-600 dark:text-blue-400" />สถิติย้อนหลัง 6 ปี (รวมปี 2569)</h3>
+                    <div className="h-48 w-full">
+                        <ResponsiveContainer>
+                            <ComposedChart data={historicalData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#e2e8f0'} />
+                                <XAxis dataKey="year" tick={{ fontSize: 10, fill: isDark ? '#94a3b8' : '#64748b' }} />
+                                <YAxis yAxisId="left" orientation="left" stroke="#8884d8" label={{ value: 'ครั้ง', angle: -90, position: 'insideLeft', fill: '#8884d8', fontSize: 10 }} tick={{ fontSize: 10 }} />
+                                <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" label={{ value: 'ชม.', angle: 90, position: 'insideRight', fill: '#82ca9d', fontSize: 10 }} tick={{ fontSize: 10 }} />
+                                <Tooltip contentStyle={{ borderRadius: '8px', border: isDark ? '1px solid #334155' : 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', backgroundColor: isDark ? '#1e293b' : '#fff', color: isDark ? '#f1f5f9' : '#334155' }} />
+                                <Bar yAxisId="left" dataKey="failures" name="จำนวนครั้ง" barSize={30} fill="#8884d8" radius={[4, 4, 0, 0]} />
+                                <Line yAxisId="right" type="monotone" dataKey="time" name="เวลาสูญเสีย" stroke="#82ca9d" strokeWidth={3} dot={{ r: 4 }} />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            <div className="card bg-white dark:bg-slate-800 overflow-hidden mt-6">
+                <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2 text-sm"><Icon name="FileText" size={16} /> บันทึกรายละเอียด</h3>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 px-2 py-1 rounded shadow-sm"><Icon name="Droplet" size={10} className="text-cyan-500" /> = รั่วไหล</div>
+                        <span className="text-xs text-slate-400">แสดง {filteredData.length} รายการ</span>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-100 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">
+                            <tr>
+                                <th className="p-3 w-20">วันที่</th><th className="p-3 w-32">เครื่องจักร</th><th className="p-3">ปัญหา/สาเหตุ</th><th className="p-3 w-24">อะไหล่</th><th className="p-3 w-20">ผู้แจ้ง/แก้ไข</th><th className="p-3 text-right w-12">หยุด</th><th className="p-3 text-right w-12 text-blue-500 dark:text-blue-400">ไม่หยุด</th><th className="p-3 text-right w-12 text-pink-500 dark:text-pink-400">ละลาย</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-200">
+                            {filteredData.length === 0 ? <tr><td colSpan="8" className="p-8 text-center text-slate-400 italic text-sm">ไม่พบข้อมูลในระบบ (กรุณาเพิ่มข้อมูลจากเมนู ด้านซ้าย)</td></tr> :
+                                filteredData.slice(0, 100).map((row, idx) => (
+                                    <tr key={idx} className="hover:bg-blue-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                                        <td className="p-3 whitespace-nowrap text-slate-500 dark:text-slate-400 text-xs align-top">{row.date}</td>
+                                        <td className="p-3 font-medium text-blue-700 dark:text-blue-400 align-top">
+                                            <div className="flex items-start gap-2">
+                                                {row.isLeak && <Icon name="Droplet" size={14} className="text-cyan-500 flex-shrink-0 mt-1" title="พบปัญหารั่วไหล" />}
+                                                <span title={row.machine}>{row.machine}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-3 align-top">
+                                            <div className="font-semibold text-slate-700 dark:text-slate-200 text-xs mb-1" title={row.problem}>{row.problem}</div>
+                                            <div className="text-[11px] text-slate-500 dark:text-slate-400" title={row.cause}>{row.cause}</div>
+                                        </td>
+                                        <td className="p-3 text-xs text-slate-600 dark:text-slate-400 align-top">
+                                            {row.sparePart !== "-" ? `${row.sparePart} (${row.qty} ${row.unit || 'ชิ้น'})` : "-"}
+                                        </td>
+                                        <td className="p-3 text-xs text-slate-600 dark:text-slate-400 align-top">
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-indigo-600 dark:text-indigo-400 font-medium">แจ้ง: {row.reporter}</span>
+                                                <span className="text-teal-600 dark:text-teal-400">แก้ไข: {row.resolver}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-right font-mono text-xs font-bold text-red-600 dark:text-red-400 bg-red-50/30 dark:bg-red-900/20 align-top">{parseFloat(row.downtimeStop) > 0 ? parseFloat(row.downtimeStop) : ""}</td>
+                                        <td className="p-3 text-right font-mono text-xs text-blue-500 dark:text-blue-400 align-top">{parseFloat(row.downtimeNonStop) > 0 ? parseFloat(row.downtimeNonStop) : ""}</td>
+                                        <td className="p-3 text-right font-mono text-xs text-pink-500 dark:text-pink-400 align-top">{parseFloat(row.downtimeDissolve || 0) > 0 ? parseFloat(row.downtimeDissolve || 0) : ""}</td>
+                                    </tr>
+                                ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+
+    const Dashboard = () => {
+        const [activeTab, setActiveTab] = useState('maintenance');
+        const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+        const [data, setData] = useState(() => getSafeData('logs-data'));
+        const [kpiData, setKpiData] = useState(() => getSafeData('kpi-data'));
+
+        const [filterDept, setFilterDept] = useState("All");
+        const [filterCategory, setFilterCategory] = useState("All");
+        const [searchTerm, setSearchTerm] = useState("");
+        const [startDate, setStartDate] = useState("");
+        const [endDate, setEndDate] = useState("");
+
+        const dashboardRef = useRef(null);
+
+        useEffect(() => {
+            const handleThemeChange = () => setIsDark(document.documentElement.classList.contains('dark'));
+            window.addEventListener('theme-changed', handleThemeChange);
+            return () => window.removeEventListener('theme-changed', handleThemeChange);
+        }, []);
+
+        const clearFilters = () => {
+            setFilterDept("All");
+            setFilterCategory("All");
+            setSearchTerm("");
+            setStartDate("");
+            setEndDate("");
+        };
+
+        // Bind APIs to window so plain HTML outside React root can access them
+        useEffect(() => {
+            window.DashboardAPI = {
+                exportExcel: () => {
+                    const isMaintenance = activeTab === 'maintenance';
+                    const dataToExport = isMaintenance ? filteredData : kpiData;
+                    if (dataToExport.length === 0) {
+                        alert("ไม่มีข้อมูลสำหรับส่งออก");
+                        return;
+                    }
+                    const fileName = isMaintenance
+                        ? `Maintenance_Export_${new Date().toISOString().slice(0, 10)}.csv`
+                        : `KPI_Export_${new Date().toISOString().slice(0, 10)}.csv`;
+
+                    let csvContent = "";
+
+                    if (isMaintenance) {
+                        csvContent += "Date,Machine,Dept,Problem,Cause,Solution,SparePart,Qty,Reporter,Resolver,Stop(hr),Reduced(hr),NonStop(hr),Dissolve(hr),Category,IsLeak\n";
+                        dataToExport.forEach(row => {
+                            const clean = (text) => text ? `"${String(text).replace(/"/g, '""')}"` : "";
+                            csvContent += `${clean(row.date)},${clean(row.machine)},${clean(row.dept)},${clean(row.problem)},${clean(row.cause)},${clean(row.solution)},${clean(row.sparePart)},${row.qty},${clean(row.reporter)},${clean(row.resolver)},${row.downtimeStop},${row.downtimeReduced},${row.downtimeNonStop},${row.downtimeDissolve || 0},${clean(row.category)},${row.isLeak ? "Yes" : "No"}\n`;
+                        });
+                    } else {
+                        csvContent += "KPI Name,Category,Target,Unit,Actual,Weight,Score,Weighted Score\n";
+                        dataToExport.forEach(row => {
+                            const clean = (text) => text ? `"${String(text).replace(/"/g, '""')}"` : "";
+                            csvContent += `${clean(row.name)},${clean(row.category)},${row.target},${clean(row.unit)},${row.actual},${row.weight},${row.score},${row.weightedScore}\n`;
+                        });
+                    }
+
+                    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+                exportPDF: () => {
+                    const element = dashboardRef.current;
+                    const opt = {
+                        margin: 0.2,
+                        filename: `Dashboard_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true },
+                        jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+                    };
+                    const noPrints = document.querySelectorAll('.no-print');
+                    noPrints.forEach(el => el.style.display = 'none');
+                    html2pdf().set(opt).from(element).save().then(() => {
+                        noPrints.forEach(el => el.style.display = '');
+                    });
+                },
+                downloadTemplate: () => {
+                    const type = document.getElementById('template-type').value;
+                    let csvContent = "";
+                    let filename = "";
+
+                    if (type === 'maintenance') {
+                        csvContent = "\uFEFFวันที่,ชื่อเครื่องจักร,แผนก,ปัญหาที่เกิด,สาเหตุที่เกิด,การแก้ไข,อะไหล่ที่เปลี่ยน,จำนวน,ผู้แจ้ง,ผู้แก้ไข,เสียเวลาหยุดหีบ,ลดรอบ,เสียเวลาไม่หยุดหีบ,หัวข้อ,รั่วไหล\n16/12/2567,Pump A,หม้อต้ม,รั่ว,ซีลแตก,เปลี่ยน,Seal No.5,2,สมชาย,ทีม A,0,0,1.5,สึกหรอ,true";
+                        filename = "template_maintenance.csv";
+                    } else {
+                        csvContent = "\uFEFFหัวข้อ KPI,หมวดหมู่,เป้าหมาย,หน่วย,น้ำหนัก,ผลลัพธ์,คะแนน\nจำนวนอุบัติเหตุ,ความปลอดภัย,0,ครั้ง,4,0,4";
+                        filename = "template_kpi.csv";
+                    }
+
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+                clearFilters: clearFilters
+            };
+        }, [filteredData, kpiData, activeTab]);
+
+        const parseDate = (dateStr) => {
+            if (!dateStr || dateStr === "-") return null;
+            let parts = dateStr.split('/');
+            if (parts.length === 3) {
+                let year = parseInt(parts[2]);
+                if (year > 2400) year -= 543;
+                return new Date(year, parseInt(parts[1]) - 1, parseInt(parts[0]));
+            }
+            parts = dateStr.split('-');
+            if (parts.length === 3) return new Date(dateStr);
+            return null;
+        };
+
+        const filteredData = useMemo(() => {
+            return data.filter(item => {
+                const matchDept = filterDept === "All" || item.dept === filterDept;
+                const matchCat = filterCategory === "All" || item.category === filterCategory;
+                const matchSearch = (item.machine || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (item.problem || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (item.reporter && item.reporter.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (item.resolver && item.resolver.toLowerCase().includes(searchTerm.toLowerCase()));
+
+                let matchDate = true;
+                if (startDate || endDate) {
+                    const itemDate = parseDate(item.date);
+                    if (itemDate) {
+                        if (startDate) {
+                            const start = new Date(startDate);
+                            if (itemDate < start) matchDate = false;
+                        }
+                        if (endDate) {
+                            const end = new Date(endDate);
+                            if (itemDate > end) matchDate = false;
+                        }
+                    } else { matchDate = false; }
+                }
+                return matchDept && matchCat && matchSearch && matchDate;
+            });
+        }, [data, filterDept, filterCategory, searchTerm, startDate, endDate]);
+
+        const historicalStats = useMemo(() => {
+            const baseHistory = [
+                { year: "2563", failures: 129, time: 419 },
+                { year: "2564", failures: 106, time: 336 },
+                { year: "2565", failures: 119, time: 290 },
+                { year: "2566", failures: 47, time: 247 },
+                { year: "2567", failures: 76, time: 186 }
+            ];
+
+            const year2569Data = { year: "2569", failures: 0, time: 0 };
+
+            data.forEach(item => {
+                const parts = (item.date || "").split('/');
+                if (parts.length === 3) {
+                    let y = parseInt(parts[2]);
+                    if (y < 2500) y += 543;
+                    if (y === 2569) {
+                        year2569Data.failures += 1;
+                        year2569Data.time += ((parseFloat(item.downtimeStop) || 0) + (parseFloat(item.downtimeReduced) || 0) + (parseFloat(item.downtimeNonStop) || 0) + (parseFloat(item.downtimeDissolve) || 0));
+                    }
+                }
+            });
+            return [...baseHistory, { year: "2568", failures: 73, time: 135.45 }, year2569Data];
+        }, [data]);
+
+        const maintenanceStats = useMemo(() => {
+            const repairData = filteredData.filter(item => parseFloat(item.downtimeNonStop) > 0 || parseFloat(item.downtimeStop) > 0 || parseFloat(item.downtimeReduced) > 0 || parseFloat(item.downtimeDissolve || 0) > 0);
+            const leakData = filteredData.filter(item => item.isLeak);
+
+            const totalFailures = filteredData.length;
+
+            const countStopMilling = filteredData.filter(i => parseFloat(i.downtimeStop) > 0).length;
+            const countReducedMilling = filteredData.filter(i => parseFloat(i.downtimeReduced) > 0).length;
+            const countDissolve = filteredData.filter(i => parseFloat(i.downtimeDissolve || 0) > 0).length;
+
+            const totalStopMilling = filteredData.reduce((acc, cur) => acc + (parseFloat(cur.downtimeStop) || 0), 0);
+            const totalReducedMilling = filteredData.reduce((acc, cur) => acc + (parseFloat(cur.downtimeReduced) || 0), 0);
+            const totalNonStopMilling = filteredData.reduce((acc, cur) => acc + (parseFloat(cur.downtimeNonStop) || 0), 0);
+            const totalDissolve = filteredData.reduce((acc, cur) => acc + (parseFloat(cur.downtimeDissolve) || 0), 0);
+
+            const totalLeaks = leakData.length;
+
+            const totalDowntimeAll = totalStopMilling + totalReducedMilling + totalNonStopMilling + totalDissolve;
+            const mttr = repairData.length > 0 ? (totalDowntimeAll / repairData.length) : 0;
+
+            const deptStatsRaw = filteredData.reduce((acc, cur) => {
+                if (!acc[cur.dept]) acc[cur.dept] = { hours: 0, count: 0 };
+                acc[cur.dept].hours += ((parseFloat(cur.downtimeStop) || 0) + (parseFloat(cur.downtimeReduced) || 0) + (parseFloat(cur.downtimeNonStop) || 0) + (parseFloat(cur.downtimeDissolve) || 0));
+                acc[cur.dept].count += 1;
+                return acc;
+            }, {});
+
+            const deptData = Object.keys(deptStatsRaw).map(k => ({
+                name: k,
+                hours: deptStatsRaw[k].hours,
+                count: deptStatsRaw[k].count
+            })).sort((a, b) => b.hours - a.hours);
+
+            const catGroups = filteredData.reduce((acc, cur) => {
+                acc[cur.category] = (acc[cur.category] || 0) + 1;
+                return acc;
+            }, {});
+            const catData = Object.keys(catGroups).map(k => ({
+                name: k, value: catGroups[k], percent: totalFailures > 0 ? (catGroups[k] / totalFailures) : 0
+            }));
+
+            const machineGroups = filteredData.reduce((acc, cur) => {
+                const totalTime = (parseFloat(cur.downtimeStop) || 0) + (parseFloat(cur.downtimeReduced) || 0) + (parseFloat(cur.downtimeNonStop) || 0) + (parseFloat(cur.downtimeDissolve) || 0);
+                if (!acc[cur.machine]) acc[cur.machine] = { hours: 0, count: 0, dept: cur.dept };
+                acc[cur.machine].hours += totalTime;
+                acc[cur.machine].count += 1;
+                return acc;
+            }, {});
+
+            const topMachines = Object.entries(machineGroups)
+                .map(([name, data]) => ({ name, hours: data.hours, count: data.count, dept: data.dept }))
+                .sort((a, b) => b.count - a.count).slice(0, 5);
+
+            const topMachinesByTime = Object.entries(machineGroups)
+                .map(([name, data]) => ({ name, hours: data.hours, count: data.count, dept: data.dept }))
+                .sort((a, b) => b.hours - a.hours).slice(0, 5);
+
+            const monthGroups = filteredData.reduce((acc, cur) => {
+                const parts = (cur.date || "").split('/');
+                if (parts.length === 3) {
+                    const month = parseInt(parts[1]);
+                    let year = parseInt(parts[2]);
+                    if (year > 2400) year -= 543;
+                    const dateObj = new Date(year, month - 1, 1);
+                    const key = dateObj.toLocaleString('th-TH', { month: 'short', year: '2-digit' });
+                    if (!acc[key]) acc[key] = { name: key, stopTime: 0, nonStopTime: 0, count: 0, timestamp: dateObj.getTime() };
+                    acc[key].stopTime += (parseFloat(cur.downtimeStop) || 0);
+                    acc[key].nonStopTime += (parseFloat(cur.downtimeNonStop) || 0);
+                    acc[key].count += 1;
+                }
+                return acc;
+            }, {});
+            const monthlyData = Object.values(monthGroups).sort((a, b) => a.timestamp - b.timestamp);
+
+            const sparePartsGroups = filteredData.reduce((acc, cur) => {
+                const partName = cur.sparePart && cur.sparePart !== "-" ? cur.sparePart : null;
+                if (partName) {
+                    if (!acc[partName]) acc[partName] = { qty: 0, unit: cur.unit || "ชิ้น" };
+                    acc[partName].qty += (parseFloat(cur.qty) || 0);
+                }
+                return acc;
+            }, {});
+            const topSpareParts = Object.entries(sparePartsGroups)
+                .map(([name, data]) => ({ name, qty: data.qty, unit: data.unit }))
+                .sort((a, b) => b.qty - a.qty)
+                .slice(0, 5);
+
+            const reporterCounts = filteredData.reduce((acc, cur) => {
+                const name = cur.reporter && cur.reporter !== "-" ? cur.reporter : "N/A";
+                acc[name] = (acc[name] || 0) + 1;
+                return acc;
+            }, {});
+            const topReporters = Object.entries(reporterCounts)
+                .map(([name, count]) => ({ name, count }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 5);
+
+            const resolverCounts = filteredData.reduce((acc, cur) => {
+                const name = cur.resolver && cur.resolver !== "-" ? cur.resolver : "N/A";
+                acc[name] = (acc[name] || 0) + 1;
+                return acc;
+            }, {});
+            const topResolvers = Object.entries(resolverCounts)
+                .map(([name, count]) => ({ name, count }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 5);
+
+            const leakMachineGroups = filteredData.reduce((acc, cur) => {
+                if (cur.isLeak) {
+                    if (!acc[cur.machine]) acc[cur.machine] = { count: 0, dept: cur.dept };
+                    acc[cur.machine].count += 1;
+                }
+                return acc;
+            }, {});
+
+            const topLeakingMachines = Object.entries(leakMachineGroups)
+                .map(([name, data]) => ({ name, count: data.count, dept: data.dept }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 5);
+
+            return {
+                totalFailures, totalStopMilling, totalReducedMilling, totalNonStopMilling, totalDissolve, totalLeaks, totalDowntimeAll, mttr,
+                countStopMilling, countReducedMilling, countDissolve,
+                deptData, catData, topMachines, topMachinesByTime, monthlyData, topSpareParts, topReporters, topResolvers,
+                topLeakingMachines
+            };
+        }, [filteredData]);
+
+        const kpiStats = useMemo(() => {
+            const totalScore = kpiData.reduce((acc, item) => acc + (parseFloat(item.weightedScore) || 0), 0);
+            const totalMaxScore = kpiData.reduce((acc, item) => acc + ((parseFloat(item.weight) || 0) * 4), 0);
+            const percent = totalMaxScore > 0 ? (totalScore / totalMaxScore) * 100 : 0;
+
+            const getGrade = (p) => {
+                if (p >= 80) return { grade: 'A', class: 'grade-A' };
+                if (p >= 75) return { grade: 'B+', class: 'grade-B-plus' };
+                if (p >= 70) return { grade: 'B', class: 'grade-B' };
+                if (p >= 65) return { grade: 'C+', class: 'grade-C-plus' };
+                if (p >= 60) return { grade: 'C', class: 'grade-C' };
+                return { grade: 'D', class: 'grade-D' };
+            };
+            const gradeInfo = getGrade(percent);
+
+            const scoreCounts = kpiData.reduce((acc, item) => {
+                acc[item.score] = (acc[item.score] || 0) + 1;
+                return acc;
+            }, {});
+            return { totalScore, totalMaxScore, percent, scoreCounts, gradeInfo };
+        }, [kpiData]);
+
+        const departments = useMemo(() => ["All", ...new Set(data.map(d => d.dept).filter(d => d))], [data]);
+        const categories = useMemo(() => ["All", ...new Set(data.map(d => d.category).filter(d => d))], [data]);
+        const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6366F1'];
+
+        // Handler สำหรับเปลี่ยน Tab
+        window.switchTab = (tabName) => {
+            setActiveTab(tabName);
+
+            const sideBtnMaint = document.getElementById('side-btn-maintenance');
+            const sideBtnKpi = document.getElementById('side-btn-kpi');
+
+            if (tabName === 'maintenance') {
+                if (sideBtnMaint) sideBtnMaint.className = "w-full flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg transition-colors text-left";
+                if (sideBtnKpi) sideBtnKpi.className = "w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors text-left";
+            } else {
+                if (sideBtnMaint) sideBtnMaint.className = "w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors text-left";
+                if (sideBtnKpi) sideBtnKpi.className = "w-full flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg transition-colors text-left";
+            }
+        };
+
+        return (
+            <div className="min-h-screen pb-10" ref={dashboardRef}>
+                <div className="bg-gradient-to-r from-blue-900 to-slate-900 text-white p-4 shadow-lg sticky top-0 z-50 transition-colors duration-300">
+                    <div className="max-w-7xl mx-auto flex items-center gap-3">
+                        <div className="bg-white/10 p-2 rounded-lg backdrop-blur-sm border border-white/10"><Icon name="Wrench" size={24} color="white" /></div>
+                        <div>
+                            <h1 className="text-xl font-bold tracking-tight">Dashboard ซ่อมบำรุง & KPI</h1>
+                            <p className="text-xs text-blue-200 opacity-80 font-light">ฝ่ายวิศวกรรมจักรกล - ประจำปี 2568/69</p>
+                        </div>
+                    </div>
+                </div>
+                <div className="max-w-7xl mx-auto px-4 mt-6">
+                    {activeTab === 'maintenance' ?
+                        <MaintenanceTab
+                            maintenanceStats={maintenanceStats}
+                            filterDept={filterDept} setFilterDept={setFilterDept}
+                            filterCategory={filterCategory} setFilterCategory={setFilterCategory}
+                            searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+                            startDate={startDate} setStartDate={setStartDate}
+                            endDate={endDate} setEndDate={setEndDate}
+                            clearFilters={clearFilters}
+                            departments={departments} categories={categories}
+                            filteredData={filteredData}
+                            COLORS={COLORS}
+                            historicalData={historicalStats}
+                            isDark={isDark}
+                        />
+                        :
+                        <KpiTab kpiData={kpiData} kpiStats={kpiStats} />
+                    }
+                </div>
+            </div>
+        );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Dashboard />);
 </script>
+{% endverbatim %}
 {% endblock content %}
