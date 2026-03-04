@@ -32,6 +32,7 @@ urlpatterns = [
     path('mill/import/', mill_import, name='mill_import'),
     path('mill/api/history/', mill_history_api, name='mill_history_api'),
     path('lathe/', lathe_dashboard, name='lathe_dashboard'),
+    path('api/lathe/', lathe_api, name='lathe_api'),
 
     # Path สำหรับ Import Data
     path('import-data/', import_data, name='import_data'),

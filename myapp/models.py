@@ -596,3 +596,34 @@ class MillReport(models.Model):
 
     def __str__(self):
         return f"{self.date} - Line {self.line}"
+
+class LatheJob(models.Model):
+    job_no = models.CharField(max_length=50, unique=True, verbose_name="เลขที่ใบงาน")
+    date = models.DateField(null=True, blank=True, verbose_name="วันที่แจ้ง")
+    requester = models.CharField(max_length=100, null=True, blank=True, verbose_name="ชื่อผู้ขอ")
+    dept = models.CharField(max_length=100, null=True, blank=True, verbose_name="แผนก")
+    tel = models.CharField(max_length=50, null=True, blank=True, verbose_name="เบอร์โทร")
+    machine = models.CharField(max_length=100, null=True, blank=True, verbose_name="เครื่องจักรที่ใช้ผลิต")
+    cust_machine = models.CharField(max_length=100, null=True, blank=True, verbose_name="เครื่องจักรลูกค้า")
+    topic = models.TextField(null=True, blank=True, verbose_name="รายละเอียดงาน")
+    job_type = models.CharField(max_length=100, null=True, blank=True, verbose_name="ประเภทงาน")
+    priority = models.CharField(max_length=50, null=True, blank=True, verbose_name="ความเร่งด่วน")
+    req_date = models.DateField(null=True, blank=True, verbose_name="วันที่ต้องการใช้ของ")
+    has_drawing = models.BooleanField(default=False, verbose_name="มีแบบ Drawing")
+    has_sample = models.BooleanField(default=False, verbose_name="มีตัวอย่าง")
+    has_material = models.BooleanField(default=False, verbose_name="มีวัสดุมาให้")
+    plan_status = models.CharField(max_length=50, null=True, blank=True, verbose_name="สถานะพิจารณา")
+    plan_reject_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name="เหตุผลไม่รับ")
+    plan_due_date = models.DateField(null=True, blank=True, verbose_name="กำหนดส่ง")
+    maker = models.CharField(max_length=100, null=True, blank=True, verbose_name="ผู้รับผิดชอบ")
+    material_cost = models.FloatField(default=0, verbose_name="ค่าวัสดุ")
+    hours = models.FloatField(default=0, verbose_name="เวลาทำงานรวม (ชม.)")
+    pieces = models.FloatField(default=1, verbose_name="จำนวน (ชิ้น)")
+    qc_result = models.CharField(max_length=50, null=True, blank=True, verbose_name="ผล QC")
+    qc_note = models.CharField(max_length=255, null=True, blank=True, verbose_name="หมายเหตุ QC")
+    receiver = models.CharField(max_length=100, null=True, blank=True, verbose_name="ผู้รับงาน")
+    status = models.CharField(max_length=50, default='Pending', verbose_name="สถานะงาน")
+    attachment = models.CharField(max_length=255, null=True, blank=True, verbose_name="Google Drive File ID")
+
+    def __str__(self):
+        return self.job_no

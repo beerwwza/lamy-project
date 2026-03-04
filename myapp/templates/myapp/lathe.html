@@ -1,79 +1,2307 @@
 {% extends 'myapp/base.html' %}
+{% load static %}
+
 {% block content %}
+<!-- ตั้งค่า Tailwind Config สำหรับโหมด Dark Mode -->
+<script>
+    window.tailwind = {
+        darkMode: 'class',
+    }
+</script>
+<!-- นำเข้า Tailwind CSS (เฉพาะหน้านี้) -->
+<script src="https://cdn.tailwindcss.com"></script>
 
-<div class="container-fluid mt-4">
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <h3><i class="fas fa-cogs"></i> โรงกลึง (Lathe Department)</h3>
-        </div>
-        <div class="col-md-6 text-end">
-            <!-- Reuse Maintenance Add Form but maybe pre-select Lathe? For now, standard link -->
-            <a href="{% url 'maintenance_log_add' %}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> แจ้งงาน/บันทึกงานใหม่
+<!-- นำเข้า Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- นำเข้า PapaParse -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<!-- QRCode.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<!-- ฟอนต์ภาษาไทย -->
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+<!-- ไอคอน -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+<style>
+    .lathe-app-container {
+        font-family: 'Sarabun', sans-serif;
+        -webkit-print-color-adjust: exact;
+        min-height: 100vh;
+    }
+
+    /* Dashboard Styles */
+    .lathe-app-container .card {
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        position: relative;
+        transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s;
+    }
+
+    .lathe-app-container .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-export-chart {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        z-index: 10;
+    }
+
+    .table-container::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .table-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+
+    .table-container::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
+    .table-container::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+    .lathe-app-container th {
+        font-weight: 600;
+    }
+
+    /* Modal Styles */
+    .lathe-modal {
+        display: none;
+        position: fixed;
+        z-index: 1050;
+        /* ให้อยู่เหนือ navbar ของ bootstrap */
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(2px);
+    }
+
+    .lathe-modal-content {
+        background-color: #fefefe;
+        margin: 5% auto;
+        padding: 0;
+        border: 1px solid #888;
+        width: 90%;
+        max-width: 600px;
+        border-radius: 12px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        animation: modalFadeIn 0.3s;
+    }
+
+    @keyframes modalFadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .lathe-app-container canvas {
+        cursor: pointer;
+    }
+
+    /* Toggle Button Group */
+    .toggle-group {
+        display: flex;
+        padding: 2px;
+        border-radius: 6px;
+    }
+
+    .toggle-btn {
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    /* Status Select in Table */
+    .status-select {
+        appearance: none;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-align: center;
+        border: 1px solid transparent;
+    }
+
+    .status-select:focus {
+        outline: none;
+        border-color: rgba(0, 0, 0, 0.1);
+    }
+
+    .status-Pending {
+        background-color: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-InProgress {
+        background-color: #dbeafe;
+        color: #1e40af;
+    }
+
+    .status-Done {
+        background-color: #d1fae5;
+        color: #065f46;
+    }
+
+    .status-Rejected {
+        background-color: #fee2e2;
+        color: #991b1b;
+    }
+
+    /* Job Order Specific Styles */
+    .a4-page {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto 20px auto;
+        padding: 15mm;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        position: relative;
+    }
+
+    /* Editable Inputs in Job Order */
+    .job-input {
+        background: transparent;
+        border: none;
+        border-bottom: 1px dotted #9ca3af;
+        width: 100%;
+        outline: none;
+        padding: 2px 5px;
+        font-family: 'Sarabun', sans-serif;
+        transition: border-color 0.2s;
+    }
+
+    .job-input:focus {
+        border-bottom: 1px solid #2563eb;
+    }
+
+    .table-input {
+        border: none !important;
+        border-bottom: none !important;
+        text-align: center;
+        height: 100%;
+        width: 100%;
+        outline: none;
+        background: transparent;
+    }
+
+    .table-input:focus {
+        background-color: rgba(37, 99, 235, 0.1);
+    }
+
+    .sketch-box {
+        background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+        background-size: 20px 20px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    /* Navigation Tab Styles */
+    .nav-pill {
+        padding: 0.5rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .nav-pill.active {
+        background-color: white;
+        color: #f97316;
+        /* Orange-500 */
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .nav-pill.inactive {
+        background-color: transparent;
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    .nav-pill.inactive:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+
+    /* ========================================= */
+    /* DARK MODE CUSTOM OVERRIDES */
+    /* ========================================= */
+    .dark .table-container::-webkit-scrollbar-track {
+        background: #374151;
+    }
+
+    .dark .table-container::-webkit-scrollbar-thumb {
+        background: #6b7280;
+    }
+
+    .dark .table-container::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
+    }
+
+    .dark .lathe-modal-content {
+        background-color: #1f2937;
+        border-color: #4b5563;
+    }
+
+    .dark .sketch-box {
+        background-image: radial-gradient(#4b5563 1px, transparent 1px);
+    }
+
+    .dark #qrcode {
+        background-color: white;
+        padding: 4px;
+        border-radius: 4px;
+    }
+
+    /* QR Code needs white bg */
+
+    .dark .job-input {
+        color: #93c5fd;
+        border-bottom-color: #4b5563;
+    }
+
+    .dark .job-input:focus {
+        background-color: #374151;
+        border-bottom-color: #60a5fa;
+    }
+
+    .dark .table-input {
+        color: #d1d5db;
+    }
+
+    .dark input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+    }
+
+    .dark input[type="time"]::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+    }
+
+    /* ========================================= */
+    /* PRINT STYLES */
+    /* ========================================= */
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+
+        /* ปิดการแสดงผล Navbar/Footer ของ Django Base template เพื่อพิมพ์เฉพาะ A4 */
+        nav,
+        header:not(.bg-gradient-to-r),
+        footer,
+        .sidebar {
+            display: none !important;
+        }
+
+        body {
+            padding: 0 !important;
+            margin: 0 !important;
+            background-color: white !important;
+        }
+
+        .lathe-app-container .card {
+            box-shadow: none;
+            border: 1px solid #ddd;
+            background: white !important;
+            color: black !important;
+        }
+
+        .lathe-app-container {
+            background-color: white !important;
+            padding: 0;
+            margin: 0;
+            color: black !important;
+        }
+
+        /* Override dark mode on print */
+        .lathe-app-container * {
+            color: black !important;
+            border-color: #ccc !important;
+        }
+
+        /* Print Job Order Logic */
+        .print-job-order .lathe-app-container {
+            background: white !important;
+        }
+
+        .print-job-order .a4-page {
+            margin: 0;
+            box-shadow: none;
+            width: 100%;
+            height: 100%;
+            padding: 10mm;
+            border: none;
+            background: white !important;
+            page-break-after: always;
+        }
+
+        .print-job-order input,
+        .print-job-order textarea {
+            background-color: transparent !important;
+            border-bottom: none !important;
+            resize: none;
+        }
+
+        #view-joborder {
+            display: block;
+        }
+    }
+</style>
+
+<!-- คอนเทนเนอร์หลัก ครอบด้วย #latheApp เพื่อควบคุม Dark Mode -->
+<div id="latheApp"
+    class="lathe-app-container p-4 md:p-6 bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 transition-colors duration-300">
+
+    <!-- Datalist for Technicians (Autocomplete) -->
+    <datalist id="techList">
+        <!-- Options will be populated by JS -->
+    </datalist>
+
+    <!-- Global Professional Header (Persistent) -->
+    <header
+        class="bg-gradient-to-r from-orange-500 to-amber-500 p-4 rounded-xl shadow-lg flex flex-col lg:flex-row justify-between items-center gap-4 mb-6 no-print sticky top-2 z-50">
+
+        <!-- Left: Brand & Back Button -->
+        <div class="flex items-center gap-3 w-full lg:w-auto">
+            <!-- ปุ่มกลับหน้าหลัก -->
+            <a href="/"
+                class="bg-white/20 text-white hover:text-orange-200 hover:bg-white/30 w-10 h-10 flex items-center justify-center rounded-lg transition shadow-sm backdrop-blur-sm no-underline"
+                title="กลับหน้าหลัก">
+                <i class="fas fa-home text-lg"></i>
             </a>
-        </div>
-    </div>
 
-    <!-- Stats Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-info text-white h-100">
-                <div class="card-body">
-                    <h5>Total Jobs Today</h5>
-                    <h2>{{ stats.today_count }}</h2>
-                </div>
+            <div class="p-2 bg-white/20 rounded-lg backdrop-blur-sm text-white flex-shrink-0">
+                <i class="fas fa-cogs text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-white leading-tight m-0">
+                    ระบบบริหารงานโรงกลึง
+                </h1>
+                <p class="text-orange-100 text-xs m-0">ฝ่ายวิศวกรรมจักรกล (2025)</p>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark h-100">
-                <div class="card-body">
-                    <h5>Downtime (Hrs)</h5>
-                    <h2>{{ stats.today_downtime }}</h2>
+
+        <!-- Center: Navigation Tabs -->
+        <div class="bg-black/10 p-1 rounded-lg flex backdrop-blur-sm">
+            <button type="button" onclick="switchView('dashboard')" id="nav-dashboard" class="nav-pill active border-0">
+                <i class="fas fa-chart-pie"></i> Dashboard สรุปผล
+            </button>
+            <button type="button" onclick="switchView('joborder')" id="nav-joborder" class="nav-pill inactive border-0">
+                <i class="fas fa-file-invoice"></i> ออกใบสั่งงาน
+            </button>
+        </div>
+
+        <!-- Right: Tools -->
+        <div class="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto justify-end">
+            <!-- Upload Box (Compact) -->
+            <div
+                class="flex items-center bg-white/90 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-lg px-3 py-1.5 gap-2 w-full sm:w-auto shadow-sm">
+                <i class="fas fa-cloud-upload-alt text-orange-500 text-xs"></i>
+                <div class="flex flex-col">
+                    <input type="file" id="csvFileInput" accept=".csv"
+                        class="text-xs text-gray-500 dark:text-gray-300 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-orange-50 file:text-orange-600 dark:file:bg-gray-700 dark:file:text-orange-400 cursor-pointer w-40" />
                 </div>
+                <button type="button" onclick="clearLocalStorage()"
+                    class="text-gray-400 hover:text-red-500 border-0 bg-transparent transition ml-1" title="ล้างข้อมูล">
+                    <i class="fas fa-trash-alt text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-2">
+                <!-- ปุ่มสลับโหมดกลางวัน/กลางคืน -->
+                <button type="button" onclick="toggleDarkMode()"
+                    class="bg-white/20 text-white border border-white/30 px-3 py-1.5 rounded-lg hover:bg-white/30 transition text-sm shadow-sm font-medium backdrop-blur-sm"
+                    title="สลับโหมดกลางวัน/กลางคืน">
+                    <i id="theme-icon" class="fas fa-moon"></i>
+                </button>
+
+                <button type="button" onclick="openSettings()"
+                    class="bg-white/20 text-white border border-white/30 px-3 py-1.5 rounded-lg hover:bg-white/30 transition text-sm shadow-sm font-medium backdrop-blur-sm"
+                    title="ตั้งค่า / สำรองข้อมูล">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button type="button" onclick="handleGlobalPrint()"
+                    class="bg-white text-orange-600 border-0 px-4 py-1.5 rounded-lg hover:bg-orange-50 transition text-sm shadow-md font-bold flex items-center gap-2">
+                    <i class="fas fa-print"></i> พิมพ์
+                </button>
             </div>
         </div>
-    </div>
+    </header>
 
-    <!-- Data Table -->
-    <div class="card shadow-sm">
-        <div class="card-header bg-white">
-            <h5 class="mb-0">Job History</h5>
+    <!-- ========================================= -->
+    <!-- VIEW 1: DASHBOARD -->
+    <!-- ========================================= -->
+    <div id="view-dashboard">
+        <!-- ตัวกรองข้อมูล -->
+        <div class="card bg-white dark:bg-gray-800 mb-6 no-print">
+            <div class="flex justify-between items-center mb-4 border-b dark:border-gray-700 pb-3">
+                <h3 class="text-lg font-bold text-gray-700 dark:text-gray-200 flex items-center gap-2 m-0">
+                    <i class="fas fa-filter text-gray-400"></i> ตัวกรองข้อมูล
+                </h3>
+                <div class="flex gap-2">
+                    <button type="button" onclick="resetFilters()"
+                        class="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-0 px-4 py-1.5 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition text-sm shadow flex items-center gap-2 font-medium">
+                        <i class="fas fa-undo"></i> ล้างค่า
+                    </button>
+                    <button type="button" onclick="updateDashboard()"
+                        class="bg-green-600 text-white border-0 px-4 py-1.5 rounded-lg hover:bg-green-700 transition text-sm shadow flex items-center gap-2 font-medium">
+                        <i class="fas fa-sync-alt"></i> ประมวลผลใหม่
+                    </button>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div>
+                    <label
+                        class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">เลขที่ใบงาน
+                        (Job No)</label>
+                    <input type="text" id="jobNoFilter" onkeyup="updateDashboard()" placeholder="ค้นหา Job ID..."
+                        class="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg p-2.5 shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none">
+                </div>
+                <div>
+                    <label
+                        class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">ตั้งแต่วันที่</label>
+                    <input type="date" id="startDateFilter" onchange="updateDashboard()"
+                        class="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg p-2.5 shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none">
+                </div>
+                <div>
+                    <label
+                        class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">ถึงวันที่</label>
+                    <input type="date" id="endDateFilter" onchange="updateDashboard()"
+                        class="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg p-2.5 shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none">
+                </div>
+                <div>
+                    <label
+                        class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">เลือกเครื่องจักร</label>
+                    <select id="machineFilter" onchange="updateDashboard()"
+                        class="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg p-2.5 shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none">
+                        <option value="all">ทั้งหมด</option>
+                        <option value="กลึง1">กลึง 1</option>
+                        <option value="กลึง2">กลึง 2</option>
+                        <option value="กลึง3">กลึง 3</option>
+                        <option value="กลึง4">กลึง 4</option>
+                        <option value="กลึง5">กลึง 5</option>
+                        <option value="กลึง6">กลึง 6</option>
+                        <option value="กลึงA">กลึง A</option>
+                        <option value="กลึงB">กลึง B</option>
+                    </select>
+                </div>
+                <div>
+                    <label
+                        class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">ค้นหาช่าง</label>
+                    <input type="text" id="technicianSearch" list="techList" onkeyup="updateDashboard()"
+                        placeholder="เลือก/พิมพ์ชื่อช่าง..."
+                        class="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg p-2.5 shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none">
+                </div>
+            </div>
+            <p class="text-xs text-blue-500 dark:text-blue-400 mt-2 text-right"><i class="fas fa-mouse-pointer"></i>
+                <b>Tip:</b> คุณสามารถเปลี่ยนสถานะงาน (Status) ได้โดยตรงจากตารางด้านล่าง
+            </p>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead class="table-light">
+
+        <!-- KPIs -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+            <div class="card bg-white dark:bg-gray-800 border-t-4 border-blue-500 py-4 px-5 shadow-sm hover:shadow-md">
+                <h3 class="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wide m-0">
+                    จำนวนชิ้นงานรวม</h3>
+                <div class="flex items-end justify-between mt-2">
+                    <p class="text-3xl font-bold text-gray-800 dark:text-gray-100 m-0" id="totalPieces">0</p>
+                    <span class="text-2xl text-blue-100 dark:text-blue-900"><i class="fas fa-cubes"></i></span>
+                </div>
+                <p
+                    class="text-xs text-green-600 dark:text-green-400 mt-1 mb-0 font-medium bg-green-50 dark:bg-green-900/30 inline-block px-1.5 py-0.5 rounded">
+                    หน่วย: ชิ้น</p>
+            </div>
+            <div
+                class="card bg-white dark:bg-gray-800 border-t-4 border-indigo-500 py-4 px-5 shadow-sm hover:shadow-md">
+                <h3 class="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wide m-0">
+                    ชั่วโมงการทำงาน</h3>
+                <div class="flex items-end justify-between mt-2">
+                    <p class="text-3xl font-bold text-gray-800 dark:text-gray-100 m-0" id="totalHours">0</p>
+                    <span class="text-2xl text-indigo-100 dark:text-indigo-900"><i class="fas fa-clock"></i></span>
+                </div>
+                <p
+                    class="text-xs text-indigo-600 dark:text-indigo-400 mt-1 mb-0 font-medium bg-indigo-50 dark:bg-indigo-900/30 inline-block px-1.5 py-0.5 rounded">
+                    หน่วย: ชม.</p>
+            </div>
+            <div
+                class="card bg-white dark:bg-gray-800 border-t-4 border-purple-500 py-4 px-5 shadow-sm hover:shadow-md">
+                <h3 class="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wide m-0">
+                    ประสิทธิภาพเฉลี่ย</h3>
+                <div class="flex items-end justify-between mt-2">
+                    <p class="text-3xl font-bold text-gray-800 dark:text-gray-100 m-0" id="avgEfficiency">0</p>
+                    <span class="text-2xl text-purple-100 dark:text-purple-900"><i
+                            class="fas fa-tachometer-alt"></i></span>
+                </div>
+                <p
+                    class="text-xs text-purple-600 dark:text-purple-400 mt-1 mb-0 font-medium bg-purple-50 dark:bg-purple-900/30 inline-block px-1.5 py-0.5 rounded">
+                    ชิ้น/ชม.</p>
+            </div>
+            <div
+                class="card bg-white dark:bg-gray-800 border-t-4 border-orange-500 py-4 px-5 shadow-sm hover:shadow-md">
+                <h3 class="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wide m-0">ต้นทุนรวม
+                    (ประมาณ)</h3>
+                <div class="flex items-end justify-between mt-2">
+                    <p class="text-2xl font-bold text-gray-800 dark:text-gray-100 m-0" id="totalLaborCost">0</p>
+                    <span class="text-2xl text-orange-100 dark:text-orange-900"><i class="fas fa-coins"></i></span>
+                </div>
+                <p class="text-xs text-orange-600 dark:text-orange-400 mt-1 mb-0 font-medium bg-orange-50 dark:bg-orange-900/30 inline-block px-1.5 py-0.5 rounded"
+                    id="labelCostDetail">ค่าแรง+ไฟ+วัสดุ</p>
+            </div>
+            <div class="card bg-white dark:bg-gray-800 border-t-4 border-red-500 py-4 px-5 shadow-sm hover:shadow-md">
+                <h3 class="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wide m-0">ต้นทุนค่าไฟ
+                    (Est.)</h3>
+                <div class="flex items-end justify-between mt-2">
+                    <p class="text-3xl font-bold text-gray-800 dark:text-gray-100 m-0" id="totalElec">0</p>
+                    <span class="text-2xl text-red-100 dark:text-red-900"><i class="fas fa-bolt"></i></span>
+                </div>
+                <p class="text-xs text-red-600 dark:text-red-400 mt-1 mb-0 font-medium bg-red-50 dark:bg-red-900/30 inline-block px-1.5 py-0.5 rounded"
+                    id="labelElecRate">@3.5 บ./ชม.</p>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="card bg-white dark:bg-gray-800">
+                <button type="button" onclick="downloadChart('trendChart')"
+                    class="btn-icon btn-export-chart bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 no-print"><i
+                        class="fas fa-download"></i></button>
+                <h3 class="text-lg font-bold mb-4 text-gray-700 dark:text-gray-200 border-l-4 border-indigo-500 pl-3">1.
+                    แนวโน้มการผลิตรายเดือน</h3>
+                <div class="relative h-64 w-full"><canvas id="trendChart"></canvas></div>
+            </div>
+            <div class="card bg-white dark:bg-gray-800">
+                <button type="button" onclick="downloadChart('deptChart')"
+                    class="btn-icon btn-export-chart bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 no-print"><i
+                        class="fas fa-download"></i></button>
+                <h3 class="text-lg font-bold mb-4 text-gray-700 dark:text-gray-200 border-l-4 border-pink-500 pl-3">2.
+                    งานแยกตามแผนก (Top 8)</h3>
+                <div class="relative h-64 w-full flex justify-center"><canvas id="deptChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <div class="card bg-white dark:bg-gray-800 lg:col-span-1">
+                <button type="button" onclick="downloadChart('categoryChart')"
+                    class="btn-icon btn-export-chart bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 no-print"><i
+                        class="fas fa-download"></i></button>
+                <h3 class="text-lg font-bold mb-4 text-gray-700 dark:text-gray-200 border-l-4 border-teal-500 pl-3">3.
+                    ประเภทงาน (AI Auto)</h3>
+                <div class="relative h-64 w-full flex justify-center"><canvas id="categoryChart"></canvas></div>
+            </div>
+            <div class="card bg-white dark:bg-gray-800 lg:col-span-2">
+                <button type="button" onclick="downloadChart('efficiencyChart')"
+                    class="btn-icon btn-export-chart bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 no-print"><i
+                        class="fas fa-download"></i></button>
+                <h3 class="text-lg font-bold mb-4 text-gray-700 dark:text-gray-200 border-l-4 border-purple-500 pl-3">4.
+                    ประสิทธิภาพเครื่องจักร</h3>
+                <div class="relative h-64 w-full"><canvas id="efficiencyChart"></canvas></div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="card bg-white dark:bg-gray-800 mb-8">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                <h3 class="text-lg font-bold text-gray-700 dark:text-gray-200 border-l-4 border-blue-500 pl-3 m-0">
+                    <i class="fas fa-list-alt mr-2 text-gray-400"></i>ประวัติการซ่อม/สร้างงาน
+                </h3>
+                <div class="flex gap-2 w-full md:w-auto no-print">
+                    <div class="relative w-full md:w-64">
+                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        <input type="text" id="jobSearchInput" onkeyup="filterJobTable()" placeholder="ค้นหางาน..."
+                            class="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white pl-10 pr-4 py-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    </div>
+                    <button type="button" onclick="exportToCSV()"
+                        class="bg-green-600 text-white border-0 px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2 shadow-sm whitespace-nowrap">
+                        <i class="fas fa-file-excel"></i> Export CSV
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-auto table-container h-96 border border-gray-200 dark:border-gray-700 rounded-lg">
+                <table class="min-w-full text-sm text-left text-gray-500 dark:text-gray-400 mb-0">
+                    <thead
+                        class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-100 dark:bg-gray-700 sticky top-0 z-10 shadow-sm">
                         <tr>
-                            <th>Date</th>
-                            <th>Machine</th>
-                            <th>Problem</th>
-                            <th>Solution</th>
-                            <th>Resolver</th>
-                            <th>Downtime</th>
+                            <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-28">Job No.</th>
+                            <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-24">วันที่</th>
+                            <th class="px-6 py-3 border-b dark:border-gray-600">รายละเอียดงาน</th>
+                            <th class="px-6 py-3 border-b dark:border-gray-600 w-32">แผนก</th>
+                            <th class="px-6 py-3 border-b dark:border-gray-600 w-40">ผู้จัดทำ</th>
+                            <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-20">เครื่อง</th>
+                            <th class="px-6 py-3 border-b dark:border-gray-600 text-right w-20">ชม.</th>
+                            <th class="px-6 py-3 border-b dark:border-gray-600 text-right w-20">ชิ้น</th>
+                            <th
+                                class="px-6 py-3 border-b dark:border-gray-600 text-right w-24 text-blue-600 dark:text-blue-400">
+                                ต้นทุน/ชิ้น</th>
+                            <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-32">สถานะ</th>
+                            <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-16 no-print">แก้ไข</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% for log in logs %}
-                        <tr>
-                            <td>{{ log.date|date:"d/m/Y" }}</td>
-                            <td>{{ log.machine }}</td>
-                            <td>{{ log.problem }}</td>
-                            <td>{{ log.solution|default:"-" }}</td>
-                            <td>{{ log.resolver }}</td>
-                            <td>{{ log.downtime_stop }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-4">
-                                No jobs recorded for Lathe department yet.
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
+                    <tbody id="jobHistoryBody" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
                 </table>
             </div>
         </div>
+
+        <!-- Budget & Tech Section (Interactive) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="card bg-white dark:bg-gray-800">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="text-lg font-bold text-gray-700 dark:text-gray-200 border-l-4 border-yellow-500 pl-3">
+                        ผลงานช่าง (Technician)</h3>
+                    <div class="toggle-group bg-gray-100 dark:bg-gray-700">
+                        <span class="toggle-btn active" onclick="toggleTechMetric('pieces', this)">จำนวนชิ้น</span>
+                        <span class="toggle-btn text-gray-500 dark:text-gray-400"
+                            onclick="toggleTechMetric('hours', this)">ชั่วโมงงาน</span>
+                    </div>
+                </div>
+                <div class="relative h-64 w-full"><canvas id="technicianChart"></canvas></div>
+            </div>
+            <div class="card bg-white dark:bg-gray-800">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="text-lg font-bold text-gray-700 dark:text-gray-200 border-l-4 border-green-500 pl-3">
+                        สรุปภาพรวม (Overview)</h3>
+                    <div class="toggle-group bg-gray-100 dark:bg-gray-700">
+                        <span class="toggle-btn active" onclick="toggleBottomMetric('cost', this)">ต้นทุน</span>
+                        <span class="toggle-btn text-gray-500 dark:text-gray-400"
+                            onclick="toggleBottomMetric('status', this)">สถานะงาน</span>
+                    </div>
+                </div>
+                <div class="h-64 flex justify-center"><canvas id="budgetChart"></canvas></div>
+            </div>
+        </div>
+    </div> <!-- End Dashboard View -->
+
+    <!-- ========================================= -->
+    <!-- VIEW 2: JOB ORDER FORM -->
+    <!-- ========================================= -->
+    <div id="view-joborder" class="hidden">
+        <!-- Control Panel -->
+        <div class="no-print fixed top-24 right-4 flex flex-col gap-2 z-40">
+            <button type="button" onclick="addNewJobOrder()"
+                class="bg-orange-500 border-0 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded shadow flex items-center gap-2 justify-center transition">
+                <i class="fas fa-plus-circle"></i> เพิ่มใบงาน
+            </button>
+            <button type="button" onclick="submitJobData()"
+                class="bg-green-600 border-0 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow flex items-center gap-2 justify-center transition">
+                <i class="fas fa-save"></i> บันทึก
+            </button>
+            <button type="button" onclick="printJobOrder()"
+                class="bg-blue-600 border-0 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow flex items-center gap-2 justify-center transition">
+                <i class="fas fa-print"></i> พิมพ์เอกสาร
+            </button>
+            <button type="button" onclick="clearJobForm()"
+                class="bg-gray-500 border-0 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded shadow flex items-center gap-2 justify-center text-xs transition">
+                <i class="fas fa-eraser"></i> ล้าง
+            </button>
+        </div>
+
+        <!-- A4 Page -->
+        <div class="a4-page bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-sm"
+            id="job-form-container">
+            <!-- Header -->
+            <div class="flex justify-between items-start border-b-2 border-gray-800 dark:border-gray-500 pb-4 mb-4">
+                <div class="flex items-center gap-4">
+                    <!-- Logo -->
+                    <div
+                        class="w-16 h-16 bg-gray-100 dark:bg-gray-700 flex items-center justify-center rounded border border-gray-300 dark:border-gray-600 relative group overflow-hidden">
+                        <img id="logo-preview" class="absolute w-full h-full object-contain hidden" />
+                        <div class="text-center no-print cursor-pointer"
+                            onclick="document.getElementById('logo-upload').click()">
+                            <span class="text-[10px] text-gray-400 dark:text-gray-400">คลิกใส่รูป</span>
+                        </div>
+                        <input type="file" id="logo-upload" class="hidden" accept="image/*"
+                            onchange="loadImage(event, 'logo-preview')">
+                        <span
+                            class="text-xs text-gray-500 dark:text-gray-400 font-bold group-hover:hidden printable-logo-text">LOGO</span>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-none m-0">
+                            ใบสั่งงานโรงกลึง / งานซ่อมสร้าง</h1>
+                        <p class="text-gray-600 dark:text-gray-400 font-medium m-0">Machine Shop Job Order</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <!-- QR Code Zone -->
+                    <div id="qrcode" class="mb-2 flex justify-end"></div>
+
+                    <div class="mb-1 flex justify-end items-center gap-2">
+                        <span class="font-bold whitespace-nowrap">เลขที่ใบงาน (Job No.):</span>
+                        <input type="text" id="job_no" class="job-input font-bold text-lg text-center w-32"
+                            placeholder="JOB-XXXX" onkeyup="generateQRCode()">
+                    </div>
+                    <div class="mb-1 flex justify-end items-center gap-2">
+                        <span class="font-bold whitespace-nowrap">จำนวน (Qty):</span>
+                        <input type="number" id="job_qty" class="job-input font-bold text-center w-20" value="1">
+                    </div>
+                    <div class="flex justify-end items-center gap-2">
+                        <span class="font-bold whitespace-nowrap">วันที่แจ้ง (Date):</span>
+                        <input type="date" id="job_date" class="job-input text-center w-32">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 1 -->
+            <div class="mb-4">
+                <h2 class="bg-gray-800 text-white px-2 py-1 font-bold rounded-t text-base mb-2">1. ข้อมูลผู้ขอใช้บริการ
+                    (Requester Information)</h2>
+                <div class="grid grid-cols-3 gap-4 mb-2">
+                    <div class="flex items-baseline gap-2">
+                        <span class="font-bold whitespace-nowrap">ชื่อผู้ขอ:</span>
+                        <input type="text" id="requester_name" class="job-input" placeholder="ระบุชื่อผู้แจ้ง">
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span class="font-bold whitespace-nowrap">แผนก:</span>
+                        <input type="text" id="department" class="job-input" placeholder="ระบุแผนก">
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span class="font-bold whitespace-nowrap">เบอร์โทร:</span>
+                        <input type="text" id="tel" class="job-input" placeholder="ระบุเบอร์ติดต่อ">
+                    </div>
+                </div>
+                <div class="mb-2 flex items-baseline gap-2">
+                    <span class="font-bold whitespace-nowrap">เครื่องจักร / Tag No. (งานที่นำมาซ่อม):</span>
+                    <input type="text" id="machine_tag" class="job-input"
+                        placeholder="ระบุชื่อเครื่องจักรลูกค้า หรือรหัส Tag (เช่น ปั๊มน้ำ, สายพาน A)">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-3">
+                    <div class="border dark:border-gray-600 p-2 rounded bg-gray-50 dark:bg-gray-700">
+                        <span class="font-bold block mb-1">ประเภทงาน (Job Type):</span>
+                        <div class="flex gap-4 flex-wrap">
+                            <label class="checkbox-group mb-0"><input type="checkbox" id="type_new" value="ทำใหม่"
+                                    class="w-4 h-4 job-type"> ทำใหม่ (New)</label>
+                            <label class="checkbox-group mb-0"><input type="checkbox" id="type_repair" value="ซ่อมแซม"
+                                    class="w-4 h-4 job-type"> ซ่อมแซม (Repair)</label>
+                            <label class="checkbox-group mb-0"><input type="checkbox" id="type_modify" value="ดัดแปลง"
+                                    class="w-4 h-4 job-type"> ดัดแปลง (Modify)</label>
+                        </div>
+                    </div>
+                    <div class="border p-2 rounded bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-800">
+                        <span class="font-bold block mb-1 text-red-700 dark:text-red-400">ความเร่งด่วน
+                            (Priority):</span>
+                        <div class="flex flex-col gap-1">
+                            <label class="checkbox-group text-red-700 dark:text-red-400 font-bold mb-0"><input
+                                    type="radio" name="priority" value="Breakdown" class="w-4 h-4"> A: เครื่องจักรหยุด
+                                (Breakdown)</label>
+                            <label class="checkbox-group mb-0"><input type="radio" name="priority" value="Urgent"
+                                    class="w-4 h-4"> B: ด่วน (Urgent) - ภายใน 24 ชม.</label>
+                            <label class="checkbox-group mb-0"><input type="radio" name="priority" value="Normal"
+                                    class="w-4 h-4" checked> C: ปกติ (Normal) - ตามคิวงาน</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-2 flex items-baseline gap-2">
+                    <span class="font-bold text-blue-800 dark:text-blue-400 whitespace-nowrap">วันที่ต้องการใช้ของ
+                        (Required Date):</span>
+                    <input type="date" id="req_date"
+                        class="job-input w-40 text-center font-bold text-blue-800 dark:text-blue-400">
+                </div>
+
+                <div class="mb-2">
+                    <span class="font-bold block mb-1">รายละเอียดงาน (Description):</span>
+                    <textarea id="description" rows="3"
+                        class="job-input border border-gray-300 dark:border-gray-600 rounded p-2 w-full resize-none"
+                        placeholder="อธิบายรายละเอียดงาน, ขนาด, หรืออาการเสีย..."></textarea>
+                </div>
+
+                <!-- Sketch Area -->
+                <div
+                    class="relative border-2 border-dashed border-gray-400 dark:border-gray-600 rounded h-40 sketch-box p-2 group">
+                    <span
+                        class="absolute top-2 left-2 text-gray-400 dark:text-gray-300 font-bold bg-white/80 dark:bg-gray-800/80 px-2 border dark:border-gray-600 rounded z-10">พื้นที่สเก็ตช์ภาพ
+                        (Sketch Area)</span>
+                    <div class="w-full h-full flex items-center justify-center overflow-hidden">
+                        <img id="sketch-preview" class="max-h-full max-w-full object-contain hidden" />
+                        <div class="no-print absolute center flex flex-col items-center justify-center cursor-pointer text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400"
+                            onclick="document.getElementById('sketch-upload').click()">
+                            <i class="fas fa-image text-3xl mb-1"></i>
+                            <span class="text-xs">คลิกเพื่อใส่รูปประกอบ (Print Only)</span>
+                        </div>
+                        <input type="file" id="sketch-upload" class="hidden" accept="image/*"
+                            onchange="loadImage(event, 'sketch-preview')">
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mt-2">
+                    <div class="flex flex-col gap-1">
+                        <span class="font-bold text-xs">ไฟล์แนบเพิ่มเติม (เอกสาร, PDF, รูปภาพ):</span>
+                        <input type="file" id="job_attachment" class="text-xs">
+                    </div>
+                    <div class="flex gap-4 text-xs text-gray-500 dark:text-gray-400">
+                        <label class="checkbox-group mb-0"><input type="checkbox" id="has_drawing" class="w-3 h-3">
+                            มีแบบ
+                            Drawing</label>
+                        <label class="checkbox-group mb-0"><input type="checkbox" id="has_sample" class="w-3 h-3">
+                            มีตัวอย่างชิ้นงาน (Sample)</label>
+                        <label class="checkbox-group mb-0"><input type="checkbox" id="has_material" class="w-3 h-3">
+                            มีวัสดุมาให้ (Material)</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2 -->
+            <div class="mb-4">
+                <h2 class="bg-gray-600 text-white px-2 py-1 font-bold rounded-t text-base mb-2">2. สำหรับหัวหน้าโรงกลึง
+                    (Planning & Assignment)</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="font-bold block mb-1">การพิจารณา (Status):</span>
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-2">
+                                <label class="checkbox-group text-green-700 dark:text-green-500 font-bold mb-0">
+                                    <input type="radio" name="plan_status" value="Accepted" id="plan_accept"
+                                        class="w-4 h-4" checked>
+                                    รับดำเนินการ
+                                </label>
+                                <span class="text-xs text-gray-600 dark:text-gray-400 ml-2">กำหนดส่ง:</span>
+                                <input type="date" id="plan_due_date" class="job-input w-32 text-xs">
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label class="checkbox-group text-red-700 dark:text-red-500 font-bold mb-0">
+                                    <input type="radio" name="plan_status" value="Rejected" class="w-4 h-4">
+                                    ไม่รับดำเนินการ
+                                </label>
+                                <input type="text" id="plan_reject_reason" class="job-input flex-1 text-xs"
+                                    placeholder="ระบุเหตุผล...">
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="mb-2">
+                            <span class="font-bold text-blue-800 dark:text-blue-400">เครื่องจักรที่ใช้ผลิต (Production
+                                Machine):</span>
+                            <select id="production_machine"
+                                class="job-input w-full bg-blue-50 dark:bg-gray-700 dark:text-white">
+                                <option value="Unknown" class="text-gray-400 dark:text-gray-500">-- เลือกเครื่องจักร --
+                                </option>
+                                <option value="กลึง1">กลึง 1</option>
+                                <option value="กลึง2">กลึง 2</option>
+                                <option value="กลึง3">กลึง 3</option>
+                                <option value="กลึง4">กลึง 4</option>
+                                <option value="กลึง5">กลึง 5</option>
+                                <option value="กลึง6">กลึง 6</option>
+                                <option value="กลึงA">กลึง A</option>
+                                <option value="กลึงB">กลึง B</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <span class="font-bold">ผู้รับผิดชอบ (Technician):</span>
+                            <input type="text" id="technician" list="techList" class="job-input w-full"
+                                placeholder="เลือกหรือระบุชื่อช่าง">
+                        </div>
+                        <!-- New Material Cost Field -->
+                        <div class="mb-2 flex items-center gap-2">
+                            <span class="font-bold text-gray-600 dark:text-gray-400 whitespace-nowrap">ค่าวัสดุ
+                                (Material Cost):</span>
+                            <input type="number" id="material_cost" class="job-input w-32 text-right"
+                                placeholder="0.00">
+                            <span class="text-xs">บาท</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3 -->
+            <div class="mb-4">
+                <h2
+                    class="bg-blue-800 dark:bg-blue-900 text-white px-2 py-1 font-bold rounded-t text-base mb-2 flex justify-between">
+                    <span>3. บันทึกการทำงาน (Operation Log)</span>
+                    <span class="text-xs font-normal opacity-80 self-center">*สำคัญ: ลงเวลาจริง</span>
+                </h2>
+                <table class="w-full border-collapse border border-gray-300 dark:border-gray-600 text-center mb-0"
+                    id="time-log-table">
+                    <thead>
+                        <tr class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            <th class="border border-gray-300 dark:border-gray-600 py-1 w-24">วันที่</th>
+                            <th class="border border-gray-300 dark:border-gray-600 py-1">ขั้นตอน</th>
+                            <th class="border border-gray-300 dark:border-gray-600 py-1 w-20">เริ่ม</th>
+                            <th class="border border-gray-300 dark:border-gray-600 py-1 w-20">จบ</th>
+                            <th class="border border-gray-300 dark:border-gray-600 py-1 w-20">รวม ชม.</th>
+                            <th class="border border-gray-300 dark:border-gray-600 py-1 w-10 no-print">ลบ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows will be added dynamically or on load -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-gray-50 dark:bg-gray-700 font-bold">
+                            <td colspan="4"
+                                class="border border-gray-300 dark:border-gray-600 text-right pr-2 py-1 text-gray-800 dark:text-gray-200">
+                                รวมเวลาทั้งหมด (Total):</td>
+                            <td class="border border-gray-300 dark:border-gray-600 p-0"><input type="number"
+                                    id="grand_total" class="table-input font-bold bg-transparent" readonly
+                                    placeholder="Auto"></td>
+                            <td
+                                class="border border-gray-300 dark:border-gray-600 no-print bg-gray-200 dark:bg-gray-600">
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <button type="button" onclick="addLogRow()"
+                    class="mt-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 border-0 rounded text-xs hover:bg-blue-100 dark:hover:bg-blue-800 no-print flex items-center gap-1 font-bold border border-blue-200 transition">
+                    <i class="fas fa-plus"></i> เพิ่มแถวรายการ
+                </button>
+            </div>
+
+            <!-- Section 4 -->
+            <div class="mb-0 border-2 border-gray-800 dark:border-gray-500 rounded p-3">
+                <h2 class="font-bold text-lg mb-2 underline">4. ตรวจสอบและส่งมอบ (QC & Delivery)</h2>
+                <div class="flex gap-8 mb-4">
+                    <div class="w-1/2">
+                        <span class="font-bold block mb-1">ผลการตรวจสอบคุณภาพ (QC Result):</span>
+                        <div class="flex gap-4 mb-2">
+                            <label class="checkbox-group font-bold text-green-700 dark:text-green-500 mb-0"><input
+                                    type="radio" name="qc_result" value="Pass" class="w-5 h-5"> ผ่าน (Pass)</label>
+                            <label class="checkbox-group font-bold text-red-700 dark:text-red-500 mb-0"><input
+                                    type="radio" name="qc_result" value="Fail" class="w-5 h-5"> ไม่ผ่าน (Fail)</label>
+                        </div>
+                        <div class="mb-2">
+                            <span class="text-xs">หมายเหตุ:</span>
+                            <input type="text" id="qc_note" class="job-input w-full" placeholder="ระบุสาเหตุถ้าไม่ผ่าน">
+                        </div>
+                    </div>
+                    <div class="w-px bg-gray-300 dark:bg-gray-600"></div>
+                    <div class="w-1/2">
+                        <span class="font-bold block mb-1">การรับมอบงาน (User Acceptance):</span>
+                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-4">ข้าพเจ้าได้ตรวจสอบชิ้นงานแล้ว
+                            พบว่าขนาดถูกต้องและใช้งานได้จริง</p>
+                        <div class="mt-8 text-center">
+                            <input type="text" id="receiver_name"
+                                class="text-center w-3/4 mb-1 border-b border-gray-800 dark:border-gray-500 bg-transparent border-0"
+                                placeholder="(ลงชื่อผู้รับงาน)">
+                            <p class="text-xs font-bold m-0">User / ผู้รับงาน</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 text-xs text-gray-400 dark:text-gray-500 text-right">
+                FM-MC-001 Rev.02 (JSONP System) | Effective Date: 16/01/2026
+            </div>
+        </div>
+    </div> <!-- End Job Order View -->
+
+    <footer class="text-center text-gray-400 dark:text-gray-500 text-xs py-4 no-print">
+        &copy; 2024-2026 Dashboard System Generated by AI
+    </footer>
+
+    <!-- Settings Modal (Dashboard) -->
+    <div id="settingsModal" class="lathe-modal">
+        <div class="lathe-modal-content overflow-hidden dark:bg-gray-800 dark:text-gray-200">
+            <div class="bg-blue-600 px-6 py-4 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-white m-0"><i class="fas fa-sliders-h mr-2"></i>ตั้งค่า & จัดการข้อมูล
+                </h3>
+                <button type="button" onclick="closeSettings()"
+                    class="text-blue-200 bg-transparent border-0 hover:text-white transition text-xl">&times;</button>
+            </div>
+            <div class="p-6">
+                <!-- Data Management -->
+                <div class="mb-6 border-b dark:border-gray-700 pb-4">
+                    <h4 class="font-bold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2 m-0"><i
+                            class="fas fa-database"></i> จัดการข้อมูล (Backup & Restore)</h4>
+                    <div class="flex gap-2 mt-2">
+                        <button type="button" onclick="exportDataBackup()"
+                            class="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 px-4 py-2 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-800 w-1/2 text-sm flex items-center justify-center gap-2">
+                            <i class="fas fa-download"></i> สำรองข้อมูล (Backup)
+                        </button>
+                        <button type="button" onclick="triggerImportData()"
+                            class="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 px-4 py-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-800 w-1/2 text-sm flex items-center justify-center gap-2">
+                            <i class="fas fa-upload"></i> กู้คืนข้อมูล (Restore)
+                        </button>
+                        <input type="file" id="importFileInput" accept=".json" class="hidden"
+                            onchange="importDataBackup(this)">
+                    </div>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1 mb-0">*ข้อมูลจะถูกบันทึกเป็นไฟล์ .json
+                        เก็บไว้ในเครื่องคอมพิวเตอร์ของคุณ</p>
+                </div>
+
+                <!-- Cost Settings -->
+                <h4 class="font-bold text-gray-700 dark:text-gray-300 mb-2 m-0"><i class="fas fa-calculator"></i>
+                    ตัวแปรคำนวณต้นทุน</h4>
+                <div class="grid grid-cols-2 gap-4 mb-4 mt-2">
+                    <div>
+                        <label class="block text-gray-600 dark:text-gray-400 text-xs font-bold mb-1">ค่าไฟ
+                            (บาท/ชม.)</label>
+                        <input
+                            class="shadow border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded w-full py-2 px-3 text-sm focus:ring-2 focus:ring-blue-400"
+                            id="inputElecRate" type="number" step="0.1" value="3.5">
+                    </div>
+                    <div>
+                        <label class="block text-gray-600 dark:text-gray-400 text-xs font-bold mb-1">ค่าแรง
+                            (บาท/ชม.)</label>
+                        <input
+                            class="shadow border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded w-full py-2 px-3 text-sm focus:ring-2 focus:ring-blue-400"
+                            id="inputLaborRate" type="number" step="10" value="50">
+                    </div>
+                </div>
+
+                <!-- Technician Management -->
+                <div class="mb-4">
+                    <label class="block text-gray-600 dark:text-gray-400 text-xs font-bold mb-1">รายชื่อช่าง
+                        (คั่นด้วยจุลภาค ,)</label>
+                    <textarea id="settingTechList"
+                        class="shadow border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded w-full py-2 px-3 text-sm focus:ring-2 focus:ring-blue-400 h-20"
+                        placeholder="สมชาย, สมศรี, ช่างหนึ่ง..."></textarea>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mb-0">ใช้สำหรับ Auto-complete ในช่องชื่อช่าง</p>
+                </div>
+
+                <!-- Machine Management (New) -->
+                <div class="mb-4 border-t dark:border-gray-700 pt-4">
+                    <label
+                        class="block text-gray-600 dark:text-gray-400 text-xs font-bold mb-1">รายชื่อเครื่องจักรโรงงาน
+                        (คั่นด้วยจุลภาค ,)</label>
+                    <textarea id="settingMachineList"
+                        class="shadow border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded w-full py-2 px-3 text-sm focus:ring-2 focus:ring-blue-400 h-20"
+                        placeholder="กลึง1, กลึง2, Milling..."></textarea>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mb-0">
+                        ใช้สำหรับระบุเครื่องจักรที่ใช้ผลิตและคำนวณประสิทธิภาพ</p>
+                </div>
+
+                <div class="flex justify-end gap-2 mt-4">
+                    <button type="button" onclick="closeSettings()"
+                        class="bg-gray-300 dark:bg-gray-600 border-0 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-white font-bold py-2 px-4 rounded text-sm transition">ปิด</button>
+                    <button type="button" onclick="saveSettings()"
+                        class="bg-blue-600 dark:bg-blue-700 border-0 hover:bg-blue-700 dark:hover:bg-blue-600 text-white font-bold py-2 px-4 rounded shadow text-sm transition">บันทึกทั้งหมด</button>
+                </div>
+            </div>
+        </div>
     </div>
+
 </div>
 
+<!-- Script -->
+<script>
+    // ดึงค่า Token ความปลอดภัยของ Django เพื่อให้ยืนยันตัวตนได้ตอน POST ข้อมูล
+    const csrfToken = '{{ csrf_token }}';
+
+    // --- ระบบโหมดกลางวัน/กลางคืน (DARK/LIGHT MODE) ---
+    function initTheme() {
+        const savedTheme = localStorage.getItem('latheTheme');
+        const app = document.getElementById('latheApp');
+        const icon = document.getElementById('theme-icon');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        const isDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+        if (isDark) {
+            app.classList.add('dark');
+            if (icon) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            }
+        }
+        applyChartTheme(isDark);
+    }
+
+    function toggleDarkMode() {
+        const app = document.getElementById('latheApp');
+        const icon = document.getElementById('theme-icon');
+        const isDark = app.classList.toggle('dark');
+
+        if (isDark) {
+            icon.classList.remove('fa-moon');
+            icon.classList.add('fa-sun');
+            localStorage.setItem('latheTheme', 'dark');
+        } else {
+            icon.classList.remove('fa-sun');
+            icon.classList.add('fa-moon');
+            localStorage.setItem('latheTheme', 'light');
+        }
+        applyChartTheme(isDark);
+    }
+
+    function applyChartTheme(isDark) {
+        // อัพเดตสีข้อความและเส้น Grid ของ Chart ให้เข้ากับโหมด
+        const textColor = isDark ? '#d1d5db' : '#6b7280';
+        const gridColor = isDark ? '#374151' : '#e5e7eb';
+
+        Chart.defaults.color = textColor;
+        if (Chart.defaults.scale && Chart.defaults.scale.grid) {
+            Chart.defaults.scale.grid.color = gridColor;
+        }
+
+        // อัพเดตกราฟทั้งหมดที่กำลังแสดงอยู่
+        Object.values(chartInstances).forEach(chart => {
+            if (chart && typeof chart.update === 'function') {
+                if (chart.options.scales) {
+                    for (let scale in chart.options.scales) {
+                        if (chart.options.scales[scale].grid) {
+                            chart.options.scales[scale].grid.color = gridColor;
+                        }
+                        if (chart.options.scales[scale].ticks) {
+                            chart.options.scales[scale].ticks.color = textColor;
+                        }
+                    }
+                }
+                chart.update();
+            }
+        });
+    }
+
+
+    // --- NAVIGATION LOGIC ---
+    function switchView(viewName) {
+        const dashboardView = document.getElementById('view-dashboard');
+        const jobOrderView = document.getElementById('view-joborder');
+        const navDashboard = document.getElementById('nav-dashboard');
+        const navJoborder = document.getElementById('nav-joborder');
+
+        if (viewName === 'dashboard') {
+            dashboardView.classList.remove('hidden');
+            jobOrderView.classList.add('hidden');
+
+            navDashboard.classList.add('active');
+            navDashboard.classList.remove('inactive');
+            navJoborder.classList.remove('active');
+            navJoborder.classList.add('inactive');
+        } else {
+            dashboardView.classList.add('hidden');
+            jobOrderView.classList.remove('hidden');
+
+            navJoborder.classList.add('active');
+            navJoborder.classList.remove('inactive');
+            navDashboard.classList.remove('active');
+            navDashboard.classList.add('inactive');
+
+            if (!document.getElementById('job_no').value) {
+                document.getElementById('job_date').valueAsDate = new Date();
+                generateNextJobId();
+                generateQRCode();
+                if (document.querySelectorAll('#time-log-table tbody tr').length === 0) {
+                    addLogRow();
+                    addLogRow();
+                }
+            }
+        }
+    }
+
+    function handleGlobalPrint() {
+        const isJobOrderVisible = !document.getElementById('view-joborder').classList.contains('hidden');
+        if (isJobOrderVisible) {
+            printJobOrder();
+        } else {
+            window.print();
+        }
+    }
+
+    function printJobOrder() {
+        document.body.classList.add('print-job-order');
+        window.print();
+        setTimeout(() => {
+            document.body.classList.remove('print-job-order');
+        }, 1000);
+    }
+
+    function generateQRCode() {
+        const jobNo = document.getElementById('job_no').value || 'NO-JOB-ID';
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = '';
+        try {
+            new QRCode(qrContainer, {
+                text: jobNo,
+                width: 64,
+                height: 64,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        } catch (e) {
+            console.warn("QR Code library not loaded or error:", e);
+            qrContainer.innerHTML = '<span class="text-xs text-red-400">QR Error</span>';
+        }
+    }
+
+    function generateNextJobId() {
+        const now = new Date();
+        const year = String(now.getFullYear()).slice(-2);
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const prefix = `JOB-${year}${month}`;
+        const count = rawData.length + 1;
+        const suffix = String(count).padStart(3, '0');
+        document.getElementById('job_no').value = `${prefix}-${suffix}`;
+    }
+
+    // --- DASHBOARD LOGIC ---
+    let currentElecRate = 3.5;
+    let currentLaborRate = 50;
+    let technicianList = ["ช่างหนึ่ง", "ช่างสอง", "ช่างสาม"]; // Default
+    let machineList = ["กลึง1", "กลึง2", "กลึง3", "กลึง4", "กลึง5", "กลึง6", "กลึงA", "กลึงB"]; // Default Machine List
+
+    let currentTechMetric = 'pieces'; // pieces or hours
+    let currentBottomMetric = 'cost'; // cost or status
+
+    let rawData = []; // เริ่มต้นเป็น Array ว่าง แล้วค่อยดึงจาก DB มาใส่
+
+    // ฟังก์ชันใหม่: สำหรับดึงข้อมูลจาก Database
+    async function fetchJobsFromDB() {
+        try {
+            const response = await fetch('/api/lathe/', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // แปลงข้อมูลที่ได้จาก DB ให้อยู่ในรูปแบบที่ระบบ Dashboard คุ้นเคย
+                rawData = data.map(j => ({
+                    job_no: j.job_no,
+                    date: j.date || '',
+                    topic: j.topic || '',
+                    dept: j.dept || '',
+                    machine: j.machine || 'Unknown',
+                    cust_machine: j.cust_machine || '',
+                    maker: j.maker || 'Unknown',
+                    hours: parseFloat(j.hours) || 0,
+                    pieces: parseFloat(j.pieces) || 0,
+                    status: j.status || 'Pending',
+                    material_cost: parseFloat(j.material_cost) || 0,
+                    plan_due_date: j.plan_due_date || '',
+                    // สำหรับฟอร์มใบสั่งงาน
+                    requester: j.requester || '',
+                    tel: j.tel || '',
+                    job_type: j.job_type ? j.job_type.split(',') : [],
+                    priority: j.priority || '',
+                    req_date: j.req_date || '',
+                    has_drawing: j.has_drawing,
+                    has_sample: j.has_sample,
+                    has_material: j.has_material,
+                    plan_status: j.plan_status || '',
+                    plan_reject_reason: j.plan_reject_reason || '',
+                    qc_result: j.qc_result || '',
+                    qc_note: j.qc_note || '',
+                    receiver: j.receiver || '',
+                    attachment: j.attachment || ''
+                }));
+                updateDashboard();
+            }
+        } catch (e) {
+            console.error('Error fetching jobs from DB', e);
+        }
+    }
+
+    // Smart Due Date Logic
+    document.querySelectorAll('input[name="priority"]').forEach(radio => {
+        radio.addEventListener('change', function () {
+            const today = new Date();
+            if (this.value === 'Urgent') {
+                today.setDate(today.getDate() + 1); // +1 Day
+            } else if (this.value === 'Normal') {
+                today.setDate(today.getDate() + 7); // +7 Days
+            }
+            // Breakdown = Today (no change)
+            document.getElementById('plan_due_date').valueAsDate = today;
+        });
+    });
+
+    // Update Job Status directly
+    async function updateStatus(jobNo, newStatus) {
+        const jobIndex = rawData.findIndex(j => j.job_no === jobNo);
+        if (jobIndex > -1) {
+            rawData[jobIndex].status = newStatus;
+            updateDashboard(); // Update UI ทันที
+
+            // ยิง API ไปอัปเดตลงฐานข้อมูล
+            try {
+                const response = await fetch('/api/lathe/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({ action: 'update_status', job_no: jobNo, status: newStatus })
+                });
+
+                if (response.ok) {
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 1000,
+                        timerProgressBar: true
+                    });
+                    Toast.fire({ icon: 'success', title: 'อัปเดตสถานะแล้ว' });
+                }
+            } catch (e) {
+                console.error('Failed to update status in DB', e);
+            }
+        }
+    }
+
+    // Toggle Chart Metrics
+    function toggleTechMetric(metric, btn) {
+        currentTechMetric = metric;
+        // Update UI
+        btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateDashboard();
+    }
+
+    function toggleBottomMetric(metric, btn) {
+        currentBottomMetric = metric;
+        btn.parentElement.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateDashboard();
+    }
+
+    // LOAD FROM LOCAL STORAGE (เฉพาะ Settings ไม่เก็บข้อมูลงานแล้ว)
+    function loadFromLocalStorage() {
+        // Load Settings เท่านั้น
+        const savedSettings = localStorage.getItem('myMachineShopSettings');
+        if (savedSettings) {
+            try {
+                const settings = JSON.parse(savedSettings);
+                currentElecRate = settings.elecRate || 3.5;
+                currentLaborRate = settings.laborRate || 50;
+                technicianList = settings.techList || technicianList;
+                machineList = settings.machineList || machineList;
+            } catch (e) { console.error("Error loading settings", e); }
+        }
+
+        // Populate Tech Datalist
+        updateTechDatalist();
+        updateMachineDropdowns();
+    }
+
+    function switchView(viewName) {
+        if (viewName === 'dashboard') {
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.getElementById('view-joborder').classList.add('hidden');
+            document.getElementById('nav-dashboard').classList.add('active');
+            document.getElementById('nav-dashboard').classList.remove('inactive');
+            document.getElementById('nav-joborder').classList.remove('active');
+            document.getElementById('nav-joborder').classList.add('inactive');
+        } else {
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-joborder').classList.remove('hidden');
+            document.getElementById('nav-dashboard').classList.remove('active');
+            document.getElementById('nav-dashboard').classList.add('inactive');
+            document.getElementById('nav-joborder').classList.add('active');
+            document.getElementById('nav-joborder').classList.remove('inactive');
+            if (!document.getElementById('job_no').value) {
+                generateNextJobId();
+                generateQRCode();
+            }
+        }
+    }
+
+    function generateNextJobId() {
+        const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+        const todayJobs = rawData.filter(j => j.job_no && j.job_no.startsWith('JOB-' + dateStr));
+        const count = todayJobs.length + 1;
+        document.getElementById('job_no').value = `JOB-${dateStr}-${String(count).padStart(3, '0')}`;
+    }
+
+    function generateQRCode() {
+        const qrcodeContainer = document.getElementById("qrcode");
+        if (qrcodeContainer) {
+            qrcodeContainer.innerHTML = "";
+            const jobNo = document.getElementById('job_no').value;
+            if (jobNo) {
+                new QRCode(qrcodeContainer, {
+                    text: jobNo,
+                    width: 64,
+                    height: 64,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.L
+                });
+            }
+        }
+    }
+
+    function clearLocalStorage() {
+        if (confirm('คุณต้องการลบข้อมูลทั้งหมดในเครื่องนี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้')) {
+            localStorage.removeItem('myMachineShopJobs');
+            localStorage.removeItem('myMachineShopSettings');
+            location.reload();
+        }
+    }
+
+    // Backup & Restore
+    function exportDataBackup() {
+        const dataToSave = {
+            jobs: rawData,
+            settings: {
+                elecRate: currentElecRate,
+                laborRate: currentLaborRate,
+                techList: technicianList,
+                machineList: machineList // Save machines
+            },
+            exportDate: new Date().toISOString()
+        };
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToSave));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "machine_shop_backup_" + new Date().toISOString().slice(0, 10) + ".json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
+    function triggerImportData() {
+        document.getElementById('importFileInput').click();
+    }
+
+    function importDataBackup(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async function (e) {
+            try {
+                const imported = JSON.parse(e.target.result);
+                if (imported.jobs && Array.isArray(imported.jobs)) {
+                    if (confirm(`พบข้อมูลจำนวน ${imported.jobs.length} รายการ ต้องการนำเข้าและบันทึกลงฐานข้อมูลหรือไม่?`)) {
+
+                        if (imported.settings) {
+                            currentElecRate = imported.settings.elecRate || 3.5;
+                            currentLaborRate = imported.settings.laborRate || 50;
+                            technicianList = imported.settings.techList || technicianList;
+                            machineList = imported.settings.machineList || machineList;
+                            localStorage.setItem('myMachineShopSettings', JSON.stringify(imported.settings));
+                        }
+
+                        updateTechDatalist();
+                        updateMachineDropdowns();
+
+                        // ยิงข้อมูลชุดใหญ่ไป Save ลง DB
+                        Swal.fire({ title: 'กำลังกู้คืนข้อมูลลงฐานข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                        const response = await fetch('/api/lathe/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                            body: JSON.stringify({ action: 'sync_all', jobs: imported.jobs })
+                        });
+
+                        if (response.ok) {
+                            Swal.fire('สำเร็จ', 'กู้คืนข้อมูลและบันทึกลงฐานข้อมูลเรียบร้อยแล้ว', 'success');
+                            fetchJobsFromDB(); // ดึงข้อมูลใหม่ล่าสุดมาวาดหน้าจอ
+                        } else {
+                            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถบันทึกลงฐานข้อมูลได้', 'error');
+                        }
+                    }
+                } else {
+                    Swal.fire('ข้อผิดพลาด', 'รูปแบบไฟล์ไม่ถูกต้อง', 'error');
+                }
+            } catch (err) {
+                Swal.fire('ข้อผิดพลาด', 'ไม่สามารถอ่านไฟล์ได้', 'error');
+            }
+            input.value = ''; // Reset
+        };
+        reader.readAsText(file);
+    }
+
+    function updateTechDatalist() {
+        const datalist = document.getElementById('techList');
+        datalist.innerHTML = '';
+        technicianList.forEach(tech => {
+            const option = document.createElement('option');
+            option.value = tech.trim();
+            datalist.appendChild(option);
+        });
+    }
+
+    // New function to update Dropdowns
+    function updateMachineDropdowns() {
+        // 1. Dashboard Filter
+        const filterSelect = document.getElementById('machineFilter');
+        const currentFilter = filterSelect.value;
+        filterSelect.innerHTML = '<option value="all">ทั้งหมด</option>';
+        machineList.forEach(m => {
+            const option = document.createElement('option');
+            option.value = m;
+            option.innerText = m;
+            filterSelect.appendChild(option);
+        });
+        // Try to restore selection, fallback to 'all'
+        if (currentFilter === 'all' || machineList.includes(currentFilter)) {
+            filterSelect.value = currentFilter;
+        } else {
+            filterSelect.value = 'all';
+        }
+
+        // 2. Job Order Dropdown
+        const jobSelect = document.getElementById('production_machine');
+        const currentJobSelect = jobSelect.value;
+        jobSelect.innerHTML = '<option value="Unknown" class="text-gray-400 dark:text-gray-500">-- เลือกเครื่องจักร --</option>';
+        machineList.forEach(m => {
+            const option = document.createElement('option');
+            option.value = m;
+            option.innerText = m;
+            jobSelect.appendChild(option);
+        });
+        // Try to restore selection
+        if (machineList.includes(currentJobSelect)) {
+            jobSelect.value = currentJobSelect;
+        }
+    }
+
+    let chartInstances = {};
+    let displayedJobs = [];
+
+    function categorizeJob(topic) {
+        const t = (topic || "").toLowerCase();
+        if (t.includes('น็อต') || t.includes('สกรู') || t.includes('เพลา') || t.includes('บูช') || t.includes('สลัก') || t.includes('pin')) return 'ผลิตชิ้นส่วน (Parts)';
+        if (t.includes('ซ่อม') || t.includes('กลึงล้าง') || t.includes('เจียร') || t.includes('ไส') || t.includes('อัด')) return 'ซ่อม/ปรับปรุง (Repair)';
+        if (t.includes('สร้าง') || t.includes('ทำ') || t.includes('ประกอบ') || t.includes('โครง')) return 'สร้างใหม่ (Fabrication)';
+        if (t.includes('ตัด') || t.includes('เชื่อม')) return 'งานเชื่อม/ตัด (Weld)';
+        return 'งานอื่นๆ (General)';
+    }
+
+    document.getElementById('csvFileInput').addEventListener('change', function (event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async function (results) {
+                const newRows = results.data.map((row, i) => {
+                    let topic = row['หัวข้องาน'] || '';
+                    let spec = row['ขนาด/สเปค'] || '';
+                    let fullTopic = topic + (spec ? ` (${spec})` : '');
+                    return {
+                        job_no: row['Job No'] || `CSV-${Date.now()}-${i + 1}`,
+                        date: row['วันที่'] || '',
+                        topic: fullTopic || 'งานทั่วไป',
+                        dept: row['แผนก'] || 'ไม่ระบุ',
+                        machine: row['เครื่อง'] || 'Unknown',
+                        cust_machine: row['เครื่องจักร(ลูกค้า)'] || '',
+                        maker: row['ชื่อผุ้จัดทำ'] || row['ชื่อผู้จัดทำ'] || 'Unknown',
+                        hours: parseFloat(row['ชม.']) || 0,
+                        pieces: parseFloat(row['ชิ้น']) || 0,
+                        status: 'Done',
+                        material_cost: 0
+                    };
+                }).filter(d => d.date && d.machine);
+
+                try {
+                    Swal.fire({ title: 'กำลังนำเข้าสู่ฐานข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    const response = await fetch('/api/lathe/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                        body: JSON.stringify({ action: 'sync_all', jobs: newRows })
+                    });
+
+                    if (response.ok) {
+                        Swal.fire('สำเร็จ', `นำเข้าข้อมูลและบันทึกลงฐานข้อมูล ${newRows.length} รายการ`, 'success');
+                        fetchJobsFromDB(); // อัปเดตดึงข้อมูลใหม่
+                    } else {
+                        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถบันทึกลงฐานข้อมูลได้', 'error');
+                    }
+                } catch (e) {
+                    Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+                }
+            }
+        });
+    });
+
+    function downloadChart(canvasId) {
+        const canvas = document.getElementById(canvasId);
+        const link = document.createElement('a');
+        link.download = `${canvasId}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+
+    function formatCurrency(num) {
+        return (num || 0).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+    }
+
+    function openSettings() {
+        document.getElementById('inputElecRate').value = currentElecRate;
+        document.getElementById('inputLaborRate').value = currentLaborRate;
+        document.getElementById('settingTechList').value = technicianList.join(', ');
+        document.getElementById('settingMachineList').value = machineList.join(', '); // Show machines
+        document.getElementById('settingsModal').style.display = 'block';
+    }
+
+    function closeSettings() {
+        document.getElementById('settingsModal').style.display = 'none';
+    }
+
+    function saveSettings() {
+        currentElecRate = parseFloat(document.getElementById('inputElecRate').value) || 0;
+        currentLaborRate = parseFloat(document.getElementById('inputLaborRate').value) || 0;
+
+        // Save Tech List
+        const rawList = document.getElementById('settingTechList').value;
+        technicianList = rawList.split(',').map(t => t.trim()).filter(t => t !== '');
+
+        // Save Machine List
+        const rawMachineList = document.getElementById('settingMachineList').value;
+        machineList = rawMachineList.split(',').map(t => t.trim()).filter(t => t !== '');
+
+        // Save to LocalStorage
+        const settings = {
+            elecRate: currentElecRate,
+            laborRate: currentLaborRate,
+            techList: technicianList,
+            machineList: machineList // Save
+        };
+        localStorage.setItem('myMachineShopSettings', JSON.stringify(settings));
+
+        // Update UI
+        document.getElementById('labelElecRate').innerText = `@${currentElecRate} บ./ชม.`;
+
+        updateTechDatalist();
+        updateMachineDropdowns();
+        closeSettings();
+        updateDashboard();
+    }
+
+    function resetFilters() {
+        if (document.getElementById('machineFilter')) document.getElementById('machineFilter').value = 'all';
+
+        // Clear Date Filters
+        if (document.getElementById('startDateFilter')) document.getElementById('startDateFilter').value = '';
+        if (document.getElementById('endDateFilter')) document.getElementById('endDateFilter').value = '';
+
+        if (document.getElementById('jobNoFilter')) document.getElementById('jobNoFilter').value = '';
+        if (document.getElementById('technicianSearch')) document.getElementById('technicianSearch').value = '';
+        updateDashboard();
+    }
+
+    function exportToCSV() {
+        if (displayedJobs.length === 0) { alert('ไม่มีข้อมูลให้ส่งออก'); return; }
+        const headers = ['Job No', 'วันที่', 'รายละเอียดงาน', 'แผนก', 'ผู้จัดทำ', 'เครื่องผลิต', 'เครื่องจักร(ลูกค้า)', 'ชม.', 'ชิ้น', 'ประเภทงาน', 'ต้นทุนรวม', 'ค่าวัสดุ', 'สถานะ'];
+        const csvRows = [headers.join(',')];
+        displayedJobs.forEach(row => {
+            const cleanTopic = `"${(row.topic || "").replace(/"/g, '""')}"`;
+            const matCost = row.material_cost || 0;
+            const cost = ((row.hours * currentElecRate) + (row.hours * currentLaborRate) + matCost).toFixed(2);
+            const values = [row.job_no, row.date, cleanTopic, row.dept, `"${row.maker}"`, row.machine, `"${row.cust_machine || ''}"`, row.hours, row.pieces, categorizeJob(row.topic), cost, matCost, row.status];
+            csvRows.push(values.join(','));
+        });
+        const blob = new Blob(["\uFEFF" + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'production_report.csv';
+        link.click();
+    }
+
+    function processData() {
+        const machineFilter = document.getElementById('machineFilter')?.value || 'all';
+        const jobNoFilter = (document.getElementById('jobNoFilter')?.value || '').toLowerCase();
+        const techSearch = (document.getElementById('technicianSearch')?.value || '').toLowerCase();
+
+        // Date Range Filter Logic
+        const startDateVal = document.getElementById('startDateFilter')?.value;
+        const endDateVal = document.getElementById('endDateFilter')?.value;
+        const startDate = startDateVal ? new Date(startDateVal) : null;
+        const endDate = endDateVal ? new Date(endDateVal) : null;
+
+        let filtered = rawData.filter(d => {
+            let dateObj = new Date(d.date);
+            // Reset time for accurate date comparison
+            dateObj.setHours(0, 0, 0, 0);
+
+            // Date Range Check
+            let matchDate = true;
+            if (startDate) matchDate = matchDate && (dateObj >= startDate);
+            if (endDate) matchDate = matchDate && (dateObj <= endDate);
+
+            let matchMachine = machineFilter === 'all' || d.machine === machineFilter;
+            let matchJobNo = !jobNoFilter || (d.job_no && d.job_no.toLowerCase().includes(jobNoFilter));
+            let matchTech = (d.maker || "").toLowerCase().includes(techSearch);
+
+            return matchMachine && matchDate && matchJobNo && matchTech;
+        });
+
+        let monthMap = {}, machineMap = {}, techMap = {}, deptMap = {}, categoryMap = {}, statusMap = {};
+        filtered.forEach(d => {
+            let dateObj = new Date(d.date);
+            if (isNaN(dateObj)) return; // Skip invalid dates
+
+            let key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+            if (!monthMap[key]) monthMap[key] = { hours: 0, pieces: 0 };
+            monthMap[key].hours += d.hours; monthMap[key].pieces += d.pieces;
+            if (!machineMap[d.machine]) machineMap[d.machine] = { hours: 0, pieces: 0 };
+            machineMap[d.machine].hours += d.hours; machineMap[d.machine].pieces += d.pieces;
+
+            let name = d.maker.trim();
+            if (name && name !== 'Unknown') {
+                if (!techMap[name]) techMap[name] = { hours: 0, pieces: 0 };
+                techMap[name].hours += d.hours; techMap[name].pieces += d.pieces;
+            }
+
+            let dept = d.dept ? d.dept.trim() : 'อื่นๆ';
+            deptMap[dept] = (deptMap[dept] || 0) + 1;
+            let cat = categorizeJob(d.topic); categoryMap[cat] = (categoryMap[cat] || 0) + 1;
+
+            let st = d.status || 'Pending';
+            statusMap[st] = (statusMap[st] || 0) + 1;
+        });
+        return { filtered, monthMap, machineMap, techMap, deptMap, categoryMap, statusMap };
+    }
+
+    function renderDashboard(data) {
+        const { filtered, monthMap, machineMap, techMap, deptMap, categoryMap, statusMap } = data;
+        const sortedMonths = Object.keys(monthMap).sort();
+        let totalP = filtered.reduce((a, b) => a + b.pieces, 0);
+        let totalH = filtered.reduce((a, b) => a + b.hours, 0);
+        let avgEff = totalH > 0 ? (totalP / totalH).toFixed(2) : 0;
+
+        // Calculate Costs (Includes Material Cost)
+        let estElec = totalH * currentElecRate;
+        let estLabor = totalH * currentLaborRate;
+        let totalMat = filtered.reduce((a, b) => a + (b.material_cost || 0), 0);
+        let totalCost = estElec + estLabor + totalMat;
+
+        document.getElementById('totalPieces').innerText = totalP.toLocaleString();
+        document.getElementById('totalHours').innerText = totalH.toLocaleString();
+        document.getElementById('avgEfficiency').innerText = avgEff;
+        document.getElementById('totalLaborCost').innerText = formatCurrency(totalCost);
+        document.getElementById('totalElec').innerText = estElec.toLocaleString();
+
+        const handleClick = (evt, elements, chartType, labelArray) => {
+            if (elements.length > 0) {
+                const index = elements[0].index;
+                let label = labelArray[index];
+                if (label.includes('กลึง')) { document.getElementById('machineFilter').value = label; updateDashboard(); return; }
+                if (chartType === 'tech') { document.getElementById('technicianSearch').value = label; updateDashboard(); return; }
+            }
+        };
+
+        if (chartInstances.trend) chartInstances.trend.destroy();
+        chartInstances.trend = new Chart(document.getElementById('trendChart'), {
+            type: 'line',
+            data: { labels: sortedMonths, datasets: [{ label: 'ชั่วโมง', data: sortedMonths.map(m => monthMap[m].hours), borderColor: '#4F46E5', backgroundColor: 'rgba(79, 70, 229, 0.1)', fill: true, tension: 0.3 }, { label: 'ชิ้นงาน', data: sortedMonths.map(m => monthMap[m].pieces), borderColor: '#10B981', borderDash: [5, 5], tension: 0.3 }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        let sortedDepts = Object.keys(deptMap).sort((a, b) => deptMap[b] - deptMap[a]).slice(0, 8);
+        if (chartInstances.dept) chartInstances.dept.destroy();
+        chartInstances.dept = new Chart(document.getElementById('deptChart'), {
+            type: 'doughnut',
+            data: { labels: sortedDepts, datasets: [{ data: sortedDepts.map(d => deptMap[d]), backgroundColor: ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#6366F1', '#9CA3AF'] }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '60%', onClick: (evt, elements) => handleClick(evt, elements, 'dept', sortedDepts) }
+        });
+
+        let sortedCats = Object.keys(categoryMap).sort((a, b) => categoryMap[b] - categoryMap[a]);
+        if (chartInstances.cat) chartInstances.cat.destroy();
+        chartInstances.cat = new Chart(document.getElementById('categoryChart'), {
+            type: 'pie',
+            data: { labels: sortedCats, datasets: [{ data: sortedCats.map(c => categoryMap[c]), backgroundColor: ['#2DD4BF', '#F472B6', '#60A5FA', '#FBBF24', '#9CA3AF'] }] },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        let machines = Object.keys(machineMap);
+        let effData = machines.map(m => machineMap[m].hours > 0 ? (machineMap[m].pieces / machineMap[m].hours).toFixed(2) : 0);
+        if (chartInstances.eff) chartInstances.eff.destroy();
+        chartInstances.eff = new Chart(document.getElementById('efficiencyChart'), {
+            type: 'bar',
+            data: { labels: machines, datasets: [{ label: 'ชิ้น/ชม.', data: effData, backgroundColor: effData.map(v => v > 1 ? '#8B5CF6' : '#D1D5DB'), borderRadius: 6 }] },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, onClick: (evt, elements) => handleClick(evt, elements, 'machine', machines) }
+        });
+
+        let sortedTechs = Object.keys(techMap).sort((a, b) => techMap[b].pieces - techMap[a].pieces).slice(0, 5);
+        if (chartInstances.tech) chartInstances.tech.destroy();
+
+        // Toggle Logic for Tech Chart Data
+        let techChartData = currentTechMetric === 'hours'
+            ? sortedTechs.map(t => techMap[t].hours)
+            : sortedTechs.map(t => techMap[t].pieces);
+        let techChartLabel = currentTechMetric === 'hours' ? 'ชั่วโมงงาน' : 'จำนวนชิ้น';
+
+        chartInstances.tech = new Chart(document.getElementById('technicianChart'), {
+            type: 'bar',
+            data: { labels: sortedTechs, datasets: [{ label: techChartLabel, data: techChartData, backgroundColor: '#F59E0B', borderRadius: 6 }] },
+            options: { responsive: true, maintainAspectRatio: false, onClick: (evt, elements) => handleClick(evt, elements, 'tech', sortedTechs) }
+        });
+
+        // Toggle Logic for Bottom Right Chart (Cost vs Status)
+        if (chartInstances.budget) chartInstances.budget.destroy();
+
+        if (currentBottomMetric === 'status') {
+            const statuses = ['Pending', 'In Progress', 'Done', 'Rejected'];
+            const statusColors = ['#FCD34D', '#60A5FA', '#34D399', '#F87171'];
+            const statusData = statuses.map(s => statusMap[s] || 0);
+
+            chartInstances.budget = new Chart(document.getElementById('budgetChart'), {
+                type: 'doughnut',
+                data: { labels: statuses, datasets: [{ data: statusData, backgroundColor: statusColors }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom' } } }
+            });
+        } else {
+            const budgetData = [
+                { category: 'ค่าแรง', amount: estLabor },
+                { category: 'ค่าไฟ', amount: estElec },
+                { category: 'ค่าวัสดุ', amount: totalMat }
+            ];
+            chartInstances.budget = new Chart(document.getElementById('budgetChart'), {
+                type: 'pie',
+                data: { labels: budgetData.map(b => b.category), datasets: [{ data: budgetData.map(b => b.amount), backgroundColor: ['#F59E0B', '#EF4444', '#10B981'] }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom' } } }
+            });
+        }
+
+        // ตรวจสอบ Theme เพื่อให้แสดงกราฟด้วยสีที่ถูกต้อง
+        const app = document.getElementById('latheApp');
+        applyChartTheme(app.classList.contains('dark'));
+
+        displayedJobs = filtered;
+        renderJobTable(displayedJobs.slice(0, 100));
+    }
+
+    function renderJobTable(data) {
+        const tbody = document.getElementById('jobHistoryBody');
+        tbody.innerHTML = '';
+        if (data.length === 0) { tbody.innerHTML = '<tr><td colspan="11" class="px-6 py-8 text-center text-gray-400 bg-white dark:bg-gray-800"><i class="fas fa-search-minus text-2xl mb-2"></i><br>ไม่พบข้อมูล</td></tr>'; return; }
+        const today = new Date();
+        data.forEach(item => {
+            const category = categorizeJob(item.topic);
+            const matCost = item.material_cost || 0;
+            const totalCost = (item.hours * currentElecRate) + (item.hours * currentLaborRate) + matCost;
+            const costPerPiece = item.pieces > 0 ? (totalCost / item.pieces) : 0;
+
+            let costClass = costPerPiece > 1000 ? "text-red-600 dark:text-red-400 font-bold bg-red-50 dark:bg-red-900/30 px-1 rounded" : "text-blue-600 dark:text-blue-400 font-semibold";
+            let costIcon = costPerPiece > 1000 ? "<i class='fas fa-exclamation-triangle text-xs mr-1'></i>" : "";
+
+            // Overdue Check
+            let overdueIcon = "";
+            if (item.plan_due_date && item.status !== 'Done' && item.status !== 'Rejected') {
+                const due = new Date(item.plan_due_date);
+                if (due < today) {
+                    overdueIcon = `<i class="fas fa-exclamation-circle text-red-500 ml-1" title="เกินกำหนดส่ง (${item.plan_due_date})"></i>`;
+                }
+            }
+
+            // Attachment Icon
+            let attachIcon = "";
+            if (item.attachment) {
+                attachIcon = `<a href="https://drive.google.com/open?id=${item.attachment}" target="_blank" class="text-blue-500 hover:text-blue-700 ml-2" title="ดูไฟล์แนบ">
+                    <i class="fas fa-paperclip"></i>
+                 </a>`;
+            }
+
+            // Inline Status Select
+            const statusSelect = `
+                <select onchange="updateStatus('${item.job_no}', this.value)" class="status-select status-${item.status.replace(' ', '')}">
+                    <option value="Pending" ${item.status === 'Pending' ? 'selected' : ''}>รอรับงาน</option>
+                    <option value="In Progress" ${item.status === 'In Progress' ? 'selected' : ''}>กำลังทำ</option>
+                    <option value="Done" ${item.status === 'Done' ? 'selected' : ''}>เสร็จสิ้น</option>
+                    <option value="Rejected" ${item.status === 'Rejected' ? 'selected' : ''}>ไม่รับ</option>
+                </select>
+            `;
+
+            tbody.innerHTML += `
+                <tr class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 hover:bg-blue-50 dark:hover:bg-gray-700 transition group">
+                    <td class="px-6 py-3 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 text-center font-mono">
+                        ${item.job_no || '-'}${overdueIcon}${attachIcon}
+                    </td>
+                    <td class="px-6 py-3 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 text-center">${item.date}</td>
+                    <td class="px-6 py-3 font-medium text-gray-800 dark:text-gray-200 text-sm group-hover:text-blue-700 dark:group-hover:text-blue-400 w-64 truncate" title="${item.topic}">${item.topic}</td>
+                    <td class="px-6 py-3 text-sm"><span class="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded text-xs border dark:border-gray-600">${item.dept}</span></td>
+                    <td class="px-6 py-3 text-sm dark:text-gray-300">${item.maker}</td>
+                    <td class="px-6 py-3 text-center"><span class="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300 py-0.5 px-2 rounded text-xs font-semibold">${item.machine}</span></td>
+                    <td class="px-6 py-3 text-right text-gray-600 dark:text-gray-400 font-mono">${item.hours}</td>
+                    <td class="px-6 py-3 text-right font-bold text-gray-900 dark:text-gray-100 font-mono">${item.pieces}</td>
+                    <td class="px-6 py-3 text-right font-mono text-xs ${costClass}">${costIcon}${formatCurrency(costPerPiece)}</td>
+                    <td class="px-6 py-3 text-center">${statusSelect}</td>
+                    <td class="px-6 py-3 text-center no-print">
+                        <button onclick="editJob('${item.job_no}')" class="text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-gray-600 p-1 rounded transition border-0 bg-transparent" title="แก้ไข/ดูข้อมูล">
+                            <i class="fas fa-pencil-alt"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function filterJobTable() {
+        const query = document.getElementById('jobSearchInput').value.toLowerCase();
+        const filtered = displayedJobs.filter(job => job.topic.toLowerCase().includes(query) || job.maker.toLowerCase().includes(query) || job.dept.toLowerCase().includes(query));
+        renderJobTable(filtered.slice(0, 100));
+    }
+
+    function updateDashboard() {
+        const processedData = processData();
+        renderDashboard(processedData);
+    }
+
+    // --- JOB ORDER LOGIC ---
+    // (เอาตัวแปร SCRIPT_URL Google Sheet เดิมออก เพราะเราส่งไปหา Django DB แทนแล้ว)
+
+    function addNewJobOrder() {
+        Swal.fire({
+            title: 'สร้างใบงานใหม่?',
+            text: "ข้อมูลหน้าจอปัจจุบันจะถูกล้างเพื่อเริ่มใบงานใหม่",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'สร้างใหม่',
+            confirmButtonColor: '#f97316',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const inputs = document.querySelectorAll('#view-joborder input, #view-joborder textarea, #view-joborder select');
+                inputs.forEach(input => {
+                    if (input.type === 'checkbox' || input.type === 'radio') {
+                        if (input.name !== 'priority' && input.name !== 'plan_status') input.checked = false;
+                        // Reset priority to Normal default
+                        if (input.name === 'priority' && input.value === 'Normal') input.checked = true;
+                    } else if (input.id === 'job_qty') {
+                        input.value = '1';
+                    } else if (input.id === 'production_machine') {
+                        input.value = 'Unknown';
+                    } else {
+                        input.value = '';
+                    }
+                });
+
+                // Set Date to Today
+                document.getElementById('job_date').valueAsDate = new Date();
+
+                document.getElementById('sketch-preview').classList.add('hidden');
+                document.getElementById('logo-preview').classList.add('hidden');
+                document.getElementById('qrcode').innerHTML = '';
+
+                generateNextJobId();
+                generateQRCode();
+
+                // Reset Logs
+                const tbody = document.querySelector('#time-log-table tbody');
+                tbody.innerHTML = '';
+                addLogRow();
+
+                // Scroll top
+                window.scrollTo(0, 0);
+
+                const Toast = Swal.mixin({
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 1500,
+                    timerProgressBar: true
+                });
+                Toast.fire({ icon: 'success', title: 'พร้อมสำหรับงานใหม่' });
+            }
+        });
+    }
+
+    async function submitJobData() {
+        const jobNo = document.getElementById('job_no').value;
+        const requester = document.getElementById('requester_name').value;
+        if (!jobNo || !requester) { Swal.fire({ icon: 'warning', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณากรอก "เลขที่ใบงาน" และ "ชื่อผู้ขอ"' }); return; }
+        Swal.fire({ title: 'กำลังบันทึกข้อมูล...', text: 'กรุณารอสักครู่', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+        // Determine Status for Dashboard
+        let jobStatus = 'Pending';
+        const planStatus = document.querySelector('input[name="plan_status"]:checked')?.value;
+        const hours = parseFloat(document.getElementById('grand_total').value) || 0;
+
+        if (planStatus === 'Rejected') jobStatus = 'Rejected';
+        else if (hours > 0) jobStatus = 'Done';
+        else if (planStatus === 'Accepted') jobStatus = 'In Progress';
+
+        // Collect all form data for DB
+        const newJob = {
+            job_no: jobNo,
+            date: document.getElementById('job_date').value,
+            requester: requester,
+            dept: document.getElementById('department').value || 'ไม่ระบุ',
+            tel: document.getElementById('tel').value,
+            machine: document.getElementById('production_machine').value || 'Unknown',
+            cust_machine: document.getElementById('machine_tag').value || '',
+            topic: document.getElementById('description').value || 'Job Order ' + jobNo,
+            job_type: Array.from(document.querySelectorAll('.job-type:checked')).map(cb => cb.value),
+            priority: document.querySelector('input[name="priority"]:checked')?.value || '',
+            req_date: document.getElementById('req_date').value,
+            has_drawing: document.getElementById('has_drawing').checked,
+            has_sample: document.getElementById('has_sample').checked,
+            has_material: document.getElementById('has_material').checked,
+            plan_status: planStatus,
+            plan_reject_reason: document.getElementById('plan_reject_reason').value,
+            plan_due_date: document.getElementById('plan_due_date').value,
+            maker: document.getElementById('technician').value || 'Unknown',
+            material_cost: parseFloat(document.getElementById('material_cost').value) || 0,
+            hours: hours,
+            pieces: parseFloat(document.getElementById('job_qty').value) || 1,
+            qc_result: document.querySelector('input[name="qc_result"]:checked')?.value || '',
+            qc_note: document.getElementById('qc_note').value,
+            receiver: document.getElementById('receiver_name').value,
+            status: jobStatus
+        };
+
+        try {
+            // -- App Script URL for Google Drive Upload --
+            const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxKah-cN1vkOIJyT8CJ0QRVUJQEgpkPGKyh7xBla1rdpCsPbarPIQlc_lpKaYEPlNJ6gw/exec';
+
+            let attachmentId = '';
+            const fileInput = document.getElementById('job_attachment');
+
+            // Upload to Google Drive if file exists
+            if (fileInput && fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                Swal.fire({ title: 'กำลังอัปโหลดไฟล์ไป Google Drive...', text: 'กรุณารอสักครู่ (อาจใช้เวลา 10-30 วินาทีตามขนาดไฟล์)', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+                // Convert file to Base64
+                const base64Data = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result.split(',')[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+
+                const payload = {
+                    filename: file.name,
+                    mimeType: file.type,
+                    fileData: base64Data
+                };
+
+                const scriptResponse = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+
+                const uploadResult = await scriptResponse.json();
+                if (uploadResult.status === 'success') {
+                    attachmentId = uploadResult.fileId;
+                } else {
+                    throw new Error('Upload to Google Drive Failed: ' + uploadResult.message);
+                }
+            }
+
+            // Save job data to Django Database
+            Swal.fire({ title: 'กำลังบันทึกข้อมูล...', text: 'กรุณารอสักครู่', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+
+            newJob.attachment = attachmentId; // Inject the File ID into job dictionary
+
+            const formData = new FormData();
+            formData.append('data', JSON.stringify({ action: 'save_job', job: newJob }));
+
+            const response = await fetch('/api/lathe/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            });
+
+            if (response.ok) {
+                Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', text: 'ข้อมูลถูกบันทึกลงฐานข้อมูลเรียบร้อยแล้ว' });
+                // ดึงข้อมูลใหม่มาแสดง
+                fetchJobsFromDB();
+            } else {
+                Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถบันทึกข้อมูลลงฐานข้อมูลได้' });
+            }
+        } catch (e) {
+            console.error(e);
+            Swal.fire({ icon: 'error', title: 'การเชื่อมต่อขัดข้อง', text: e.message || 'เกิดข้อผิดพลาดในการส่งข้อมูลไปยังเซิร์ฟเวอร์' });
+        }
+    }
+
+    // --- EDIT JOB FUNCTION ---
+    function editJob(jobNo) {
+        const job = rawData.find(r => r.job_no === jobNo);
+        if (!job) {
+            Swal.fire({ icon: 'error', title: 'ไม่พบข้อมูล', text: 'ไม่พบใบสั่งงานเลขที่ ' + jobNo });
+            return;
+        }
+
+        // Switch view first
+        switchView('joborder');
+
+        // Populate Fields
+        document.getElementById('job_no').value = job.job_no;
+        document.getElementById('job_date').value = job.date;
+        document.getElementById('job_qty').value = job.pieces;
+        document.getElementById('requester_name').value = job.requester || '';
+        document.getElementById('department').value = job.dept;
+        document.getElementById('tel').value = job.tel || '';
+
+        // Changed: Populate new fields
+        document.getElementById('machine_tag').value = job.cust_machine || '';
+        document.getElementById('production_machine').value = job.machine || 'Unknown';
+
+        document.getElementById('description').value = job.topic;
+        document.getElementById('req_date').value = job.req_date || '';
+
+        // Checkboxes
+        const types = job.job_type || [];
+        document.querySelectorAll('.job-type').forEach(cb => cb.checked = types.includes(cb.value));
+
+        if (job.priority) {
+            const radio = document.querySelector(`input[name="priority"][value="${job.priority}"]`);
+            if (radio) radio.checked = true;
+        }
+
+        document.getElementById('has_drawing').checked = !!job.has_drawing;
+        document.getElementById('has_sample').checked = !!job.has_sample;
+        document.getElementById('has_material').checked = !!job.has_material;
+
+        // Plan
+        if (job.plan_status) {
+            const radio = document.querySelector(`input[name="plan_status"][value="${job.plan_status}"]`);
+            if (radio) radio.checked = true;
+        }
+        document.getElementById('plan_reject_reason').value = job.plan_reject_reason || '';
+        document.getElementById('plan_due_date').value = job.plan_due_date || '';
+        document.getElementById('technician').value = job.maker;
+        document.getElementById('material_cost').value = job.material_cost || '';
+
+        // Logs - For simplicity, just set total hours (Detailed row restoration would require saving rows structure)
+        document.getElementById('grand_total').value = job.hours;
+
+        // QC
+        if (job.qc_result) {
+            const radio = document.querySelector(`input[name="qc_result"][value="${job.qc_result}"]`);
+            if (radio) radio.checked = true;
+        }
+        document.getElementById('qc_note').value = job.qc_note || '';
+        document.getElementById('receiver_name').value = job.receiver || '';
+
+        // Regen QR
+        generateQRCode();
+
+        // Scroll to top
+        window.scrollTo(0, 0);
+
+        Swal.fire({
+            icon: 'info',
+            title: 'โหลดข้อมูลสำเร็จ',
+            text: `กำลังแก้ไขใบงาน: ${jobNo}`,
+            timer: 1500,
+            showConfirmButton: false
+        });
+    }
+
+    function loadImage(event, previewId) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (e) { const img = document.getElementById(previewId); img.src = e.target.result; img.classList.remove('hidden'); };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function clearJobForm() {
+        Swal.fire({ title: 'ยืนยันการล้างข้อมูล?', icon: 'warning', showCancelButton: true, confirmButtonText: 'ล้างข้อมูล', cancelButtonText: 'ยกเลิก' }).then((result) => {
+            if (result.isConfirmed) {
+                const inputs = document.querySelectorAll('#view-joborder input, #view-joborder textarea, #view-joborder select');
+                inputs.forEach(input => {
+                    if (input.type === 'checkbox' || input.type === 'radio') {
+                        if (input.name !== 'priority' && input.name !== 'plan_status') input.checked = false;
+                    } else if (input.id === 'job_qty') {
+                        input.value = '1';
+                    } else if (input.id === 'production_machine') {
+                        input.value = 'Unknown';
+                    } else {
+                        input.value = '';
+                    }
+                });
+                document.getElementById('sketch-preview').classList.add('hidden');
+                document.getElementById('logo-preview').classList.add('hidden');
+                document.getElementById('qrcode').innerHTML = ''; // Clear QR
+                generateNextJobId(); // Regen ID
+                Swal.fire('ล้างข้อมูลเรียบร้อย', '', 'success');
+            }
+        });
+    }
+
+    // --- DYNAMIC ROW LOGIC & AUTO CALC ---
+    function addLogRow() {
+        const tbody = document.querySelector('#time-log-table tbody');
+        const row = document.createElement('tr');
+        row.className = 'h-8 log-row';
+        row.innerHTML = `
+            <td class="border border-gray-300 dark:border-gray-600 p-0"><input type="date" class="table-input log-date"></td>
+            <td class="border border-gray-300 dark:border-gray-600 p-0"><input type="text" class="table-input log-step" placeholder="รายละเอียด"></td>
+            <td class="border border-gray-300 dark:border-gray-600 p-0"><input type="time" class="table-input log-start" onchange="calculateDuration(this)"></td>
+            <td class="border border-gray-300 dark:border-gray-600 p-0"><input type="time" class="table-input log-end" onchange="calculateDuration(this)"></td>
+            <td class="border border-gray-300 dark:border-gray-600 p-0"><input type="number" step="0.5" class="table-input log-total" placeholder="0.0"></td>
+            <td class="border border-gray-300 dark:border-gray-600 p-0 no-print"><button onclick="deleteRow(this)" class="text-red-500 bg-transparent border-0 hover:text-red-700 dark:hover:text-red-400 w-full h-full flex items-center justify-center transition"><i class="fas fa-trash-alt"></i></button></td>
+        `;
+        tbody.appendChild(row);
+    }
+
+    function calculateDuration(input) {
+        const row = input.closest('tr');
+        const start = row.querySelector('.log-start').value;
+        const end = row.querySelector('.log-end').value;
+        const totalInput = row.querySelector('.log-total');
+
+        if (start && end) {
+            const startTime = new Date(`1970-01-01T${start}Z`);
+            const endTime = new Date(`1970-01-01T${end}Z`);
+            let diff = (endTime - startTime) / (1000 * 60 * 60); // Hours
+
+            if (diff < 0) diff += 24; // Handle overnight
+
+            totalInput.value = diff.toFixed(1);
+            calculateTotal(); // Trigger grand total update
+        }
+    }
+
+    function deleteRow(btn) {
+        const row = btn.closest('tr');
+        const tbody = document.querySelector('#time-log-table tbody');
+
+        if (tbody.rows.length > 1) {
+            row.remove();
+            calculateTotal();
+        } else {
+            const inputs = row.querySelectorAll('input');
+            inputs.forEach(input => input.value = '');
+            calculateTotal();
+        }
+    }
+
+    document.getElementById('time-log-table').addEventListener('input', function (e) {
+        if (e.target.classList.contains('log-total')) {
+            calculateTotal();
+        }
+    });
+
+    function calculateTotal() {
+        const inputs = document.querySelectorAll('.log-total');
+        let sum = 0;
+        inputs.forEach(input => {
+            sum += parseFloat(input.value) || 0;
+        });
+        document.getElementById('grand_total').value = sum > 0 ? sum.toFixed(1) : '';
+    }
+
+    // Start
+    window.onload = async function () {
+        initTheme(); // เรียกใช้งานระบบโหมดมืดตอนโหลด
+        loadFromLocalStorage(); // Load การตั้งค่าค่าแรง และ ชื่อช่าง
+
+        // ยิงไปดึงประวัติงานจาก DB ทั้งหมดมาแสดงผล
+        await fetchJobsFromDB();
+
+        switchView('dashboard');
+    };
+    window.onclick = function (event) { if (event.target == document.getElementById('settingsModal')) closeSettings(); }
+
+</script>
 {% endblock %}

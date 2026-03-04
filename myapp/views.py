@@ -14,7 +14,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 import json
 from django.core.serializers.json import DjangoJSONEncoder
-from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log, Banpong2Log, BoilerDailyKPI
+from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log, Banpong2Log, BoilerDailyKPI, LatheJob
 from .forms import BoilerOperationForm, ChengchenForm, TakumaForm, YoshimineForm, Banpong1Form, Banpong2Form, BoilerDailyKPIForm
 from .models import MillReport
 from .forms import MillReportForm
@@ -1832,3 +1832,93 @@ def lathe_dashboard(request):
         'logs': logs,
         'stats': stats
     })
+
+
+
+@login_required
+def lathe_api(request):
+    if request.method == 'GET':
+        jobs = LatheJob.objects.all().values()
+        jobs_list = list(jobs)
+        # จัดการรูปแบบวันที่ให้ส่งเป็น JSON ได้
+        for job in jobs_list:
+            if job['date']: job['date'] = job['date'].strftime('%Y-%m-%d')
+            if job['req_date']: job['req_date'] = job['req_date'].strftime('%Y-%m-%d')
+            if job['plan_due_date']: job['plan_due_date'] = job['plan_due_date'].strftime('%Y-%m-%d')
+        return JsonResponse(jobs_list, safe=False)
+    
+    elif request.method == 'POST':
+        try:
+            if request.content_type.startswith('multipart/form-data'):
+                data_str = request.POST.get('data')
+                data = json.loads(data_str) if data_str else {}
+            else:
+                data = json.loads(request.body)
+
+            action = data.get('action')
+            
+            if action == 'save_job':
+                job_data = data.get('job')
+                job, created = LatheJob.objects.update_or_create(
+                    job_no=job_data.get('job_no'),
+                    defaults={
+                        'date': job_data.get('date') or None,
+                        'requester': job_data.get('requester'),
+                        'dept': job_data.get('dept'),
+                        'tel': job_data.get('tel'),
+                        'machine': job_data.get('machine'),
+                        'cust_machine': job_data.get('cust_machine'),
+                        'topic': job_data.get('topic'),
+                        'job_type': ','.join(job_data.get('job_type', [])),
+                        'priority': job_data.get('priority'),
+                        'req_date': job_data.get('req_date') or None,
+                        'has_drawing': job_data.get('has_drawing', False),
+                        'has_sample': job_data.get('has_sample', False),
+                        'has_material': job_data.get('has_material', False),
+                        'plan_status': job_data.get('plan_status'),
+                        'plan_reject_reason': job_data.get('plan_reject_reason'),
+                        'plan_due_date': job_data.get('plan_due_date') or None,
+                        'maker': job_data.get('maker'),
+                        'material_cost': float(job_data.get('material_cost', 0) or 0),
+                        'hours': float(job_data.get('hours', 0) or 0),
+                        'pieces': float(job_data.get('pieces', 1) or 1),
+                        'qc_result': job_data.get('qc_result'),
+                        'qc_note': job_data.get('qc_note'),
+                        'receiver': job_data.get('receiver'),
+                        'status': job_data.get('status', 'Pending'),
+                        'attachment': job_data.get('attachment')
+                    }
+                )
+
+                return JsonResponse({'status': 'success', 'job_no': job.job_no})
+            
+            elif action == 'update_status':
+                job_no = data.get('job_no')
+                new_status = data.get('status')
+                LatheJob.objects.filter(job_no=job_no).update(status=new_status)
+                return JsonResponse({'status': 'success'})
+
+            elif action == 'sync_all':
+                 jobs_data = data.get('jobs', [])
+                 for job_data in jobs_data:
+                     LatheJob.objects.update_or_create(
+                        job_no=job_data.get('job_no'),
+                        defaults={
+                            'date': job_data.get('date') or None,
+                            'topic': job_data.get('topic'),
+                            'dept': job_data.get('dept'),
+                            'machine': job_data.get('machine'),
+                            'cust_machine': job_data.get('cust_machine'),
+                            'maker': job_data.get('maker'),
+                            'hours': float(job_data.get('hours', 0) or 0),
+                            'pieces': float(job_data.get('pieces', 1) or 1),
+                            'status': job_data.get('status', 'Pending'),
+                            'material_cost': float(job_data.get('material_cost', 0) or 0),
+                        }
+                     )
+                 return JsonResponse({'status': 'success'})
+
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+            
+    return JsonResponse({'status': 'invalid method'}, status=405)

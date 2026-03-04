@@ -10,6 +10,7 @@ from .models import MillReport
 admin.site.register(Job)
 admin.site.register(employee)
 admin.site.register(Profile)
+admin.site.register(LatheJob)
 
 @admin.register(BoilerOperationLog)
 class BoilerOperationLogAdmin(admin.ModelAdmin):
