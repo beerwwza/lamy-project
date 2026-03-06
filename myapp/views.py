@@ -775,6 +775,31 @@ def import_data(request):
                     objects_to_create.append(obj)
             
             if objects_to_create:
+                # Set active records based on (date, hour)
+                active_map = {}
+                for obj in objects_to_create:
+                    d = getattr(obj, f'{prefix}_date')
+                    t = getattr(obj, f'{prefix}_time')
+                    if d and t:
+                        active_map[(d, t.hour)] = obj
+                
+                # Update existing records to is_active=False
+                for (d, h) in active_map.keys():
+                    model_class.objects.filter(**{
+                        f'{prefix}_date': d,
+                        f'{prefix}_time__hour': h,
+                        'is_active': True
+                    }).update(is_active=False)
+                
+                # Handle active state within the imported file itself
+                for obj in objects_to_create:
+                    d = getattr(obj, f'{prefix}_date')
+                    t = getattr(obj, f'{prefix}_time')
+                    if d and t and active_map.get((d, t.hour)) is obj:
+                        obj.is_active = True
+                    else:
+                        obj.is_active = False
+
                 model_class.objects.bulk_create(objects_to_create)
                 messages.success(request, f'Import สำเร็จ: {len(objects_to_create)} รายการ ({machine_type})')
             else:
@@ -785,12 +810,29 @@ def import_data(request):
             
     return redirect('operation_dashboard')
 
+def save_timeseries_log(model_class, form, date_field, time_field):
+    instance = form.save(commit=False)
+    date_val = getattr(instance, date_field)
+    time_val = getattr(instance, time_field)
+    
+    if date_val and time_val:
+        filter_kwargs = {
+            date_field: date_val,
+            f"{time_field}__hour": time_val.hour,
+            'is_active': True
+        }
+        model_class.objects.filter(**filter_kwargs).update(is_active=False)
+        
+    instance.is_active = True
+    instance.save()
+    return instance
+
 @login_required
 def boiler_operation_add(request):
     if request.method == 'POST':
         form = BoilerOperationForm(request.POST)
         if form.is_valid():
-            form.save()
+            save_timeseries_log(BoilerOperationLog, form, 'jt_date', 'jt_time')
             return redirect('boiler') 
         else:
             print(f"Boiler Form Errors: {form.errors}")
@@ -878,7 +920,7 @@ def yoshimine_operation_add(request):
     if request.method == 'POST':
         form = YoshimineForm(request.POST)
         if form.is_valid():
-            form.save()
+            save_timeseries_log(YoshimineLog, form, 'yos_date', 'yos_time')
             return redirect('boiler')
         else:
             print(f"Yoshimine Form Errors: {form.errors}")
@@ -987,7 +1029,7 @@ def banpong1_operation_add(request):
     if request.method == 'POST':
         form = Banpong1Form(request.POST)
         if form.is_valid():
-            form.save()
+            save_timeseries_log(Banpong1Log, form, 'bp1_date', 'bp1_time')
             return redirect('boiler')
         else:
             print(f"Banpong1 Form Errors: {form.errors}")
@@ -1105,7 +1147,7 @@ def chengchen_operation_add(request):
     if request.method == 'POST':
         form = ChengchenForm(request.POST)
         if form.is_valid():
-            form.save()
+            save_timeseries_log(ChengchenLog, form, 'ch_date', 'ch_time')
             return redirect('boiler')
         else:
             print(f"Chengchen Form Errors: {form.errors}")
@@ -1183,7 +1225,7 @@ def takuma_operation_add(request):
     if request.method == 'POST':
         form = TakumaForm(request.POST)
         if form.is_valid():
-            form.save()
+            save_timeseries_log(TakumaLog, form, 'tk_date', 'tk_time')
             return redirect('boiler')
         else:
             print(f"Takuma Form Errors: {form.errors}")
@@ -1261,7 +1303,7 @@ def banpong2_operation_add(request):
     if request.method == 'POST':
         form = Banpong2Form(request.POST)
         if form.is_valid():
-            form.save()
+            save_timeseries_log(Banpong2Log, form, 'bp2_date', 'bp2_time')
             return redirect('boiler')
     else:
         form = Banpong2Form()

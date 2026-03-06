@@ -5,15 +5,15 @@
 {% block content %}
 <div class="min-h-screen bg-slate-100 dark:bg-slate-950 p-6 flex items-center justify-center">
     <div
-        class="w-full max-w-lg bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+        class="w-full max-w-xl bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
 
         <!-- Header -->
-        <div class="px-6 py-4 bg-emerald-600 border-b border-emerald-700 flex justify-between items-center">
-            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                <i data-lucide="target" class="w-5 h-5"></i> บันทึกตัวชี้วัด (KPI Metric)
-            </h2>
-            <a href="{% url 'maintenance_dashboard' %}" class="text-emerald-100 hover:text-white transition-colors">
-                <i data-lucide="x" class="w-6 h-6"></i>
+        <div class="p-4 border-b flex justify-between items-center bg-slate-50 dark:bg-slate-800 sticky top-0">
+            <h3 class="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <i data-lucide="target" class="text-emerald-600"></i> บันทึกตัวชี้วัด (KPI Metric)
+            </h3>
+            <a href="{% url 'maintenance_dashboard' %}" class="text-slate-400 hover:text-red-500 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
             </a>
         </div>
 
@@ -22,58 +22,55 @@
             {% csrf_token %}
 
             <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">หัวข้อ KPI</label>
+                <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">หัวข้อ KPI</label>
                 {{ form.name }}
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">หมวดหมู่
+                <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">หมวดหมู่
                     (Category)</label>
                 {{ form.category }}
-                <p class="text-xs text-slate-400 mt-1">เช่น Quality, Safety, Cost, Downtime, People</p>
+                <p class="text-[10px] text-slate-400 mt-1">เช่น Quality, Safety, Cost, Downtime, People</p>
             </div>
 
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">เป้าหมาย
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">เป้าหมาย
                         (Target)</label>
                     {{ form.target }}
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">หน่วย
-                        (Unit)</label>
+                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">หน่วย (Unit)</label>
                     {{ form.unit }}
                 </div>
             </div>
 
             <div
-                class="grid grid-cols-2 gap-4 bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-lg border border-emerald-100 dark:border-emerald-800">
+                class="grid grid-cols-2 gap-4 bg-emerald-50/50 dark:bg-emerald-900/10 p-3 rounded-lg border border-emerald-100 dark:border-emerald-800/50">
                 <div>
-                    <label class="block text-sm font-bold text-emerald-700 dark:text-emerald-400 mb-1">ผลลัพธ์
+                    <label class="block text-[11px] font-bold text-emerald-700 dark:text-emerald-400 mb-1">ผลลัพธ์
                         (Actual)</label>
                     {{ form.actual }}
                 </div>
                 <div>
-                    <label class="block text-sm font-bold text-emerald-700 dark:text-emerald-400 mb-1">น้ำหนัก
+                    <label class="block text-[11px] font-bold text-emerald-700 dark:text-emerald-400 mb-1">น้ำหนัก
                         (Weight)</label>
                     {{ form.weight }}
                 </div>
             </div>
 
             <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">คะแนนที่ได้ (Score
+                <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">คะแนนที่ได้ (Score
                     1-4)</label>
                 {{ form.score }}
-                <p class="text-xs text-slate-400 mt-1">1 = ปรับปรุง, 2 = พอใช้, 3 = ดี, 4 = ดีมาก</p>
+                <p class="text-[10px] text-slate-400 mt-1">1 = ปรับปรุง, 2 = พอใช้, 3 = ดี, 4 = ดีมาก</p>
             </div>
 
-            <div class="pt-4 flex justify-end gap-3">
+            <div class="flex gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
                 <a href="{% url 'maintenance_dashboard' %}"
-                    class="px-4 py-2 text-slate-600 bg-slate-200 hover:bg-slate-300 rounded-lg text-sm font-medium transition">ยกเลิก</a>
+                    class="flex-1 py-2 text-center text-slate-600 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-700 rounded hover:bg-slate-200 dark:hover:bg-slate-600 transition">ยกเลิก</a>
                 <button type="submit"
-                    class="px-6 py-2 text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg text-sm font-medium shadow-md transition flex items-center gap-2">
-                    <i data-lucide="save" class="w-4 h-4"></i> บันทึก KPI
-                </button>
+                    class="flex-1 py-2 text-center text-white font-bold bg-emerald-600 rounded hover:bg-emerald-700 shadow-lg transition">บันทึกข้อมูล</button>
             </div>
         </form>
     </div>
@@ -83,5 +80,9 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
     lucide.createIcons();
+    // Dynamically update form elements with styling
+    document.querySelectorAll('input:not([type="checkbox"]), textarea, select').forEach(el => {
+        el.className = 'w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-white rounded p-2 text-sm focus:ring-1 focus:ring-emerald-500 outline-none transition';
+    });
 </script>
 {% endblock %}

@@ -93,6 +93,7 @@ class BoilerOperationLog(models.Model):
     jt_cem_dust = models.FloatField(verbose_name="Continous Emissions Monitoring (Dust)", blank=True, null=True)
     jt_cem_o2 = models.FloatField(verbose_name="Continous Emissions Monitoring (O2)", blank=True, null=True)
 
+    is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน (Active)")
     jt_created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -187,6 +188,8 @@ class YoshimineLog(models.Model):
     
     yos_oxygen = models.FloatField(verbose_name="Oxygen (O2)", blank=True, null=True)
     yos_remark = models.TextField(verbose_name="หมายเหตุ", blank=True, null=True)
+    
+    is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน (Active)")
     yos_created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -271,6 +274,8 @@ class Banpong1Log(models.Model):
     bp1_cem_o2 = models.FloatField(verbose_name="Continous Emissions Monitoring (O2)", blank=True, null=True)
 
     bp1_remark = models.TextField(verbose_name="หมายเหตุ", blank=True, null=True)
+    
+    is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน (Active)")
     bp1_created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -321,6 +326,8 @@ class ChengchenLog(models.Model):
     ch_inlet_stack_press = models.FloatField(verbose_name="27) Inlet stack gas pressure", blank=True, null=True)
 
     ch_remark = models.TextField(verbose_name="ปัญหาสาเหตุ/การแก้ไข", blank=True, null=True)
+    
+    is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน (Active)")
     ch_created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -368,6 +375,8 @@ class TakumaLog(models.Model):
     tk_inlet_stack_press = models.FloatField(verbose_name="24) Inlet stack gas pressure", blank=True, null=True)
 
     tk_remark = models.TextField(verbose_name="ปัญหาสาเหตุ / การแก้ไข", blank=True, null=True)
+    
+    is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน (Active)")
     tk_created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -453,6 +462,8 @@ class Banpong2Log(models.Model):
     bp2_esp_c3_curr = models.FloatField(verbose_name="ESP Cell 3 Current", blank=True, null=True)
 
     bp2_remark = models.TextField(verbose_name="หมายเหตุ", blank=True, null=True)
+    
+    is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน (Active)")
     bp2_created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -497,11 +508,14 @@ class BoilerDailyKPI(models.Model):
 
 class MaintenanceLog(models.Model):
     CATEGORY_CHOICES = [
-        ('สึกหรอ', 'สึกหรอ'),
-        ('แปลกปลอม', 'แปลกปลอม'),
-        ('สายพาน', 'สายพาน'),
-        ('ออยซีล', 'ออยซีล'),
-        ('ไฟฟ้า', 'ไฟฟ้า'),
+        ('สึกหรอ', 'สึกหรอตามสภาพ'),
+        ('แม็คซีล', 'แม็คซีล (Mechanical Seal)'),
+        ('Bearing', 'สารหล่อลื่น-Bearing'),
+        ('สายพาน', 'สายพานหย่อน-ขาด-Alingment'),
+        ('สิ่งแวดล้อม', 'สิ่งแวดล้อม (รั่วไหล)'),
+        ('อุบัติเหตุ', 'อุบัติเหตุ'),
+        ('แปลกปลอม', 'สิ่งแปลกปลอม'),
+        ('ไฟฟ้า', 'ไฟฟ้า/Instrument'),
         ('อื่นๆ', 'อื่นๆ'),
     ]
 
@@ -516,6 +530,7 @@ class MaintenanceLog(models.Model):
     downtime_stop = models.FloatField(default=0, verbose_name="เสียเวลาหยุดหีบ (ชม.)")
     downtime_reduced = models.FloatField(default=0, verbose_name="ลดรอบ (ชม.)")
     downtime_non_stop = models.FloatField(default=0, verbose_name="เสียเวลาไม่หยุดหีบ (ชม.)")
+    downtime_dissolve = models.FloatField(default=0, verbose_name="เสียเวลาหยุดละลาย (ชม.)")
     
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='อื่นๆ', verbose_name="หัวข้อ")
     is_leak = models.BooleanField(default=False, verbose_name="รั่วไหลหรือไม่")
@@ -523,6 +538,7 @@ class MaintenanceLog(models.Model):
     # Spare Parts
     spare_part = models.CharField(max_length=255, default="-", verbose_name="อะไหล่ที่เปลี่ยน")
     qty = models.FloatField(default=0, verbose_name="จำนวน")
+    unit = models.CharField(max_length=50, default="ชิ้น", verbose_name="หน่วย")
     
     # People
     reporter = models.CharField(max_length=100, verbose_name="ผู้แจ้ง", default="-")
