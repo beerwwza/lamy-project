@@ -478,13 +478,13 @@
             };
 
             const sidebarItems = [
-                { name: 'Machine List', icon: 'server' },
-                { name: 'แจ้งซ่อมเครื่องจักร', icon: 'clipboard-list' },
-                { name: 'ประวัติงานซ่อม', icon: 'history' },
-                { name: 'Inventory', icon: 'package' },
-                { name: 'Budget', icon: 'dollar-sign' },
-                { name: 'Knowledge Center', icon: 'book-open' },
-                { name: 'Manual List', icon: 'file-text' },
+                { name: 'Machine List', icon: 'server', link: '/equipment/' },
+                { name: 'แจ้งซ่อมเครื่องจักร', icon: 'clipboard-list', link: '/maintenance/' },
+                { name: 'ประวัติงานซ่อม', icon: 'history', link: '#' },
+                { name: 'Inventory', icon: 'package', link: '#' },
+                { name: 'Budget', icon: 'dollar-sign', link: '#' },
+                { name: 'Knowledge Center', icon: 'book-open', link: '#' },
+                { name: 'Manual List', icon: 'file-text', link: '#' },
             ];
 
             return (
@@ -503,7 +503,7 @@
                             <ul className="space-y-1 px-2">
                                 {sidebarItems.map((item, idx) => (
                                     <li key={idx}>
-                                        <a href="#" className="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors group">
+                                        <a href={item.link || '#'} className="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors group">
                                             <div className="flex-shrink-0"><Icon name={item.icon} /></div>
                                             <span className={`whitespace-nowrap ${!isSidebarOpen && 'hidden'}`}>{item.name}</span>
                                         </a>

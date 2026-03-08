@@ -34,6 +34,11 @@ urlpatterns = [
     path('lathe/', lathe_dashboard, name='lathe_dashboard'),
     path('api/lathe/', lathe_api, name='lathe_api'),
 
+    # Equipment Data
+    path('equipment/', equipment_data, name='equipment_data'),
+    path('equipment/form/', equipment_form, name='equipment_form'),
+    path('equipment/bom/', equipment_bom, name='equipment_bom'),
+
     # Path สำหรับ Import Data
     path('import-data/', import_data, name='import_data'),
     path('maintenance/import_csv/', maintenance_import_csv, name='maintenance_import_csv'),

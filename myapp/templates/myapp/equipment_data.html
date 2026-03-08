@@ -1,0 +1,1103 @@
+{% extends 'myapp/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+    <!-- Header & Action Buttons -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <nav class="flex text-sm text-slate-500 font-medium whitespace-nowrap" aria-label="Breadcrumb">
+            <ol class="inline-flex items-center space-x-1 md:space-x-2">
+                <li class="inline-flex items-center">
+                    <a href="{% url 'dashboard' %}"
+                        class="inline-flex items-center hover:text-blue-600 transition-colors">
+                        <i data-lucide="home" class="w-4 h-4 mr-1"></i>หน้าหลัก
+                    </a>
+                </li>
+                <li>
+                    <div class="flex items-center">
+                        <span class="mx-2 text-slate-300">/</span>
+                        <a href="{% url 'equipment_data' %}"
+                            class="hover:text-blue-600 transition-colors">ฐานข้อมูลเครื่องจักร</a>
+                    </div>
+                </li>
+                <li aria-current="page">
+                    <div class="flex items-center">
+                        <span class="mx-2 text-slate-300">/</span>
+                        <span class="text-blue-600 font-semibold">A02.ML045.01.002</span>
+                    </div>
+                </li>
+            </ol>
+        </nav>
+
+        <div class="flex items-center gap-3">
+            <button
+                class="p-2 text-slate-400 hover:text-slate-600 transition-colors bg-white rounded-full shadow-sm border border-slate-200">
+                <i data-lucide="bell" class="w-5 h-5"></i>
+            </button>
+            <button onclick="openAddEquipmentModal()"
+                class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm font-medium transition-colors text-sm">
+                <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มข้อมูลเครื่องจักร
+            </button>
+        </div>
+    </div>
+
+    <!-- Equipment Header Banner -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
+        <div class="flex flex-col md:flex-row p-6 items-center md:items-start gap-6">
+            <!-- Image Thumbnail -->
+            <div
+                class="flex-shrink-0 w-24 h-24 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 font-medium">
+                Pump
+            </div>
+
+            <!-- Details -->
+            <div class="flex-grow flex flex-col justify-center h-24">
+                <div class="flex items-center gap-3 mb-2">
+                    <h3 class="text-2xl font-bold text-slate-800 tracking-tight">A02.ML045.01.002</h3>
+                    <span
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                        UP (พร้อมใช้งาน)
+                    </span>
+                </div>
+                <p class="text-slate-500 text-sm font-medium mb-1.5">
+                    ปั๊มน้ำพรมกากอ้อย No.1 (56 kW) - Imbibition Water Pump
+                </p>
+                <div class="flex items-center text-slate-400 text-xs gap-1.5">
+                    <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+                    <span>สายงานการผลิต - กระบวนการ A02 การหีบอ้อย</span>
+                </div>
+            </div>
+
+            <!-- QR Code -->
+            <div
+                class="flex-shrink-0 flex flex-col items-center justify-center border-l md:border-l border-slate-100 pl-0 md:pl-6 pt-4 md:pt-0">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=EQP:A02.ML045.01.002"
+                    alt="QR Code"
+                    class="w-16 h-16 opacity-80 hover:opacity-100 transition-opacity cursor-pointer border border-slate-200 p-0.5 rounded-sm" />
+                <span class="text-[10px] text-slate-400 mt-1.5">Scan for details</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="border-b border-slate-200 mb-6 flex overflow-x-auto hide-scrollbar">
+        <button id="tab-btn-info" onclick="switchTab('info')"
+            class="flex items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600">
+            <i data-lucide="info" class="w-4 h-4"></i> ส่วนที่ 2: ข้อมูลเครื่องจักร (Database)
+        </button>
+        <button id="tab-btn-bom" onclick="switchTab('bom')"
+            class="flex items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors">
+            <i data-lucide="boxes" class="w-4 h-4"></i> ส่วนที่ 3: อะไหล่ & BOM
+        </button>
+        <button id="tab-btn-wopm" onclick="switchTab('wopm')"
+            class="flex items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors">
+            <i data-lucide="clipboard-list" class="w-4 h-4"></i> ส่วนที่ 4: ใบสั่งซ่อม & แผน PM
+        </button>
+        <button id="tab-btn-cbm" onclick="switchTab('cbm')"
+            class="flex items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors">
+            <i data-lucide="activity" class="w-4 h-4"></i> ส่วนที่ 5: การตรวจสอบ & CBM
+        </button>
+    </div>
+
+    <!-- Tab Content Area -->
+    <div id="tab-content-info" class="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-12 tab-pane">
+
+        <!-- Identification Card -->
+        <div
+            class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
+            <div class="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 class="font-bold tracking-wide text-blue-700 text-sm flex items-center gap-2">
+                    <i data-lucide="contact" class="w-4 h-4 text-blue-500"></i>
+                    Identification (ข้อมูลระบุตัวตน)
+                </h3>
+                <button
+                    class="text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors">
+                    <i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข
+                </button>
+            </div>
+            <div class="p-5 flex-grow">
+                <div class="grid grid-cols-12 gap-y-4 gap-x-4 text-sm">
+                    <div class="col-span-5 text-slate-500 font-medium">รหัสเครื่องจักร</div>
+                    <div class="col-span-7 font-semibold text-slate-800">A02.ML045.01.002</div>
+
+                    <div class="col-span-5 text-slate-500 font-medium">ชื่อเครื่องจักร</div>
+                    <div class="col-span-7 font-semibold text-slate-800">ปั๊มน้ำพรมกากอ้อย No.1 (56 kW)</div>
+
+                    <div class="col-span-5 text-slate-500 font-medium">ตำแหน่งที่ตั้ง</div>
+                    <div class="col-span-7 text-slate-700">อาคารหีบอ้อย - กระบวนการ A02 การหีบอ้อย</div>
+
+                    <div class="col-span-5 text-slate-500 font-medium">สังกัดเครื่องจักรหลัก</div>
+                    <div class="col-span-7">
+                        <a href="#"
+                            class="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                            <i data-lucide="link" class="w-3.5 h-3.5"></i> A02.ML045 (ระบบลูกหีบอ้อย)
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Data Card -->
+        <div
+            class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
+            <div class="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 class="font-bold tracking-wide text-blue-700 text-sm flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-4 h-4 text-blue-500"></i>
+                    Technical Data (ข้อมูลทางเทคนิค)
+                </h3>
+                <button
+                    class="text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors">
+                    <i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข
+                </button>
+            </div>
+            <div class="p-5 flex-grow space-y-5">
+                <!-- GENERAL INFO -->
+                <div>
+                    <h4 class="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2.5">General Info</h4>
+                    <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm">
+                        <div class="col-span-5 text-slate-500 font-medium">รหัสสินค้า/รุ่น</div>
+                        <div class="col-span-7 text-slate-800 font-semibold">204W31</div>
+
+                        <div class="col-span-5 text-slate-500 font-medium">ผู้ผลิต (Mfr.)</div>
+                        <div class="col-span-7 text-slate-700">VOKEN</div>
+
+                        <div class="col-span-5 text-slate-500 font-medium">หมายเลขเครื่อง (SN)</div>
+                        <div class="col-span-7 text-slate-500">VK-2020-0045A</div>
+                    </div>
+                </div>
+
+                <!-- NAMEPLATE SPECS -->
+                <div>
+                    <h4 class="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2.5">Nameplate Specs
+                    </h4>
+                    <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm">
+                        <div class="col-span-5 text-slate-500 font-medium">อัตราการไหล (Capacity)</div>
+                        <div class="col-span-7 text-slate-800 font-semibold">120 m³/hr</div>
+
+                        <div class="col-span-5 text-slate-500 font-medium">ระยะส่ง (Head)</div>
+                        <div class="col-span-7 text-slate-700">65 m.</div>
+
+                        <div class="col-span-5 text-slate-500 font-medium">ความเร็วรอบ (RPM)</div>
+                        <div class="col-span-7 text-slate-700">1,450 RPM</div>
+                    </div>
+                </div>
+
+                <!-- DRIVE & ELECTRICAL -->
+                <div>
+                    <h4 class="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2.5">Drive & Electrical
+                        Utilities</h4>
+                    <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm">
+                        <div class="col-span-5 text-slate-500 font-medium">มอเตอร์ขับเคลื่อน</div>
+                        <div class="col-span-7 text-blue-600 font-medium flex items-center gap-1.5">
+                            <i data-lucide="zap" class="w-3.5 h-3.5 fill-yellow-400 text-yellow-500"></i>
+                            MTR-56KW-A02 <span class="text-xs text-blue-400">(56 kW, 380V/3Ph)</span>
+                        </div>
+
+                        <div class="col-span-5 text-slate-500 font-medium">ตู้คอนโทรล (Panel)</div>
+                        <div class="col-span-7 text-slate-700">MCC-A02 <span
+                                class="text-xs text-slate-500">(ตู้เมนห้องหีบอ้อย)</span></div>
+
+                        <div class="col-span-5 text-slate-500 font-medium">ชุดสตาร์ท (Starter)</div>
+                        <div class="col-span-7 text-slate-700">Star-Delta Starter <span
+                                class="text-xs text-slate-500">(ตู้เบอร์ 4)</span></div>
+
+                        <div class="col-span-5 text-slate-500 font-medium">เบรกเกอร์ (Breaker)</div>
+                        <div class="col-span-7 text-slate-700">MCCB 125A / 3P (Schneider)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Purchase & Warranty Card -->
+        <div
+            class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
+            <div class="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 class="font-bold tracking-wide text-blue-700 text-sm flex items-center gap-2">
+                    <i data-lucide="receipt" class="w-4 h-4 text-blue-500"></i>
+                    Purchase & Warranty (การจัดซื้อและรับประกัน)
+                </h3>
+                <button
+                    class="text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors">
+                    <i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข
+                </button>
+            </div>
+            <div class="p-5 flex-grow">
+                <div class="grid grid-cols-12 gap-y-4 gap-x-4 text-sm">
+                    <div class="col-span-5 text-slate-500 font-medium">วันที่ติดตั้ง</div>
+                    <div class="col-span-7 text-slate-700">10 พฤศจิกายน 2020 <span
+                            class="text-xs text-slate-400">(ก่อนเปิดหีบ)</span></div>
+
+                    <div class="col-span-5 text-slate-500 font-medium flex items-center">วันหมดประกัน</div>
+                    <div class="col-span-7 font-bold text-red-500">10 พฤศจิกายน 2021 <span
+                            class="text-xs font-normal text-red-400">(หมดประกันแล้ว)</span></div>
+
+                    <div class="col-span-5 text-slate-500 font-medium">ราคาซื้อ</div>
+                    <div class="col-span-7 font-bold text-slate-800">฿ 185,000.00</div>
+
+                    <div class="col-span-5 text-slate-500 font-medium">ราคาซ่อมทดแทน</div>
+                    <div class="col-span-7 font-bold text-slate-800">฿ 210,000.00 <span
+                            class="text-xs font-normal text-slate-400">(Est. 2024)</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maintenance Status Card -->
+        <div
+            class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
+            <div class="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 class="font-bold tracking-wide text-blue-700 text-sm flex items-center gap-2">
+                    <i data-lucide="heart-pulse" class="w-4 h-4 text-blue-500"></i>
+                    Maintenance Status (สถานะการซ่อมบำรุง)
+                </h3>
+                <button
+                    class="text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors">
+                    <i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข
+                </button>
+            </div>
+            <div class="p-5 flex-grow">
+                <div class="grid grid-cols-12 gap-y-5 gap-x-4 text-sm items-center">
+                    <div class="col-span-5 text-slate-500 font-medium">ระดับความสำคัญ</div>
+                    <div class="col-span-7">
+                        <span
+                            class="inline-flex py-1 px-2.5 rounded text-xs font-bold bg-red-100 text-red-600 border border-red-200">
+                            1 - CRITICAL <span class="font-medium ml-1 opacity-80">(กระทบการผลิตโดยตรง)</span>
+                        </span>
+                    </div>
+
+                    <div class="col-span-5 text-slate-500 font-medium">MTBF (ระยะเวลาเฉลี่ยก่อนเสีย)</div>
+                    <div class="col-span-7 font-bold text-green-600">12,555 ชั่วโมง <span
+                            class="text-xs font-normal text-green-500">(อ้างอิงจากระบบ)</span></div>
+
+                    <div class="col-span-5 text-slate-500 font-medium">MTTR (เวลารวมที่หยุดซ่อม)</div>
+                    <div class="col-span-7 font-bold text-orange-500">498 ชั่วโมง <span
+                            class="text-xs font-normal text-orange-400">(สถิติสะสม)</span></div>
+
+                    <div class="col-span-5 text-slate-500 font-medium">ค่าใช้จ่ายสะสม (BM+PM)</div>
+                    <div class="col-span-7 font-bold text-slate-800">฿ 45,200.00</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- BOM Tab Content -->
+    <div id="tab-content-bom" class="hidden pb-12 tab-pane">
+        <div
+            class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 class="font-bold tracking-wide text-slate-800 flex items-center gap-2">
+                    <i data-lucide="boxes" class="w-5 h-5 text-blue-600"></i>
+                    BOM & ข้อมูลอะไหล่ (Bill of Materials)
+                </h3>
+                <div class="flex gap-2">
+                    <button
+                        class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                        <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์
+                    </button>
+                    <button onclick="openBomModal('add')"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                        <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มรายการ
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-slate-500 uppercase bg-slate-50/50 border-b border-slate-200">
+                        <tr>
+                            <th scope="col" class="px-5 py-3 font-semibold">Part No.</th>
+                            <th scope="col" class="px-5 py-3 font-semibold">Description</th>
+                            <th scope="col" class="px-5 py-3 font-semibold text-center">Q'ty</th>
+                            <th scope="col" class="px-5 py-3 font-semibold text-center">Storeroom</th>
+                            <th scope="col" class="px-5 py-3 font-semibold text-center">Balance</th>
+                            <th scope="col" class="px-5 py-3 font-semibold text-center">Status</th>
+                            <th scope="col" class="px-5 py-3 font-semibold text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <tr class="hover:bg-slate-50 transition-colors group">
+                            <td class="px-5 py-3 font-medium text-blue-600">BRG-6312-2Z</td>
+                            <td class="px-5 py-3 text-slate-700">Deep Groove Ball Bearing 6312 ZZ (SKF)</td>
+                            <td class="px-5 py-3 text-center text-slate-600">2</td>
+                            <td class="px-5 py-3 text-center text-slate-600">Store A</td>
+                            <td class="px-5 py-3 text-center font-semibold text-slate-800">5</td>
+                            <td class="px-5 py-3 text-center">
+                                <span
+                                    class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium border border-green-200">In
+                                    Stock</span>
+                            </td>
+                            <td class="px-5 py-3 text-center">
+                                <div
+                                    class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onclick="openBomModal('edit', 'BRG-6312-2Z')"
+                                        class="text-slate-400 hover:text-blue-600 transition-colors"><i
+                                            data-lucide="edit" class="w-4 h-4"></i></button>
+                                    <button class="text-slate-400 hover:text-red-600 transition-colors"><i
+                                            data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-slate-50 transition-colors group">
+                            <td class="px-5 py-3 font-medium text-blue-600">M-SEAL-45MM</td>
+                            <td class="px-5 py-3 text-slate-700">Mechanical Seal 45mm (EagleBurgmann)</td>
+                            <td class="px-5 py-3 text-center text-slate-600">1</td>
+                            <td class="px-5 py-3 text-center text-slate-600">Store B</td>
+                            <td class="px-5 py-3 text-center font-semibold text-slate-800">0</td>
+                            <td class="px-5 py-3 text-center">
+                                <span
+                                    class="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full font-medium border border-red-200">Out
+                                    of Stock</span>
+                            </td>
+                            <td class="px-5 py-3 text-center">
+                                <div
+                                    class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onclick="openBomModal('edit', 'M-SEAL-45MM')"
+                                        class="text-slate-400 hover:text-blue-600 transition-colors"><i
+                                            data-lucide="edit" class="w-4 h-4"></i></button>
+                                    <button class="text-slate-400 hover:text-red-600 transition-colors"><i
+                                            data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr class="hover:bg-slate-50 transition-colors group">
+                            <td class="px-5 py-3 font-medium text-blue-600">O-RING-VITON-120</td>
+                            <td class="px-5 py-3 text-slate-700">O-Ring Viton Casing ID 120mm</td>
+                            <td class="px-5 py-3 text-center text-slate-600">1</td>
+                            <td class="px-5 py-3 text-center text-slate-600">Store A</td>
+                            <td class="px-5 py-3 text-center font-semibold text-slate-800">12</td>
+                            <td class="px-5 py-3 text-center">
+                                <span
+                                    class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium border border-green-200">In
+                                    Stock</span>
+                            </td>
+                            <td class="px-5 py-3 text-center">
+                                <div
+                                    class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onclick="openBomModal('edit', 'O-RING-VITON-120')"
+                                        class="text-slate-400 hover:text-blue-600 transition-colors"><i
+                                            data-lucide="edit" class="w-4 h-4"></i></button>
+                                    <button class="text-slate-400 hover:text-red-600 transition-colors"><i
+                                            data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div
+                class="px-5 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
+                <span>แสดง 3 จาก 3 รายการ</span>
+                <span class="font-medium text-slate-700">อัปเดตล่าสุด: 10 มี.ค. 2024</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Work Orders & PM Tab Content -->
+    <div id="tab-content-wopm" class="hidden pb-12 tab-pane">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- PM Schedules -->
+            <div
+                class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
+                <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                    <h3 class="font-bold tracking-wide text-slate-800 flex items-center gap-2">
+                        <i data-lucide="calendar-check" class="w-5 h-5 text-indigo-600"></i>
+                        แผนบำรุงรักษาเชิงป้องกัน (PM)
+                    </h3>
+                    <button class="text-indigo-600 hover:text-indigo-700 text-sm font-semibold transition-colors">
+                        ดูทั้งหมด
+                    </button>
+                </div>
+                <div class="p-5 flex-grow space-y-4">
+                    <!-- PM Item 1 -->
+                    <div class="border border-slate-200 rounded-lg p-4 hover:border-indigo-300 transition-colors group">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span
+                                    class="bg-indigo-100 text-indigo-700 text-[10px] uppercase px-2 py-0.5 rounded font-bold tracking-wider">PM-A02-M1</span>
+                                <h4 class="font-semibold text-slate-800 mt-1">PM 1 เดือน (ตรวจสอบทั่วไป & อัดจาระบี)
+                                </h4>
+                            </div>
+                            <span
+                                class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-semibold border border-amber-200 whitespace-nowrap">Due
+                                in 5 days</span>
+                        </div>
+                        <div class="flex items-center text-sm text-slate-500 mt-3 gap-4">
+                            <div class="flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4"></i>
+                                คิวถัดไป: 15 มี.ค. 2024</div>
+                            <div class="flex items-center gap-1.5"><i data-lucide="user" class="w-4 h-4"></i> ทีมซ่างกล
+                                A02</div>
+                        </div>
+                    </div>
+                    <!-- PM Item 2 -->
+                    <div class="border border-slate-200 rounded-lg p-4 hover:border-indigo-300 transition-colors group">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span
+                                    class="bg-indigo-100 text-indigo-700 text-[10px] uppercase px-2 py-0.5 rounded font-bold tracking-wider">PM-A02-M6</span>
+                                <h4 class="font-semibold text-slate-800 mt-1">PM 6 เดือน (เปลี่ยนถ่ายน้ำมัน & Alignment)
+                                </h4>
+                            </div>
+                            <span
+                                class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-medium border border-slate-200 whitespace-nowrap">ในแผน</span>
+                        </div>
+                        <div class="flex items-center text-sm text-slate-500 mt-3 gap-4">
+                            <div class="flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4"></i>
+                                คิวถัดไป: 10 ส.ค. 2024</div>
+                            <div class="flex items-center gap-1.5"><i data-lucide="user" class="w-4 h-4"></i> ทีมซ่างกล
+                                A02</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Work Orders History -->
+            <div
+                class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
+                <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                    <h3 class="font-bold tracking-wide text-slate-800 flex items-center gap-2">
+                        <i data-lucide="wrench" class="w-5 h-5 text-orange-500"></i>
+                        ประวัติใบสั่งซ่อม (Work Orders)
+                    </h3>
+                    <button
+                        class="bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
+                        <i data-lucide="plus" class="w-4 h-4"></i> แจ้งซ่อม
+                    </button>
+                </div>
+                <div class="p-5 flex-grow space-y-4">
+                    <!-- WO Item 1 -->
+                    <div class="border border-slate-200 rounded-lg p-4 hover:border-orange-300 transition-colors">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <a href="#"
+                                    class="text-orange-600 font-bold text-sm tracking-wide hover:underline">WO-2312-0054</a>
+                                <h4 class="font-medium text-slate-800 mt-0.5 text-sm">ซีลปั๊มรั่ว มีน้ำไหลซึม</h4>
+                            </div>
+                            <span
+                                class="bg-amber-100 text-amber-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-amber-200">In
+                                Progress</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-3">พบน้ำรั่วซึมบริเวณ Mechanical seal ฝั่งขับ ประมาณ 1
+                            ลิตร/ชม.</p>
+                        <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2">
+                            <div class="bg-amber-500 h-1.5 rounded-full" style="width: 45%"></div>
+                        </div>
+                        <div class="flex justify-between text-[10px] text-slate-400 font-medium">
+                            <span>ผู้แจ้ง: สมชาย (ผลิต) • 10 ม.ค. 24</span>
+                            <span>กำลังเบิกอะไหล่</span>
+                        </div>
+                    </div>
+
+                    <!-- WO Item 2 -->
+                    <div class="border border-slate-200 rounded-lg p-4 bg-slate-50/50 grayscale-[50%] opacity-80">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <a href="#"
+                                    class="text-slate-600 font-bold text-sm tracking-wide hover:underline">WO-2309-0112</a>
+                                <h4 class="font-medium text-slate-700 mt-0.5 text-sm">เปลี่ยนแบริ่งตามวาระ</h4>
+                            </div>
+                            <span
+                                class="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-green-200">Completed</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-3">เสียงดังผิดปกติ เปลี่ยนลูกปืนหน้า-หลัง เรียบร้อย</p>
+                        <div
+                            class="flex justify-between text-[10px] text-slate-400 font-medium border-t border-slate-200 pt-2">
+                            <span>ช่างซ่อม: นพพล (PM)</span>
+                            <span>ปิดงาน: 15 ก.ย. 23</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CBM Tab Content -->
+    <div id="tab-content-cbm" class="hidden pb-12 tab-pane">
+        <div
+            class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex h-full min-h-[500px]">
+            <!-- Sidebar CBM Menu -->
+            <div class="w-1/3 md:w-1/4 border-r border-slate-100 bg-slate-50/50 p-4">
+                <h3 class="font-bold text-slate-800 text-sm mb-4 uppercase tracking-wider text-center">ประเภทการตรวจสอบ
+                </h3>
+                <ul class="space-y-2">
+                    <li>
+                        <button id="cbm-btn-visual" onclick="switchCbmSubTab('visual')"
+                            class="w-full text-left px-4 py-3 rounded-lg text-sm font-semibold bg-blue-100/50 text-blue-700 border border-blue-200 flex items-center justify-between transition-colors">
+                            <span class="flex items-center gap-2"><i data-lucide="eye"
+                                    class="w-4 h-4 text-blue-600"></i> Visual
+                                Test</span>
+                            <i id="cbm-chevron-visual" data-lucide="chevron-right" class="w-4 h-4 opacity-70"></i>
+                        </button>
+                    </li>
+                    <li>
+                        <button id="cbm-btn-vibration" onclick="switchCbmSubTab('vibration')"
+                            class="w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 border border-transparent transition-colors flex items-center justify-between">
+                            <span class="flex items-center gap-2"><i data-lucide="activity"
+                                    class="w-4 h-4 text-emerald-500"></i> Vibration</span>
+                            <i id="cbm-chevron-vibration" data-lucide="chevron-right" class="w-4 h-4 opacity-0"></i>
+                        </button>
+                    </li>
+                    <li>
+                        <button id="cbm-btn-thermoscan" onclick="switchCbmSubTab('thermoscan')"
+                            class="w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 border border-transparent transition-colors flex items-center justify-between">
+                            <span class="flex items-center gap-2"><i data-lucide="thermometer"
+                                    class="w-4 h-4 text-red-500"></i> Thermoscan</span>
+                            <i id="cbm-chevron-thermoscan" data-lucide="chevron-right" class="w-4 h-4 opacity-0"></i>
+                        </button>
+                    </li>
+                    <li>
+                        <button id="cbm-btn-oil" onclick="switchCbmSubTab('oil')"
+                            class="w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 border border-transparent transition-colors flex items-center justify-between">
+                            <span class="flex items-center gap-2"><i data-lucide="droplets"
+                                    class="w-4 h-4 text-sky-500"></i> Oil Analysis</span>
+                            <i id="cbm-chevron-oil" data-lucide="chevron-right" class="w-4 h-4 opacity-0"></i>
+                        </button>
+                    </li>
+                    <li>
+                        <button id="cbm-btn-acoustic" onclick="switchCbmSubTab('acoustic')"
+                            class="w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 border border-transparent transition-colors flex items-center justify-between">
+                            <span class="flex items-center gap-2"><i data-lucide="radio"
+                                    class="w-4 h-4 text-purple-500"></i> Acoustic Emission</span>
+                            <i id="cbm-chevron-acoustic" data-lucide="chevron-right" class="w-4 h-4 opacity-0"></i>
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <!-- Content CBM Area -->
+            <div class="w-2/3 md:w-3/4 p-6 bg-white flex flex-col relative">
+
+                <!-- ============================ -->
+                <!-- Visual Inspection Tab -->
+                <!-- ============================ -->
+                <div id="cbm-content-visual" class="cbm-pane flex flex-col h-full">
+                    <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="eye" class="w-5 h-5 text-blue-600"></i>
+                                บันทึกการตรวจสอบกายภาพ (Visual Test)
+                            </h3>
+                            <p class="text-sm text-slate-500 mt-1">การตรวจสภาพภายนอก รอยรั่วซึม และความหลุดหลวม
+                            </p>
+                        </div>
+                        <span
+                            class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-semibold hidden sm:inline-block">ล่าสุด:
+                            12 ม.ค. 2024</span>
+                    </div>
+
+                    <div class="flex-grow">
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
+                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6"
+                                onsubmit="event.preventDefault(); alert('บันทึก Visual Test สำเร็จ');">
+
+                                <div class="md:col-span-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span
+                                            class="text-red-500">*</span></label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                        </div>
+                                        <input type="date"
+                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                            value="2024-03-10">
+                                    </div>
+                                </div>
+
+                                <div class="md:col-span-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span
+                                            class="text-red-500">*</span></label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                                        </div>
+                                        <input type="text" value="นายสมชาย (ME)"
+                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                    </div>
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">สภาพโดยรวม (Overall
+                                        Condition)</label>
+                                    <select
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                        <option value="good">ปกติ (Good - No Action)</option>
+                                        <option value="fair">เฝ้าระวัง (Fair - Monitor)</option>
+                                        <option value="poor">ผิดปกติ (Poor - Action Required)</option>
+                                    </select>
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">รายละเอียด /
+                                        ข้อเสนอแนะ</label>
+                                    <textarea rows="3"
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="ระบุสิ่งที่พบผิดปกติ..."></textarea>
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label
+                                        class="block text-sm font-semibold text-slate-700 mb-2">แนบรูปถ่ายหน้างาน</label>
+                                    <input type="file" accept="image/*"
+                                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-300 rounded-md bg-white p-2">
+                                </div>
+
+                                <div class="md:col-span-2 mt-4 flex justify-end">
+                                    <button type="submit"
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"><i
+                                            data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================ -->
+                <!-- Vibration Inspection Tab -->
+                <!-- ============================ -->
+                <div id="cbm-content-vibration" class="cbm-pane hidden flex-col h-full">
+                    <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="activity" class="w-5 h-5 text-emerald-500"></i>
+                                บันทึกการสั่นสะเทือน (Vibration Analysis)
+                            </h3>
+                            <p class="text-sm text-slate-500 mt-1">วัดค่าความเร็ว ความเร่ง และอุณหภูมิตลับลูกปืน</p>
+                        </div>
+                    </div>
+
+                    <div class="flex-grow">
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
+                            <form class="grid grid-cols-1 md:grid-cols-3 gap-6"
+                                onsubmit="event.preventDefault(); alert('บันทึก Vibration สำเร็จ');">
+                                <div class="md:col-span-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span
+                                            class="text-red-500">*</span></label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                        </div>
+                                        <input type="date"
+                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                            value="2024-03-10">
+                                    </div>
+                                </div>
+                                <div class="md:col-span-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span
+                                            class="text-red-500">*</span></label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                                        </div>
+                                        <input type="text" value="นายสมศักดิ์ (ทีม CBM)"
+                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                    </div>
+                                </div>
+                                <div class="md:col-span-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">จุดที่วัด
+                                        (Measurement Point)</label>
+                                    <select
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm">
+                                        <option>Pump - Drive End (ฝั่งขับ)</option>
+                                        <option>Pump - Non-Drive End (ฝั่งตรงข้ามขับ)</option>
+                                        <option>Motor - Drive End</option>
+                                        <option>Motor - Non-Drive End</option>
+                                    </select>
+                                </div>
+
+                                <div class="bg-white p-3 rounded-lg border border-slate-200">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">Velocity
+                                        (mm/s)</label>
+                                    <input type="number" step="0.01"
+                                        class="w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="ความเร็วการสั่น">
+                                </div>
+                                <div class="bg-white p-3 rounded-lg border border-slate-200">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">Acceleration
+                                        (g)</label>
+                                    <input type="number" step="0.01"
+                                        class="w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="ความเร่งการสั่น">
+                                </div>
+                                <div class="bg-white p-3 rounded-lg border border-slate-200">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">Bearing Temp
+                                        (°C)</label>
+                                    <input type="number" step="0.1"
+                                        class="w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="อุณหภูมิแบริ่ง">
+                                </div>
+
+                                <div class="md:col-span-3">
+                                    <label
+                                        class="block text-sm font-semibold text-slate-700 mb-2">สถานะการประเมินค่าสั่นสะเทือน</label>
+                                    <select
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm">
+                                        <option value="normal">Normal (อยู่ในเกณฑ์มาตรฐาน ISO)</option>
+                                        <option value="warning">Warning (เฝ้าระวัง/เริ่มมีปัญหา)</option>
+                                        <option value="alarm">Alarm (อันตราย/ต้องวางแผนซ่อม)</option>
+                                    </select>
+                                </div>
+
+                                <div class="md:col-span-3 mt-4 flex justify-end">
+                                    <button type="submit"
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"><i
+                                            data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================ -->
+                <!-- Thermoscan Inspection Tab -->
+                <!-- ============================ -->
+                <div id="cbm-content-thermoscan" class="cbm-pane hidden flex-col h-full">
+                    <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="thermometer" class="w-5 h-5 text-red-500"></i>
+                                ภาพถ่ายความร้อน (Thermography)
+                            </h3>
+                            <p class="text-sm text-slate-500 mt-1">ตรวจสอบความร้อนสะสมบริเวณตลับลูกปืน มอเตอร์
+                                หรือจุดเชื่อมต่อไฟฟ้า</p>
+                        </div>
+                    </div>
+
+                    <div class="flex-grow">
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
+                            <form class="grid grid-cols-1 md:grid-cols-3 gap-6"
+                                onsubmit="event.preventDefault(); alert('บันทึก Thermography สำเร็จ');">
+                                <div class="md:col-span-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ถ่ายภาพ <span
+                                            class="text-red-500">*</span></label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                        </div>
+                                        <input type="date"
+                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                            value="2024-03-10">
+                                    </div>
+                                </div>
+                                <div class="md:col-span-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span
+                                            class="text-red-500">*</span></label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                                        </div>
+                                        <input type="text" value="นายสมศักดิ์ (ทีม CBM)"
+                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                    </div>
+                                </div>
+                                <div class="md:col-span-1">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">จุดที่ถ่าย (Location
+                                        Target)</label>
+                                    <input type="text"
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="เช่น Motor Terminal Box, Pump Bearing">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">อุณหภูมิสูงสุด (Max
+                                        Temp °C)</label>
+                                    <input type="number" step="0.1"
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="อุณหภูมิจุดที่ร้อนที่สุด">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">อุณหภูมิแวดล้อม
+                                        (Ambient °C)</label>
+                                    <input type="number" step="0.1"
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="อุณหภูมิอ้างอิง">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">ผลต่าง (Delta T
+                                        °C)</label>
+                                    <input type="number" step="0.1" readonly
+                                        class="block w-full rounded-md border-slate-200 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-slate-100"
+                                        placeholder="ระบบคำนวณอัตโนมัติ">
+                                </div>
+
+                                <div class="md:col-span-3">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">แนบภาพถ่าย IR
+                                        (Thermal Image)</label>
+                                    <input type="file" accept="image/*"
+                                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-300 rounded-md bg-white p-2">
+                                </div>
+
+                                <div class="md:col-span-3 mt-4 flex justify-end">
+                                    <button type="submit"
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"><i
+                                            data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================ -->
+                <!-- Oil Analysis Inspection Tab -->
+                <!-- ============================ -->
+                <div id="cbm-content-oil" class="cbm-pane hidden flex-col h-full">
+                    <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="droplets" class="w-5 h-5 text-sky-500"></i>
+                                บันทึกวิเคราะห์น้ำมัน (Oil Analysis)
+                            </h3>
+                            <p class="text-sm text-slate-500 mt-1">วิเคราะห์ความหนืด น้ำเจือปน และอนุภาคความสึกหรอ</p>
+                        </div>
+                    </div>
+
+                    <div class="flex-grow">
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
+                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6"
+                                onsubmit="event.preventDefault(); alert('บันทึก Oil Analysis สำเร็จ');">
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่เก็บตัวอย่าง
+                                        <span class="text-red-500">*</span></label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                        </div>
+                                        <input type="date"
+                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                            value="2024-03-10">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span
+                                            class="text-red-500">*</span></label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                                        </div>
+                                        <input type="text" value="นายสมศักดิ์ (ทีม CBM)"
+                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ชนิดน้ำมัน (Oil
+                                        Type)</label>
+                                    <input type="text" value="ISO VG 68"
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">ความหนืด @40°C
+                                        (cSt)</label>
+                                    <input type="number" step="0.1"
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="เช่น 65.5">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">ปริมาณน้ำเจือปน
+                                        (Water Content %)</label>
+                                    <input type="number" step="0.01"
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="เช่น 0.05">
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ระดับอนุภาคความสึกหรอ
+                                        (Wear Particle / ISO Code)</label>
+                                    <input type="text"
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="เช่น 18/16/13 หรือ พบอนุภาคเหล็กสูง">
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์ผล Lab Report
+                                        (PDF)</label>
+                                    <input type="file" accept=".pdf"
+                                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-300 rounded-md bg-white p-2">
+                                </div>
+
+                                <div class="md:col-span-2 mt-4 flex justify-end">
+                                    <button type="submit"
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"><i
+                                            data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================ -->
+                <!-- Acoustic Emission Inspection Tab -->
+                <!-- ============================ -->
+                <div id="cbm-content-acoustic" class="cbm-pane hidden flex-col h-full">
+                    <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="radio" class="w-5 h-5 text-purple-500"></i>
+                                การตรวจด้วยเสียง (Acoustic Emission/Ultrasound)
+                            </h3>
+                            <p class="text-sm text-slate-500 mt-1">วิเคราะห์คลื่นเสียงความถี่สูง เพื่อหาการเสียดสี
+                                หรือการรั่วของลม/วาล์ว</p>
+                        </div>
+                    </div>
+
+                    <div class="flex-grow">
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
+                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6"
+                                onsubmit="event.preventDefault(); alert('บันทึก Acoustic สำเร็จ');">
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span
+                                            class="text-red-500">*</span></label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                        </div>
+                                        <input type="date"
+                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                            value="2024-03-10">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span
+                                            class="text-red-500">*</span></label>
+                                    <div class="relative">
+                                        <div
+                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                                        </div>
+                                        <input type="text" value="นายสมศักดิ์ (ทีม CBM)"
+                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">จุดตรวจสอบ</label>
+                                    <input type="text"
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="เช่น Bearing Housing">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">ระดับเสียง (dB /
+                                        RMS)</label>
+                                    <input type="number" step="0.1"
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
+                                        placeholder="ค่าความดังที่วัดได้">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-1">ลักษณะเสียงที่พบ
+                                        (Sound Pattern)</label>
+                                    <select
+                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm">
+                                        <option value="normal">เสียงราบเรียบปกติ (Smooth)</option>
+                                        <option value="hissing">เสียงฟู่/รั่ว (Hissing)</option>
+                                        <option value="rubbing">เสียงเสียดสีต่อเนื่อง (Rubbing)</option>
+                                        <option value="impacting">เสียงกระแทก/แตกหัก (Impacting/Clicking)</option>
+                                    </select>
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์บันทึกเสียง
+                                        (Audio / Waveform)</label>
+                                    <input type="file" accept="audio/*,.pdf"
+                                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-300 rounded-md bg-white p-2">
+                                </div>
+
+                                <div class="md:col-span-2 mt-4 flex justify-end">
+                                    <button type="submit"
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"><i
+                                            data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Tab switching logic
+    function switchTab(tabId) {
+        // IDs of all tabs and content panes
+        const tabs = ['info', 'bom', 'wopm', 'cbm'];
+
+        tabs.forEach(id => {
+            // Button elements
+            const btn = document.getElementById(`tab-btn-${id}`);
+            // Pane elements
+            const pane = document.getElementById(`tab-content-${id}`);
+
+            if (id === tabId) {
+                // Active state for button
+                btn.className = "flex items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-semibold text-blue-600 border-b-2 border-blue-600";
+                // Show pane
+                pane.classList.remove('hidden');
+                pane.classList.add('block');
+                if (tabId === 'info') pane.classList.add('grid');
+            } else {
+                // Inactive state for button
+                btn.className = "flex items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors border-b-2 border-transparent";
+                // Hide pane
+                pane.classList.remove('block', 'grid');
+                pane.classList.add('hidden');
+            }
+        });
+    }
+
+    // CBM Sub-Tab switching logic
+    function switchCbmSubTab(subTabId) {
+        const cbmTypes = ['visual', 'vibration', 'thermoscan', 'oil', 'acoustic'];
+
+        cbmTypes.forEach(id => {
+            const btn = document.getElementById(`cbm-btn-${id}`);
+            const pane = document.getElementById(`cbm-content-${id}`);
+            const chevron = document.getElementById(`cbm-chevron-${id}`);
+
+            if (id === subTabId) {
+                // Active link style
+                btn.className = "w-full text-left px-4 py-3 rounded-lg text-sm font-semibold bg-blue-100/50 text-blue-700 border border-blue-200 flex items-center justify-between transition-colors";
+                if (btn.querySelector('i')) {
+                    btn.querySelector('i').classList.add('text-blue-600');
+                }
+                chevron.classList.remove('opacity-0');
+                chevron.classList.add('opacity-70');
+                // Show pane
+                pane.classList.remove('hidden');
+                pane.classList.add('flex');
+            } else {
+                // Inactive link style
+                btn.className = "w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 border border-transparent transition-colors flex items-center justify-between";
+                if (btn.querySelector('i')) {
+                    btn.querySelector('i').classList.remove('text-blue-600');
+                }
+                chevron.classList.remove('opacity-70');
+                chevron.classList.add('opacity-0');
+                // Hide pane
+                pane.classList.remove('flex');
+                pane.classList.add('hidden');
+            }
+        });
+    }
+
+    function openAddEquipmentModal() {
+        window.open('{% url "equipment_form" %}', 'AddEquipmentWindow', 'width=900,height=700,left=200,top=100');
+    }
+
+    function openBomModal(action, partNo = '') {
+        window.open(`{% url "equipment_bom" %}?action=${action}&partNo=${partNo}`, 'BOMWindow', 'width=700,height=500,left=250,top=150');
+    }
+
+    // Re-initialize icons just in case
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+</script>
+{% endblock %}

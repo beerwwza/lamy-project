@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการรายการอะไหล่ (Manage BOM)</title>
+    <!-- ใช้ Bootstrap 5 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+
+<body class="p-4">
+    <div class="container-fluid max-w-2xl">
+        <div class="card shadow border-0">
+            <!-- Header -->
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-3">
+                <h5 id="formTitle" class="mb-0 fw-bold"><i class="fa-solid fa-cubes me-2"></i> จัดการรายการอะไหล่</h5>
+                <button type="button" onclick="window.close()" class="btn-close btn-close-white"
+                    aria-label="Close"></button>
+            </div>
+
+            <div class="card-body p-4">
+                <form onsubmit="event.preventDefault(); alert('บันทึกรายการอะไหล่เรียบร้อยแล้ว'); window.close();">
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <label class="form-label small mb-1">รหัสอะไหล่ (Part Number) <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" id="partNo" required class="form-control" placeholder="เช่น 204 W31-1">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label small mb-1">รายละเอียด (Description) <span
+                                    class="text-danger">*</span></label>
+                            <input type="text" id="desc" required class="form-control"
+                                placeholder="เช่น เสื้อปั๊ม (Volute Casing)">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">จำนวนที่ใช้ใน BOM</label>
+                            <input type="number" id="qty" min="1" value="1" class="form-control">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">คลังจัดเก็บ (Storeroom)</label>
+                            <select id="wh" class="form-select">
+                                <option value="WH-M1">WH-M1 (คลังอะไหล่เครื่องจักรกล)</option>
+                                <option value="WH-M2">WH-M2 (คลังอะไหล่สิ้นเปลือง)</option>
+                                <option value="WH-E1">WH-E1 (คลังอะไหล่ไฟฟ้า)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Inventory Info Info box -->
+                    <div class="alert alert-secondary py-2 px-3 mb-4" role="alert">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fa-solid fa-circle-info text-secondary me-2"></i>
+                            <span class="small fw-semibold text-secondary">ข้อมูลเพิ่มเติมจากระบบคลัง (Inventory)</span>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="text" class="form-control form-control-sm bg-white"
+                                    placeholder="ยอดคงเหลือ (Auto)" disabled>
+                            </div>
+                            <div class="col-6">
+                                <input type="text" class="form-control form-control-sm bg-white"
+                                    placeholder="ต้นทุน/หน่วย (Auto)" disabled>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                        <button type="button" onclick="window.close()" class="btn btn-outline-secondary">ยกเลิก</button>
+                        <button type="submit" class="btn btn-primary px-4"><i class="fa-solid fa-save me-1"></i>
+                            บันทึก</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ดึงข้อมูลจาก URL เพื่อแสดงโหมด Edit หรือ Add
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const action = params.get('action');
+
+            if (action === 'edit') {
+                document.getElementById('formTitle').innerHTML = '<i class="fa-solid fa-pen-to-square me-2"></i> แก้ไขรายการอะไหล่';
+                document.getElementById('partNo').value = params.get('partNo') || '';
+                document.getElementById('partNo').readOnly = true;
+                document.getElementById('partNo').classList.add('bg-light'); // ทำให้เป็นสีเทา
+            } else {
+                document.getElementById('formTitle').innerHTML = '<i class="fa-solid fa-plus-circle me-2"></i> เพิ่มรายการอะไหล่ใหม่';
+            }
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

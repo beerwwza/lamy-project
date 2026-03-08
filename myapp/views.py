@@ -22,6 +22,19 @@ from .models import MaintenanceLog, KPIMetric
 from .forms import MaintenanceLogForm, KPIMetricForm
 
 
+# --- Equipment Views ---
+@login_required
+def equipment_data(request):
+    return render(request, 'myapp/equipment_data.html')
+
+@login_required
+def equipment_form(request):
+    return render(request, 'myapp/equipment_form.html')
+
+@login_required
+def equipment_bom(request):
+    return render(request, 'myapp/equipment_BOM.html')
+
 #def Home(request):
     #if request.method == 'POST':
         #data = request.POST.copy()
