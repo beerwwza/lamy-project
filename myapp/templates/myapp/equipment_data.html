@@ -102,52 +102,154 @@
     </div>
 
     <!-- Tab Content Area -->
+    <script>
+        function toggleCardEdit(cardId) {
+            const card = document.getElementById(cardId);
+            const inputs = card.querySelectorAll('.editable-field');
+            const btn = document.getElementById('btn-' + cardId);
+
+            const isEditing = card.classList.contains('is-editing');
+
+            if (isEditing) {
+                // Save mode -> View mode
+                card.classList.remove('is-editing');
+                btn.innerHTML = '<i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข';
+                btn.className = 'text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors';
+
+                inputs.forEach(input => {
+                    if (input.tagName === 'SELECT') {
+                        input.disabled = true;
+                        input.classList.add('appearance-none');
+                    } else {
+                        input.readOnly = true;
+                    }
+                    input.classList.remove('bg-slate-50', 'border-slate-200', 'px-3', 'py-1.5', 'focus:bg-white', 'focus:border-blue-500', 'focus:ring-1', 'focus:ring-blue-500');
+                    input.classList.add('bg-transparent', 'border-transparent', 'px-0', 'py-0', 'pointer-events-none');
+                });
+            } else {
+                // View mode -> Edit mode
+                card.classList.add('is-editing');
+                btn.innerHTML = '<i data-lucide="save" class="w-3.5 h-3.5"></i> บันทึก';
+                btn.className = 'bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shadow-sm';
+
+                inputs.forEach(input => {
+                    if (input.tagName === 'SELECT') {
+                        input.disabled = false;
+                        input.classList.remove('appearance-none');
+                    } else {
+                        input.readOnly = false;
+                    }
+                    input.classList.add('bg-slate-50', 'border-slate-200', 'px-3', 'py-1.5', 'focus:bg-white', 'focus:border-blue-500', 'focus:ring-1', 'focus:ring-blue-500');
+                    input.classList.remove('bg-transparent', 'border-transparent', 'px-0', 'py-0', 'pointer-events-none');
+                });
+            }
+            if (window.lucide) { lucide.createIcons(); }
+        }
+    </script>
     <div id="tab-content-info" class="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-12 tab-pane">
 
-        <!-- Identification Card -->
+        <!-- Equipment Photo Card -->
         <div
+            class="lg:col-span-1 bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
+            <div class="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center bg-white">
+                <h3 class="font-bold tracking-wide text-blue-700 text-sm flex items-center gap-2">
+                    <i data-lucide="image" class="w-4 h-4 text-blue-500"></i>
+                    รูปแบบเครื่องจักร
+                </h3>
+                <div class="flex gap-2">
+                    <label
+                        class="cursor-pointer bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors border border-blue-200 shadow-sm mb-0">
+                        <i data-lucide="upload" class="w-3.5 h-3.5"></i> อัปโหลดรูปภาพ
+                        <input type="file" class="hidden" accept="image/*" onchange="previewEquipmentImage(event)">
+                    </label>
+                    <button id="btn-save-photo" onclick="alert('บันทึกรูปลงฐานข้อมูลเรียบร้อยแล้ว')"
+                        class="hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold items-center gap-1 transition-colors shadow-sm flex">
+                        <i data-lucide="save" class="w-3.5 h-3.5"></i> บันทึก
+                    </button>
+                </div>
+            </div>
+            <div
+                class="p-5 flex items-center justify-center bg-slate-50 border-b border-t border-slate-100 border-dashed m-4 rounded-xl relative flex-grow min-h-[180px]">
+                <img id="equip-image-preview" src=""
+                    class="max-h-40 object-contain hidden rounded-lg shadow-sm z-10 w-full">
+                <div id="equip-image-placeholder"
+                    class="text-center text-slate-400 absolute inset-0 flex flex-col items-center justify-center">
+                    <div
+                        class="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-2 shadow-sm border border-slate-200">
+                        <i data-lucide="camera" class="w-6 h-6 text-slate-300"></i>
+                    </div>
+                    <p class="text-xs font-medium text-slate-500">ยังไม่มีรูปภาพ</p>
+                </div>
+            </div>
+            <script>
+                function previewEquipmentImage(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function (e) {
+                            const img = document.getElementById('equip-image-preview');
+                            img.src = e.target.result;
+                            img.classList.remove('hidden');
+                            document.getElementById('equip-image-placeholder').classList.add('hidden');
+                            document.getElementById('btn-save-photo').classList.remove('hidden');
+                        }
+                        reader.readAsDataURL(file);
+                    }
+                }
+            </script>
+        </div>
+
+        <!-- Identification Card -->
+        <div id="card-ident"
             class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
             <div class="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center bg-white">
                 <h3 class="font-bold tracking-wide text-blue-700 text-sm flex items-center gap-2">
                     <i data-lucide="contact" class="w-4 h-4 text-blue-500"></i>
                     Identification (ข้อมูลระบุตัวตน)
                 </h3>
-                <button
+                <button id="btn-card-ident" onclick="toggleCardEdit('card-ident')"
                     class="text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors">
                     <i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข
                 </button>
             </div>
             <div class="p-5 flex-grow">
-                <div class="grid grid-cols-12 gap-y-4 gap-x-4 text-sm">
+                <div class="grid grid-cols-12 gap-y-4 gap-x-4 text-sm items-center">
                     <div class="col-span-5 text-slate-500 font-medium">รหัสเครื่องจักร</div>
-                    <div class="col-span-7 font-semibold text-slate-800">A02.ML045.01.002</div>
+                    <div class="col-span-7">
+                        <input type="text" value="A02.ML045.01.002" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
+                    </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">ชื่อเครื่องจักร</div>
-                    <div class="col-span-7 font-semibold text-slate-800">ปั๊มน้ำพรมกากอ้อย No.1 (56 kW)</div>
+                    <div class="col-span-7">
+                        <input type="text" value="ปั๊มน้ำพรมกากอ้อย No.1 (56 kW)" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
+                    </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">ตำแหน่งที่ตั้ง</div>
-                    <div class="col-span-7 text-slate-700">อาคารหีบอ้อย - กระบวนการ A02 การหีบอ้อย</div>
+                    <div class="col-span-7">
+                        <input type="text" value="อาคารหีบอ้อย - กระบวนการ A02 การหีบอ้อย" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                    </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">สังกัดเครื่องจักรหลัก</div>
                     <div class="col-span-7">
-                        <a href="#"
-                            class="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-medium transition-colors">
-                            <i data-lucide="link" class="w-3.5 h-3.5"></i> A02.ML045 (ระบบลูกหีบอ้อย)
-                        </a>
+                        <input type="text" value="A02.ML045 (ระบบลูกหีบอ้อย)" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-blue-600 font-medium pointer-events-none">
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Technical Data Card -->
-        <div
+        <div id="card-tech"
             class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
             <div class="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center bg-white">
                 <h3 class="font-bold tracking-wide text-blue-700 text-sm flex items-center gap-2">
                     <i data-lucide="cpu" class="w-4 h-4 text-blue-500"></i>
                     Technical Data (ข้อมูลทางเทคนิค)
                 </h3>
-                <button
+                <button id="btn-card-tech" onclick="toggleCardEdit('card-tech')"
                     class="text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors">
                     <i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข
                 </button>
@@ -156,15 +258,24 @@
                 <!-- GENERAL INFO -->
                 <div>
                     <h4 class="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2.5">General Info</h4>
-                    <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm">
+                    <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm items-center">
                         <div class="col-span-5 text-slate-500 font-medium">รหัสสินค้า/รุ่น</div>
-                        <div class="col-span-7 text-slate-800 font-semibold">204W31</div>
+                        <div class="col-span-7">
+                            <input type="text" value="204W31" readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
+                        </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ผู้ผลิต (Mfr.)</div>
-                        <div class="col-span-7 text-slate-700">VOKEN</div>
+                        <div class="col-span-7">
+                            <input type="text" value="VOKEN" readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                        </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">หมายเลขเครื่อง (SN)</div>
-                        <div class="col-span-7 text-slate-500">VK-2020-0045A</div>
+                        <div class="col-span-7">
+                            <input type="text" value="VK-2020-0045A" readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                        </div>
                     </div>
                 </div>
 
@@ -172,15 +283,24 @@
                 <div>
                     <h4 class="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2.5">Nameplate Specs
                     </h4>
-                    <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm">
+                    <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm items-center">
                         <div class="col-span-5 text-slate-500 font-medium">อัตราการไหล (Capacity)</div>
-                        <div class="col-span-7 text-slate-800 font-semibold">120 m³/hr</div>
+                        <div class="col-span-7">
+                            <input type="text" value="120 m³/hr" readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
+                        </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ระยะส่ง (Head)</div>
-                        <div class="col-span-7 text-slate-700">65 m.</div>
+                        <div class="col-span-7">
+                            <input type="text" value="65 m." readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                        </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ความเร็วรอบ (RPM)</div>
-                        <div class="col-span-7 text-slate-700">1,450 RPM</div>
+                        <div class="col-span-7">
+                            <input type="text" value="1,450 RPM" readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                        </div>
                     </div>
                 </div>
 
@@ -188,70 +308,88 @@
                 <div>
                     <h4 class="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2.5">Drive & Electrical
                         Utilities</h4>
-                    <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm">
+                    <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm items-center">
                         <div class="col-span-5 text-slate-500 font-medium">มอเตอร์ขับเคลื่อน</div>
-                        <div class="col-span-7 text-blue-600 font-medium flex items-center gap-1.5">
-                            <i data-lucide="zap" class="w-3.5 h-3.5 fill-yellow-400 text-yellow-500"></i>
-                            MTR-56KW-A02 <span class="text-xs text-blue-400">(56 kW, 380V/3Ph)</span>
+                        <div class="col-span-7 relative">
+                            <i data-lucide="zap"
+                                class="w-3.5 h-3.5 fill-yellow-400 text-yellow-500 absolute left-2 top-2.5 z-10 pointer-events-none"></i>
+                            <input type="text" value="MTR-56KW-A02 (56 kW, 380V)" readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md pl-7 pr-3 py-0 bg-transparent border-transparent text-blue-600 font-medium pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ตู้คอนโทรล (Panel)</div>
-                        <div class="col-span-7 text-slate-700">MCC-A02 <span
-                                class="text-xs text-slate-500">(ตู้เมนห้องหีบอ้อย)</span></div>
+                        <div class="col-span-7">
+                            <input type="text" value="MCC-A02 (ตู้เมนห้องหีบอ้อย)" readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                        </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ชุดสตาร์ท (Starter)</div>
-                        <div class="col-span-7 text-slate-700">Star-Delta Starter <span
-                                class="text-xs text-slate-500">(ตู้เบอร์ 4)</span></div>
+                        <div class="col-span-7">
+                            <input type="text" value="Star-Delta Starter (ตู้เบอร์ 4)" readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                        </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">เบรกเกอร์ (Breaker)</div>
-                        <div class="col-span-7 text-slate-700">MCCB 125A / 3P (Schneider)</div>
+                        <div class="col-span-7">
+                            <input type="text" value="MCCB 125A / 3P (Schneider)" readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Purchase & Warranty Card -->
-        <div
+        <div id="card-purchase"
             class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
             <div class="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center bg-white">
                 <h3 class="font-bold tracking-wide text-blue-700 text-sm flex items-center gap-2">
                     <i data-lucide="receipt" class="w-4 h-4 text-blue-500"></i>
                     Purchase & Warranty (การจัดซื้อและรับประกัน)
                 </h3>
-                <button
+                <button id="btn-card-purchase" onclick="toggleCardEdit('card-purchase')"
                     class="text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors">
                     <i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข
                 </button>
             </div>
             <div class="p-5 flex-grow">
-                <div class="grid grid-cols-12 gap-y-4 gap-x-4 text-sm">
+                <div class="grid grid-cols-12 gap-y-4 gap-x-4 text-sm items-center">
                     <div class="col-span-5 text-slate-500 font-medium">วันที่ติดตั้ง</div>
-                    <div class="col-span-7 text-slate-700">10 พฤศจิกายน 2020 <span
-                            class="text-xs text-slate-400">(ก่อนเปิดหีบ)</span></div>
+                    <div class="col-span-7">
+                        <input type="text" value="10 พฤศจิกายน 2020 (ก่อนเปิดหีบ)" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                    </div>
 
-                    <div class="col-span-5 text-slate-500 font-medium flex items-center">วันหมดประกัน</div>
-                    <div class="col-span-7 font-bold text-red-500">10 พฤศจิกายน 2021 <span
-                            class="text-xs font-normal text-red-400">(หมดประกันแล้ว)</span></div>
+                    <div class="col-span-5 text-slate-500 font-medium">วันหมดประกัน</div>
+                    <div class="col-span-7">
+                        <input type="text" value="10 พฤศจิกายน 2021 (หมดประกันแล้ว)" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-red-500 pointer-events-none">
+                    </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">ราคาซื้อ</div>
-                    <div class="col-span-7 font-bold text-slate-800">฿ 185,000.00</div>
+                    <div class="col-span-7">
+                        <input type="text" value="185,000.00" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-slate-800 pointer-events-none">
+                    </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">ราคาซ่อมทดแทน</div>
-                    <div class="col-span-7 font-bold text-slate-800">฿ 210,000.00 <span
-                            class="text-xs font-normal text-slate-400">(Est. 2024)</span></div>
+                    <div class="col-span-7">
+                        <input type="text" value="210,000.00" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-slate-800 pointer-events-none">
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Maintenance Status Card -->
-        <div
+        <div id="card-maint"
             class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col h-full">
             <div class="px-5 py-3.5 border-b border-slate-100 flex justify-between items-center bg-white">
                 <h3 class="font-bold tracking-wide text-blue-700 text-sm flex items-center gap-2">
                     <i data-lucide="heart-pulse" class="w-4 h-4 text-blue-500"></i>
                     Maintenance Status (สถานะการซ่อมบำรุง)
                 </h3>
-                <button
+                <button id="btn-card-maint" onclick="toggleCardEdit('card-maint')"
                     class="text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors">
                     <i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข
                 </button>
@@ -260,22 +398,31 @@
                 <div class="grid grid-cols-12 gap-y-5 gap-x-4 text-sm items-center">
                     <div class="col-span-5 text-slate-500 font-medium">ระดับความสำคัญ</div>
                     <div class="col-span-7">
-                        <span
-                            class="inline-flex py-1 px-2.5 rounded text-xs font-bold bg-red-100 text-red-600 border border-red-200">
-                            1 - CRITICAL <span class="font-medium ml-1 opacity-80">(กระทบการผลิตโดยตรง)</span>
-                        </span>
+                        <select disabled
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-red-600 appearance-none">
+                            <option value="1" selected>1 - CRITICAL (กระทบการผลิตโดยตรง)</option>
+                            <option value="2">2 - ESSENTIAL</option>
+                            <option value="3">3 - GENERAL</option>
+                        </select>
                     </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">MTBF (ระยะเวลาเฉลี่ยก่อนเสีย)</div>
-                    <div class="col-span-7 font-bold text-green-600">12,555 ชั่วโมง <span
-                            class="text-xs font-normal text-green-500">(อ้างอิงจากระบบ)</span></div>
+                    <div class="col-span-7">
+                        <input type="text" value="12,555 ชั่วโมง" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-green-600 pointer-events-none">
+                    </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">MTTR (เวลารวมที่หยุดซ่อม)</div>
-                    <div class="col-span-7 font-bold text-orange-500">498 ชั่วโมง <span
-                            class="text-xs font-normal text-orange-400">(สถิติสะสม)</span></div>
+                    <div class="col-span-7">
+                        <input type="text" value="498 ชั่วโมง" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-orange-500 pointer-events-none">
+                    </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">ค่าใช้จ่ายสะสม (BM+PM)</div>
-                    <div class="col-span-7 font-bold text-slate-800">฿ 45,200.00</div>
+                    <div class="col-span-7">
+                        <input type="text" value="45,200.00" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-slate-800 pointer-events-none">
+                    </div>
                 </div>
             </div>
         </div>
@@ -521,12 +668,20 @@
                 </h3>
                 <ul class="space-y-2">
                     <li>
-                        <button id="cbm-btn-visual" onclick="switchCbmSubTab('visual')"
+                        <button id="cbm-btn-overview" onclick="switchCbmSubTab('overview')"
                             class="w-full text-left px-4 py-3 rounded-lg text-sm font-semibold bg-blue-100/50 text-blue-700 border border-blue-200 flex items-center justify-between transition-colors">
+                            <span class="flex items-center gap-2"><i data-lucide="layout-dashboard"
+                                    class="w-4 h-4 text-blue-600"></i> ภาพรวม (Overview)</span>
+                            <i id="cbm-chevron-overview" data-lucide="chevron-right" class="w-4 h-4 opacity-70"></i>
+                        </button>
+                    </li>
+                    <li>
+                        <button id="cbm-btn-visual" onclick="switchCbmSubTab('visual')"
+                            class="w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 border border-transparent transition-colors flex items-center justify-between">
                             <span class="flex items-center gap-2"><i data-lucide="eye"
                                     class="w-4 h-4 text-blue-600"></i> Visual
                                 Test</span>
-                            <i id="cbm-chevron-visual" data-lucide="chevron-right" class="w-4 h-4 opacity-70"></i>
+                            <i id="cbm-chevron-visual" data-lucide="chevron-right" class="w-4 h-4 opacity-0"></i>
                         </button>
                     </li>
                     <li>
@@ -562,14 +717,135 @@
                         </button>
                     </li>
                 </ul>
+                </ul>
             </div>
             <!-- Content CBM Area -->
             <div class="w-2/3 md:w-3/4 p-6 bg-white flex flex-col relative">
 
                 <!-- ============================ -->
+                <!-- Overview Tab -->
+                <!-- ============================ -->
+                <div id="cbm-content-overview" class="cbm-pane flex flex-col h-full">
+                    <div class="mb-6 pb-4 border-b border-slate-100">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="layout-dashboard" class="w-5 h-5 text-blue-600"></i>
+                            ภาพรวมผลการตรวจสอบ CBM (Condition Based Maintenance Overview)
+                        </h3>
+                        <p class="text-sm text-slate-500 mt-1">สรุปสถานะสุขภาพเครื่องจักรจากการตรวจสอบทุกประเภท</p>
+                    </div>
+
+                    <div class="flex-grow space-y-4">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- Visual Status -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-blue-300 transition-colors"
+                                onclick="switchCbmSubTab('visual')">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                                            <i data-lucide="eye" class="w-4 h-4 text-blue-600"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-slate-700 text-sm">Visual Test</h4>
+                                            <p class="text-[10px] text-slate-500">อัปเดต: 12 ม.ค. 2024</p>
+                                        </div>
+                                    </div>
+                                    <span
+                                        class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold">ปกติ
+                                        (Normal)</span>
+                                </div>
+                                <p class="text-xs text-slate-600">ไม่พบรอยรั่วซึม หรือความหลุดหลวมบริเวณภายนอก</p>
+                            </div>
+
+                            <!-- Vibration Status -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-emerald-300 transition-colors"
+                                onclick="switchCbmSubTab('vibration')">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                                            <i data-lucide="activity" class="w-4 h-4 text-emerald-500"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-slate-700 text-sm">Vibration</h4>
+                                            <p class="text-[10px] text-slate-500">อัปเดต: 10 มี.ค. 2024</p>
+                                        </div>
+                                    </div>
+                                    <span
+                                        class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-bold">เฝ้าระวัง
+                                        (Alert)</span>
+                                </div>
+                                <p class="text-xs text-slate-600">พบค่าความสั่นสะเทือนสูงฝั่ง Drive End (4.2 mm/s)</p>
+                            </div>
+
+                            <!-- Thermoscan Status -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-red-300 transition-colors"
+                                onclick="switchCbmSubTab('thermoscan')">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                                            <i data-lucide="thermometer" class="w-4 h-4 text-red-500"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-slate-700 text-sm">Thermoscan</h4>
+                                            <p class="text-[10px] text-slate-500">อัปเดต: 10 มี.ค. 2024</p>
+                                        </div>
+                                    </div>
+                                    <span
+                                        class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold">ปกติ
+                                        (Normal)</span>
+                                </div>
+                                <p class="text-xs text-slate-600">อุณหภูมิมอเตอร์เฉลี่ย 65°C อยู่ในเกณฑ์ที่รับได้</p>
+                            </div>
+
+                            <!-- Oil Analysis Status -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-sky-300 transition-colors"
+                                onclick="switchCbmSubTab('oil')">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
+                                            <i data-lucide="droplets" class="w-4 h-4 text-sky-500"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-slate-700 text-sm">Oil Analysis</h4>
+                                            <p class="text-[10px] text-slate-500">อัปเดต: รอผล</p>
+                                        </div>
+                                    </div>
+                                    <span
+                                        class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-bold">ยังไม่มีข้อมูล
+                                        (N/A)</span>
+                                </div>
+                                <p class="text-xs text-slate-600 text-slate-400 italic">ส่งเก็บตัวอย่างเมื่อ 10 มี.ค.
+                                    2024
+                                </p>
+                            </div>
+
+                            <!-- Acoustic Status -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-purple-300 transition-colors"
+                                onclick="switchCbmSubTab('acoustic')">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+                                            <i data-lucide="radio" class="w-4 h-4 text-purple-500"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-slate-700 text-sm">Acoustic Emission</h4>
+                                            <p class="text-[10px] text-slate-500">อัปเดต: 10 มี.ค. 2024</p>
+                                        </div>
+                                    </div>
+                                    <span
+                                        class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold">ปกติ
+                                        (Normal)</span>
+                                </div>
+                                <p class="text-xs text-slate-600">เสียงการทำงานของ Bearing ปกติ ไม่พบการกระแทก</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ============================ -->
                 <!-- Visual Inspection Tab -->
                 <!-- ============================ -->
-                <div id="cbm-content-visual" class="cbm-pane flex flex-col h-full">
+                <div id="cbm-content-visual" class="cbm-pane hidden flex-col h-full">
                     <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
                         <div>
                             <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -1054,7 +1330,7 @@
 
     // CBM Sub-Tab switching logic
     function switchCbmSubTab(subTabId) {
-        const cbmTypes = ['visual', 'vibration', 'thermoscan', 'oil', 'acoustic'];
+        const cbmTypes = ['overview', 'visual', 'vibration', 'thermoscan', 'oil', 'acoustic'];
 
         cbmTypes.forEach(id => {
             const btn = document.getElementById(`cbm-btn-${id}`);

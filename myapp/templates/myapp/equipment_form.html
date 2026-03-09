@@ -32,8 +32,49 @@
                 <form
                     onsubmit="event.preventDefault(); alert('บันทึกข้อมูลเครื่องจักรใหม่เรียบร้อยแล้ว'); window.close();">
 
-                    <!-- Section 1: Identification -->
+                    <!-- Section 0: Equipment Image -->
                     <h6 class="fw-bold text-secondary border-bottom pb-2 mb-3"><i
+                            class="fa-solid fa-image text-primary me-2"></i> รูปภาพเครื่องจักร (Equipment Image)</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12 text-center">
+                            <div class="d-flex flex-column align-items-center justify-content-center p-4 bg-light border border-dashed rounded-3"
+                                id="image-upload-container" style="min-height: 200px; border-style: dashed !important;">
+                                <img id="form-image-preview" src="" class="img-fluid rounded shadow-sm d-none mb-3"
+                                    style="max-height: 200px;">
+                                <div id="form-image-placeholder">
+                                    <i class="fa-solid fa-cloud-arrow-up text-secondary mb-2"
+                                        style="font-size: 2rem;"></i>
+                                    <p class="text-muted small mb-0">คลิกเพื่ออัปโหลด หรือลากไฟล์มาวางที่นี่</p>
+                                    <p class="text-muted" style="font-size: 0.75rem;">(PNG, JPG, WEBP สูงสุด 5MB)</p>
+                                </div>
+                                <input type="file" id="equipment-image" accept="image/*" class="d-none"
+                                    onchange="previewFormImage(event)">
+                                <button type="button" class="btn btn-outline-primary btn-sm mt-3"
+                                    onclick="document.getElementById('equipment-image').click()">
+                                    <i class="fa-solid fa-camera me-1"></i> เลือกรูปภาพ
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <script>
+                        function previewFormImage(event) {
+                            const file = event.target.files[0];
+                            if (file) {
+                                const reader = new FileReader();
+                                reader.onload = function (e) {
+                                    const img = document.getElementById('form-image-preview');
+                                    img.src = e.target.result;
+                                    img.classList.remove('d-none');
+                                    document.getElementById('form-image-placeholder').classList.add('d-none');
+                                }
+                                reader.readAsDataURL(file);
+                            }
+                        }
+                    </script>
+
+                    <!-- Section 1: Identification -->
+                    <h6 class="fw-bold text-secondary border-bottom pb-2 mb-3 mt-4"><i
                             class="fa-regular fa-id-card text-primary me-2"></i> ข้อมูลระบุตัวตน (Identification)</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
@@ -84,6 +125,62 @@
                         <div class="col-md-4">
                             <label class="form-label small mb-1">ความเร็วรอบ (RPM)</label>
                             <input type="text" class="form-control">
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Purchase & Warranty -->
+                    <h6 class="fw-bold text-secondary border-bottom pb-2 mb-3 mt-4"><i
+                            class="fa-solid fa-file-invoice-dollar text-primary me-2"></i> การจัดซื้อและรับประกัน
+                        (Purchase & Warranty)</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">วันที่ติดตั้ง (Installation Date)</label>
+                            <input type="date" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">วันหมดประกัน (Warranty EXP)</label>
+                            <input type="date" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">ราคาซื้อ (Purchase Price)</label>
+                            <input type="number" class="form-control" placeholder="0.00" step="0.01">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">ราคาซ่อมทดแทน (Replacement Cost)</label>
+                            <input type="number" class="form-control" placeholder="0.00" step="0.01">
+                        </div>
+                    </div>
+
+                    <!-- Section 4: Maintenance Status -->
+                    <h6 class="fw-bold text-secondary border-bottom pb-2 mb-3 mt-4"><i
+                            class="fa-solid fa-heart-pulse text-primary me-2"></i> สถานะการซ่อมบำรุง (Maintenance
+                        Status)</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">ระดับความสำคัญ (Priority Level)</label>
+                            <select class="form-select text-danger fw-bold">
+                                <option value="1">1 - CRITICAL (กระทบการผลิตโดยตรง)</option>
+                                <option value="2">2 - ESSENTIAL</option>
+                                <option value="3">3 - GENERAL</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">MTBF (ระยะเวลาเฉลี่ยก่อนเสีย)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control text-success fw-bold" placeholder="เช่น 12555">
+                                <span class="input-group-text">ชั่วโมง</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">MTTR (เวลารวมที่หยุดซ่อม)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control text-warning fw-bold" placeholder="เช่น 498">
+                                <span class="input-group-text">ชั่วโมง</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small mb-1">ค่าใช้จ่ายสะสม BM+PM (Acc. Cost)</label>
+                            <input type="number" class="form-control fw-bold" placeholder="0.00" step="0.01">
                         </div>
                     </div>
 
