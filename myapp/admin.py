@@ -85,3 +85,39 @@ class MillReportAdmin(admin.ModelAdmin):
     list_filter = ('date', 'line' )
     search_fields = ('date',)
     ordering = ('-date', 'line')
+
+@admin.register(Equipment)
+class EquipmentAdmin(admin.ModelAdmin):
+    list_display = ('equipment_id', 'name', 'location', 'priority_level', 'is_active')
+    search_fields = ('equipment_id', 'name')
+    list_filter = ('priority_level', 'is_active')
+
+@admin.register(EquipmentBOM)
+class EquipmentBOMAdmin(admin.ModelAdmin):
+    list_display = ('part_no', 'part_name', 'equipment', 'qty', 'stock_qty')
+    search_fields = ('part_no', 'part_name', 'equipment__equipment_id')
+
+@admin.register(CBMVisualTest)
+class CBMVisualTestAdmin(admin.ModelAdmin):
+    list_display = ('equipment', 'inspection_date', 'overall_condition')
+    list_filter = ('overall_condition', 'inspection_date')
+
+@admin.register(CBMVibration)
+class CBMVibrationAdmin(admin.ModelAdmin):
+    list_display = ('equipment', 'inspection_date', 'status')
+    list_filter = ('status', 'inspection_date')
+
+@admin.register(CBMThermoscan)
+class CBMThermoscanAdmin(admin.ModelAdmin):
+    list_display = ('equipment', 'inspection_date')
+    list_filter = ('inspection_date',)
+
+@admin.register(CBMOilAnalysis)
+class CBMOilAnalysisAdmin(admin.ModelAdmin):
+    list_display = ('equipment', 'collection_date')
+    list_filter = ('collection_date',)
+
+@admin.register(CBMAcoustic)
+class CBMAcousticAdmin(admin.ModelAdmin):
+    list_display = ('equipment', 'inspection_date', 'sound_pattern')
+    list_filter = ('sound_pattern', 'inspection_date')

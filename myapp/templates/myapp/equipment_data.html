@@ -400,12 +400,14 @@
                     <div class="col-span-7">
                         <select disabled
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-red-600 appearance-none">
-                            <option value="1" selected>1 - CRITICAL (กระทบการผลิตโดยตรง)</option>
-                            <option value="2">2 - ESSENTIAL</option>
-                            <option value="3">3 - GENERAL</option>
+                            <option value="1" {% if equipment.priority_level == '1' %}selected{% endif %}>1 -
+                                CRITICAL
+                                (กระทบการผลิตโดยตรง)</option>
+                            <option value="2" {% if equipment.priority_level == '2' %}selected{% endif %}>2 - ESSENTIAL
+                            </option>
+                            <option value="3" {% if equipment.priority_level == '3' or not equipment %}selected{% endif %}>3 - GENERAL</option>
                         </select>
                     </div>
-
                     <div class="col-span-5 text-slate-500 font-medium">MTBF (ระยะเวลาเฉลี่ยก่อนเสีย)</div>
                     <div class="col-span-7">
                         <input type="text" value="12,555 ชั่วโมง" readonly
@@ -679,8 +681,7 @@
                         <button id="cbm-btn-visual" onclick="switchCbmSubTab('visual')"
                             class="w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 border border-transparent transition-colors flex items-center justify-between">
                             <span class="flex items-center gap-2"><i data-lucide="eye"
-                                    class="w-4 h-4 text-blue-600"></i> Visual
-                                Test</span>
+                                    class="w-4 h-4 text-blue-600"></i> Visual Test</span>
                             <i id="cbm-chevron-visual" data-lucide="chevron-right" class="w-4 h-4 opacity-0"></i>
                         </button>
                     </li>
@@ -862,8 +863,9 @@
 
                     <div class="flex-grow">
                         <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
-                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6"
-                                onsubmit="event.preventDefault(); alert('บันทึก Visual Test สำเร็จ');">
+                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <input type="hidden" name="cbm_type" value="visual">
 
                                 <div class="md:col-span-1">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span
@@ -873,9 +875,7 @@
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
                                         </div>
-                                        <input type="date"
-                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                            value="2024-03-10">
+                                        {{ form_visual.inspection_date }}
                                     </div>
                                 </div>
 
@@ -887,35 +887,26 @@
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
                                         </div>
-                                        <input type="text" value="นายสมชาย (ME)"
-                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                        {{ form_visual.inspector }}
                                     </div>
                                 </div>
 
                                 <div class="md:col-span-2">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">สภาพโดยรวม (Overall
                                         Condition)</label>
-                                    <select
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
-                                        <option value="good">ปกติ (Good - No Action)</option>
-                                        <option value="fair">เฝ้าระวัง (Fair - Monitor)</option>
-                                        <option value="poor">ผิดปกติ (Poor - Action Required)</option>
-                                    </select>
+                                    {{ form_visual.overall_condition }}
                                 </div>
 
                                 <div class="md:col-span-2">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">รายละเอียด /
                                         ข้อเสนอแนะ</label>
-                                    <textarea rows="3"
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="ระบุสิ่งที่พบผิดปกติ..."></textarea>
+                                    {{ form_visual.remark }}
                                 </div>
 
                                 <div class="md:col-span-2">
                                     <label
                                         class="block text-sm font-semibold text-slate-700 mb-2">แนบรูปถ่ายหน้างาน</label>
-                                    <input type="file" accept="image/*"
-                                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-300 rounded-md bg-white p-2">
+                                    {{ form_visual.image_attachment }}
                                 </div>
 
                                 <div class="md:col-span-2 mt-4 flex justify-end">
@@ -944,8 +935,9 @@
 
                     <div class="flex-grow">
                         <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
-                            <form class="grid grid-cols-1 md:grid-cols-3 gap-6"
-                                onsubmit="event.preventDefault(); alert('บันทึก Vibration สำเร็จ');">
+                            <form class="grid grid-cols-1 md:grid-cols-3 gap-6" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="cbm_type" value="vibration">
                                 <div class="md:col-span-1">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span
                                             class="text-red-500">*</span></label>
@@ -954,9 +946,7 @@
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
                                         </div>
-                                        <input type="date"
-                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                            value="2024-03-10">
+                                        {{ form_vibration.inspection_date }}
                                     </div>
                                 </div>
                                 <div class="md:col-span-1">
@@ -967,53 +957,35 @@
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
                                         </div>
-                                        <input type="text" value="นายสมศักดิ์ (ทีม CBM)"
-                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                        {{ form_vibration.inspector }}
                                     </div>
                                 </div>
                                 <div class="md:col-span-1">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">จุดที่วัด
                                         (Measurement Point)</label>
-                                    <select
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm">
-                                        <option>Pump - Drive End (ฝั่งขับ)</option>
-                                        <option>Pump - Non-Drive End (ฝั่งตรงข้ามขับ)</option>
-                                        <option>Motor - Drive End</option>
-                                        <option>Motor - Non-Drive End</option>
-                                    </select>
+                                    {{ form_vibration.measurement_point }}
                                 </div>
 
                                 <div class="bg-white p-3 rounded-lg border border-slate-200">
                                     <label class="block text-sm font-semibold text-slate-700 mb-1">Velocity
                                         (mm/s)</label>
-                                    <input type="number" step="0.01"
-                                        class="w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="ความเร็วการสั่น">
+                                    {{ form_vibration.velocity }}
                                 </div>
                                 <div class="bg-white p-3 rounded-lg border border-slate-200">
                                     <label class="block text-sm font-semibold text-slate-700 mb-1">Acceleration
                                         (g)</label>
-                                    <input type="number" step="0.01"
-                                        class="w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="ความเร่งการสั่น">
+                                    {{ form_vibration.acceleration }}
                                 </div>
                                 <div class="bg-white p-3 rounded-lg border border-slate-200">
                                     <label class="block text-sm font-semibold text-slate-700 mb-1">Bearing Temp
                                         (°C)</label>
-                                    <input type="number" step="0.1"
-                                        class="w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="อุณหภูมิแบริ่ง">
+                                    {{ form_vibration.bearing_temp }}
                                 </div>
 
                                 <div class="md:col-span-3">
                                     <label
                                         class="block text-sm font-semibold text-slate-700 mb-2">สถานะการประเมินค่าสั่นสะเทือน</label>
-                                    <select
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm">
-                                        <option value="normal">Normal (อยู่ในเกณฑ์มาตรฐาน ISO)</option>
-                                        <option value="warning">Warning (เฝ้าระวัง/เริ่มมีปัญหา)</option>
-                                        <option value="alarm">Alarm (อันตราย/ต้องวางแผนซ่อม)</option>
-                                    </select>
+                                    {{ form_vibration.status }}
                                 </div>
 
                                 <div class="md:col-span-3 mt-4 flex justify-end">
@@ -1043,8 +1015,9 @@
 
                     <div class="flex-grow">
                         <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
-                            <form class="grid grid-cols-1 md:grid-cols-3 gap-6"
-                                onsubmit="event.preventDefault(); alert('บันทึก Thermography สำเร็จ');">
+                            <form class="grid grid-cols-1 md:grid-cols-3 gap-6" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <input type="hidden" name="cbm_type" value="thermoscan">
                                 <div class="md:col-span-1">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ถ่ายภาพ <span
                                             class="text-red-500">*</span></label>
@@ -1053,9 +1026,7 @@
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
                                         </div>
-                                        <input type="date"
-                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                            value="2024-03-10">
+                                        {{ form_thermoscan.inspection_date }}
                                     </div>
                                 </div>
                                 <div class="md:col-span-1">
@@ -1066,45 +1037,35 @@
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
                                         </div>
-                                        <input type="text" value="นายสมศักดิ์ (ทีม CBM)"
-                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                        {{ form_thermoscan.inspector }}
                                     </div>
                                 </div>
                                 <div class="md:col-span-1">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">จุดที่ถ่าย (Location
                                         Target)</label>
-                                    <input type="text"
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="เช่น Motor Terminal Box, Pump Bearing">
+                                    {{ form_thermoscan.location_target }}
                                 </div>
 
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-1">อุณหภูมิสูงสุด (Max
                                         Temp °C)</label>
-                                    <input type="number" step="0.1"
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="อุณหภูมิจุดที่ร้อนที่สุด">
+                                    {{ form_thermoscan.max_temp }}
                                 </div>
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-1">อุณหภูมิแวดล้อม
                                         (Ambient °C)</label>
-                                    <input type="number" step="0.1"
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="อุณหภูมิอ้างอิง">
+                                    {{ form_thermoscan.ambient_temp }}
                                 </div>
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-1">ผลต่าง (Delta T
                                         °C)</label>
-                                    <input type="number" step="0.1" readonly
-                                        class="block w-full rounded-md border-slate-200 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-slate-100"
-                                        placeholder="ระบบคำนวณอัตโนมัติ">
+                                    {{ form_thermoscan.delta_t }}
                                 </div>
 
                                 <div class="md:col-span-3">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">แนบภาพถ่าย IR
                                         (Thermal Image)</label>
-                                    <input type="file" accept="image/*"
-                                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-300 rounded-md bg-white p-2">
+                                    {{ form_thermoscan.image_attachment }}
                                 </div>
 
                                 <div class="md:col-span-3 mt-4 flex justify-end">
@@ -1133,8 +1094,9 @@
 
                     <div class="flex-grow">
                         <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
-                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6"
-                                onsubmit="event.preventDefault(); alert('บันทึก Oil Analysis สำเร็จ');">
+                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <input type="hidden" name="cbm_type" value="oil">
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่เก็บตัวอย่าง
                                         <span class="text-red-500">*</span></label>
@@ -1143,9 +1105,7 @@
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
                                         </div>
-                                        <input type="date"
-                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                            value="2024-03-10">
+                                        {{ form_oil.collection_date }}
                                     </div>
                                 </div>
                                 <div>
@@ -1156,45 +1116,36 @@
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
                                         </div>
-                                        <input type="text" value="นายสมศักดิ์ (ทีม CBM)"
-                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                        {{ form_oil.inspector }}
                                     </div>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">ชนิดน้ำมัน (Oil
                                         Type)</label>
-                                    <input type="text" value="ISO VG 68"
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm">
+                                    {{ form_oil.oil_type }}
                                 </div>
 
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-1">ความหนืด @40°C
                                         (cSt)</label>
-                                    <input type="number" step="0.1"
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="เช่น 65.5">
+                                    {{ form_oil.viscosity }}
                                 </div>
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-1">ปริมาณน้ำเจือปน
                                         (Water Content %)</label>
-                                    <input type="number" step="0.01"
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="เช่น 0.05">
+                                    {{ form_oil.water_content }}
                                 </div>
 
                                 <div class="md:col-span-2">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">ระดับอนุภาคความสึกหรอ
                                         (Wear Particle / ISO Code)</label>
-                                    <input type="text"
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="เช่น 18/16/13 หรือ พบอนุภาคเหล็กสูง">
+                                    {{ form_oil.wear_particle }}
                                 </div>
 
                                 <div class="md:col-span-2">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์ผล Lab Report
                                         (PDF)</label>
-                                    <input type="file" accept=".pdf"
-                                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-300 rounded-md bg-white p-2">
+                                    {{ form_oil.lab_report }}
                                 </div>
 
                                 <div class="md:col-span-2 mt-4 flex justify-end">
@@ -1224,8 +1175,9 @@
 
                     <div class="flex-grow">
                         <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
-                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6"
-                                onsubmit="event.preventDefault(); alert('บันทึก Acoustic สำเร็จ');">
+                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <input type="hidden" name="cbm_type" value="acoustic">
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span
                                             class="text-red-500">*</span></label>
@@ -1234,9 +1186,7 @@
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
                                         </div>
-                                        <input type="date"
-                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                            value="2024-03-10">
+                                        {{ form_acoustic.inspection_date }}
                                     </div>
                                 </div>
                                 <div>
@@ -1247,41 +1197,29 @@
                                             class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
                                         </div>
-                                        <input type="text" value="นายสมศักดิ์ (ทีม CBM)"
-                                            class="pl-10 block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm bg-white">
+                                        {{ form_acoustic.inspector }}
                                     </div>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">จุดตรวจสอบ</label>
-                                    <input type="text"
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="เช่น Bearing Housing">
+                                    {{ form_acoustic.inspection_point }}
                                 </div>
 
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-1">ระดับเสียง (dB /
                                         RMS)</label>
-                                    <input type="number" step="0.1"
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm"
-                                        placeholder="ค่าความดังที่วัดได้">
+                                    {{ form_acoustic.decibel }}
                                 </div>
                                 <div>
                                     <label class="block text-sm font-semibold text-slate-700 mb-1">ลักษณะเสียงที่พบ
                                         (Sound Pattern)</label>
-                                    <select
-                                        class="block w-full rounded-md border-slate-300 border py-2 px-3 text-sm focus:border-blue-500 focus:ring-blue-500 shadow-sm">
-                                        <option value="normal">เสียงราบเรียบปกติ (Smooth)</option>
-                                        <option value="hissing">เสียงฟู่/รั่ว (Hissing)</option>
-                                        <option value="rubbing">เสียงเสียดสีต่อเนื่อง (Rubbing)</option>
-                                        <option value="impacting">เสียงกระแทก/แตกหัก (Impacting/Clicking)</option>
-                                    </select>
+                                    {{ form_acoustic.sound_pattern }}
                                 </div>
 
                                 <div class="md:col-span-2">
                                     <label class="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์บันทึกเสียง
                                         (Audio / Waveform)</label>
-                                    <input type="file" accept="audio/*,.pdf"
-                                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-slate-300 rounded-md bg-white p-2">
+                                    {{ form_acoustic.audio_attachment }}
                                 </div>
 
                                 <div class="md:col-span-2 mt-4 flex justify-end">

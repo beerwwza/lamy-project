@@ -643,3 +643,160 @@ class LatheJob(models.Model):
 
     def __str__(self):
         return self.job_no
+
+# ==========================================
+# 5. NEW: Equipment Data Models
+# ==========================================
+
+class Equipment(models.Model):
+    # Identification
+    equipment_id = models.CharField(max_length=50, primary_key=True, verbose_name="รหัสเครื่องจักร")
+    name = models.CharField(max_length=255, verbose_name="ชื่อเครื่องจักร")
+    location = models.CharField(max_length=255, blank=True, null=True, verbose_name="ตำแหน่งที่ตั้ง")
+    belongs_to = models.CharField(max_length=255, blank=True, null=True, verbose_name="สังกัดเครื่องจักรหลัก")
+    
+    # Technical Data
+    model = models.CharField(max_length=100, blank=True, null=True, verbose_name="รุ่น")
+    manufacturer = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้ผลิต")
+    serial_no = models.CharField(max_length=100, blank=True, null=True, verbose_name="หมายเลขเครื่อง")
+    capacity = models.CharField(max_length=100, blank=True, null=True, verbose_name="ความจุ/อัตราไหล")
+    head_size = models.CharField(max_length=100, blank=True, null=True, verbose_name="ระยะส่ง/ขนาด")
+    rpm = models.CharField(max_length=50, blank=True, null=True, verbose_name="ความเร็วรอบ")
+    
+    # Purchase & Warranty
+    installation_date = models.DateField(blank=True, null=True, verbose_name="วันที่ติดตั้ง")
+    warranty_exp = models.DateField(blank=True, null=True, verbose_name="วันหมดประกัน")
+    purchase_price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="ราคาซื้อ")
+    replacement_cost = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="ราคาซ่อมทดแทน")
+    
+    # Maintenance Status
+    PRIORITY_CHOICES = [
+        ('1', '1 - CRITICAL (กระทบการผลิตโดยตรง)'),
+        ('2', '2 - ESSENTIAL'),
+        ('3', '3 - GENERAL'),
+    ]
+    priority_level = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='3', verbose_name="ระดับความสำคัญ")
+    mtbf = models.FloatField(default=0, verbose_name="MTBF (ชม.)")
+    mttr = models.FloatField(default=0, verbose_name="MTTR (ชม.)")
+    acc_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="ค่าใช้จ่ายสะสม")
+    
+    # Image
+    image = models.ImageField(upload_to='equipment_images/', blank=True, null=True, verbose_name="รูปภาพเครื่องจักร")
+    
+    is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.equipment_id} - {self.name}"
+
+class EquipmentBOM(models.Model):
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='boms', verbose_name="เครื่องจักร")
+    part_no = models.CharField(max_length=100, verbose_name="รหัสอะไหล่ (Part No.)")
+    part_name = models.CharField(max_length=255, verbose_name="ชื่ออะไหล่ (Description)")
+    qty = models.IntegerField(default=1, verbose_name="จำนวนที่ใช้ (Qty)")
+    location = models.CharField(max_length=100, blank=True, null=True, verbose_name="สถานที่เก็บ (Store/Bin)")
+    stock_qty = models.IntegerField(default=0, verbose_name="ยอดคงคลัง") # for demo
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.part_no} - {self.part_name}"
+
+class CBMVisualTest(models.Model):
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='cbm_visual_tests', verbose_name="เครื่องจักร")
+    inspection_date = models.DateField(verbose_name="วันที่ตรวจสอบ")
+    inspector = models.CharField(max_length=100, verbose_name="ผู้ตรวจสอบ")
+    
+    CONDITION_CHOICES = [
+        ('good', 'ปกติ (Good - No Action)'),
+        ('fair', 'เฝ้าระวัง (Fair - Monitor)'),
+        ('poor', 'ผิดปกติ (Poor - Action Required)'),
+    ]
+    overall_condition = models.CharField(max_length=20, choices=CONDITION_CHOICES, default='good', verbose_name="สภาพโดยรวม")
+    remark = models.TextField(blank=True, null=True, verbose_name="รายละเอียด/ข้อเสนอแนะ")
+    image_attachment = models.ImageField(upload_to='cbm_visual/', blank=True, null=True, verbose_name="รูปถ่ายหน้างาน")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Visual Test - {self.equipment.equipment_id} ({self.inspection_date})"
+
+class CBMVibration(models.Model):
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='cbm_vibrations', verbose_name="เครื่องจักร")
+    inspection_date = models.DateField(verbose_name="วันที่ตรวจสอบ")
+    inspector = models.CharField(max_length=100, verbose_name="ผู้ตรวจสอบ")
+    
+    measurement_point = models.CharField(max_length=150, verbose_name="จุดที่วัด")
+    velocity = models.FloatField(blank=True, null=True, verbose_name="Velocity (mm/s)")
+    acceleration = models.FloatField(blank=True, null=True, verbose_name="Acceleration (g)")
+    bearing_temp = models.FloatField(blank=True, null=True, verbose_name="Bearing Temp (°C)")
+    
+    STATUS_CHOICES = [
+        ('normal', 'Normal (อยู่ในเกณฑ์มาตรฐาน ISO)'),
+        ('warning', 'Warning (เฝ้าระวัง/เริ่มมีปัญหา)'),
+        ('alarm', 'Alarm (อันตราย/ต้องวางแผนซ่อม)'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='normal', verbose_name="สถานะการประเมิน")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Vibration - {self.equipment.equipment_id} ({self.inspection_date})"
+
+class CBMThermoscan(models.Model):
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='cbm_thermoscans', verbose_name="เครื่องจักร")
+    inspection_date = models.DateField(verbose_name="วันที่ถ่ายภาพ")
+    inspector = models.CharField(max_length=100, verbose_name="ผู้ตรวจสอบ")
+    
+    location_target = models.CharField(max_length=150, verbose_name="จุดที่ถ่าย (Location Target)")
+    max_temp = models.FloatField(blank=True, null=True, verbose_name="อุณหภูมิสูงสุด (Max Temp °C)")
+    ambient_temp = models.FloatField(blank=True, null=True, verbose_name="อุณหภูมิแวดล้อม (Ambient °C)")
+    delta_t = models.FloatField(blank=True, null=True, verbose_name="ผลต่าง (Delta T °C)")
+    
+    image_attachment = models.ImageField(upload_to='cbm_thermoscan/', blank=True, null=True, verbose_name="ภาพถ่าย IR")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Thermoscan - {self.equipment.equipment_id} ({self.inspection_date})"
+
+class CBMOilAnalysis(models.Model):
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='cbm_oil_analyses', verbose_name="เครื่องจักร")
+    collection_date = models.DateField(verbose_name="วันที่เก็บตัวอย่าง")
+    inspector = models.CharField(max_length=100, verbose_name="ผู้ตรวจสอบ")
+    
+    oil_type = models.CharField(max_length=100, blank=True, null=True, verbose_name="ชนิดน้ำมัน")
+    viscosity = models.FloatField(blank=True, null=True, verbose_name="ความหนืด @40°C (cSt)")
+    water_content = models.FloatField(blank=True, null=True, verbose_name="ปริมาณน้ำเจือปน (%)")
+    wear_particle = models.CharField(max_length=100, blank=True, null=True, verbose_name="ระดับอนุภาคความสึกหรอ (ISO Code)")
+    
+    lab_report = models.FileField(upload_to='cbm_oil/', blank=True, null=True, verbose_name="ไฟล์ผล Lab Report (PDF)")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Oil Analysis - {self.equipment.equipment_id} ({self.collection_date})"
+
+class CBMAcoustic(models.Model):
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='cbm_acoustics', verbose_name="เครื่องจักร")
+    inspection_date = models.DateField(verbose_name="วันที่ตรวจสอบ")
+    inspector = models.CharField(max_length=100, verbose_name="ผู้ตรวจสอบ")
+    
+    inspection_point = models.CharField(max_length=150, blank=True, null=True, verbose_name="จุดตรวจสอบ")
+    decibel = models.FloatField(blank=True, null=True, verbose_name="ระดับเสียง (dB/RMS)")
+    
+    PATTERN_CHOICES = [
+        ('normal', 'เสียงราบเรียบปกติ (Smooth)'),
+        ('hissing', 'เสียงฟู่/รั่ว (Hissing)'),
+        ('rubbing', 'เสียงเสียดสีต่อเนื่อง (Rubbing)'),
+        ('impacting', 'เสียงกระแทก/แตกหัก (Impacting/Clicking)'),
+    ]
+    sound_pattern = models.CharField(max_length=20, choices=PATTERN_CHOICES, default='normal', verbose_name="ลักษณะเสียงที่พบ")
+    
+    audio_attachment = models.FileField(upload_to='cbm_acoustic/', blank=True, null=True, verbose_name="ไฟล์บันทึกเสียง")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Acoustic - {self.equipment.equipment_id} ({self.inspection_date})"

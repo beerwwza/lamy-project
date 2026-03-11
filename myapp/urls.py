@@ -25,19 +25,24 @@ urlpatterns = [
 
     path('maintenance/', maintenance_dashboard, name='maintenance_dashboard'),
     path('maintenance/add/', maintenance_log_add, name='maintenance_log_add'),
+    path('maintenance/edit/<int:log_id>/', maintenance_log_edit, name='maintenance_log_edit'),
     path('maintenance/kpi/add/', maintenance_kpi_metric_add, name='maintenance_kpi_metric_add'),
     
     path('mill/', mill, name='mill'),
     path('mill/report/', mill_report, name='mill_report'),
     path('mill/import/', mill_import, name='mill_import'),
     path('mill/api/history/', mill_history_api, name='mill_history_api'),
+
     path('lathe/', lathe_dashboard, name='lathe_dashboard'),
     path('api/lathe/', lathe_api, name='lathe_api'),
 
     # Equipment Data
     path('equipment/', equipment_data, name='equipment_data'),
     path('equipment/form/', equipment_form, name='equipment_form'),
+    path('equipment/form/<str:eq_id>/', equipment_form, name='equipment_form_edit'),
     path('equipment/bom/', equipment_bom, name='equipment_bom'),
+    path('equipment/cbm/<str:eq_id>/', equipment_cbm, name='equipment_cbm'),
+    path('equipment/<str:eq_id>/', equipment_data, name='equipment_data_detail'),
 
     # Path สำหรับ Import Data
     path('import-data/', import_data, name='import_data'),

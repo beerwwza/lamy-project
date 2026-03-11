@@ -22,18 +22,111 @@ from .models import MaintenanceLog, KPIMetric
 from .forms import MaintenanceLogForm, KPIMetricForm
 
 
+from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic
+from .forms import EquipmentForm, EquipmentBOMForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm
+
 # --- Equipment Views ---
 @login_required
-def equipment_data(request):
-    return render(request, 'myapp/equipment_data.html')
+def equipment_data(request, eq_id=None):
+    if eq_id:
+        equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+    else:
+        equipment = Equipment.objects.first() # View the first one by default if no ID provided
+        
+    boms = EquipmentBOM.objects.filter(equipment=equipment) if equipment else []
+    # TODO: Fetch the latest records and forms for all 5 CBM models
+    latest_cbm_visual = CBMVisualTest.objects.filter(equipment=equipment).order_by('-inspection_date').first() if equipment else None
+    latest_cbm_vibration = CBMVibration.objects.filter(equipment=equipment).order_by('-inspection_date').first() if equipment else None
+    latest_cbm_thermoscan = CBMThermoscan.objects.filter(equipment=equipment).order_by('-inspection_date').first() if equipment else None
+    latest_cbm_oil = CBMOilAnalysis.objects.filter(equipment=equipment).order_by('-collection_date').first() if equipment else None
+    latest_cbm_acoustic = CBMAcoustic.objects.filter(equipment=equipment).order_by('-inspection_date').first() if equipment else None
+    
+    # Optional list for a dropdown to switch equipment
+    equipment_list = Equipment.objects.filter(is_active=True).values('equipment_id', 'name')
+    
+    context = {
+        'equipment': equipment,
+        'boms': boms,
+        'latest_cbm_visual': latest_cbm_visual,
+        'latest_cbm_vibration': latest_cbm_vibration,
+        'latest_cbm_thermoscan': latest_cbm_thermoscan,
+        'latest_cbm_oil': latest_cbm_oil,
+        'latest_cbm_acoustic': latest_cbm_acoustic,
+        'equipment_list': equipment_list,
+        # Forms for adding new CBM records
+        'form_visual': CBMVisualTestForm(),
+        'form_vibration': CBMVibrationForm(),
+        'form_thermoscan': CBMThermoscanForm(),
+        'form_oil': CBMOilAnalysisForm(),
+        'form_acoustic': CBMAcousticForm()
+    }
+    return render(request, 'myapp/equipment_data.html', context)
 
 @login_required
-def equipment_form(request):
-    return render(request, 'myapp/equipment_form.html')
+@csrf_exempt
+def equipment_form(request, eq_id=None):
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first() if eq_id else None
+    
+    if request.method == 'POST':
+        form = EquipmentForm(request.POST, request.FILES, instance=equipment)
+        if form.is_valid():
+            form.save()
+            return HttpResponse("<script>alert('บันทึกข้อมูลเครื่องจักรเรียบร้อยแล้ว'); window.opener.location.reload(); window.close();</script>")
+        else:
+            return render(request, 'myapp/equipment_form.html', {'form': form, 'error': form.errors})
+            
+    else:
+        form = EquipmentForm(instance=equipment)
+        
+    return render(request, 'myapp/equipment_form.html', {'form': form, 'equipment': equipment})
 
 @login_required
 def equipment_bom(request):
-    return render(request, 'myapp/equipment_BOM.html')
+    # This is a popup modal view. Passing the parameters into the template.
+    action = request.GET.get('action', 'add')
+    part_no = request.GET.get('partNo', '')
+    
+    # Send an empty form to the frontend
+    form = EquipmentBOMForm()
+    
+    context = {
+        'action': action,
+        'part_no': part_no,
+        'form': form
+    }
+    return render(request, 'myapp/equipment_BOM.html', context)
+
+@login_required
+def equipment_cbm(request, eq_id=None):
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+    if not equipment:
+        messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
+        return redirect('equipment_data')
+        
+    if request.method == 'POST':
+        cbm_type = request.POST.get('cbm_type')
+        form = None
+        
+        if cbm_type == 'visual':
+            form = CBMVisualTestForm(request.POST, request.FILES)
+        elif cbm_type == 'vibration':
+            form = CBMVibrationForm(request.POST, request.FILES)
+        elif cbm_type == 'thermoscan':
+            form = CBMThermoscanForm(request.POST, request.FILES)
+        elif cbm_type == 'oil':
+            form = CBMOilAnalysisForm(request.POST, request.FILES)
+        elif cbm_type == 'acoustic':
+            form = CBMAcousticForm(request.POST, request.FILES)
+            
+        if form and form.is_valid():
+            cbm = form.save(commit=False)
+            cbm.equipment = equipment
+            cbm.save()
+            messages.success(request, f'บันทึกข้อมูล {cbm_type} สำเร็จ')
+        else:
+            messages.error(request, 'กรุณาตรวจสอบข้อมูลอีกครั้ง: ' + str(form.errors if form else 'Invalid CBM type'))
+    
+    return redirect('equipment_data', eq_id=eq_id)
 
 #def Home(request):
     #if request.method == 'POST':
@@ -1430,6 +1523,21 @@ def maintenance_log_add(request):
     else:
         form = MaintenanceLogForm()
     return render(request, 'myapp/maintenance_log_form.html', {'form': form})
+
+@login_required
+def maintenance_log_edit(request, log_id):
+    from django.shortcuts import get_object_or_404
+    from .models import MaintenanceLog
+    
+    log = get_object_or_404(MaintenanceLog, id=log_id)
+    if request.method == 'POST':
+        form = MaintenanceLogForm(request.POST, instance=log)
+        if form.is_valid():
+            form.save()
+            return redirect('maintenance_dashboard')
+    else:
+        form = MaintenanceLogForm(instance=log)
+    return render(request, 'myapp/maintenance_log_form.html', {'form': form, 'is_edit': True, 'log_id': log_id})
 
 @login_required
 def maintenance_kpi_metric_add(request):

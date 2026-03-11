@@ -47,7 +47,7 @@
                                     <p class="text-muted small mb-0">คลิกเพื่ออัปโหลด หรือลากไฟล์มาวางที่นี่</p>
                                     <p class="text-muted" style="font-size: 0.75rem;">(PNG, JPG, WEBP สูงสุด 5MB)</p>
                                 </div>
-                                <input type="file" id="equipment-image" accept="image/*" class="d-none"
+                                <input type="file" name="image" id="equipment-image" accept="image/*" class="d-none"
                                     onchange="previewFormImage(event)">
                                 <button type="button" class="btn btn-outline-primary btn-sm mt-3"
                                     onclick="document.getElementById('equipment-image').click()">
@@ -78,22 +78,22 @@
                             class="fa-regular fa-id-card text-primary me-2"></i> ข้อมูลระบุตัวตน (Identification)</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">รหัสเครื่องจักร (Equipment ID) <span
+                            <label class="form-label small mb-1">{{ form.equipment_id.label }} <span
                                     class="text-danger">*</span></label>
-                            <input type="text" required class="form-control" placeholder="เช่น A02.ML045.01.002">
+                            {{ form.equipment_id }}
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">ชื่อเครื่องจักร (Equipment Name) <span
+                            <label class="form-label small mb-1">{{ form.name.label }} <span
                                     class="text-danger">*</span></label>
-                            <input type="text" required class="form-control" placeholder="เช่น ปั๊มน้ำพรมกากอ้อย No.1">
+                            {{ form.name }}
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">ตำแหน่งที่ตั้ง (Location)</label>
-                            <input type="text" class="form-control" placeholder="เช่น อาคารหีบอ้อย">
+                            <label class="form-label small mb-1">{{ form.location.label }}</label>
+                            {{ form.location }}
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">สังกัดเครื่องจักรหลัก (Belongs To)</label>
-                            <input type="text" class="form-control" placeholder="เช่น A02.ML045 (ระบบลูกหีบอ้อย)">
+                            <label class="form-label small mb-1">{{ form.belongs_to.label }}</label>
+                            {{ form.belongs_to }}
                         </div>
                     </div>
 
@@ -102,29 +102,29 @@
                             class="fa-solid fa-microchip text-primary me-2"></i> ข้อมูลทางเทคนิค (Technical Data)</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <label class="form-label small mb-1">รหัสสินค้า/รุ่น (Model)</label>
-                            <input type="text" class="form-control">
+                            <label class="form-label small mb-1">{{ form.model.label }}</label>
+                            {{ form.model }}
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small mb-1">ผู้ผลิต (Manufacturer)</label>
-                            <input type="text" class="form-control">
+                            <label class="form-label small mb-1">{{ form.manufacturer.label }}</label>
+                            {{ form.manufacturer }}
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small mb-1">หมายเลขเครื่อง (Serial No.)</label>
-                            <input type="text" class="form-control">
+                            <label class="form-label small mb-1">{{ form.serial_no.label }}</label>
+                            {{ form.serial_no }}
                         </div>
 
                         <div class="col-md-4">
-                            <label class="form-label small mb-1">ความจุ / อัตราไหล (Capacity)</label>
-                            <input type="text" class="form-control">
+                            <label class="form-label small mb-1">{{ form.capacity.label }}</label>
+                            {{ form.capacity }}
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small mb-1">ระยะส่ง / ขนาด (Head/Size)</label>
-                            <input type="text" class="form-control">
+                            <label class="form-label small mb-1">{{ form.head_size.label }}</label>
+                            {{ form.head_size }}
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small mb-1">ความเร็วรอบ (RPM)</label>
-                            <input type="text" class="form-control">
+                            <label class="form-label small mb-1">{{ form.rpm.label }}</label>
+                            {{ form.rpm }}
                         </div>
                     </div>
 
@@ -134,20 +134,20 @@
                         (Purchase & Warranty)</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">วันที่ติดตั้ง (Installation Date)</label>
-                            <input type="date" class="form-control">
+                            <label class="form-label small mb-1">{{ form.installation_date.label }}</label>
+                            <input type="date" name="installation_date" class="form-control" {% if equipment.installation_date %}value="{{ equipment.installation_date|date:'Y-m-d' }}"{% endif %}>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">วันหมดประกัน (Warranty EXP)</label>
-                            <input type="date" class="form-control">
+                            <label class="form-label small mb-1">{{ form.warranty_exp.label }}</label>
+                            <input type="date" name="warranty_exp" class="form-control" {% if equipment.warranty_exp %}value="{{ equipment.warranty_exp|date:'Y-m-d' }}"{% endif %}>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">ราคาซื้อ (Purchase Price)</label>
-                            <input type="number" class="form-control" placeholder="0.00" step="0.01">
+                            <label class="form-label small mb-1">{{ form.purchase_price.label }}</label>
+                            {{ form.purchase_price }}
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">ราคาซ่อมทดแทน (Replacement Cost)</label>
-                            <input type="number" class="form-control" placeholder="0.00" step="0.01">
+                            <label class="form-label small mb-1">{{ form.replacement_cost.label }}</label>
+                            {{ form.replacement_cost }}
                         </div>
                     </div>
 
@@ -157,30 +157,26 @@
                         Status)</h6>
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">ระดับความสำคัญ (Priority Level)</label>
-                            <select class="form-select text-danger fw-bold">
-                                <option value="1">1 - CRITICAL (กระทบการผลิตโดยตรง)</option>
-                                <option value="2">2 - ESSENTIAL</option>
-                                <option value="3">3 - GENERAL</option>
-                            </select>
+                            <label class="form-label small mb-1">{{ form.priority_level.label }}</label>
+                            {{ form.priority_level }}
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">MTBF (ระยะเวลาเฉลี่ยก่อนเสีย)</label>
+                            <label class="form-label small mb-1">{{ form.mtbf.label }}</label>
                             <div class="input-group">
-                                <input type="number" class="form-control text-success fw-bold" placeholder="เช่น 12555">
+                                {{ form.mtbf }}
                                 <span class="input-group-text">ชั่วโมง</span>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">MTTR (เวลารวมที่หยุดซ่อม)</label>
+                            <label class="form-label small mb-1">{{ form.mttr.label }}</label>
                             <div class="input-group">
-                                <input type="number" class="form-control text-warning fw-bold" placeholder="เช่น 498">
+                                {{ form.mttr }}
                                 <span class="input-group-text">ชั่วโมง</span>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small mb-1">ค่าใช้จ่ายสะสม BM+PM (Acc. Cost)</label>
-                            <input type="number" class="form-control fw-bold" placeholder="0.00" step="0.01">
+                            <label class="form-label small mb-1">{{ form.acc_cost.label }}</label>
+                            {{ form.acc_cost }}
                         </div>
                     </div>
 

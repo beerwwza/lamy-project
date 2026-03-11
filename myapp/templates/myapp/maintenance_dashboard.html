@@ -819,11 +819,11 @@
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-100 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">
                             <tr>
-                                <th className="p-3 w-20">วันที่</th><th className="p-3 w-32">เครื่องจักร</th><th className="p-3">ปัญหา/สาเหตุ</th><th className="p-3 w-24">อะไหล่</th><th className="p-3 w-20">ผู้แจ้ง/แก้ไข</th><th className="p-3 text-right w-12">หยุด</th><th className="p-3 text-right w-12 text-blue-500 dark:text-blue-400">ไม่หยุด</th><th className="p-3 text-right w-12 text-pink-500 dark:text-pink-400">ละลาย</th>
+                                <th className="p-3 w-20">วันที่</th><th className="p-3 w-32">เครื่องจักร</th><th className="p-3">ปัญหา/สาเหตุ</th><th className="p-3 w-24">อะไหล่</th><th className="p-3 w-20">ผู้แจ้ง/แก้ไข</th><th className="p-3 text-right w-12">หยุด</th><th className="p-3 text-right w-12 text-blue-500 dark:text-blue-400">ไม่หยุด</th><th className="p-3 text-right w-12 text-pink-500 dark:text-pink-400">ละลาย</th><th className="p-3 text-center w-12">จัดการ</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm text-slate-700 dark:text-slate-200">
-                            {filteredData.length === 0 ? <tr><td colSpan="8" className="p-8 text-center text-slate-400 italic text-sm">ไม่พบข้อมูลในระบบ (กรุณาเพิ่มข้อมูลจากเมนู ด้านซ้าย)</td></tr> :
+                            {filteredData.length === 0 ? <tr><td colSpan="9" className="p-8 text-center text-slate-400 italic text-sm">ไม่พบข้อมูลในระบบ (กรุณาเพิ่มข้อมูลจากเมนู ด้านซ้าย)</td></tr> :
                                 filteredData.slice(0, 100).map((row, idx) => (
                                     <tr key={idx} className="hover:bg-blue-50/50 dark:hover:bg-slate-700/50 transition-colors">
                                         <td className="p-3 whitespace-nowrap text-slate-500 dark:text-slate-400 text-xs align-top">{row.date}</td>
@@ -849,6 +849,11 @@
                                         <td className="p-3 text-right font-mono text-xs font-bold text-red-600 dark:text-red-400 bg-red-50/30 dark:bg-red-900/20 align-top">{parseFloat(row.downtimeStop) > 0 ? parseFloat(row.downtimeStop) : ""}</td>
                                         <td className="p-3 text-right font-mono text-xs text-blue-500 dark:text-blue-400 align-top">{parseFloat(row.downtimeNonStop) > 0 ? parseFloat(row.downtimeNonStop) : ""}</td>
                                         <td className="p-3 text-right font-mono text-xs text-pink-500 dark:text-pink-400 align-top">{parseFloat(row.downtimeDissolve || 0) > 0 ? parseFloat(row.downtimeDissolve || 0) : ""}</td>
+                                        <td className="p-3 text-center align-top">
+                                            <a href={`/maintenance/edit/${row.id}/`} className="inline-flex items-center justify-center px-2.5 py-1 text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded transition-colors" title="แก้ไขข้อมูลตาราง">
+                                                แก้ไข
+                                            </a>
+                                        </td>
                                     </tr>
                                 ))}
                         </tbody>

@@ -32,32 +32,15 @@
                 <form onsubmit="event.preventDefault(); alert('บันทึกรายการอะไหล่เรียบร้อยแล้ว'); window.close();">
 
                     <div class="row g-3 mb-4">
-                        <div class="col-12">
-                            <label class="form-label small mb-1">รหัสอะไหล่ (Part Number) <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" id="partNo" required class="form-control" placeholder="เช่น 204 W31-1">
+                        {% for field in form %}
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small mb-1">{{ field.label }} {% if field.field.required %}<span class="text-danger">*</span>{% endif %}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                            <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+                            {% endif %}
                         </div>
-
-                        <div class="col-12">
-                            <label class="form-label small mb-1">รายละเอียด (Description) <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" id="desc" required class="form-control"
-                                placeholder="เช่น เสื้อปั๊ม (Volute Casing)">
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label small mb-1">จำนวนที่ใช้ใน BOM</label>
-                            <input type="number" id="qty" min="1" value="1" class="form-control">
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label small mb-1">คลังจัดเก็บ (Storeroom)</label>
-                            <select id="wh" class="form-select">
-                                <option value="WH-M1">WH-M1 (คลังอะไหล่เครื่องจักรกล)</option>
-                                <option value="WH-M2">WH-M2 (คลังอะไหล่สิ้นเปลือง)</option>
-                                <option value="WH-E1">WH-E1 (คลังอะไหล่ไฟฟ้า)</option>
-                            </select>
-                        </div>
+                        {% endfor %}
                     </div>
 
                     <!-- Inventory Info Info box -->
@@ -97,9 +80,9 @@
 
             if (action === 'edit') {
                 document.getElementById('formTitle').innerHTML = '<i class="fa-solid fa-pen-to-square me-2"></i> แก้ไขรายการอะไหล่';
-                document.getElementById('partNo').value = params.get('partNo') || '';
-                document.getElementById('partNo').readOnly = true;
-                document.getElementById('partNo').classList.add('bg-light'); // ทำให้เป็นสีเทา
+                document.getElementById('id_part_no').value = params.get('partNo') || '';
+                document.getElementById('id_part_no').readOnly = true;
+                document.getElementById('id_part_no').classList.add('bg-light'); // ทำให้เป็นสีเทา
             } else {
                 document.getElementById('formTitle').innerHTML = '<i class="fa-solid fa-plus-circle me-2"></i> เพิ่มรายการอะไหล่ใหม่';
             }

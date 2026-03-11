@@ -2,6 +2,7 @@ from django import forms
 from .models import employee  # เรียกใช้ Model ที่เราสร้างไว้
 from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log,  Banpong2Log, MaintenanceLog, KPIMetric
 from .models import MillReport, BoilerDailyKPI
+from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
@@ -206,3 +207,108 @@ class KPIMetricForm(forms.ModelForm):
             self.fields[field].widget.attrs.update({
                 'class': 'w-full p-2 border border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white'
             })
+
+class EquipmentForm(forms.ModelForm):
+    class Meta:
+        model = Equipment
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super(EquipmentForm, self).__init__(*args, **kwargs)
+        for field in self.fields:
+            if field != 'image' and field != 'is_active':
+                self.fields[field].widget.attrs.update({
+                    'class': 'form-control',
+                    'placeholder': '-'
+                })
+
+class EquipmentBOMForm(forms.ModelForm):
+    class Meta:
+        model = EquipmentBOM
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super(EquipmentBOMForm, self).__init__(*args, **kwargs)
+        for field in self.fields:
+            if field != 'qty' and field != 'stock_qty':
+                self.fields[field].widget.attrs.update({
+                    'class': 'form-control',
+                    'placeholder': '-'
+                })
+            elif field == 'qty' or field == 'stock_qty':
+                self.fields[field].widget.attrs.update({
+                    'class': 'form-control',
+                    'min': '0'
+                })
+
+class CBMVisualTestForm(forms.ModelForm):
+    class Meta:
+        model = CBMVisualTest
+        fields = '__all__'
+        widgets = {
+            'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'inspector': forms.TextInput(attrs={'class': 'form-control'}),
+            'overall_condition': forms.Select(attrs={'class': 'form-select'}),
+            'remark': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'image_attachment': forms.FileInput(attrs={'class': 'form-control'}),
+            'equipment': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+class CBMVibrationForm(forms.ModelForm):
+    class Meta:
+        model = CBMVibration
+        fields = '__all__'
+        widgets = {
+            'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'inspector': forms.TextInput(attrs={'class': 'form-control'}),
+            'measurement_point': forms.TextInput(attrs={'class': 'form-control'}),
+            'velocity': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'acceleration': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'bearing_temp': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'equipment': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+class CBMThermoscanForm(forms.ModelForm):
+    class Meta:
+        model = CBMThermoscan
+        fields = '__all__'
+        widgets = {
+            'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'inspector': forms.TextInput(attrs={'class': 'form-control'}),
+            'location_target': forms.TextInput(attrs={'class': 'form-control'}),
+            'max_temp': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
+            'ambient_temp': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
+            'delta_t': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
+            'image_attachment': forms.FileInput(attrs={'class': 'form-control'}),
+            'equipment': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+class CBMOilAnalysisForm(forms.ModelForm):
+    class Meta:
+        model = CBMOilAnalysis
+        fields = '__all__'
+        widgets = {
+            'collection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'inspector': forms.TextInput(attrs={'class': 'form-control'}),
+            'oil_type': forms.TextInput(attrs={'class': 'form-control'}),
+            'viscosity': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
+            'water_content': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'wear_particle': forms.TextInput(attrs={'class': 'form-control'}),
+            'lab_report': forms.FileInput(attrs={'class': 'form-control'}),
+            'equipment': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+class CBMAcousticForm(forms.ModelForm):
+    class Meta:
+        model = CBMAcoustic
+        fields = '__all__'
+        widgets = {
+            'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'inspector': forms.TextInput(attrs={'class': 'form-control'}),
+            'inspection_point': forms.TextInput(attrs={'class': 'form-control'}),
+            'decibel': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
+            'sound_pattern': forms.Select(attrs={'class': 'form-select'}),
+            'audio_attachment': forms.FileInput(attrs={'class': 'form-control'}),
+            'equipment': forms.Select(attrs={'class': 'form-select'}),
+        }
