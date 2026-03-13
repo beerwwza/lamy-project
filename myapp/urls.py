@@ -38,10 +38,14 @@ urlpatterns = [
 
     # Equipment Data
     path('equipment/', equipment_data, name='equipment_data'),
+    path('equipment/list/', equipment_list, name='equipment_list'),
     path('equipment/form/', equipment_form, name='equipment_form'),
     path('equipment/form/<str:eq_id>/', equipment_form, name='equipment_form_edit'),
     path('equipment/bom/', equipment_bom, name='equipment_bom'),
+    path('equipment/<str:eq_id>/bom/add/', bom_add, name='bom_add'),
+    path('equipment/bom/delete/<int:bom_id>/', bom_delete, name='bom_delete'),
     path('equipment/cbm/<str:eq_id>/', equipment_cbm, name='equipment_cbm'),
+    path('equipment/upload_image/<str:eq_id>/', upload_equipment_image, name='upload_equipment_image'),
     path('equipment/<str:eq_id>/', equipment_data, name='equipment_data_detail'),
 
     # Path สำหรับ Import Data

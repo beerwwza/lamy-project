@@ -653,6 +653,7 @@ class Equipment(models.Model):
     equipment_id = models.CharField(max_length=50, primary_key=True, verbose_name="รหัสเครื่องจักร")
     name = models.CharField(max_length=255, verbose_name="ชื่อเครื่องจักร")
     location = models.CharField(max_length=255, blank=True, null=True, verbose_name="ตำแหน่งที่ตั้ง")
+    process = models.CharField(max_length=255, blank=True, null=True, verbose_name="กระบวนการ")
     belongs_to = models.CharField(max_length=255, blank=True, null=True, verbose_name="สังกัดเครื่องจักรหลัก")
     
     # Technical Data
@@ -662,6 +663,13 @@ class Equipment(models.Model):
     capacity = models.CharField(max_length=100, blank=True, null=True, verbose_name="ความจุ/อัตราไหล")
     head_size = models.CharField(max_length=100, blank=True, null=True, verbose_name="ระยะส่ง/ขนาด")
     rpm = models.CharField(max_length=50, blank=True, null=True, verbose_name="ความเร็วรอบ")
+    
+    # Drive & Electrical
+    motor = models.CharField(max_length=255, blank=True, null=True, verbose_name="มอเตอร์ขับเคลื่อน")
+    panel = models.CharField(max_length=255, blank=True, null=True, verbose_name="ตู้คอนโทรล")
+    starter = models.CharField(max_length=255, blank=True, null=True, verbose_name="ชุดสตาร์ท")
+    breaker = models.CharField(max_length=255, blank=True, null=True, verbose_name="เบรกเกอร์")
+    drive_type = models.CharField(max_length=255, blank=True, null=True, verbose_name="ประเภทการส่งกำลัง")
     
     # Purchase & Warranty
     installation_date = models.DateField(blank=True, null=True, verbose_name="วันที่ติดตั้ง")
@@ -680,8 +688,11 @@ class Equipment(models.Model):
     mttr = models.FloatField(default=0, verbose_name="MTTR (ชม.)")
     acc_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="ค่าใช้จ่ายสะสม")
     
-    # Image
+    # Image & Attachments
     image = models.ImageField(upload_to='equipment_images/', blank=True, null=True, verbose_name="รูปภาพเครื่องจักร")
+    image_file_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="รหัสไฟล์รูป Google Drive")
+    attachment_file_id = models.CharField(max_length=255, null=True, blank=True, verbose_name="รหัสไฟล์ Google Drive")
+    attachment_file_name = models.CharField(max_length=255, null=True, blank=True, verbose_name="ชื่อไฟล์แนบ")
     
     is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -715,7 +726,7 @@ class CBMVisualTest(models.Model):
     ]
     overall_condition = models.CharField(max_length=20, choices=CONDITION_CHOICES, default='good', verbose_name="สภาพโดยรวม")
     remark = models.TextField(blank=True, null=True, verbose_name="รายละเอียด/ข้อเสนอแนะ")
-    image_attachment = models.ImageField(upload_to='cbm_visual/', blank=True, null=True, verbose_name="รูปถ่ายหน้างาน")
+    image_file_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="รหัสไฟล์รูปถ่าย (Google Drive)")
     
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -754,7 +765,7 @@ class CBMThermoscan(models.Model):
     ambient_temp = models.FloatField(blank=True, null=True, verbose_name="อุณหภูมิแวดล้อม (Ambient °C)")
     delta_t = models.FloatField(blank=True, null=True, verbose_name="ผลต่าง (Delta T °C)")
     
-    image_attachment = models.ImageField(upload_to='cbm_thermoscan/', blank=True, null=True, verbose_name="ภาพถ่าย IR")
+    image_file_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="รหัสไฟล์ภาพถ่าย IR (Google Drive)")
     
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -771,7 +782,9 @@ class CBMOilAnalysis(models.Model):
     water_content = models.FloatField(blank=True, null=True, verbose_name="ปริมาณน้ำเจือปน (%)")
     wear_particle = models.CharField(max_length=100, blank=True, null=True, verbose_name="ระดับอนุภาคความสึกหรอ (ISO Code)")
     
-    lab_report = models.FileField(upload_to='cbm_oil/', blank=True, null=True, verbose_name="ไฟล์ผล Lab Report (PDF)")
+    
+    oil_remark = models.TextField(blank=True, null=True, verbose_name="หมายเหตุสถานะปัจจุบันของน้ำมัน")
+    lab_report_file_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="รหัสไฟล์ Lab Report (Google Drive)")
     
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -794,7 +807,7 @@ class CBMAcoustic(models.Model):
     ]
     sound_pattern = models.CharField(max_length=20, choices=PATTERN_CHOICES, default='normal', verbose_name="ลักษณะเสียงที่พบ")
     
-    audio_attachment = models.FileField(upload_to='cbm_acoustic/', blank=True, null=True, verbose_name="ไฟล์บันทึกเสียง")
+    audio_file_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="รหัสไฟล์บันทึกเสียง (Google Drive)")
     
     created_at = models.DateTimeField(auto_now_add=True)
 

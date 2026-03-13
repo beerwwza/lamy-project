@@ -225,7 +225,7 @@ class EquipmentForm(forms.ModelForm):
 class EquipmentBOMForm(forms.ModelForm):
     class Meta:
         model = EquipmentBOM
-        fields = '__all__'
+        fields = ['part_no', 'part_name', 'qty', 'location', 'stock_qty']
 
     def __init__(self, *args, **kwargs):
         super(EquipmentBOMForm, self).__init__(*args, **kwargs)
@@ -244,20 +244,19 @@ class EquipmentBOMForm(forms.ModelForm):
 class CBMVisualTestForm(forms.ModelForm):
     class Meta:
         model = CBMVisualTest
-        fields = '__all__'
+        exclude = ('equipment',)
         widgets = {
             'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'inspector': forms.TextInput(attrs={'class': 'form-control'}),
             'overall_condition': forms.Select(attrs={'class': 'form-select'}),
             'remark': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'image_attachment': forms.FileInput(attrs={'class': 'form-control'}),
-            'equipment': forms.Select(attrs={'class': 'form-select'}),
+            'image_file_id': forms.HiddenInput(),
         }
 
 class CBMVibrationForm(forms.ModelForm):
     class Meta:
         model = CBMVibration
-        fields = '__all__'
+        exclude = ('equipment',)
         widgets = {
             'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'inspector': forms.TextInput(attrs={'class': 'form-control'}),
@@ -266,13 +265,12 @@ class CBMVibrationForm(forms.ModelForm):
             'acceleration': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'bearing_temp': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
-            'equipment': forms.Select(attrs={'class': 'form-select'}),
         }
 
 class CBMThermoscanForm(forms.ModelForm):
     class Meta:
         model = CBMThermoscan
-        fields = '__all__'
+        exclude = ('equipment',)
         widgets = {
             'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'inspector': forms.TextInput(attrs={'class': 'form-control'}),
@@ -280,14 +278,13 @@ class CBMThermoscanForm(forms.ModelForm):
             'max_temp': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
             'ambient_temp': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
             'delta_t': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
-            'image_attachment': forms.FileInput(attrs={'class': 'form-control'}),
-            'equipment': forms.Select(attrs={'class': 'form-select'}),
+            'image_file_id': forms.HiddenInput(),
         }
 
 class CBMOilAnalysisForm(forms.ModelForm):
     class Meta:
         model = CBMOilAnalysis
-        fields = '__all__'
+        exclude = ('equipment',)
         widgets = {
             'collection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'inspector': forms.TextInput(attrs={'class': 'form-control'}),
@@ -295,20 +292,19 @@ class CBMOilAnalysisForm(forms.ModelForm):
             'viscosity': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
             'water_content': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'wear_particle': forms.TextInput(attrs={'class': 'form-control'}),
-            'lab_report': forms.FileInput(attrs={'class': 'form-control'}),
-            'equipment': forms.Select(attrs={'class': 'form-select'}),
+            'oil_remark': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'ระบุสถานะปัจจุบันของน้ำมัน เช่น สีเปลี่ยน, กลิ่นไหม้, มีตะกอน ฯลฯ'}),
+            'lab_report_file_id': forms.HiddenInput(),
         }
 
 class CBMAcousticForm(forms.ModelForm):
     class Meta:
         model = CBMAcoustic
-        fields = '__all__'
+        exclude = ('equipment',)
         widgets = {
             'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'inspector': forms.TextInput(attrs={'class': 'form-control'}),
             'inspection_point': forms.TextInput(attrs={'class': 'form-control'}),
             'decibel': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
             'sound_pattern': forms.Select(attrs={'class': 'form-select'}),
-            'audio_attachment': forms.FileInput(attrs={'class': 'form-control'}),
-            'equipment': forms.Select(attrs={'class': 'form-select'}),
+            'audio_file_id': forms.HiddenInput(),
         }

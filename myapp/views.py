@@ -28,10 +28,12 @@ from .forms import EquipmentForm, EquipmentBOMForm, CBMVisualTestForm, CBMVibrat
 # --- Equipment Views ---
 @login_required
 def equipment_data(request, eq_id=None):
-    if eq_id:
-        equipment = Equipment.objects.filter(equipment_id=eq_id).first()
-    else:
-        equipment = Equipment.objects.first() # View the first one by default if no ID provided
+    if not eq_id:
+        return redirect('equipment_list')
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+    if not equipment:
+        messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
+        return redirect('equipment_list')
         
     boms = EquipmentBOM.objects.filter(equipment=equipment) if equipment else []
     # TODO: Fetch the latest records and forms for all 5 CBM models
@@ -58,7 +60,8 @@ def equipment_data(request, eq_id=None):
         'form_vibration': CBMVibrationForm(),
         'form_thermoscan': CBMThermoscanForm(),
         'form_oil': CBMOilAnalysisForm(),
-        'form_acoustic': CBMAcousticForm()
+        'form_acoustic': CBMAcousticForm(),
+        'form_bom': EquipmentBOMForm()
     }
     return render(request, 'myapp/equipment_data.html', context)
 
@@ -70,10 +73,12 @@ def equipment_form(request, eq_id=None):
     if request.method == 'POST':
         form = EquipmentForm(request.POST, request.FILES, instance=equipment)
         if form.is_valid():
-            form.save()
-            return HttpResponse("<script>alert('บันทึกข้อมูลเครื่องจักรเรียบร้อยแล้ว'); window.opener.location.reload(); window.close();</script>")
+            saved_eq = form.save()
+            messages.success(request, f'บันทึกข้อมูลเครื่องจักร {saved_eq.equipment_id} เรียบร้อยแล้ว')
+            return redirect('equipment_list')
         else:
-            return render(request, 'myapp/equipment_form.html', {'form': form, 'error': form.errors})
+            messages.error(request, 'บันทึกไม่สำเร็จ กรุณาตรวจสอบข้อมูลอีกครั้ง')
+            return render(request, 'myapp/equipment_form.html', {'form': form, 'equipment': equipment})
             
     else:
         form = EquipmentForm(instance=equipment)
@@ -97,26 +102,59 @@ def equipment_bom(request):
     return render(request, 'myapp/equipment_BOM.html', context)
 
 @login_required
+def bom_add(request, eq_id):
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+    if not equipment:
+        messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
+        return redirect('equipment_list')
+    
+    if request.method == 'POST':
+        form = EquipmentBOMForm(request.POST)
+        if form.is_valid():
+            bom = form.save(commit=False)
+            bom.equipment = equipment
+            bom.save()
+            messages.success(request, f'เพิ่มอะไหล่ {bom.part_no} เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'เพิ่มอะไหล่ไม่สำเร็จ กรุณาตรวจสอบข้อมูลอีกครั้ง')
+    
+    return redirect('equipment_data_detail', eq_id=eq_id)
+
+@login_required
+def bom_delete(request, bom_id):
+    bom = EquipmentBOM.objects.filter(id=bom_id).first()
+    if bom:
+        eq_id = bom.equipment.equipment_id
+        part_no = bom.part_no
+        bom.delete()
+        messages.success(request, f'ลบอะไหล่ {part_no} เรียบร้อยแล้ว')
+        return redirect('equipment_data_detail', eq_id=eq_id)
+    else:
+        messages.error(request, 'ไม่พบรายการอะไหล่ที่ต้องการลบ')
+        return redirect('equipment_list')
+
+@login_required
 def equipment_cbm(request, eq_id=None):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first()
     if not equipment:
         messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
-        return redirect('equipment_data')
+        return redirect('equipment_list')
         
     if request.method == 'POST':
         cbm_type = request.POST.get('cbm_type')
         form = None
         
+        # Determine which form to process
         if cbm_type == 'visual':
-            form = CBMVisualTestForm(request.POST, request.FILES)
+            form = CBMVisualTestForm(request.POST)
         elif cbm_type == 'vibration':
-            form = CBMVibrationForm(request.POST, request.FILES)
+            form = CBMVibrationForm(request.POST)
         elif cbm_type == 'thermoscan':
-            form = CBMThermoscanForm(request.POST, request.FILES)
+            form = CBMThermoscanForm(request.POST)
         elif cbm_type == 'oil':
-            form = CBMOilAnalysisForm(request.POST, request.FILES)
+            form = CBMOilAnalysisForm(request.POST)
         elif cbm_type == 'acoustic':
-            form = CBMAcousticForm(request.POST, request.FILES)
+            form = CBMAcousticForm(request.POST)
             
         if form and form.is_valid():
             cbm = form.save(commit=False)
@@ -126,7 +164,24 @@ def equipment_cbm(request, eq_id=None):
         else:
             messages.error(request, 'กรุณาตรวจสอบข้อมูลอีกครั้ง: ' + str(form.errors if form else 'Invalid CBM type'))
     
-    return redirect('equipment_data', eq_id=eq_id)
+    return redirect('equipment_data_detail', eq_id=eq_id)
+
+@login_required
+def upload_equipment_image(request, eq_id):
+    if request.method == 'POST' and request.FILES.get('image'):
+        equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+        if equipment:
+            equipment.image = request.FILES['image']
+            equipment.save()
+            return JsonResponse({'status': 'success', 'message': 'อัปโหลดรูปภาพสำเร็จ'})
+        return JsonResponse({'status': 'error', 'message': 'ไม่พบเครื่องจักร'})
+    return JsonResponse({'status': 'error', 'message': 'ไม่มีรูปภาพถูกส่งมา'})
+
+@login_required
+def equipment_list(request):
+    equipments = Equipment.objects.all().order_by('equipment_id')
+    context = {'equipments': equipments}
+    return render(request, 'myapp/equipment_list.html', context)
 
 #def Home(request):
     #if request.method == 'POST':

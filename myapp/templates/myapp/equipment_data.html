@@ -17,14 +17,14 @@
                 <li>
                     <div class="flex items-center">
                         <span class="mx-2 text-slate-300">/</span>
-                        <a href="{% url 'equipment_data' %}"
+                        <a href="{% url 'equipment_list' %}"
                             class="hover:text-blue-600 transition-colors">ฐานข้อมูลเครื่องจักร</a>
                     </div>
                 </li>
                 <li aria-current="page">
                     <div class="flex items-center">
                         <span class="mx-2 text-slate-300">/</span>
-                        <span class="text-blue-600 font-semibold">A02.ML045.01.002</span>
+                        <span class="text-blue-600 font-semibold">{{ equipment.equipment_id }}</span>
                     </div>
                 </li>
             </ol>
@@ -35,45 +35,75 @@
                 class="p-2 text-slate-400 hover:text-slate-600 transition-colors bg-white rounded-full shadow-sm border border-slate-200">
                 <i data-lucide="bell" class="w-5 h-5"></i>
             </button>
-            <button onclick="openAddEquipmentModal()"
+            <a href="{% url 'equipment_form' %}"
                 class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm font-medium transition-colors text-sm">
                 <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มข้อมูลเครื่องจักร
-            </button>
+            </a>
         </div>
     </div>
+
+    <!-- Django Messages -->
+    {% if messages %}
+    <div class="mb-6 space-y-2">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg flex items-center gap-3 {% if message.tags == 'success' %}bg-emerald-50 text-emerald-700 border border-emerald-100{% else %}bg-amber-50 text-amber-700 border border-amber-100{% endif %} shadow-sm">
+            {% if message.tags == 'success' %}
+            <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+            {% else %}
+            <i data-lucide="alert-circle" class="w-5 h-5"></i>
+            {% endif %}
+            <span class="text-sm font-medium">{{ message }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <!-- Equipment Header Banner -->
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
         <div class="flex flex-col md:flex-row p-6 items-center md:items-start gap-6">
             <!-- Image Thumbnail -->
             <div
-                class="flex-shrink-0 w-24 h-24 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 font-medium">
-                Pump
+                class="flex-shrink-0 w-24 h-24 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400 font-medium overflow-hidden">
+                {% if equipment.image_file_id %}
+                <img src="https://lh3.googleusercontent.com/d/{{ equipment.image_file_id }}" alt="{{ equipment.name }}" class="w-full h-full object-cover">
+                {% elif equipment.image %}
+                <img src="{{ equipment.image.url }}" alt="{{ equipment.name }}" class="w-full h-full object-cover">
+                {% else %}
+                <i data-lucide="cpu" class="w-8 h-8 text-slate-300"></i>
+                {% endif %}
             </div>
 
             <!-- Details -->
             <div class="flex-grow flex flex-col justify-center h-24">
                 <div class="flex items-center gap-3 mb-2">
-                    <h3 class="text-2xl font-bold text-slate-800 tracking-tight">A02.ML045.01.002</h3>
+                    <h3 class="text-2xl font-bold text-slate-800 tracking-tight">{{ equipment.equipment_id }}</h3>
+                    {% if equipment.is_active %}
                     <span
                         class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
                         <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                         UP (พร้อมใช้งาน)
                     </span>
+                    {% else %}
+                    <span
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 border border-red-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                        DOWN (หยุดใช้งาน)
+                    </span>
+                    {% endif %}
                 </div>
                 <p class="text-slate-500 text-sm font-medium mb-1.5">
-                    ปั๊มน้ำพรมกากอ้อย No.1 (56 kW) - Imbibition Water Pump
+                    {{ equipment.name|default:'-' }}
                 </p>
                 <div class="flex items-center text-slate-400 text-xs gap-1.5">
                     <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
-                    <span>สายงานการผลิต - กระบวนการ A02 การหีบอ้อย</span>
+                    <span>{{ equipment.location|default:'' }}{% if equipment.process %} - {{ equipment.process }}{% endif %}</span>
                 </div>
             </div>
 
             <!-- QR Code -->
             <div
                 class="flex-shrink-0 flex flex-col items-center justify-center border-l md:border-l border-slate-100 pl-0 md:pl-6 pt-4 md:pt-0">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=EQP:A02.ML045.01.002"
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=EQP:{{ equipment.equipment_id }}"
                     alt="QR Code"
                     class="w-16 h-16 opacity-80 hover:opacity-100 transition-opacity cursor-pointer border border-slate-200 p-0.5 rounded-sm" />
                 <span class="text-[10px] text-slate-400 mt-1.5">Scan for details</span>
@@ -157,23 +187,35 @@
                     รูปแบบเครื่องจักร
                 </h3>
                 <div class="flex gap-2">
+                    {% if equipment.attachment_file_id %}
+                    <a href="https://drive.google.com/file/d/{{ equipment.attachment_file_id }}/view?usp=sharing" target="_blank"
+                        class="bg-emerald-50 hover:bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors border border-emerald-200 shadow-sm mb-0">
+                        <i data-lucide="file-text" class="w-3.5 h-3.5"></i> คู่มือเครื่องจักร
+                    </a>
+                    {% endif %}
                     <label
                         class="cursor-pointer bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors border border-blue-200 shadow-sm mb-0">
                         <i data-lucide="upload" class="w-3.5 h-3.5"></i> อัปโหลดรูปภาพ
-                        <input type="file" class="hidden" accept="image/*" onchange="previewEquipmentImage(event)">
+                        <input type="file" id="equip-image-input" class="hidden" accept="image/*" onchange="previewEquipmentImage(event)">
                     </label>
-                    <button id="btn-save-photo" onclick="alert('บันทึกรูปลงฐานข้อมูลเรียบร้อยแล้ว')"
+                    <button id="btn-save-photo" onclick="uploadEquipmentImage()"
                         class="hidden bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold items-center gap-1 transition-colors shadow-sm flex">
-                        <i data-lucide="save" class="w-3.5 h-3.5"></i> บันทึก
+                        <i data-lucide="save" class="w-3.5 h-3.5"></i> <span id="btn-save-photo-text">บันทึก</span>
                     </button>
                 </div>
             </div>
             <div
                 class="p-5 flex items-center justify-center bg-slate-50 border-b border-t border-slate-100 border-dashed m-4 rounded-xl relative flex-grow min-h-[180px]">
+                
+                {% if equipment.image %}
+                <img id="equip-image-preview" src="{{ equipment.image.url }}"
+                    class="max-h-40 object-contain rounded-lg shadow-sm z-10 w-full">
+                <div id="equip-image-placeholder" class="hidden text-center text-slate-400 absolute inset-0 flex flex-col items-center justify-center">
+                {% else %}
                 <img id="equip-image-preview" src=""
                     class="max-h-40 object-contain hidden rounded-lg shadow-sm z-10 w-full">
-                <div id="equip-image-placeholder"
-                    class="text-center text-slate-400 absolute inset-0 flex flex-col items-center justify-center">
+                <div id="equip-image-placeholder" class="text-center text-slate-400 absolute inset-0 flex flex-col items-center justify-center">
+                {% endif %}
                     <div
                         class="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-2 shadow-sm border border-slate-200">
                         <i data-lucide="camera" class="w-6 h-6 text-slate-300"></i>
@@ -196,6 +238,58 @@
                         reader.readAsDataURL(file);
                     }
                 }
+
+                function uploadEquipmentImage() {
+                    const fileInput = document.getElementById('equip-image-input');
+                    const file = fileInput.files[0];
+                    if (!file) {
+                        alert('กรุณาเลือกรูปภาพก่อนครับ');
+                        return;
+                    }
+
+                    const eqId = "{{ equipment.equipment_id }}";
+                    if (!eqId) {
+                        alert('ไม่พบรหัสเครื่องจักร ระบบไม่สามารถอัปโหลดรูปภาพได้');
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('image', file);
+                    // Add standard Django CSRF Token
+                    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value 
+                        || '{{ csrf_token }}';
+
+                    const btnText = document.getElementById('btn-save-photo-text');
+                    const btn = document.getElementById('btn-save-photo');
+                    
+                    btnText.innerText = 'กำลังอัปโหลด...';
+                    btn.disabled = true;
+
+                    fetch(`/equipment/upload_image/${eqId}/`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            alert('อัปโหลดรูปลงฐานข้อมูลเรียบร้อยแล้ว');
+                            btn.classList.add('hidden'); // ซ่อนปุ่มเมื่อบันทึกเสร็จ
+                        } else {
+                            alert('เกิดข้อผิดพลาด: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+                    })
+                    .finally(() => {
+                        btnText.innerText = 'บันทึก';
+                        btn.disabled = false;
+                    });
+                }
             </script>
         </div>
 
@@ -216,25 +310,31 @@
                 <div class="grid grid-cols-12 gap-y-4 gap-x-4 text-sm items-center">
                     <div class="col-span-5 text-slate-500 font-medium">รหัสเครื่องจักร</div>
                     <div class="col-span-7">
-                        <input type="text" value="A02.ML045.01.002" readonly
+                        <input type="text" value="{{ equipment.equipment_id|default:'' }}" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
                     </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">ชื่อเครื่องจักร</div>
                     <div class="col-span-7">
-                        <input type="text" value="ปั๊มน้ำพรมกากอ้อย No.1 (56 kW)" readonly
+                        <input type="text" value="{{ equipment.name|default:'' }}" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
                     </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">ตำแหน่งที่ตั้ง</div>
                     <div class="col-span-7">
-                        <input type="text" value="อาคารหีบอ้อย - กระบวนการ A02 การหีบอ้อย" readonly
+                        <input type="text" value="{{ equipment.location|default:'' }}" readonly
+                            class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                    </div>
+
+                    <div class="col-span-5 text-slate-500 font-medium">กระบวนการ</div>
+                    <div class="col-span-7">
+                        <input type="text" value="{{ equipment.process|default:'' }}" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                     </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">สังกัดเครื่องจักรหลัก</div>
                     <div class="col-span-7">
-                        <input type="text" value="A02.ML045 (ระบบลูกหีบอ้อย)" readonly
+                        <input type="text" value="{{ equipment.belongs_to|default:'' }}" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-blue-600 font-medium pointer-events-none">
                     </div>
                 </div>
@@ -261,19 +361,19 @@
                     <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm items-center">
                         <div class="col-span-5 text-slate-500 font-medium">รหัสสินค้า/รุ่น</div>
                         <div class="col-span-7">
-                            <input type="text" value="204W31" readonly
+                            <input type="text" value="{{ equipment.model|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ผู้ผลิต (Mfr.)</div>
                         <div class="col-span-7">
-                            <input type="text" value="VOKEN" readonly
+                            <input type="text" value="{{ equipment.manufacturer|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">หมายเลขเครื่อง (SN)</div>
                         <div class="col-span-7">
-                            <input type="text" value="VK-2020-0045A" readonly
+                            <input type="text" value="{{ equipment.serial_no|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                         </div>
                     </div>
@@ -286,19 +386,19 @@
                     <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm items-center">
                         <div class="col-span-5 text-slate-500 font-medium">อัตราการไหล (Capacity)</div>
                         <div class="col-span-7">
-                            <input type="text" value="120 m³/hr" readonly
+                            <input type="text" value="{{ equipment.capacity|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ระยะส่ง (Head)</div>
                         <div class="col-span-7">
-                            <input type="text" value="65 m." readonly
+                            <input type="text" value="{{ equipment.head_size|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ความเร็วรอบ (RPM)</div>
                         <div class="col-span-7">
-                            <input type="text" value="1,450 RPM" readonly
+                            <input type="text" value="{{ equipment.rpm|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                         </div>
                     </div>
@@ -313,25 +413,31 @@
                         <div class="col-span-7 relative">
                             <i data-lucide="zap"
                                 class="w-3.5 h-3.5 fill-yellow-400 text-yellow-500 absolute left-2 top-2.5 z-10 pointer-events-none"></i>
-                            <input type="text" value="MTR-56KW-A02 (56 kW, 380V)" readonly
+                            <input type="text" value="{{ equipment.motor|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md pl-7 pr-3 py-0 bg-transparent border-transparent text-blue-600 font-medium pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ตู้คอนโทรล (Panel)</div>
                         <div class="col-span-7">
-                            <input type="text" value="MCC-A02 (ตู้เมนห้องหีบอ้อย)" readonly
+                            <input type="text" value="{{ equipment.panel|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ชุดสตาร์ท (Starter)</div>
                         <div class="col-span-7">
-                            <input type="text" value="Star-Delta Starter (ตู้เบอร์ 4)" readonly
+                            <input type="text" value="{{ equipment.starter|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">เบรกเกอร์ (Breaker)</div>
                         <div class="col-span-7">
-                            <input type="text" value="MCCB 125A / 3P (Schneider)" readonly
+                            <input type="text" value="{{ equipment.breaker|default:'' }}" readonly
+                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                        </div>
+
+                        <div class="col-span-5 text-slate-500 font-medium">ประเภทการส่งกำลัง</div>
+                        <div class="col-span-7">
+                            <input type="text" value="{{ equipment.drive_type|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                         </div>
                     </div>
@@ -356,25 +462,25 @@
                 <div class="grid grid-cols-12 gap-y-4 gap-x-4 text-sm items-center">
                     <div class="col-span-5 text-slate-500 font-medium">วันที่ติดตั้ง</div>
                     <div class="col-span-7">
-                        <input type="text" value="10 พฤศจิกายน 2020 (ก่อนเปิดหีบ)" readonly
+                        <input type="text" value="{{ equipment.installation_date|default:'' }}" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                     </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">วันหมดประกัน</div>
                     <div class="col-span-7">
-                        <input type="text" value="10 พฤศจิกายน 2021 (หมดประกันแล้ว)" readonly
+                        <input type="text" value="{{ equipment.warranty_exp|default:'' }}" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-red-500 pointer-events-none">
                     </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">ราคาซื้อ</div>
                     <div class="col-span-7">
-                        <input type="text" value="185,000.00" readonly
+                        <input type="text" value="{{ equipment.purchase_price|default:'' }}" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-slate-800 pointer-events-none">
                     </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">ราคาซ่อมทดแทน</div>
                     <div class="col-span-7">
-                        <input type="text" value="210,000.00" readonly
+                        <input type="text" value="{{ equipment.replacement_cost|default:'' }}" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-slate-800 pointer-events-none">
                     </div>
                 </div>
@@ -410,19 +516,19 @@
                     </div>
                     <div class="col-span-5 text-slate-500 font-medium">MTBF (ระยะเวลาเฉลี่ยก่อนเสีย)</div>
                     <div class="col-span-7">
-                        <input type="text" value="12,555 ชั่วโมง" readonly
+                        <input type="text" value="{{ equipment.mtbf|default:'0' }} ชั่วโมง" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-green-600 pointer-events-none">
                     </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">MTTR (เวลารวมที่หยุดซ่อม)</div>
                     <div class="col-span-7">
-                        <input type="text" value="498 ชั่วโมง" readonly
+                        <input type="text" value="{{ equipment.mttr|default:'0' }} ชั่วโมง" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-orange-500 pointer-events-none">
                     </div>
 
                     <div class="col-span-5 text-slate-500 font-medium">ค่าใช้จ่ายสะสม (BM+PM)</div>
                     <div class="col-span-7">
-                        <input type="text" value="45,200.00" readonly
+                        <input type="text" value="{{ equipment.acc_cost|default:'0.00' }}" readonly
                             class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-slate-800 pointer-events-none">
                     </div>
                 </div>
@@ -440,22 +546,25 @@
                     <i data-lucide="boxes" class="w-5 h-5 text-blue-600"></i>
                     BOM & ข้อมูลอะไหล่ (Bill of Materials)
                 </h3>
-                <div class="flex gap-2">
-                    <button
-                        class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
-                        <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์
-                    </button>
-                    <button onclick="openBomModal('add')"
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
-                        <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มรายการ
-                    </button>
-                </div>
             </div>
+
+            <!-- Messages in BOM tab -->
+            {% if messages %}
+            <div class="px-5 pt-4">
+                {% for message in messages %}
+                <div class="mb-2 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2
+                    {% if message.tags == 'success' %}bg-green-50 border border-green-200 text-green-700{% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left">
                     <thead class="text-xs text-slate-500 uppercase bg-slate-50/50 border-b border-slate-200">
                         <tr>
-                            <th scope="col" class="px-5 py-3 font-semibold">Part No.</th>
+                            <th scope="col" class="px-5 py-3 font-semibold">Mat ID.</th>
                             <th scope="col" class="px-5 py-3 font-semibold">Description</th>
                             <th scope="col" class="px-5 py-3 font-semibold text-center">Q'ty</th>
                             <th scope="col" class="px-5 py-3 font-semibold text-center">Storeroom</th>
@@ -465,70 +574,75 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
+                        {% for bom in boms %}
                         <tr class="hover:bg-slate-50 transition-colors group">
-                            <td class="px-5 py-3 font-medium text-blue-600">BRG-6312-2Z</td>
-                            <td class="px-5 py-3 text-slate-700">Deep Groove Ball Bearing 6312 ZZ (SKF)</td>
-                            <td class="px-5 py-3 text-center text-slate-600">2</td>
-                            <td class="px-5 py-3 text-center text-slate-600">Store A</td>
-                            <td class="px-5 py-3 text-center font-semibold text-slate-800">5</td>
+                            <td class="px-5 py-3 font-medium text-blue-600">{{ bom.part_no }}</td>
+                            <td class="px-5 py-3 text-slate-700">{{ bom.part_name }}</td>
+                            <td class="px-5 py-3 text-center text-slate-600">{{ bom.qty }}</td>
+                            <td class="px-5 py-3 text-center text-slate-600">{{ bom.location|default:"-" }}</td>
+                            <td class="px-5 py-3 text-center font-semibold text-slate-800">{{ bom.stock_qty }}</td>
                             <td class="px-5 py-3 text-center">
-                                <span
-                                    class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium border border-green-200">In
-                                    Stock</span>
+                                {% if bom.stock_qty > 0 %}
+                                <span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium border border-green-200">In Stock</span>
+                                {% else %}
+                                <span class="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full font-medium border border-red-200">Out of Stock</span>
+                                {% endif %}
                             </td>
                             <td class="px-5 py-3 text-center">
-                                <div
-                                    class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onclick="openBomModal('edit', 'BRG-6312-2Z')"
-                                        class="text-slate-400 hover:text-blue-600 transition-colors"><i
-                                            data-lucide="edit" class="w-4 h-4"></i></button>
-                                    <button class="text-slate-400 hover:text-red-600 transition-colors"><i
-                                            data-lucide="trash-2" class="w-4 h-4"></i></button>
-                                </div>
+                                <form method="POST" action="{% url 'bom_delete' bom.id %}" class="inline"
+                                    onsubmit="return confirm('ต้องการลบอะไหล่ {{ bom.part_no }} ใช่หรือไม่?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-slate-400 hover:text-red-600 transition-colors" title="ลบรายการ">
+                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                </form>
                             </td>
                         </tr>
-                        <tr class="hover:bg-slate-50 transition-colors group">
-                            <td class="px-5 py-3 font-medium text-blue-600">M-SEAL-45MM</td>
-                            <td class="px-5 py-3 text-slate-700">Mechanical Seal 45mm (EagleBurgmann)</td>
-                            <td class="px-5 py-3 text-center text-slate-600">1</td>
-                            <td class="px-5 py-3 text-center text-slate-600">Store B</td>
-                            <td class="px-5 py-3 text-center font-semibold text-slate-800">0</td>
-                            <td class="px-5 py-3 text-center">
-                                <span
-                                    class="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full font-medium border border-red-200">Out
-                                    of Stock</span>
-                            </td>
-                            <td class="px-5 py-3 text-center">
-                                <div
-                                    class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onclick="openBomModal('edit', 'M-SEAL-45MM')"
-                                        class="text-slate-400 hover:text-blue-600 transition-colors"><i
-                                            data-lucide="edit" class="w-4 h-4"></i></button>
-                                    <button class="text-slate-400 hover:text-red-600 transition-colors"><i
-                                            data-lucide="trash-2" class="w-4 h-4"></i></button>
-                                </div>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="px-5 py-8 text-center text-slate-400">
+                                <i data-lucide="package-open" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
+                                <p class="text-sm font-medium">ยังไม่มีรายการอะไหล่สำหรับเครื่องจักรนี้</p>
+                                <p class="text-xs mt-1">กรอกข้อมูลด้านล่างเพื่อเพิ่มรายการ</p>
                             </td>
                         </tr>
-                        <tr class="hover:bg-slate-50 transition-colors group">
-                            <td class="px-5 py-3 font-medium text-blue-600">O-RING-VITON-120</td>
-                            <td class="px-5 py-3 text-slate-700">O-Ring Viton Casing ID 120mm</td>
-                            <td class="px-5 py-3 text-center text-slate-600">1</td>
-                            <td class="px-5 py-3 text-center text-slate-600">Store A</td>
-                            <td class="px-5 py-3 text-center font-semibold text-slate-800">12</td>
-                            <td class="px-5 py-3 text-center">
-                                <span
-                                    class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium border border-green-200">In
-                                    Stock</span>
-                            </td>
-                            <td class="px-5 py-3 text-center">
-                                <div
-                                    class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onclick="openBomModal('edit', 'O-RING-VITON-120')"
-                                        class="text-slate-400 hover:text-blue-600 transition-colors"><i
-                                            data-lucide="edit" class="w-4 h-4"></i></button>
-                                    <button class="text-slate-400 hover:text-red-600 transition-colors"><i
-                                            data-lucide="trash-2" class="w-4 h-4"></i></button>
-                                </div>
+                        {% endfor %}
+
+                        <!-- Inline Add Form Row -->
+                        <tr class="bg-blue-50/50 border-t-2 border-blue-200">
+                            <td colspan="7" class="px-5 py-4">
+                                <form method="POST" action="{% url 'bom_add' equipment.equipment_id %}" class="flex flex-wrap items-end gap-3">
+                                    {% csrf_token %}
+                                    <div class="flex-1 min-w-[120px]">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">Mat ID. *</label>
+                                        <input type="text" name="part_no" required placeholder="เช่น BRG-6312-2Z"
+                                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    </div>
+                                    <div class="flex-[2] min-w-[200px]">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">Description *</label>
+                                        <input type="text" name="part_name" required placeholder="ชื่ออะไหล่"
+                                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    </div>
+                                    <div class="w-20">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">Q'ty</label>
+                                        <input type="number" name="qty" value="1" min="0"
+                                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    </div>
+                                    <div class="flex-1 min-w-[100px]">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">Storeroom</label>
+                                        <input type="text" name="location" placeholder="Store A"
+                                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    </div>
+                                    <div class="w-24">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">Balance</label>
+                                        <input type="number" name="stock_qty" value="0" min="0"
+                                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                    </div>
+                                    <button type="submit"
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                                        <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มรายการ
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                     </tbody>
@@ -536,8 +650,7 @@
             </div>
             <div
                 class="px-5 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
-                <span>แสดง 3 จาก 3 รายการ</span>
-                <span class="font-medium text-slate-700">อัปเดตล่าสุด: 10 มี.ค. 2024</span>
+                <span>แสดงทั้งหมด {{ boms|length }} รายการ</span>
             </div>
         </div>
     </div>
@@ -718,7 +831,6 @@
                         </button>
                     </li>
                 </ul>
-                </ul>
             </div>
             <!-- Content CBM Area -->
             <div class="w-2/3 md:w-3/4 p-6 bg-white flex flex-col relative">
@@ -862,60 +974,74 @@
                     </div>
 
                     <div class="flex-grow">
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
-                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
-                                {% csrf_token %}
-                                <input type="hidden" name="cbm_type" value="visual">
-
-                                <div class="md:col-span-1">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span
-                                            class="text-red-500">*</span></label>
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                        <form class="space-y-5" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="hidden" name="cbm_type" value="visual">
+                            
+                            <!-- Group 1: ข้อมูลการตรวจสอบ -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="info" class="w-4 h-4 text-blue-500"></i> ข้อมูลการตรวจสอบ
+                                </h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span class="text-red-500">*</span></label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                            </div>
+                                            {{ form_visual.inspection_date }}
                                         </div>
-                                        {{ form_visual.inspection_date }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span class="text-red-500">*</span></label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                                            </div>
+                                            {{ form_visual.inspector }}
+                                        </div>
                                     </div>
                                 </div>
-
-                                <div class="md:col-span-1">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span
-                                            class="text-red-500">*</span></label>
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
-                                        </div>
-                                        {{ form_visual.inspector }}
+                            </div>
+                            
+                            <!-- Group 2: ผลการประเมิน -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="clipboard-check" class="w-4 h-4 text-emerald-500"></i> ผลการประเมินสภาพ
+                                </h4>
+                                <div class="grid grid-cols-1 gap-5">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">สภาพโดยรวม (Overall Condition)</label>
+                                        {{ form_visual.overall_condition }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">รายละเอียด / ข้อเสนอแนะ</label>
+                                        {{ form_visual.remark }}
                                     </div>
                                 </div>
-
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">สภาพโดยรวม (Overall
-                                        Condition)</label>
-                                    {{ form_visual.overall_condition }}
+                            </div>
+                            
+                            <!-- Group 3: หลักฐาน -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="image" class="w-4 h-4 text-purple-500"></i> หลักฐานภาพถ่าย
+                                </h4>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">แนบรูปถ่ายหน้างาน</label>
+                                    <input type="file" accept="image/*" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                                           onchange="uploadCBMFileToDrive(this, 'image_file_id', 'visual_upload_status')">
+                                    <div id="visual_upload_status" class="mt-2 text-xs"></div>
+                                    {{ form_visual.image_file_id }}
                                 </div>
+                            </div>
 
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">รายละเอียด /
-                                        ข้อเสนอแนะ</label>
-                                    {{ form_visual.remark }}
-                                </div>
-
-                                <div class="md:col-span-2">
-                                    <label
-                                        class="block text-sm font-semibold text-slate-700 mb-2">แนบรูปถ่ายหน้างาน</label>
-                                    {{ form_visual.image_attachment }}
-                                </div>
-
-                                <div class="md:col-span-2 mt-4 flex justify-end">
-                                    <button type="submit"
-                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"><i
-                                            data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล</button>
-                                </div>
-                            </form>
-                        </div>
+                            <div class="flex justify-end mt-2">
+                                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                                    <i data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล CBM
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 
@@ -934,67 +1060,79 @@
                     </div>
 
                     <div class="flex-grow">
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
-                            <form class="grid grid-cols-1 md:grid-cols-3 gap-6" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}">
-                                {% csrf_token %}
-                                <input type="hidden" name="cbm_type" value="vibration">
-                                <div class="md:col-span-1">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span
-                                            class="text-red-500">*</span></label>
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                        <form class="space-y-5" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="cbm_type" value="vibration">
+                            
+                            <!-- Group 1: ข้อมูลการตรวจสอบ -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="info" class="w-4 h-4 text-emerald-500"></i> ข้อมูลการตรวจสอบ
+                                </h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span class="text-red-500">*</span></label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                            </div>
+                                            {{ form_vibration.inspection_date }}
                                         </div>
-                                        {{ form_vibration.inspection_date }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span class="text-red-500">*</span></label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                                            </div>
+                                            {{ form_vibration.inspector }}
+                                        </div>
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">จุดที่วัด (Measurement Point)</label>
+                                        {{ form_vibration.measurement_point }}
                                     </div>
                                 </div>
-                                <div class="md:col-span-1">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span
-                                            class="text-red-500">*</span></label>
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
-                                        </div>
-                                        {{ form_vibration.inspector }}
+                            </div>
+                            
+                            <!-- Group 2: ค่าความสั่นสะเทือน -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="activity" class="w-4 h-4 text-amber-500"></i> ค่าความสั่นสะเทือนที่วัดได้
+                                </h4>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">Velocity (mm/s)</label>
+                                        {{ form_vibration.velocity }}
+                                    </div>
+                                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">Acceleration (g)</label>
+                                        {{ form_vibration.acceleration }}
+                                    </div>
+                                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">Bearing Temp (°C)</label>
+                                        {{ form_vibration.bearing_temp }}
                                     </div>
                                 </div>
-                                <div class="md:col-span-1">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">จุดที่วัด
-                                        (Measurement Point)</label>
-                                    {{ form_vibration.measurement_point }}
-                                </div>
-
-                                <div class="bg-white p-3 rounded-lg border border-slate-200">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-1">Velocity
-                                        (mm/s)</label>
-                                    {{ form_vibration.velocity }}
-                                </div>
-                                <div class="bg-white p-3 rounded-lg border border-slate-200">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-1">Acceleration
-                                        (g)</label>
-                                    {{ form_vibration.acceleration }}
-                                </div>
-                                <div class="bg-white p-3 rounded-lg border border-slate-200">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-1">Bearing Temp
-                                        (°C)</label>
-                                    {{ form_vibration.bearing_temp }}
-                                </div>
-
-                                <div class="md:col-span-3">
-                                    <label
-                                        class="block text-sm font-semibold text-slate-700 mb-2">สถานะการประเมินค่าสั่นสะเทือน</label>
+                            </div>
+                            
+                            <!-- Group 3: การประเมิน -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="clipboard-check" class="w-4 h-4 text-blue-500"></i> ผลการประเมิน
+                                </h4>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">สถานะการประเมินค่าสั่นสะเทือน</label>
                                     {{ form_vibration.status }}
                                 </div>
+                            </div>
 
-                                <div class="md:col-span-3 mt-4 flex justify-end">
-                                    <button type="submit"
-                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"><i
-                                            data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล</button>
-                                </div>
-                            </form>
-                        </div>
+                            <div class="flex justify-end mt-2">
+                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                                    <i data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล CBM
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 
@@ -1014,67 +1152,82 @@
                     </div>
 
                     <div class="flex-grow">
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
-                            <form class="grid grid-cols-1 md:grid-cols-3 gap-6" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
-                                {% csrf_token %}
-                                <input type="hidden" name="cbm_type" value="thermoscan">
-                                <div class="md:col-span-1">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ถ่ายภาพ <span
-                                            class="text-red-500">*</span></label>
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                        <form class="space-y-5" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="hidden" name="cbm_type" value="thermoscan">
+                            
+                            <!-- Group 1: ข้อมูลการตรวจสอบ -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="info" class="w-4 h-4 text-red-500"></i> ข้อมูลการตรวจสอบ
+                                </h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ถ่ายภาพ <span class="text-red-500">*</span></label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                            </div>
+                                            {{ form_thermoscan.inspection_date }}
                                         </div>
-                                        {{ form_thermoscan.inspection_date }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span class="text-red-500">*</span></label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                                            </div>
+                                            {{ form_thermoscan.inspector }}
+                                        </div>
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">จุดที่ถ่าย (Location Target)</label>
+                                        {{ form_thermoscan.location_target }}
                                     </div>
                                 </div>
-                                <div class="md:col-span-1">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span
-                                            class="text-red-500">*</span></label>
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
-                                        </div>
-                                        {{ form_thermoscan.inspector }}
+                            </div>
+                            
+                            <!-- Group 2: ค่าความร้อน -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="thermometer" class="w-4 h-4 text-orange-500"></i> ค่าอุณหภูมิที่วัดได้
+                                </h4>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-1">อุณหภูมิสูงสุด (Max Temp °C)</label>
+                                        {{ form_thermoscan.max_temp }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-1">อุณหภูมิแวดล้อม (Ambient °C)</label>
+                                        {{ form_thermoscan.ambient_temp }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-1">ผลต่าง (Delta T °C)</label>
+                                        {{ form_thermoscan.delta_t }}
                                     </div>
                                 </div>
-                                <div class="md:col-span-1">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">จุดที่ถ่าย (Location
-                                        Target)</label>
-                                    {{ form_thermoscan.location_target }}
-                                </div>
-
+                            </div>
+                            
+                            <!-- Group 3: ภาพถ่าย IR -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="image" class="w-4 h-4 text-purple-500"></i> ภาพถ่าย IR (Thermal Image)
+                                </h4>
                                 <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-1">อุณหภูมิสูงสุด (Max
-                                        Temp °C)</label>
-                                    {{ form_thermoscan.max_temp }}
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">แนบภาพถ่าย</label>
+                                    <input type="file" accept="image/*" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                                           onchange="uploadCBMFileToDrive(this, 'image_file_id', 'thermoscan_upload_status')">
+                                    <div id="thermoscan_upload_status" class="mt-2 text-xs"></div>
+                                    {{ form_thermoscan.image_file_id }}
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-1">อุณหภูมิแวดล้อม
-                                        (Ambient °C)</label>
-                                    {{ form_thermoscan.ambient_temp }}
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-1">ผลต่าง (Delta T
-                                        °C)</label>
-                                    {{ form_thermoscan.delta_t }}
-                                </div>
+                            </div>
 
-                                <div class="md:col-span-3">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">แนบภาพถ่าย IR
-                                        (Thermal Image)</label>
-                                    {{ form_thermoscan.image_attachment }}
-                                </div>
-
-                                <div class="md:col-span-3 mt-4 flex justify-end">
-                                    <button type="submit"
-                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"><i
-                                            data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล</button>
-                                </div>
-                            </form>
-                        </div>
+                            <div class="flex justify-end mt-2">
+                                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                                    <i data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล CBM
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 
@@ -1093,68 +1246,88 @@
                     </div>
 
                     <div class="flex-grow">
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
-                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
-                                {% csrf_token %}
-                                <input type="hidden" name="cbm_type" value="oil">
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่เก็บตัวอย่าง
-                                        <span class="text-red-500">*</span></label>
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                        <form class="space-y-5" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="hidden" name="cbm_type" value="oil">
+                            
+                            <!-- Group 1: ข้อมูลการเก็บตัวอย่าง -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="info" class="w-4 h-4 text-sky-500"></i> ข้อมูลการเก็บตัวอย่าง
+                                </h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่เก็บตัวอย่าง <span class="text-red-500">*</span></label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                            </div>
+                                            {{ form_oil.collection_date }}
                                         </div>
-                                        {{ form_oil.collection_date }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span class="text-red-500">*</span></label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                                            </div>
+                                            {{ form_oil.inspector }}
+                                        </div>
                                     </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span
-                                            class="text-red-500">*</span></label>
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
-                                        </div>
-                                        {{ form_oil.inspector }}
+                            </div>
+                            
+                            <!-- Group 2: ผลวิเคราะห์น้ำมัน -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="droplets" class="w-4 h-4 text-sky-600"></i> ข้อมูลและผลวิเคราะห์น้ำมัน
+                                </h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">ชนิดน้ำมัน (Oil Type)</label>
+                                        {{ form_oil.oil_type }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">ระดับอนุภาคความสึกหรอ (Wear Particle / ISO Code)</label>
+                                        {{ form_oil.wear_particle }}
+                                    </div>
+                                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                        <label class="block text-sm font-semibold text-slate-700 mb-1">ความหนืด @40°C (cSt)</label>
+                                        {{ form_oil.viscosity }}
+                                    </div>
+                                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                        <label class="block text-sm font-semibold text-slate-700 mb-1">ปริมาณน้ำเจือปน (Water Content %)</label>
+                                        {{ form_oil.water_content }}
                                     </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ชนิดน้ำมัน (Oil
-                                        Type)</label>
-                                    {{ form_oil.oil_type }}
+                            </div>
+                            
+                            <!-- Group 3: หมายเหตุและเอกสาร -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="clipboard-list" class="w-4 h-4 text-slate-500"></i> หมายเหตุและเอกสารอ้างอิง
+                                </h4>
+                                <div class="grid grid-cols-1 gap-5">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">หมายเหตุสถานะปัจจุบันของน้ำมัน</label>
+                                        {{ form_oil.oil_remark }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์ผล Lab Report (PDF)</label>
+                                        <input type="file" accept=".pdf" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                                               onchange="uploadCBMFileToDrive(this, 'lab_report_file_id', 'oil_upload_status')">
+                                        <div id="oil_upload_status" class="mt-2 text-xs"></div>
+                                        {{ form_oil.lab_report_file_id }}
+                                    </div>
                                 </div>
+                            </div>
 
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-1">ความหนืด @40°C
-                                        (cSt)</label>
-                                    {{ form_oil.viscosity }}
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-1">ปริมาณน้ำเจือปน
-                                        (Water Content %)</label>
-                                    {{ form_oil.water_content }}
-                                </div>
-
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ระดับอนุภาคความสึกหรอ
-                                        (Wear Particle / ISO Code)</label>
-                                    {{ form_oil.wear_particle }}
-                                </div>
-
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์ผล Lab Report
-                                        (PDF)</label>
-                                    {{ form_oil.lab_report }}
-                                </div>
-
-                                <div class="md:col-span-2 mt-4 flex justify-end">
-                                    <button type="submit"
-                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"><i
-                                            data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล</button>
-                                </div>
-                            </form>
-                        </div>
+                            <div class="flex justify-end mt-2">
+                                <button type="submit" class="bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                                    <i data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล CBM
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 
@@ -1174,61 +1347,78 @@
                     </div>
 
                     <div class="flex-grow">
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg p-5">
-                            <form class="grid grid-cols-1 md:grid-cols-2 gap-6" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
-                                {% csrf_token %}
-                                <input type="hidden" name="cbm_type" value="acoustic">
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span
-                                            class="text-red-500">*</span></label>
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                        <form class="space-y-5" method="POST" action="{% if equipment %}{% url 'equipment_cbm' equipment.equipment_id %}{% else %}#{% endif %}" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="hidden" name="cbm_type" value="acoustic">
+                            
+                            <!-- Group 1: ข้อมูลการตรวจสอบ -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="info" class="w-4 h-4 text-purple-500"></i> ข้อมูลการตรวจสอบ
+                                </h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">วันที่ตรวจสอบ <span class="text-red-500">*</span></label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                                            </div>
+                                            {{ form_acoustic.inspection_date }}
                                         </div>
-                                        {{ form_acoustic.inspection_date }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span class="text-red-500">*</span></label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
+                                            </div>
+                                            {{ form_acoustic.inspector }}
+                                        </div>
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">จุดตรวจสอบ (Inspection Point)</label>
+                                        {{ form_acoustic.inspection_point }}
                                     </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">ผู้ตรวจสอบ <span
-                                            class="text-red-500">*</span></label>
-                                    <div class="relative">
-                                        <div
-                                            class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <i data-lucide="user" class="w-4 h-4 text-slate-400"></i>
-                                        </div>
-                                        {{ form_acoustic.inspector }}
+                            </div>
+                            
+                            <!-- Group 2: ผลตรวจวัดคลื่นเสียง -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="radio" class="w-4 h-4 text-indigo-500"></i> ผลตรวจวัดคลื่นเสียงอัลตราซาวด์
+                                </h4>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-1">ระดับเสียง (dB / RMS)</label>
+                                        {{ form_acoustic.decibel }}
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-1">ลักษณะเสียงที่พบ (Sound Pattern)</label>
+                                        {{ form_acoustic.sound_pattern }}
                                     </div>
                                 </div>
+                            </div>
+                            
+                            <!-- Group 3: ไฟล์บันทึกเสียง -->
+                            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                <h4 class="text-sm font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                    <i data-lucide="headphones" class="w-4 h-4 text-slate-500"></i> ไฟล์บันทึกเสียง (Audio / Waveform)
+                                </h4>
                                 <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">จุดตรวจสอบ</label>
-                                    {{ form_acoustic.inspection_point }}
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์เสียง (.wav, .mp3)</label>
+                                    <input type="file" accept="audio/*,.wav,.mp3" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                                           onchange="uploadCBMFileToDrive(this, 'audio_file_id', 'acoustic_upload_status')">
+                                    <div id="acoustic_upload_status" class="mt-2 text-xs"></div>
+                                    {{ form_acoustic.audio_file_id }}
                                 </div>
+                            </div>
 
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-1">ระดับเสียง (dB /
-                                        RMS)</label>
-                                    {{ form_acoustic.decibel }}
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-1">ลักษณะเสียงที่พบ
-                                        (Sound Pattern)</label>
-                                    {{ form_acoustic.sound_pattern }}
-                                </div>
-
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">แนบไฟล์บันทึกเสียง
-                                        (Audio / Waveform)</label>
-                                    {{ form_acoustic.audio_attachment }}
-                                </div>
-
-                                <div class="md:col-span-2 mt-4 flex justify-end">
-                                    <button type="submit"
-                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"><i
-                                            data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล</button>
-                                </div>
-                            </form>
-                        </div>
+                            <div class="flex justify-end mt-2">
+                                <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                                    <i data-lucide="save" class="w-4 h-4"></i> บันทึกข้อมูล CBM
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 
@@ -1307,6 +1497,51 @@
 
     function openBomModal(action, partNo = '') {
         window.open(`{% url "equipment_bom" %}?action=${action}&partNo=${partNo}`, 'BOMWindow', 'width=700,height=500,left=250,top=150');
+    }
+
+    function uploadCBMFileToDrive(input, fieldName, statusId) {
+        const file = input.files[0];
+        const statusEl = document.getElementById(statusId);
+        const form = input.closest('form');
+        const hiddenEl = form.querySelector(`input[name="${fieldName}"]`);
+
+        if (!file) return;
+
+        statusEl.innerHTML = '<span class="text-blue-600 flex items-center gap-1"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> กำลังอัปโหลดไปยัง Google Drive...</span>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const payload = {
+                fileName: file.name,
+                mimeType: file.type,
+                base64: e.target.result
+            };
+
+            const url = 'https://script.google.com/macros/s/AKfycbyL8wonz3mQbBwVIbtvE-Z6h9s33MvyfjGIfjfdS2VsvIanrzJnwvI_aAi4JpGsbF2I/exec';
+
+            fetch(url, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success" || data.fileId || data.id) {
+                    statusEl.innerHTML = '<span class="text-emerald-600 flex items-center gap-1"><i data-lucide="check-circle-2" class="w-3 h-3"></i> อัปโหลดสำเร็จ!</span>';
+                    if (hiddenEl) {
+                        hiddenEl.value = data.fileId || data.id || data.url;
+                    }
+                } else {
+                    statusEl.innerHTML = `<span class="text-red-600 flex items-center gap-1"><i data-lucide="alert-circle" class="w-3 h-3"></i> ข้อผิดพลาด: ${data.message || 'ไม่ทราบสาเหตุ'}</span>`;
+                }
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            })
+            .catch(error => {
+                statusEl.innerHTML = `<span class="text-red-600 flex items-center gap-1"><i data-lucide="alert-circle" class="w-3 h-3"></i> การเชื่อมต่อล้มเหลว: ${error}</span>`;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            });
+        };
+        reader.readAsDataURL(file);
     }
 
     // Re-initialize icons just in case
