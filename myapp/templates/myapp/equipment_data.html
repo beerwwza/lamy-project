@@ -1430,6 +1430,9 @@
 <script>
     // Tab switching logic
     function switchTab(tabId) {
+        // Save current tab to localStorage
+        localStorage.setItem('activeEquipmentTab', tabId);
+
         // IDs of all tabs and content panes
         const tabs = ['info', 'bom', 'wopm', 'cbm'];
 
@@ -1543,6 +1546,12 @@
         };
         reader.readAsDataURL(file);
     }
+
+    // Restore active tab on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        const activeTab = localStorage.getItem('activeEquipmentTab') || 'info';
+        switchTab(activeTab);
+    });
 
     // Re-initialize icons just in case
     if (typeof lucide !== 'undefined') {

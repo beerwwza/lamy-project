@@ -178,9 +178,22 @@ def upload_equipment_image(request, eq_id):
     return JsonResponse({'status': 'error', 'message': 'ไม่มีรูปภาพถูกส่งมา'})
 
 @login_required
+def equipment_toggle_status(request, eq_id):
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+    if equipment:
+        equipment.is_active = not equipment.is_active
+        equipment.save()
+        status_text = "เปิดใช้งาน" if equipment.is_active else "ปิดใช้งาน"
+        messages.success(request, f'เปลี่ยนสถานะการใช้งานเครื่องจักร {equipment.equipment_id} เป็น {status_text} เรียบร้อยแล้ว')
+    else:
+        messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
+    return redirect('equipment_list')
+
+@login_required
 def equipment_list(request):
     equipments = Equipment.objects.all().order_by('equipment_id')
-    context = {'equipments': equipments}
+    locations = Equipment.objects.exclude(location__isnull=True).exclude(location__exact='').values_list('location', flat=True).distinct().order_by('location')
+    context = {'equipments': equipments, 'locations': list(locations)}
     return render(request, 'myapp/equipment_list.html', context)
 
 #def Home(request):

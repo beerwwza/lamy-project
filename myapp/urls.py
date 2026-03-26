@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import * #Home, register, user_login, user_logout การใช้ * เป็นการเรียกฟังก์ชั่นทั้งหมดในไฟล์นั้นมา ไม่ต้องเรียกใช้ฟังก์ชั่นที่ละตัว
+from .views import equipment_toggle_status
 
 urlpatterns = [
     #path('', Home, name='home'), #localhost:8000
@@ -46,6 +47,7 @@ urlpatterns = [
     path('equipment/bom/delete/<int:bom_id>/', bom_delete, name='bom_delete'),
     path('equipment/cbm/<str:eq_id>/', equipment_cbm, name='equipment_cbm'),
     path('equipment/upload_image/<str:eq_id>/', upload_equipment_image, name='upload_equipment_image'),
+    path('equipment/<str:eq_id>/toggle_status/', equipment_toggle_status, name='equipment_toggle_status'),
     path('equipment/<str:eq_id>/', equipment_data, name='equipment_data_detail'),
 
     # Path สำหรับ Import Data
