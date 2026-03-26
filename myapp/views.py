@@ -1539,6 +1539,7 @@ def maintenance_dashboard(request):
             'downtimeStop': log.downtime_stop or 0,
             'downtimeReduced': log.downtime_reduced or 0,
             'downtimeNonStop': log.downtime_non_stop or 0,
+            'downtimeDissolve': log.downtime_dissolve or 0,
             'category': log.category,
             'isLeak': log.is_leak,
             'sparePart': log.spare_part,
