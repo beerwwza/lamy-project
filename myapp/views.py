@@ -46,8 +46,13 @@ def equipment_data(request, eq_id=None):
     # Optional list for a dropdown to switch equipment
     equipment_list = Equipment.objects.filter(is_active=True).values('equipment_id', 'name')
     
+    motor_equipment = None
+    if equipment and equipment.motor:
+        motor_equipment = Equipment.objects.filter(equipment_id=equipment.motor.strip()).first()
+    
     context = {
         'equipment': equipment,
+        'motor_equipment': motor_equipment,
         'boms': boms,
         'latest_cbm_visual': latest_cbm_visual,
         'latest_cbm_vibration': latest_cbm_vibration,
