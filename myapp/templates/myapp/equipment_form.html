@@ -141,7 +141,11 @@
                         <div class="col-md-6">
                             <label class="form-label small mb-1">{{ form.equipment_id.label }} <span
                                     class="text-danger">*</span></label>
-                            {{ form.equipment_id }}
+                            {% if equipment %}
+                                <input type="text" name="equipment_id" value="{{ equipment.equipment_id }}" class="form-control bg-light" readonly>
+                            {% else %}
+                                {{ form.equipment_id }}
+                            {% endif %}
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small mb-1">{{ form.name.label }} <span
