@@ -7,3 +7,7 @@ __pycache__/
 db.sqlite3
 .env
 .DS_Store
+
+# Node / TypeScript
+node_modules/
+myapp/static/myapp/js/dist/
