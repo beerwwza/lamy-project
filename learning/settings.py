@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,12 +21,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-4j0gfeg!-td@^ff&)p@a^2yfw%b7-1*fg8bg6_nh%l4zy=+y&q'
+# ตั้งค่า DJANGO_SECRET_KEY ใน environment variable บน server ก่อน deploy
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
+if not SECRET_KEY:
+    raise ValueError("DJANGO_SECRET_KEY environment variable is not set. See .env.example")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['*'] #run web in network (mobile phone in same network)
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'lamy23.cloud,localhost,127.0.0.1').split(',')
 # อนุญาตให้ Django รับ Request จากโดเมนนี้ได้
 CSRF_TRUSTED_ORIGINS = [
     'https://lamy23.cloud',

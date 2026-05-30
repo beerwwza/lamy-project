@@ -29,6 +29,7 @@
 
     <!-- Markdown Parser (for AI responses) -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -151,6 +152,9 @@
 
     <!-- Inject Server Data -->
     {{ mill|json_script:"server-mill-data" }}
+    {{ boiler|json_script:"server-boiler-data" }}
+    {{ maint|json_script:"server-maint-data" }}
+    {{ lathe|json_script:"server-lathe-data" }}
 
     <!-- React Application Logic -->
     {% verbatim %}
@@ -159,13 +163,20 @@
 
         // --- Read Server Data ---
         let SERVER_DATA_MILL = {};
+        let SERVER_DATA_BOILER = {};
+        let SERVER_DATA_MAINT = {};
+        let SERVER_DATA_LATHE = {};
         try {
-            const scriptTag = document.getElementById('server-mill-data');
-            if (scriptTag) {
-                SERVER_DATA_MILL = JSON.parse(scriptTag.textContent);
-            }
+            const millTag = document.getElementById('server-mill-data');
+            if (millTag) SERVER_DATA_MILL = JSON.parse(millTag.textContent);
+            const boilerTag = document.getElementById('server-boiler-data');
+            if (boilerTag) SERVER_DATA_BOILER = JSON.parse(boilerTag.textContent);
+            const maintTag = document.getElementById('server-maint-data');
+            if (maintTag) SERVER_DATA_MAINT = JSON.parse(maintTag.textContent);
+            const latheTag = document.getElementById('server-lathe-data');
+            if (latheTag) SERVER_DATA_LATHE = JSON.parse(latheTag.textContent);
         } catch (e) {
-            console.error("Failed to parse mill data", e);
+            console.error("Failed to parse server data", e);
         }
 
         // --- Gemini API Helper ---
@@ -243,6 +254,38 @@
         };
 
         const DATASET = generateData();
+
+        // --- Status Badge Component ---
+        const StatusBadge = ({ alert, label }) => {
+            if (alert) return (
+                <span className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 px-2 py-0.5 rounded-full font-medium">
+                    แจ้งเตือน
+                </span>
+            );
+            return (
+                <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded-full font-medium">
+                    ปกติ
+                </span>
+            );
+        };
+
+        // --- KPI Card with threshold color ---
+        const KpiCard = ({ label, value, unit, icon, alert, target }) => (
+            <div className={`bg-white dark:bg-slate-800 rounded-2xl p-5 border shadow-sm ${alert ? 'border-orange-400 dark:border-orange-600' : 'border-slate-200 dark:border-slate-700'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                    <div className={`p-2 rounded-lg ${alert ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}>
+                        <Icon name={icon} size={18} />
+                    </div>
+                    <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">{label}</span>
+                </div>
+                <div className={`text-3xl font-bold ${alert ? 'text-orange-600 dark:text-orange-400' : 'text-slate-800 dark:text-slate-100'}`}>
+                    {value} <span className="text-base font-normal text-slate-400">{unit}</span>
+                </div>
+                {target !== undefined && (
+                    <div className="mt-2 text-xs text-slate-400">เป้าหมาย: {target}</div>
+                )}
+            </div>
+        );
 
         // --- Icons Mapping ---
         const Icon = ({ name, size = 20, className = "" }) => {
@@ -348,7 +391,7 @@
                                     <p className="text-slate-500 animate-pulse">Gemini is analyzing factory data...</p>
                                 </div>
                             ) : (
-                                <div dangerouslySetInnerHTML={{ __html: marked.parse(content || "") }} />
+                                <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(content || "")) }} />
                             )}
                         </div>
                     </div>
@@ -556,50 +599,50 @@
                         {/* Scrollable Content */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
-                            {/* --- Department Navigation Cards (New Request) --- */}
+                            {/* --- Department Navigation Cards --- */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                                 <a href="/mill/" className="group relative bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all flex items-center gap-3">
                                     <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg group-hover:scale-110 transition-transform">
                                         <Icon name="factory" size={24} />
                                     </div>
-                                    <div>
+                                    <div className="flex-1 min-w-0">
                                         <h3 className="font-bold text-slate-700 dark:text-slate-200">Milling</h3>
                                         <span className="text-xs text-slate-500">ลูกหีบ</span>
                                     </div>
-                                    <Icon name="external-link" size={16} className="absolute top-4 right-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors" />
+                                    <StatusBadge alert={false} />
                                 </a>
 
                                 <a href="/boiler/" className="group relative bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-500 transition-all flex items-center gap-3">
                                     <div className="p-3 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg group-hover:scale-110 transition-transform">
                                         <Icon name="flame" size={24} />
                                     </div>
-                                    <div>
+                                    <div className="flex-1 min-w-0">
                                         <h3 className="font-bold text-slate-700 dark:text-slate-200">Boiler</h3>
                                         <span className="text-xs text-slate-500">หม้อน้ำ</span>
                                     </div>
-                                    <Icon name="external-link" size={16} className="absolute top-4 right-4 text-slate-300 dark:text-slate-600 group-hover:text-orange-500 transition-colors" />
+                                    <StatusBadge alert={SERVER_DATA_BOILER.alert} />
                                 </a>
 
                                 <a href="/maintenance/" className="group relative bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-red-400 dark:hover:border-red-500 transition-all flex items-center gap-3">
                                     <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg group-hover:scale-110 transition-transform">
                                         <Icon name="wrench" size={24} />
                                     </div>
-                                    <div>
+                                    <div className="flex-1 min-w-0">
                                         <h3 className="font-bold text-slate-700 dark:text-slate-200">Maintenance</h3>
                                         <span className="text-xs text-slate-500">ซ่อมบำรุง</span>
                                     </div>
-                                    <Icon name="external-link" size={16} className="absolute top-4 right-4 text-slate-300 dark:text-slate-600 group-hover:text-red-500 transition-colors" />
+                                    <StatusBadge alert={SERVER_DATA_MAINT.alert} />
                                 </a>
 
                                 <a href="/lathe/" className="group relative bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-500 transition-all flex items-center gap-3">
                                     <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg group-hover:scale-110 transition-transform">
                                         <Icon name="settings" size={24} />
                                     </div>
-                                    <div>
+                                    <div className="flex-1 min-w-0">
                                         <h3 className="font-bold text-slate-700 dark:text-slate-200">Lathe</h3>
                                         <span className="text-xs text-slate-500">โรงกลึง</span>
                                     </div>
-                                    <Icon name="external-link" size={16} className="absolute top-4 right-4 text-slate-300 dark:text-slate-600 group-hover:text-indigo-500 transition-colors" />
+                                    <StatusBadge alert={SERVER_DATA_LATHE.alert} />
                                 </a>
                             </div>
 
@@ -712,43 +755,95 @@
                                         </div>
                                     </div>
                                 </div>
-                            ) : (
-                                // Standard Grid for Other Departments
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                    {departments[currentTab].metrics.map((metric) => {
-                                        const value = currentDayData[metric.key];
-                                        return (
-                                            <div
-                                                key={metric.key}
-                                                onClick={() => openDrillDown(metric.key, metric.label, metric.color)}
-                                                className="group relative bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-lg hover:border-indigo-300 dark:hover:border-indigo-700 transition-all cursor-pointer overflow-hidden"
-                                            >
-                                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                                    <Icon name={metric.icon} size={64} className={`text-[${metric.color}]`} />
-                                                </div>
-
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <div className="p-3 rounded-lg" style={{ backgroundColor: `${metric.color}20`, color: metric.color }}>
-                                                        <Icon name={metric.icon} size={24} />
-                                                    </div>
-                                                    <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">{metric.label}</h3>
-                                                </div>
-
-                                                <div className="flex items-baseline gap-2">
-                                                    <span className="text-3xl font-bold text-slate-800 dark:text-slate-100">
-                                                        {value !== undefined ? value : '-'}
-                                                    </span>
-                                                </div>
-
-                                                <div className="mt-4 flex items-center gap-1 text-xs text-indigo-500 font-medium">
-                                                    <span>Click for details</span>
-                                                    <Icon name="arrow-right" size={12} />
-                                                </div>
+                            ) : currentTab === 'boiler' ? (
+                                <div className="flex flex-col gap-6">
+                                    <div className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl p-5 text-white shadow-lg flex items-center justify-between">
+                                        <div>
+                                            <div className="text-orange-100 text-sm font-medium mb-1">ข้อมูลล่าสุด — Boiler KPI</div>
+                                            <div className="text-2xl font-bold">{SERVER_DATA_BOILER.date || '-'}</div>
+                                        </div>
+                                        {SERVER_DATA_BOILER.alert && (
+                                            <div className="bg-white/20 rounded-xl px-4 py-2 text-sm font-semibold flex items-center gap-2">
+                                                <Icon name="alert-triangle" size={16} />
+                                                มี KPI เกินเป้าหมาย
                                             </div>
-                                        );
-                                    })}
+                                        )}
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Downtime &amp; Capacity</h4>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            <KpiCard label="% Downtime A" value={SERVER_DATA_BOILER.downtime_a ?? '-'} unit="%" icon="clock" alert={SERVER_DATA_BOILER.downtime_a > 1.01} target="< 1.01%" />
+                                            <KpiCard label="% Downtime B" value={SERVER_DATA_BOILER.downtime_b ?? '-'} unit="%" icon="clock" alert={SERVER_DATA_BOILER.downtime_b > 1.01} target="< 1.01%" />
+                                            <KpiCard label="ลดกำลังหีบ A" value={SERVER_DATA_BOILER.reduced_cap_a ?? '-'} unit="%" icon="trending-down" alert={SERVER_DATA_BOILER.reduced_cap_a > 1.02} target="< 1.02%" />
+                                            <KpiCard label="ลดกำลังหีบ B" value={SERVER_DATA_BOILER.reduced_cap_b ?? '-'} unit="%" icon="trending-down" alert={SERVER_DATA_BOILER.reduced_cap_b > 1.02} target="< 1.02%" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Steam Header</h4>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <KpiCard label="จ่ายไอน้ำ 20 bar" value={SERVER_DATA_BOILER.flow_20bar ?? '-'} unit="Ton/Hr" icon="wind" alert={false} target="299 T/Hr" />
+                                            <KpiCard label="จ่ายไอน้ำ 40 bar" value={SERVER_DATA_BOILER.flow_40bar ?? '-'} unit="Ton/Hr" icon="wind" alert={false} target="405 T/Hr" />
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
+                            ) : currentTab === 'maintenance' ? (
+                                <div className="flex flex-col gap-6">
+                                    <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg flex items-center justify-between">
+                                        <div>
+                                            <div className="text-red-100 text-sm font-medium mb-1">สรุปวันนี้ — Maintenance</div>
+                                            <div className="text-3xl font-bold">{SERVER_DATA_MAINT.repairs ?? 0} <span className="text-lg font-normal text-red-200">ครั้ง</span></div>
+                                        </div>
+                                        {SERVER_DATA_MAINT.alert && (
+                                            <div className="bg-white/20 rounded-xl px-4 py-2 text-sm font-semibold flex items-center gap-2">
+                                                <Icon name="alert-triangle" size={16} />
+                                                มีงานซ่อมวันนี้
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <KpiCard label="MTTR" value={SERVER_DATA_MAINT.mttr ?? 0} unit="ชม./ครั้ง" icon="wrench" alert={SERVER_DATA_MAINT.mttr > 2} />
+                                        <KpiCard label="หยุดหีบ" value={SERVER_DATA_MAINT.downtime_stop ?? 0} unit="ชม." icon="pause-circle" alert={SERVER_DATA_MAINT.downtime_stop > 0} />
+                                        <KpiCard label="ลดรอบ" value={SERVER_DATA_MAINT.downtime_reduced ?? 0} unit="ชม." icon="minus-circle" alert={SERVER_DATA_MAINT.downtime_reduced > 0} />
+                                        <KpiCard label="รั่วไหล" value={SERVER_DATA_MAINT.leaks ?? 0} unit="ครั้ง" icon="droplets" alert={SERVER_DATA_MAINT.leaks > 0} />
+                                    </div>
+                                </div>
+                            ) : currentTab === 'lathe' ? (
+                                <div className="flex flex-col gap-6">
+                                    <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-5 text-white shadow-lg flex items-center justify-between">
+                                        <div>
+                                            <div className="text-indigo-100 text-sm font-medium mb-1">ภาพรวม — โรงกลึง</div>
+                                            <div className="text-3xl font-bold">{SERVER_DATA_LATHE.total_pieces ?? 0} <span className="text-lg font-normal text-indigo-200">ชิ้น</span></div>
+                                            <div className="text-sm text-indigo-200 mt-1">{SERVER_DATA_LATHE.total_hours ?? 0} ชั่วโมงรวม</div>
+                                        </div>
+                                        {SERVER_DATA_LATHE.alert && (
+                                            <div className="bg-white/20 rounded-xl px-4 py-2 text-sm font-semibold flex items-center gap-2">
+                                                <Icon name="alert-triangle" size={16} />
+                                                งาน Pending &gt; 5
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-yellow-300 dark:border-yellow-700 shadow-sm text-center">
+                                            <div className="text-4xl font-bold text-yellow-600 dark:text-yellow-400">{SERVER_DATA_LATHE.pending ?? 0}</div>
+                                            <div className="text-sm text-slate-500 mt-2 flex items-center justify-center gap-1">
+                                                <Icon name="clock" size={14} /> Pending
+                                            </div>
+                                        </div>
+                                        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-blue-300 dark:border-blue-700 shadow-sm text-center">
+                                            <div className="text-4xl font-bold text-blue-600 dark:text-blue-400">{SERVER_DATA_LATHE.in_progress ?? 0}</div>
+                                            <div className="text-sm text-slate-500 mt-2 flex items-center justify-center gap-1">
+                                                <Icon name="loader" size={14} /> In Progress
+                                            </div>
+                                        </div>
+                                        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-green-300 dark:border-green-700 shadow-sm text-center">
+                                            <div className="text-4xl font-bold text-green-600 dark:text-green-400">{SERVER_DATA_LATHE.done ?? 0}</div>
+                                            <div className="text-sm text-slate-500 mt-2 flex items-center justify-center gap-1">
+                                                <Icon name="check-circle" size={14} /> Done
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : null}
 
                             {/* History / Log Section */}
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -757,29 +852,59 @@
                                     <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                                         <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                                             <Icon name="activity" size={18} className="text-indigo-500" />
-                                            Operations History
+                                            Operations History — ลูกหีบ (10 รายการล่าสุด)
                                         </h3>
-                                        <button className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline">View All</button>
+                                        <a href="/mill/" className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline">View All</a>
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400">
                                             <thead className="text-xs text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
                                                 <tr>
-                                                    <th className="px-6 py-3">Date</th>
-                                                    <th className="px-6 py-3">Department</th>
-                                                    <th className="px-6 py-3">Status</th>
-                                                    <th className="px-6 py-3">Note</th>
+                                                    <th className="px-4 py-3">วันที่</th>
+                                                    <th className="px-4 py-3">สาย</th>
+                                                    <th className="px-4 py-3">อ้อย (ตัน)</th>
+                                                    <th className="px-4 py-3">CCS</th>
+                                                    <th className="px-4 py-3">ผู้บันทึก</th>
+                                                    <th className="px-4 py-3">แก้ไขล่าสุด</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {getDrillDownData().reverse().map((d, i) => (
-                                                    <tr key={i} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
-                                                        <td className="px-6 py-4">{d.date}</td>
-                                                        <td className="px-6 py-4">{departments[currentTab].name.split(' ')[0]}</td>
-                                                        <td className="px-6 py-4">
-                                                            <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">Normal</span>
+                                                {(SERVER_DATA_MILL.recent || []).length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                                                            ยังไม่มีข้อมูล
                                                         </td>
-                                                        <td className="px-6 py-4">Data recorded successfully.</td>
+                                                    </tr>
+                                                ) : (SERVER_DATA_MILL.recent || []).map((r, i) => (
+                                                    <tr key={i} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
+                                                        <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200">{r.date}</td>
+                                                        <td className="px-4 py-3">
+                                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${r.line === 'A' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'}`}>
+                                                                {r.line}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3">{r.cane_weight}</td>
+                                                        <td className="px-4 py-3">{r.ccs}</td>
+                                                        <td className="px-4 py-3">
+                                                            {r.created_by ? (
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-slate-700 dark:text-slate-200">{r.created_by}</span>
+                                                                    <span className="text-xs text-slate-400">{r.created_at}</span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-slate-300 dark:text-slate-600">—</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {r.updated_by ? (
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-amber-600 dark:text-amber-400">{r.updated_by}</span>
+                                                                    <span className="text-xs text-slate-400">{r.updated_at}</span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-slate-300 dark:text-slate-600">—</span>
+                                                            )}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -787,29 +912,55 @@
                                     </div>
                                 </div>
 
-                                {/* Quick Summary or Notifications */}
-                                <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-6 text-white shadow-lg">
-                                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                        <Icon name="bell" size={20} />
-                                        Alerts & Summary
-                                    </h3>
-                                    <div className="space-y-4">
-                                        <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10">
-                                            <div className="flex justify-between items-start mb-1">
-                                                <span className="text-xs font-semibold text-orange-200">Maintenance</span>
-                                                <span className="text-[10px] text-white/60">2h ago</span>
+                                {/* Dynamic Alerts Panel */}
+                                {(() => {
+                                    const alerts = [];
+                                    if (SERVER_DATA_BOILER.alert) {
+                                        const items = [];
+                                        if (SERVER_DATA_BOILER.downtime_a > 1.01) items.push(`Downtime A: ${SERVER_DATA_BOILER.downtime_a}%`);
+                                        if (SERVER_DATA_BOILER.downtime_b > 1.01) items.push(`Downtime B: ${SERVER_DATA_BOILER.downtime_b}%`);
+                                        if (SERVER_DATA_BOILER.reduced_cap_a > 1.02) items.push(`ลดกำลัง A: ${SERVER_DATA_BOILER.reduced_cap_a}%`);
+                                        if (SERVER_DATA_BOILER.reduced_cap_b > 1.02) items.push(`ลดกำลัง B: ${SERVER_DATA_BOILER.reduced_cap_b}%`);
+                                        alerts.push({ dept: 'Boiler', color: 'text-orange-200', msg: items.join(', ') + ' เกินเป้า' });
+                                    }
+                                    if (SERVER_DATA_MAINT.downtime_stop > 0) {
+                                        alerts.push({ dept: 'Maintenance', color: 'text-red-200', msg: `หยุดหีบ ${SERVER_DATA_MAINT.downtime_stop} ชม. | ซ่อม ${SERVER_DATA_MAINT.repairs} ครั้ง` });
+                                    }
+                                    if (SERVER_DATA_MAINT.leaks > 0) {
+                                        alerts.push({ dept: 'Maintenance', color: 'text-red-200', msg: `พบการรั่วไหล ${SERVER_DATA_MAINT.leaks} จุด` });
+                                    }
+                                    if (SERVER_DATA_LATHE.alert) {
+                                        alerts.push({ dept: 'Lathe', color: 'text-indigo-200', msg: `งาน Pending ${SERVER_DATA_LATHE.pending} รายการ — ควรเร่งดำเนินการ` });
+                                    }
+
+                                    return (
+                                        <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-6 text-white shadow-lg">
+                                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                                <Icon name="bell" size={20} />
+                                                Alerts & Summary
+                                                {alerts.length > 0 && (
+                                                    <span className="ml-auto text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{alerts.length}</span>
+                                                )}
+                                            </h3>
+                                            <div className="space-y-3">
+                                                {alerts.length === 0 ? (
+                                                    <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10 flex items-center gap-3">
+                                                        <Icon name="check-circle" size={18} className="text-green-300" />
+                                                        <p className="text-sm text-green-200">ทุกแผนกปกติ ไม่มีการแจ้งเตือน</p>
+                                                    </div>
+                                                ) : alerts.map((a, i) => (
+                                                    <div key={i} className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <Icon name="alert-triangle" size={14} className="text-yellow-300" />
+                                                            <span className={`text-xs font-semibold ${a.color}`}>{a.dept}</span>
+                                                        </div>
+                                                        <p className="text-sm">{a.msg}</p>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            <p className="text-sm">PM Check for Boiler Feed Pump is due tomorrow.</p>
                                         </div>
-                                        <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10">
-                                            <div className="flex justify-between items-start mb-1">
-                                                <span className="text-xs font-semibold text-blue-200">Milling</span>
-                                                <span className="text-[10px] text-white/60">5h ago</span>
-                                            </div>
-                                            <p className="text-sm">Extraction rate dropped slightly below target.</p>
-                                        </div>
-                                    </div>
-                                </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </main>

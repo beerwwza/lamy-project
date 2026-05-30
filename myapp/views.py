@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 import csv
@@ -171,12 +172,20 @@ def equipment_cbm(request, eq_id=None):
     
     return redirect('equipment_data_detail', eq_id=eq_id)
 
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
+ALLOWED_IMAGE_MIMETYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'}
+
 @login_required
 def upload_equipment_image(request, eq_id):
     if request.method == 'POST' and request.FILES.get('image'):
+        uploaded = request.FILES['image']
+        ext = os.path.splitext(uploaded.name)[1].lower()
+        content_type = uploaded.content_type.split(';')[0].strip().lower()
+        if ext not in ALLOWED_IMAGE_EXTENSIONS or content_type not in ALLOWED_IMAGE_MIMETYPES:
+            return JsonResponse({'status': 'error', 'message': 'อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif, webp, bmp) เท่านั้น'})
         equipment = Equipment.objects.filter(equipment_id=eq_id).first()
         if equipment:
-            equipment.image = request.FILES['image']
+            equipment.image = uploaded
             equipment.save()
             return JsonResponse({'status': 'success', 'message': 'อัปโหลดรูปภาพสำเร็จ'})
         return JsonResponse({'status': 'error', 'message': 'ไม่พบเครื่องจักร'})
@@ -323,9 +332,28 @@ def dashboard(request):
     line_a_obj = MillReport.objects.filter(line='A', cane_weight__gt=0).order_by('-date').first()
     line_b_obj = MillReport.objects.filter(line='B', cane_weight__gt=0).order_by('-date').first()
     
+    recent_mill_qs = MillReport.objects.select_related('created_by', 'updated_by').order_by('-date', '-created_at')[:10]
+    recent_mill = []
+    for r in recent_mill_qs:
+        def _display_name(user):
+            if not user:
+                return None
+            return user.get_full_name() or user.username
+        recent_mill.append({
+            'date': r.date.strftime('%Y-%m-%d'),
+            'line': r.line,
+            'cane_weight': f"{r.cane_weight:,.0f}" if r.cane_weight else "0",
+            'ccs': f"{r.ccs:.2f}" if r.ccs else "-",
+            'created_by': _display_name(r.created_by),
+            'created_at': r.created_at.strftime('%d/%m %H:%M'),
+            'updated_by': _display_name(r.updated_by),
+            'updated_at': r.updated_at.strftime('%d/%m %H:%M') if r.updated_by else None,
+        })
+
     mill_data = {
         'total_cane': f"{mill_agg['total_cane']:,.0f}" if mill_agg['total_cane'] else "0",
         'avg_trash': f"{mill_agg['avg_trash']:.2f}" if mill_agg['avg_trash'] else "0.00",
+        'recent': recent_mill,
         'line_a': {
             'date': line_a_obj.date.strftime('%Y-%m-%d') if line_a_obj else "-",
             'cane_weight': f"{line_a_obj.cane_weight:,.0f}" if line_a_obj and line_a_obj.cane_weight else "0",
@@ -344,41 +372,59 @@ def dashboard(request):
         }
     }
 
-    # 2. Boiler Data (Yoshimine as Example)
-    boiler_obj = YoshimineLog.objects.order_by('-yos_date', '-yos_time').first()
+    # 2. Boiler Data — ดึงจาก BoilerDailyKPI เหมือนหน้า boiler.html
+    boiler_kpi = BoilerDailyKPI.objects.order_by('-date').first()
     boiler_data = {
-        'steam_flow': f"{boiler_obj.yos_main_steam_flow:.1f}" if boiler_obj and boiler_obj.yos_main_steam_flow else "0.0",
-        'pressure': f"{boiler_obj.yos_main_steam_pressure:.1f}" if boiler_obj and boiler_obj.yos_main_steam_pressure else "0.0",
-        'temp': f"{boiler_obj.yos_main_steam_temp:.0f}" if boiler_obj and boiler_obj.yos_main_steam_temp else "0",
-        'eco': f"{boiler_obj.yos_eco_out_temp:.0f}" if boiler_obj and boiler_obj.yos_eco_out_temp else "0",
+        'date': boiler_kpi.date.strftime('%Y-%m-%d') if boiler_kpi else "-",
+        'downtime_a': float(boiler_kpi.downtime_a) if boiler_kpi else 0,
+        'downtime_b': float(boiler_kpi.downtime_b) if boiler_kpi else 0,
+        'reduced_cap_a': float(boiler_kpi.reduced_cap_a) if boiler_kpi else 0,
+        'reduced_cap_b': float(boiler_kpi.reduced_cap_b) if boiler_kpi else 0,
+        'flow_20bar': float(boiler_kpi.flow_20bar) if boiler_kpi else 0,
+        'flow_40bar': float(boiler_kpi.flow_40bar) if boiler_kpi else 0,
+        'alert': bool(boiler_kpi and (boiler_kpi.downtime_a > 1.01 or boiler_kpi.downtime_b > 1.01
+                                      or boiler_kpi.reduced_cap_a > 1.02 or boiler_kpi.reduced_cap_b > 1.02)),
     }
 
-    # 3. Maintenance Data (Latest) & 4. Lathe Data (Latest)
-    # Since MaintenanceLog is transactional, we might want "Today's Stats" or just "Latest Ticket"
-    # For dashboard summary, let's show "Today's Downtime" if available, else 0
+    # 3. Maintenance Data — วันนี้ (ยกเว้นโรงกลึง)
     today = datetime.now().date()
-    
-    # Maintenance (Exclude Lathe)
     maint_qs = MaintenanceLog.objects.filter(date=today).exclude(dept='โรงกลึง')
-    maint_downtime = maint_qs.aggregate(Sum('downtime_stop'))['downtime_stop__sum'] or 0
-    maint_tickets = maint_qs.count()
+    maint_count = maint_qs.count()
+    maint_agg = maint_qs.aggregate(
+        total_stop=Sum('downtime_stop'),
+        total_reduced=Sum('downtime_reduced'),
+    )
+    maint_stop = maint_agg['total_stop'] or 0
+    maint_reduced = maint_agg['total_reduced'] or 0
+    maint_leaks = maint_qs.filter(is_leak=True).count()
+    maint_mttr = round(maint_stop / maint_count, 2) if maint_count > 0 else 0
+    maint_data = {
+        'repairs': maint_count,
+        'mttr': maint_mttr,
+        'downtime_stop': round(maint_stop, 2),
+        'downtime_reduced': round(maint_reduced, 2),
+        'leaks': maint_leaks,
+        'alert': maint_count > 0 or maint_leaks > 0,
+    }
 
-    # Lathe (Dept = 'โรงกลึง')
-    lathe_qs = MaintenanceLog.objects.filter(date=today, dept='โรงกลึง')
-    lathe_downtime = lathe_qs.aggregate(Sum('downtime_stop'))['downtime_stop__sum'] or 0
-    lathe_jobs = lathe_qs.count()
+    # 4. Lathe Data
+    lathe_qs = LatheJob.objects.all()
+    lathe_agg = lathe_qs.aggregate(total_pieces=Sum('pieces'), total_hours=Sum('hours'))
+    lathe_pending = lathe_qs.filter(status='Pending').count()
+    lathe_data = {
+        'pending': lathe_pending,
+        'in_progress': lathe_qs.filter(status='In Progress').count(),
+        'done': lathe_qs.filter(status='Done').count(),
+        'total_pieces': int(lathe_agg['total_pieces'] or 0),
+        'total_hours': round(float(lathe_agg['total_hours'] or 0), 1),
+        'alert': lathe_pending > 5,
+    }
 
     context = {
         'mill': mill_data,
         'boiler': boiler_data,
-        'maint': {
-            'downtime': maint_downtime,
-            'tickets': maint_tickets
-        },
-        'lathe': {
-            'downtime': lathe_downtime,
-            'jobs': lathe_jobs
-        }
+        'maint': maint_data,
+        'lathe': lathe_data,
     }
     return render(request, 'myapp/dashboard.html', context)
 
@@ -719,12 +765,20 @@ def operation_dashboard(request):
     bp1 = Banpong1Log.objects.order_by('bp1_date', 'bp1_time').last()
     bp2 = Banpong2Log.objects.order_by('bp2_date', 'bp2_time').last()
 
+    def fmt_update(obj, date_field, time_field):
+        d = getattr(obj, date_field, None) if obj else None
+        t = getattr(obj, time_field, None) if obj else None
+        if d and t:
+            return f"{d.strftime('%d/%m/%Y')} {t.strftime('%H:%M')}"
+        return None
+
     machine_data = {
         'john_thomson': {
             'name': 'John Thomson',
             'press': get_val(jt, 'jt_steam_pressure'),
             'flow': get_val(jt, 'jt_steam_flow'),
             'temp': get_val(jt, 'jt_temp_steam'),
+            'last_update': fmt_update(jt, 'jt_date', 'jt_time'),
             'all_fields': get_all_fields(jt, 'jt')
         },
         'chengchen': {
@@ -732,6 +786,7 @@ def operation_dashboard(request):
             'press': get_val(ch, 'ch_steam_pressure'),
             'flow': get_val(ch, 'ch_steam_flow'),
             'temp': get_val(ch, 'ch_steam_temp'),
+            'last_update': fmt_update(ch, 'ch_date', 'ch_time'),
             'all_fields': get_all_fields(ch, 'ch')
         },
         'takuma': {
@@ -739,6 +794,7 @@ def operation_dashboard(request):
             'press': get_val(tk, 'tk_steam_pressure'),
             'flow': get_val(tk, 'tk_steam_flow'),
             'temp': get_val(tk, 'tk_steam_temp'),
+            'last_update': fmt_update(tk, 'tk_date', 'tk_time'),
             'all_fields': get_all_fields(tk, 'tk')
         },
         'yoshimine': {
@@ -746,6 +802,7 @@ def operation_dashboard(request):
             'press': get_val(yos, 'yos_main_steam_pressure'),
             'flow': get_val(yos, 'yos_main_steam_flow'),
             'temp': get_val(yos, 'yos_main_steam_temp'),
+            'last_update': fmt_update(yos, 'yos_date', 'yos_time'),
             'all_fields': get_all_fields(yos, 'yos')
         },
         'banpong1': {
@@ -753,6 +810,7 @@ def operation_dashboard(request):
             'press': get_val(bp1, 'bp1_main_steam_pressure'),
             'flow': get_val(bp1, 'bp1_main_steam_flow'),
             'temp': get_val(bp1, 'bp1_main_steam_temp'),
+            'last_update': fmt_update(bp1, 'bp1_date', 'bp1_time'),
             'all_fields': get_all_fields(bp1, 'bp1')
         },
         'banpong2': {
@@ -760,6 +818,7 @@ def operation_dashboard(request):
             'press': get_val(bp2, 'bp2_main_steam_pressure'),
             'flow': get_val(bp2, 'bp2_main_steam_flow'),
             'temp': get_val(bp2, 'bp2_main_steam_temp'),
+            'last_update': fmt_update(bp2, 'bp2_date', 'bp2_time'),
             'all_fields': get_all_fields(bp2, 'bp2')
         },
     }
@@ -1490,39 +1549,170 @@ def banpong2_operation_add(request):
 
 @login_required
 def boiler(request):
-    # 1. ดึงข้อมูล KPI ล่าสุดมาแสดงผลตัวเลข (Cards)
-    latest_kpi = BoilerDailyKPI.objects.order_by('-date').first()
+    from datetime import date as date_cls
 
-    # 2. ดึงข้อมูลย้อนหลัง 7 วันเพื่อทำกราฟ (เรียงตามวันที่)
-    history_kpi = BoilerDailyKPI.objects.order_by('-date')[:7]
-    history_kpi = reversed(list(history_kpi)) # กลับด้านให้เรียงจาก อดีต -> ปัจจุบัน
+    # 1. Date range from query params
+    days_param = request.GET.get('days', '7')
+    start_str = request.GET.get('start', '')
+    end_str = request.GET.get('end', '')
+    today = date_cls.today()
 
-    # 3. เตรียมข้อมูล Array สำหรับกราฟ
-    dates = []
-    press_20 = []
-    flow_20 = []
-    press_40 = []
-    flow_40 = []
+    is_custom = bool(start_str and end_str)
+    if is_custom:
+        try:
+            start_date = date_cls.fromisoformat(start_str)
+            end_date = date_cls.fromisoformat(end_str)
+        except ValueError:
+            start_date = today - timedelta(days=6)
+            end_date = today
+            is_custom = False
+    else:
+        try:
+            days = int(days_param)
+        except ValueError:
+            days = 7
+        end_date = today
+        start_date = today - timedelta(days=days - 1)
 
-    for kpi in history_kpi:
-        # แปลงวันที่เป็นรูปแบบสั้น (เช่น 05/01)
-        dates.append(kpi.date.strftime('%d/%m'))
-        press_20.append(kpi.pressure_20bar or 0)
-        flow_20.append(kpi.flow_20bar or 0)
-        press_40.append(kpi.pressure_40bar or 0)
-        flow_40.append(kpi.flow_40bar or 0)
+    # 2. Latest KPI in period
+    latest_kpi = BoilerDailyKPI.objects.filter(date__lte=end_date).order_by('-date').first()
 
-    # Context ส่งไปที่ Template
+    # 3. History for charts + stats
+    history_qs = list(BoilerDailyKPI.objects.filter(
+        date__gte=start_date, date__lte=end_date
+    ).order_by('date'))
+
+    # 4. Scorecard stats
+    def _stats(qs, field, threshold):
+        vals = [getattr(r, field) for r in qs if getattr(r, field) is not None]
+        if not vals:
+            return {'avg': None, 'max': None, 'min': None, 'days_ok': 0, 'days_total': 0}
+        days_ok = sum(1 for v in vals if v <= threshold)
+        return {
+            'avg': round(sum(vals) / len(vals), 3),
+            'max': round(max(vals), 3),
+            'min': round(min(vals), 3),
+            'days_ok': days_ok,
+            'days_total': len(vals),
+        }
+
+    scorecard = {
+        'downtime_a':   _stats(history_qs, 'downtime_a', 1.01),
+        'downtime_b':   _stats(history_qs, 'downtime_b', 1.01),
+        'downtime_melt':_stats(history_qs, 'downtime_sugar_melt', 0.70),
+        'reduced_a':    _stats(history_qs, 'reduced_cap_a', 1.02),
+        'reduced_b':    _stats(history_qs, 'reduced_cap_b', 1.02),
+    }
+
+    # 5. Trend: compare avg of current vs previous period
+    period_days = (end_date - start_date).days + 1
+    prev_end = start_date - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=period_days - 1)
+    prev_qs = list(BoilerDailyKPI.objects.filter(date__gte=prev_start, date__lte=prev_end))
+
+    def _avg(qs, field):
+        vals = [getattr(r, field) for r in qs if getattr(r, field) is not None]
+        return round(sum(vals) / len(vals), 3) if vals else None
+
+    kpi_fields = ['downtime_a', 'downtime_b', 'downtime_sugar_melt', 'reduced_cap_a', 'reduced_cap_b']
+    trend = {}
+    for f in kpi_fields:
+        curr = _avg(history_qs, f)
+        prev = _avg(prev_qs, f)
+        if curr is not None and prev is not None:
+            delta = round(curr - prev, 3)
+            trend[f] = {'delta': abs(delta), 'direction': 'up' if delta > 0 else ('down' if delta < 0 else 'flat')}
+        else:
+            trend[f] = {'delta': None, 'direction': 'flat'}
+
+    # 6. Alert history: records that exceeded threshold
+    thresholds = {
+        'downtime_a': (1.01, 'Downtime A'),
+        'downtime_b': (1.01, 'Downtime B'),
+        'downtime_sugar_melt': (0.70, 'Downtime ละลาย'),
+        'reduced_cap_a': (1.02, 'ลดกำลัง A'),
+        'reduced_cap_b': (1.02, 'ลดกำลัง B'),
+    }
+    alert_records = []
+    for rec in history_qs:
+        for field, (threshold, label) in thresholds.items():
+            val = getattr(rec, field)
+            if val is not None and val > threshold:
+                alert_records.append({
+                    'date': rec.date.strftime('%d/%m/%Y'),
+                    'kpi': label,
+                    'value': round(val, 3),
+                    'target': threshold,
+                    'excess': round(val - threshold, 3),
+                })
+    alert_records.sort(key=lambda x: x['date'], reverse=True)
+
+    # 7. Chart arrays
+    dates  = [r.date.strftime('%d/%m') for r in history_qs]
+    press_20 = [r.pressure_20bar or 0 for r in history_qs]
+    flow_20  = [r.flow_20bar or 0 for r in history_qs]
+    press_40 = [r.pressure_40bar or 0 for r in history_qs]
+    flow_40  = [r.flow_40bar or 0 for r in history_qs]
+
     context = {
         'latest_kpi': latest_kpi,
-        # แปลงข้อมูล List เป็น JSON String เพื่อให้ JavaScript นำไปใช้ได้
-        'chart_dates': json.dumps(dates, cls=DjangoJSONEncoder),
+        'scorecard': scorecard,
+        'trend': trend,
+        'alert_records': alert_records,
+        'selected_days': days_param,
+        'start_date': start_date.strftime('%Y-%m-%d'),
+        'end_date': end_date.strftime('%Y-%m-%d'),
+        'is_custom': is_custom,
+        'chart_dates':    json.dumps(dates, cls=DjangoJSONEncoder),
         'chart_press_20': json.dumps(press_20, cls=DjangoJSONEncoder),
-        'chart_flow_20': json.dumps(flow_20, cls=DjangoJSONEncoder),
+        'chart_flow_20':  json.dumps(flow_20, cls=DjangoJSONEncoder),
         'chart_press_40': json.dumps(press_40, cls=DjangoJSONEncoder),
-        'chart_flow_40': json.dumps(flow_40, cls=DjangoJSONEncoder),
+        'chart_flow_40':  json.dumps(flow_40, cls=DjangoJSONEncoder),
     }
     return render(request, 'myapp/boiler.html', context)
+
+
+@login_required
+def boiler_export_csv(request):
+    import csv
+    from datetime import date as date_cls
+    from django.http import HttpResponse
+
+    days_param = request.GET.get('days', '7')
+    start_str = request.GET.get('start', '')
+    end_str = request.GET.get('end', '')
+    today = date_cls.today()
+
+    if start_str and end_str:
+        try:
+            start_date = date_cls.fromisoformat(start_str)
+            end_date = date_cls.fromisoformat(end_str)
+        except ValueError:
+            start_date = today - timedelta(days=6)
+            end_date = today
+    else:
+        try:
+            days = int(days_param)
+        except ValueError:
+            days = 7
+        end_date = today
+        start_date = today - timedelta(days=days - 1)
+
+    qs = BoilerDailyKPI.objects.filter(date__gte=start_date, date__lte=end_date).order_by('date')
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = f'attachment; filename="boiler_kpi_{start_date}_{end_date}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Downtime A%', 'Downtime B%', 'Downtime Melt%',
+                     'Reduced Cap A%', 'Reduced Cap B%',
+                     'Pressure 20bar', 'Flow 20bar', 'Pressure 40bar', 'Flow 40bar',
+                     'Shredder (T/Day)'])
+    for r in qs:
+        writer.writerow([r.date, r.downtime_a, r.downtime_b, r.downtime_sugar_melt,
+                         r.reduced_cap_a, r.reduced_cap_b,
+                         r.pressure_20bar, r.flow_20bar, r.pressure_40bar, r.flow_40bar,
+                         r.shredder_consumption])
+    return response
 
 @login_required
 def boiler_kpi_form(request):    
@@ -1730,6 +1920,7 @@ def maintenance_import_csv(request):
             
     return JsonResponse({'success': False, 'error': 'ไม่มีไฟล์ถูกส่งมา'})
     
+@login_required
 def mill(request):
     # (Same as provided logic)
     today = datetime.now().date()
@@ -1814,6 +2005,7 @@ def mill(request):
     
     return render(request, 'myapp/mill.html', context)
 
+@login_required
 def mill_history_api(request):
     try:
         line = request.GET.get('line', 'A')
@@ -1884,12 +2076,15 @@ def mill_history_api(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
+@login_required
 def mill_report(request):
     if request.method == 'POST':
         form = MillReportForm(request.POST)
         if form.is_valid():
-            form.save()
-            return redirect('mill') 
+            obj = form.save(commit=False)
+            obj.created_by = request.user
+            obj.save()
+            return redirect('mill')
         else:
             print("Form errors:", form.errors)
     else:
@@ -2013,31 +2208,35 @@ def mill_import(request):
                     return 0
 
                 # --- บันทึกข้อมูลลง Database ---
-                MillReport.objects.update_or_create(
+                mill_obj, created = MillReport.objects.update_or_create(
                     date=date_obj,
                     line=line_selected,
                     defaults={
                         'cane_weight': get_num('น้ำหนักอ้อย'),
                         'target_crushing': get_num('เป้าหีบอ้อย'),
-                        
+
                         'first_mill_extraction': get_num('1st Mill Extraction'),
                         'reduced_pol_extraction': get_num('Reduced Pol Extraction'),
-                        
+
                         'cane_preparation_index': get_num('Cane Preparation Index'),
                         'purity_drop': get_num('Purity Drop'),
                         'bagasse_moisture': get_num('Bagasse Moisture'),
                         'pol_bagasse': get_num('Pol % Bagasse'),
-                        
+
                         'imbibition_cane': get_num('Imbibition % Cane'),
                         'imbibition_fiber': get_num('Imbibition % Fiber'),
                         'loss_bagasse': get_num('Loss in Bagasse'),
-                        
-                    
-                        
+
                         'ccs': get_num('CCS') if get_num('CCS') else 0,
                         'trash': get_num('Trash') if get_num('Trash') else 0,
                     }
                 )
+                if created:
+                    mill_obj.created_by = request.user
+                    mill_obj.save(update_fields=['created_by'])
+                else:
+                    mill_obj.updated_by = request.user
+                    mill_obj.save(update_fields=['updated_by'])
                 count += 1
             
             messages.success(request, f"Import ข้อมูลสำเร็จ {count} รายการ (Line {line_selected})")
