@@ -332,22 +332,14 @@ def dashboard(request):
     line_a_obj = MillReport.objects.filter(line='A', cane_weight__gt=0).order_by('-date').first()
     line_b_obj = MillReport.objects.filter(line='B', cane_weight__gt=0).order_by('-date').first()
     
-    recent_mill_qs = MillReport.objects.select_related('created_by', 'updated_by').order_by('-date', '-created_at')[:10]
+    recent_mill_qs = MillReport.objects.order_by('-date')[:10]
     recent_mill = []
     for r in recent_mill_qs:
-        def _display_name(user):
-            if not user:
-                return None
-            return user.get_full_name() or user.username
         recent_mill.append({
             'date': r.date.strftime('%Y-%m-%d'),
             'line': r.line,
             'cane_weight': f"{r.cane_weight:,.0f}" if r.cane_weight else "0",
             'ccs': f"{r.ccs:.2f}" if r.ccs else "-",
-            'created_by': _display_name(r.created_by),
-            'created_at': r.created_at.strftime('%d/%m %H:%M'),
-            'updated_by': _display_name(r.updated_by),
-            'updated_at': r.updated_at.strftime('%d/%m %H:%M') if r.updated_by else None,
         })
 
     mill_data = {
