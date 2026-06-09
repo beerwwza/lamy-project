@@ -3,9 +3,12 @@ import pandas as pd
 import numpy as np
 import csv
 import io
+import urllib.request
+import base64
 from datetime import datetime, time, timedelta
 from django.shortcuts import render, redirect
-from django.db.models import Sum, Avg, Count
+from django.db.models import Sum, Avg, Count, Q
+from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from .models import *
 from django.contrib.auth.models import User
@@ -21,10 +24,9 @@ from .models import MillReport
 from .forms import MillReportForm
 from .models import MaintenanceLog, KPIMetric
 from .forms import MaintenanceLogForm, KPIMetricForm
-
-
 from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic
-from .forms import EquipmentForm, EquipmentBOMForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm
+from .forms import EquipmentForm, EquipmentBOMForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm, RepairDocumentForm 
+
 
 # --- Equipment Views ---
 @login_required
@@ -2350,3 +2352,345 @@ def lathe_api(request):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
             
     return JsonResponse({'status': 'invalid method'}, status=405)
+
+
+# ─── View 1: หน้ารายการ + Dashboard ─────────────────────────────────────────
+@login_required
+def doc_repository(request):
+    from django.db.models import Sum, Count
+    from datetime import date
+
+    # ── Filters ──────────────────────────────────────────────
+    dept_filter  = request.GET.get('dept', '')
+    type_filter  = request.GET.get('type', '')
+    year_filter  = request.GET.get('year', '')
+    search_query = request.GET.get('q', '').strip()
+
+    docs = RepairDocument.objects.select_related('equipment', 'uploaded_by').all()
+
+    if dept_filter:
+        docs = docs.filter(department=dept_filter)
+    if type_filter:
+        docs = docs.filter(doc_type=type_filter)
+    if year_filter:
+        docs = docs.filter(budget_year=year_filter)
+    if search_query:
+        docs = docs.filter(
+            models.Q(title__icontains=search_query) |
+            models.Q(equipment__equipment_id__icontains=search_query) |
+            models.Q(po_number__icontains=search_query)
+        )
+
+    # ── KPIs ─────────────────────────────────────────────────
+    today        = date.today()
+    all_docs     = RepairDocument.objects.all()
+    total_docs   = all_docs.count()
+    monthly_docs = all_docs.filter(
+        created_at__year=today.year, created_at__month=today.month
+    ).count()
+    total_budget = all_docs.aggregate(s=Sum('budget_amount'))['s'] or 0
+
+    # นับแยกแผนก (สำหรับ filter badge)
+    dept_counts = {}
+    for dept, _ in RepairDocument.DEPT_CHOICES:
+        dept_counts[dept] = all_docs.filter(department=dept).count()
+
+    # ปีงบประมาณที่มีในระบบ (สำหรับ dropdown) — ต้องเป็น string เพื่อเทียบกับ year_filter ที่มาจาก GET
+    budget_years = [
+        str(y) for y in all_docs.values_list('budget_year', flat=True).distinct().order_by('-budget_year')
+    ]
+
+    context = {
+        'docs':          docs,
+        'equipments':    Equipment.objects.filter(is_active=True).order_by('equipment_id'),
+        'form':          RepairDocumentForm(),
+        # KPIs
+        'total_docs':    total_docs,
+        'monthly_docs':  monthly_docs,
+        'total_budget':  total_budget,
+        # Filter state
+        'dept_filter':   dept_filter,
+        'type_filter':   type_filter,
+        'year_filter':   year_filter,
+        'search_query':  search_query,
+        'dept_counts':   dept_counts,
+        'budget_years':  budget_years,
+        # Dept choices for filter tabs
+        'dept_choices':  RepairDocument.DEPT_CHOICES,
+        'doc_count':     docs.count(),
+    }
+    return render(request, 'myapp/doc_repository.html', context)
+
+# ─── Helper: อัปโหลดไฟล์ไป Google Drive ผ่าน Apps Script ────────────────────
+def _upload_to_drive(uploaded_file, filename, folder_path):
+    """
+    อัปโหลดไฟล์ไป Google Drive ผ่าน Google Apps Script Web App
+    ต้องตั้งค่า GDRIVE_SCRIPT_URL ใน .env ก่อน
+    คืนค่า file_id หากสำเร็จ หรือ None หากล้มเหลว
+    """
+    script_url = os.environ.get('GAS_WEBAPP_URL', '')
+    if not script_url:
+        print('[Drive] GAS_WEBAPP_URL ยังไม่ได้ตั้งค่าใน .env')
+        return None
+
+    try:
+        file_data = base64.b64encode(uploaded_file.read()).decode('utf-8')
+        mime_type = getattr(uploaded_file, 'content_type', 'application/octet-stream')
+        payload = json.dumps({
+            'filename':   filename,
+            'mimeType':   mime_type,
+            'fileData':   file_data,
+            'folderPath': folder_path,
+        }).encode('utf-8')
+
+        req = urllib.request.Request(
+            script_url,
+            data    = payload,
+            headers = {'Content-Type': 'application/json'},
+            method  = 'POST',
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+            file_id = result.get('fileId') or result.get('id') or result.get('file_id')
+            if file_id:
+                print(f'[Drive] อัปโหลดสำเร็จ: {file_id}')
+                return file_id
+            print(f'[Drive] ตอบกลับไม่มี fileId: {result}')
+            return None
+    except Exception as e:
+        print(f'[Drive Error] {e}')
+        return None
+
+
+# ─── View 2: รับฟอร์มลงทะเบียน + อัปโหลด Drive + แจ้ง LINE ─────────────────
+@login_required
+@csrf_exempt
+def doc_register(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+
+    form = RepairDocumentForm(request.POST)
+    if not form.is_valid():
+        return JsonResponse({'status': 'error', 'message': str(form.errors)}, status=400)
+
+    doc = form.save(commit=False)
+    doc.uploaded_by = request.user
+
+    # ── ① อัปโหลดไฟล์ไป Google Drive ─────────────────────────
+    uploaded_file = request.FILES.get('document_file')
+    drive_success = False
+
+    if uploaded_file:
+        eq_id       = doc.equipment.equipment_id if doc.equipment else 'UNASSIGNED'
+        folder_path = f'LAMY/{doc.budget_year}/{eq_id}'
+        file_id     = _upload_to_drive(uploaded_file, uploaded_file.name, folder_path)
+
+        if file_id:
+            doc.drive_file_id   = file_id
+            doc.drive_file_name = uploaded_file.name
+            drive_success       = True
+        else:
+            # บันทึก record ไว้ก่อน แม้ Drive upload ล้มเหลว
+            print(f'[Drive] upload ล้มเหลวสำหรับเอกสาร: {doc.title}')
+
+    # ── ② บันทึกลงฐานข้อมูล ───────────────────────────────────
+    doc.save()
+
+    # ── ③ แจ้งเตือน LINE Notify ───────────────────────────────
+    uploader_name = request.user.get_full_name() or request.user.username
+    eq_display    = doc.equipment.equipment_id if doc.equipment else '—'
+    drive_line    = f'\n📎 Drive: https://drive.google.com/file/d/{doc.drive_file_id}/view' if doc.drive_file_id else '\n📎 Drive: ยังไม่ได้อัปโหลด'
+
+    line_message = (
+        f'\n'
+        f'📄 เอกสารใหม่ลงทะเบียนแล้ว\n'
+        f'━━━━━━━━━━━━━━━━━━\n'
+        f'📋 ชื่อ: {doc.title}\n'
+        f'🔧 เครื่องจักร: {eq_display}\n'
+        f'🏭 แผนก: {doc.department}\n'
+        f'📝 ประเภท: {doc.get_doc_type_display()}\n'
+        f'💰 PO: {doc.po_number or "—"}\n'
+        f'👤 บันทึกโดย: {uploader_name}'
+        f'{drive_line}'
+    )
+    _send_line_notify(line_message)
+
+    # ── ④ ตอบกลับ ─────────────────────────────────────────────
+    messages.success(request, f'ลงทะเบียนเอกสาร "{doc.title}" เรียบร้อยแล้ว')
+    return JsonResponse({
+        'status':       'success',
+        'doc_id':       doc.id,
+        'title':        doc.title,
+        'drive_file_id': doc.drive_file_id or '',
+        'drive_success': drive_success,
+    })
+
+
+
+# ─── View 3: ลบเอกสาร (optional) ────────────────────────────────────────────
+@login_required
+def doc_delete(request, doc_id):
+    doc = RepairDocument.objects.filter(id=doc_id).first()
+    if doc:
+        title = doc.title
+        doc.delete()
+        messages.success(request, f'ลบเอกสาร "{title}" เรียบร้อยแล้ว')
+    else:
+        messages.error(request, 'ไม่พบเอกสารที่ระบุ')
+    return redirect('doc_repository')
+
+# ── LINE Bot helpers ──────────────────────────────────────────────────────────
+
+# คำที่ใช้ปลุก bot
+_LINE_TRIGGERS = {'lamy', 'LAMY', 'Lamy', 'รามี่'}
+# timeout สถานะ "รอคำสั่ง" (วินาที)
+_LINE_STATE_TTL = 300
+
+
+def _reply_line(reply_token, text):
+    """ตอบกลับข้อความผ่าน LINE Reply API (ใช้ replyToken จาก webhook event)"""
+    token = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '')
+    if not token or not reply_token:
+        return False
+    try:
+        payload = json.dumps({
+            'replyToken': reply_token,
+            'messages': [{'type': 'text', 'text': text}],
+        }).encode('utf-8')
+        req = urllib.request.Request(
+            'https://api.line.me/v2/bot/message/reply',
+            data=payload,
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {token}',
+            },
+            method='POST',
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            print(f'[LINE Bot] Reply OK: {resp.status}')
+            return True
+    except Exception as e:
+        print(f'[LINE Bot Reply Error] {e}')
+        return False
+
+
+@csrf_exempt
+def line_webhook(request):
+    """
+    Conversation flow:
+      1. ผู้ใช้พิมพ์ trigger word (lamy / LAMY / Lamy / รามี่)
+         → bot ตอบ "คะ เจ้านาย" และจำ state ไว้ 5 นาที
+      2. ผู้ใช้พิมพ์ "ค้นหา <คำ>"
+         → bot ค้นหาใน RepairDocument แล้วส่งผลลัพธ์พร้อมลิงก์
+    """
+    if request.method != 'POST':
+        return HttpResponse('OK', status=200)
+
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return HttpResponse('OK', status=200)
+
+    for event in body.get('events', []):
+        if event.get('type') != 'message':
+            continue
+        msg = event.get('message', {})
+        if msg.get('type') != 'text':
+            continue
+
+        text        = msg.get('text', '').strip()
+        reply_token = event.get('replyToken', '')
+        source      = event.get('source', {})
+        user_id     = source.get('userId', 'unknown')
+        # รองรับทั้ง group chat และ 1-on-1
+        chat_id     = source.get('groupId', source.get('roomId', user_id))
+        state_key   = f'line_awake_{chat_id}_{user_id}'
+
+        # ── ขั้นที่ 1: ปลุก bot ──────────────────────────────────
+        if text in _LINE_TRIGGERS:
+            cache.set(state_key, True, _LINE_STATE_TTL)
+            _reply_line(
+                reply_token,
+                'คะ เจ้านาย 🙏\n'
+                'พิมพ์คำสั่งค้นหาได้เลยค่ะ เช่น\n'
+                '  ค้นหา PO-001\n'
+                '  ค้นหา BL-JT-001\n'
+                '  ค้นหา ปั๊มน้ำ',
+            )
+            continue
+
+        # ── ขั้นที่ 2: รับคำสั่งค้นหา (เฉพาะเมื่อ bot ตื่นอยู่) ──
+        if cache.get(state_key) and text.startswith('ค้นหา'):
+            query = text[len('ค้นหา'):].strip()
+
+            if not query:
+                _reply_line(reply_token, 'กรุณาระบุสิ่งที่ต้องการค้นหาด้วยค่ะ\nเช่น: ค้นหา PO-001')
+                continue
+
+            docs_qs = RepairDocument.objects.filter(
+                Q(po_number__icontains=query)  |
+                Q(title__icontains=query)       |
+                Q(equipment__equipment_id__icontains=query)
+            ).select_related('equipment').order_by('-created_at')
+
+            total = docs_qs.count()
+            docs  = docs_qs[:5]
+
+            if total == 0:
+                _reply_line(reply_token, f'ไม่พบเอกสารที่ตรงกับ "{query}" ค่ะ')
+                continue
+
+            header = f'พบ {total} รายการสำหรับ "{query}"'
+            if total > 5:
+                header += ' (แสดง 5 รายการล่าสุด)'
+            header += '\n' + '─' * 30
+
+            blocks = [header]
+            for doc in docs:
+                eq   = doc.equipment.equipment_id if doc.equipment else '-'
+                po   = doc.po_number or '-'
+                link = doc.drive_url or '(ยังไม่มีลิงก์ Drive)'
+                dept = doc.department or '-'
+                blocks.append(
+                    f'📄 {doc.title}\n'
+                    f'   แผนก : {dept}\n'
+                    f'   เครื่อง: {eq}  |  PO: {po}\n'
+                    f'   {link}'
+                )
+
+            _reply_line(reply_token, '\n\n'.join(blocks))
+            continue
+
+    return HttpResponse('OK', status=200)
+
+
+def _send_line_notify(message):
+    """ส่งข้อความผ่าน LINE Messaging API (Push Message)"""
+    token    = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '')
+    group_id = os.environ.get('LINE_GROUP_ID', '')
+
+    if not token or not group_id:
+        print('[LINE Bot] LINE_CHANNEL_ACCESS_TOKEN หรือ LINE_GROUP_ID ยังไม่ได้ตั้งค่า')
+        return False
+
+    try:
+        payload = json.dumps({
+            'to': group_id,
+            'messages': [{'type': 'text', 'text': message}]
+        }).encode('utf-8')
+
+        req = urllib.request.Request(
+            'https://api.line.me/v2/bot/message/push',
+            data    = payload,
+            headers = {
+                'Content-Type':  'application/json',
+                'Authorization': f'Bearer {token}',
+            },
+            method = 'POST',
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            print(f'[LINE Bot] ส่งสำเร็จ: {resp.status}')
+            return True
+    except Exception as e:
+        print(f'[LINE Bot Error] {e}')
+        return False

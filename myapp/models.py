@@ -604,6 +604,14 @@ class MillReport(models.Model):
     # Meta
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='mill_reports_created', verbose_name="ผู้บันทึก"
+    )
+    updated_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='mill_reports_updated', verbose_name="ผู้แก้ไขล่าสุด"
+    )
 
     class Meta:
         ordering = ['-date', '-created_at']
@@ -813,3 +821,65 @@ class CBMAcoustic(models.Model):
 
     def __str__(self):
         return f"Acoustic - {self.equipment.equipment_id} ({self.inspection_date})"
+
+class RepairDocument(models.Model):
+    """เอกสารงานซ่อม — เชื่อมโยงกับเครื่องจักร, PO, Google Drive"""
+
+    DEPT_CHOICES = [
+        ('ลูกหีบ',              'ลูกหีบ (Mill)'),
+        ('หม้อน้ำ',             'หม้อน้ำ (Boiler)'),
+        ('ซ่อมบำรุงเครื่องกล', 'ซ่อมบำรุงเครื่องกล (Mechanical)'),
+        ('โรงกลึง',             'โรงกลึง (Lathe)'),
+    ]
+    DOC_TYPE_CHOICES = [
+        ('repair',     'รายงานการซ่อม'),
+        ('inspection', 'รายงานการตรวจสอบ (Inspection)'),
+    ]
+
+    # ── Core Fields ──────────────────────────────────────────
+    title        = models.CharField(max_length=255, verbose_name='ชื่อเอกสาร')
+    equipment    = models.ForeignKey(
+        'Equipment', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='repair_documents', verbose_name='เครื่องจักร'
+    )
+    department   = models.CharField(max_length=50,  choices=DEPT_CHOICES,     verbose_name='แผนก')
+    doc_type     = models.CharField(max_length=20,  choices=DOC_TYPE_CHOICES, verbose_name='ประเภทเอกสาร')
+    description  = models.TextField(blank=True, null=True, verbose_name='คำอธิบาย')
+
+    # ── Budget ───────────────────────────────────────────────
+    po_number    = models.CharField(max_length=100, blank=True, null=True, verbose_name='เลข PO / Budget Code')
+    budget_year  = models.IntegerField(default=2568,  verbose_name='ปีงบประมาณ')
+    budget_amount= models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='งบประมาณ (บาท)'
+    )
+
+    # ── Google Drive ─────────────────────────────────────────
+    drive_file_id   = models.CharField(max_length=255, blank=True, null=True, verbose_name='Google Drive File ID')
+    drive_file_name = models.CharField(max_length=255, blank=True, null=True, verbose_name='ชื่อไฟล์ใน Drive')
+
+    # ── Meta ─────────────────────────────────────────────────
+    uploaded_by  = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='uploaded_documents', verbose_name='ผู้อัปโหลด'
+    )
+    created_at   = models.DateTimeField(auto_now_add=True)
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering     = ['-created_at']
+        verbose_name = 'เอกสารงานซ่อม'
+        verbose_name_plural = 'เอกสารงานซ่อม'
+
+    def __str__(self):
+        return f'{self.title} ({self.equipment_id or "-"})'
+
+    @property
+    def drive_url(self):
+        if self.drive_file_id:
+            return f'https://drive.google.com/file/d/{self.drive_file_id}/view'
+        return None
+
+    @property
+    def drive_folder_path(self):
+        eq_id = self.equipment.equipment_id if self.equipment else 'UNASSIGNED'
+        return f'LAMY / {self.budget_year} / {eq_id}'

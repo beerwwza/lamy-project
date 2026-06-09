@@ -1,0 +1,639 @@
+{% extends 'myapp/base.html' %}
+{% block title %}ประวัติเอกสารงานซ่อม - Factory OS{% endblock title %}
+
+{% block content %}
+<div class="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+
+    <!-- ══════════════════════ SIDEBAR ══════════════════════ -->
+    <aside class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20">
+        <div class="h-16 flex items-center px-4 border-b border-slate-200 dark:border-slate-800">
+            <span class="font-bold text-xl text-indigo-600 dark:text-indigo-400">Factory OS</span>
+        </div>
+        <nav class="flex-1 overflow-y-auto py-4">
+            <ul class="space-y-1 px-2">
+                <li>
+                    <a href="/dashboard/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 transition-colors">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i><span>Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/equipment/list/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 transition-colors">
+                        <i data-lucide="server" class="w-5 h-5 flex-shrink-0"></i><span>Machine List</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/maintenance/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 transition-colors">
+                        <i data-lucide="wrench" class="w-5 h-5 flex-shrink-0"></i><span>แจ้งซ่อมเครื่องจักร</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'doc_repository' %}"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-medium transition-colors">
+                        <i data-lucide="folder-open" class="w-5 h-5 flex-shrink-0"></i><span>ประวัติเอกสารงานซ่อม</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <div class="p-4 border-t border-slate-200 dark:border-slate-800">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-sm flex-shrink-0">
+                    {{ request.user.first_name|first|upper|default:request.user.username|first|upper }}
+                </div>
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{{
+                        request.user.get_full_name|default:request.user.username }}</p>
+                    <p class="text-xs text-slate-400 truncate">{{ request.user.profile.department|default:"วิศวกรรม" }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ══════════════════════ MAIN ══════════════════════════ -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+        <!-- Header -->
+        <header
+            class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg text-indigo-600 dark:text-indigo-400">
+                    <i data-lucide="folder-open" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">ประวัติเอกสารงานซ่อม
+                    </h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">จัดเก็บ ค้นหา และเชื่อมโยงกับ Google Drive
+                        อัตโนมัติ</p>
+                </div>
+            </div>
+            <button onclick="openModal()"
+                class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
+                <i data-lucide="upload-cloud" class="w-4 h-4"></i>ลงทะเบียนเอกสาร
+            </button>
+        </header>
+
+        <!-- Scrollable body -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-5">
+
+            <!-- Django Messages -->
+            {% if messages %}
+            {% for message in messages %}
+            <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+        {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+        {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+        {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+                <i data-lucide="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% else %}info{% endif %}"
+                    class="w-4 h-4 flex-shrink-0"></i>
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            <!-- ── KPI Cards ───────────────────────────────────── -->
+            <div class="grid grid-cols-3 gap-4">
+
+                <div
+                    class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+                    <div
+                        class="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center mb-3">
+                        <i data-lucide="database" class="w-5 h-5 text-indigo-600 dark:text-indigo-400"></i>
+                    </div>
+                    <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ total_docs }}</p>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">เอกสารทั้งหมด</p>
+                    <p class="text-xs text-slate-400 mt-0.5">ทุกปีงบประมาณ</p>
+                </div>
+
+                <div
+                    class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+                    <div
+                        class="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/40 flex items-center justify-center mb-3">
+                        <i data-lucide="file-text" class="w-5 h-5 text-emerald-600 dark:text-emerald-400"></i>
+                    </div>
+                    <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ monthly_docs }}</p>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">เดือนนี้</p>
+                    <p class="text-xs text-slate-400 mt-0.5">เอกสารใหม่เดือนปัจจุบัน</p>
+                </div>
+
+                <div
+                    class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+                    <div
+                        class="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-900/40 flex items-center justify-center mb-3">
+                        <i data-lucide="banknote" class="w-5 h-5 text-amber-600 dark:text-amber-400"></i>
+                    </div>
+                    <p class="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                        ฿{{ total_budget|floatformat:0 }}
+                    </p>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">งบฯ รวม (บาท)</p>
+                    <p class="text-xs text-slate-400 mt-0.5">จากเอกสารที่บันทึก PO</p>
+                </div>
+
+            </div>
+
+            <!-- ── Line Bot Card ───────────────────────────────── -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="message-square" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-800 dark:text-slate-100">Line Bot</span>
+                                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block"></span>
+                                <span class="text-xs font-semibold text-green-600 dark:text-green-400">เชื่อมต่อแล้ว</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-0.5">แจ้งเตือนอัตโนมัติเมื่อมีเอกสารใหม่ทุกครั้ง</p>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">วิธีใช้งาน Line Bot</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+                    <!-- Step 1 -->
+                    <div class="flex items-start gap-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg px-4 py-3">
+                        <span class="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                        <div>
+                            <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">เรียกชื่อเพื่อปลุก Bot</p>
+                            <p class="text-xs text-slate-400 mt-1">พิมพ์ชื่อใดชื่อหนึ่ง:</p>
+                            <div class="flex flex-wrap gap-1 mt-1.5">
+                                <code class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded font-mono text-xs">lamy</code>
+                                <code class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded font-mono text-xs">LAMY</code>
+                                <code class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded font-mono text-xs">รามี่</code>
+                            </div>
+                            <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5">Bot ตอบ: "คะ เจ้านาย 🙏"</p>
+                        </div>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="flex items-start gap-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg px-4 py-3">
+                        <span class="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                        <div>
+                            <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">พิมพ์คำสั่งค้นหา</p>
+                            <p class="text-xs text-slate-400 mt-1">ค้นหาด้วย PO / รหัสเครื่อง / ชื่อ:</p>
+                            <code class="block mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded font-mono text-xs">ค้นหา PO-001</code>
+                            <code class="block mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded font-mono text-xs">ค้นหา BL-JT-001</code>
+                        </div>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="flex items-start gap-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg px-4 py-3">
+                        <span class="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                        <div>
+                            <p class="text-xs font-semibold text-slate-700 dark:text-slate-200">รับผลลัพธ์ทันที</p>
+                            <p class="text-xs text-slate-400 mt-1">Bot ส่งลิงก์เอกสารตอบกลับ พร้อม PO และแผนก</p>
+                            <p class="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1.5">รับแจ้งเตือนอัตโนมัติเมื่อมีเอกสารใหม่</p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ── Search + Filter Bar ────────────────────────── -->
+            <div
+                class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+                <form method="GET" action="{% url 'doc_repository' %}"
+                    class="flex flex-col md:flex-row gap-3 items-start md:items-center">
+
+                    <!-- Search -->
+                    <div class="relative flex-1 min-w-0">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+                        <input type="text" name="q" value="{{ search_query }}"
+                            placeholder="ค้นหาชื่อเอกสาร, รหัสเครื่องจักร, PO..."
+                            class="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-200 transition-all">
+                    </div>
+
+                    <!-- Year filter -->
+                    <select name="year"
+                        class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-200">
+                        <option value="">ทุกปีงบประมาณ</option>
+                        {% for yr in budget_years %}
+                        <option value="{{ yr }}" {% if year_filter == yr %}selected{% endif %}>{{ yr }}
+                        </option>
+                        {% endfor %}
+                    </select>
+
+                    <!-- Type filter -->
+                    <select name="type"
+                        class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-200">
+                        <option value="">ทุกประเภท</option>
+                        <option value="repair" {% if type_filter == 'repair' %}selected{% endif %}>รายงานการซ่อม</option>
+                        <option value="inspection" {% if type_filter == 'inspection' %}selected{% endif %}>Inspection
+                            Report</option>
+                    </select>
+
+                    <button type="submit"
+                        class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-shrink-0">
+                        <i data-lucide="search" class="w-4 h-4"></i>ค้นหา
+                    </button>
+                    {% if search_query or dept_filter or year_filter or type_filter %}
+                    <a href="{% url 'doc_repository' %}"
+                        class="flex items-center gap-1 text-sm text-slate-400 hover:text-red-500 transition-colors flex-shrink-0">
+                        <i data-lucide="x" class="w-4 h-4"></i>ล้าง
+                    </a>
+                    {% endif %}
+                </form>
+
+                <!-- Dept filter tabs -->
+                <div class="flex gap-2 flex-wrap mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                    <a href="{% url 'doc_repository' %}{% if search_query %}?q={{ search_query }}{% endif %}"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+            {% if not dept_filter %}bg-indigo-600 text-white shadow-sm{% else %}bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-600{% endif %}">
+                        ทั้งหมด
+                    </a>
+                    {% for dept, label in dept_choices %}
+                    <a href="?dept={{ dept }}{% if search_query %}&q={{ search_query }}{% endif %}{% if year_filter %}&year={{ year_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+            {% if dept_filter == dept %}
+              {% if dept == 'ลูกหีบ' %}bg-emerald-600 text-white{% elif dept == 'หม้อน้ำ' %}bg-orange-500 text-white{% elif dept == 'ซ่อมบำรุงเครื่องกล' %}bg-violet-600 text-white{% else %}bg-blue-600 text-white{% endif %}
+            {% else %}bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600{% endif %}">
+                        {{ dept }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- ── Document Table ─────────────────────────────── -->
+            <div
+                class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+
+                <div
+                    class="px-5 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="file-text" class="w-4 h-4 text-slate-500"></i>
+                        <span class="font-semibold text-slate-800 dark:text-slate-100 text-sm">รายการเอกสาร</span>
+                        <span
+                            class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-medium">{{
+                            doc_count }} รายการ</span>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+                            <tr
+                                class="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold tracking-wide">
+                                <th class="px-4 py-3 text-left">ชื่อเอกสาร</th>
+                                <th class="px-4 py-3 text-left">รหัสเครื่องจักร</th>
+                                <th class="px-4 py-3 text-left">แผนก</th>
+                                <th class="px-4 py-3 text-left">ประเภท</th>
+                                <th class="px-4 py-3 text-left">PO / Budget Code</th>
+                                <th class="px-4 py-3 text-right">งบฯ (บาท)</th>
+                                <th class="px-4 py-3 text-left">วันที่</th>
+                                <th class="px-4 py-3 text-left">ผู้บันทึก</th>
+                                <th class="px-4 py-3 text-center">Drive</th>
+                                <th class="px-4 py-3 text-center">ลบ</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                            {% for doc in docs %}
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+
+                                <!-- ชื่อเอกสาร -->
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center gap-2.5">
+                                        <div
+                                            class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0
+                      {% if doc.doc_type == 'repair' %}bg-amber-50 dark:bg-amber-900/30 text-amber-500{% else %}bg-blue-50 dark:bg-blue-900/30 text-blue-500{% endif %}">
+                                            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <p
+                                                class="font-semibold text-slate-800 dark:text-slate-100 text-xs truncate max-w-[200px]">
+                                                {{ doc.title }}</p>
+                                            <p class="text-xs text-slate-400 font-mono">DOC-{{ doc.id|stringformat:"04d"
+                                                }}</p>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <!-- รหัสเครื่องจักร -->
+                                <td class="px-4 py-3">
+                                    {% if doc.equipment %}
+                                    <code
+                                        class="px-2 py-0.5 rounded text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">
+                    {{ doc.equipment.equipment_id }}
+                  </code>
+                                    {% else %}<span class="text-slate-400 text-xs">—</span>{% endif %}
+                                </td>
+
+                                <!-- แผนก -->
+                                <td class="px-4 py-3">
+                                    <span
+                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border
+                    {% if doc.department == 'ลูกหีบ' %}bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800
+                    {% elif doc.department == 'หม้อน้ำ' %}bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800
+                    {% elif doc.department == 'ซ่อมบำรุงเครื่องกล' %}bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-800
+                    {% else %}bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800{% endif %}">
+                                        {{ doc.department }}
+                                    </span>
+                                </td>
+
+                                <!-- ประเภท -->
+                                <td class="px-4 py-3">
+                                    {% if doc.doc_type == 'repair' %}
+                                    <span
+                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                        <i data-lucide="wrench" class="w-3 h-3"></i>งานซ่อม
+                                    </span>
+                                    {% else %}
+                                    <span
+                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                                        <i data-lucide="clipboard-check" class="w-3 h-3"></i>Inspection
+                                    </span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- PO -->
+                                <td class="px-4 py-3 font-mono text-xs text-slate-500 dark:text-slate-400">
+                                    {{ doc.po_number|default:"—" }}
+                                </td>
+
+                                <!-- งบฯ -->
+                                <td
+                                    class="px-4 py-3 text-right font-semibold text-xs text-slate-700 dark:text-slate-300">
+                                    {% if doc.budget_amount %}฿{{ doc.budget_amount|floatformat:0 }}{% else %}—{% endif %}
+                                </td>
+
+                                <!-- วันที่ -->
+                                <td class="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
+                                    {{ doc.created_at|date:"d M Y" }}
+                                </td>
+
+                                <!-- ผู้บันทึก -->
+                                <td class="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                    {{ doc.uploaded_by.get_full_name|default:doc.uploaded_by.username|default:"—" }}
+                                </td>
+
+                                <!-- Drive link -->
+                                <td class="px-4 py-3 text-center">
+                                    {% if doc.drive_file_id %}
+                                    <a href="{{ doc.drive_url }}" target="_blank" rel="noopener"
+                                        class="inline-flex p-1.5 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 rounded-lg transition-colors"
+                                        title="เปิดใน Drive">
+                                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                                    </a>
+                                    {% else %}
+                                    <span class="text-slate-300 dark:text-slate-600 text-xs">—</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- ลบ -->
+                                <td class="px-4 py-3 text-center">
+                                    <form method="POST" action="{% url 'doc_delete' doc.id %}"
+                                        onsubmit="return confirm('ลบเอกสาร &quot;{{ doc.title }}&quot; ใช่หรือไม่?')">
+                                        {% csrf_token %}
+                                        <button type="submit"
+                                            class="inline-flex p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-lg transition-colors"
+                                            title="ลบ">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="10" class="px-6 py-14 text-center text-slate-400">
+                                    <i data-lucide="inbox"
+                                        class="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-slate-600"></i>
+                                    <p class="text-base font-medium text-slate-500 dark:text-slate-400">ยังไม่มีเอกสาร
+                                    </p>
+                                    <p class="text-sm mt-1 text-slate-400">กดปุ่ม "ลงทะเบียนเอกสาร" ด้านบนเพื่อเริ่มต้น
+                                    </p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div
+                    class="px-5 py-3 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                    <span class="text-xs text-slate-400">แสดง {{ doc_count }} รายการ</span>
+                </div>
+            </div>
+        </div><!-- end scrollable body -->
+    </main>
+</div>
+
+<!-- ══════════════════════ MODAL ════════════════════════════ -->
+<div id="docModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4"
+    style="background:rgba(15,23,42,0.5);backdrop-filter:blur(4px);">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+            <div class="flex items-center gap-3">
+                <div
+                    class="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                    <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-slate-800 dark:text-slate-100 text-base">ลงทะเบียนเอกสาร</h2>
+                    <p class="text-xs text-slate-400">เชื่อม Equipment ID · PO · Google Drive อัตโนมัติ</p>
+                </div>
+            </div>
+            <button onclick="closeModal()"
+                class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Modal Form -->
+        <form id="docForm" enctype="multipart/form-data" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+            {% csrf_token %}
+
+            <!-- ชื่อเอกสาร -->
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">ชื่อเอกสาร <span
+                        class="text-red-400">*</span></label>
+                {{ form.title }}
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <!-- เครื่องจักร -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">เครื่องจักร
+                        <span class="text-red-400">*</span></label>
+                    {{ form.equipment }}
+                </div>
+                <!-- แผนก -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">แผนก <span
+                            class="text-red-400">*</span></label>
+                    {{ form.department }}
+                </div>
+                <!-- ประเภท -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">ประเภทเอกสาร
+                        <span class="text-red-400">*</span></label>
+                    {{ form.doc_type }}
+                </div>
+                <!-- ปีงบ -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">ปีงบประมาณ
+                        <span class="text-red-400">*</span></label>
+                    {{ form.budget_year }}
+                </div>
+                <!-- PO -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">เลข PO / Budget
+                        Code</label>
+                    {{ form.po_number }}
+                </div>
+                <!-- งบฯ -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">งบประมาณ
+                        (บาท)</label>
+                    {{ form.budget_amount }}
+                </div>
+            </div>
+
+            <!-- คำอธิบาย -->
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">คำอธิบาย</label>
+                {{ form.description }}
+            </div>
+
+            <!-- File upload -->
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">
+                    ไฟล์เอกสาร <span class="text-slate-400 font-normal">(PDF, JPG, PNG, DOCX — max 50MB)</span>
+                </label>
+                <label for="document_file"
+                    class="flex flex-col items-center justify-center w-full border-2 border-dashed border-indigo-200 dark:border-indigo-800 rounded-xl py-5 px-4 cursor-pointer text-center transition-colors hover:border-indigo-400 hover:bg-indigo-50/30 dark:hover:bg-indigo-900/20"
+                    style="background:rgba(238,242,255,0.5)">
+                    <i data-lucide="upload-cloud" class="w-8 h-8 text-indigo-400 mb-2"></i>
+                    <p class="text-sm text-slate-600 dark:text-slate-300">ลากไฟล์มาวาง หรือ <span
+                            class="text-indigo-600 dark:text-indigo-400 font-semibold underline">เลือกไฟล์</span></p>
+                    <p id="fileName" class="text-xs text-slate-400 mt-1.5">ยังไม่ได้เลือกไฟล์</p>
+                </label>
+                <input type="file" id="document_file" name="document_file" class="sr-only"
+                    accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx" onchange="updateFileName(this)">
+            </div>
+
+            <!-- Drive path preview -->
+            <div id="drivePathPreview" class="hidden">
+                <div
+                    class="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 px-3 py-2 rounded-lg">
+                    <i data-lucide="folder" class="w-3.5 h-3.5 flex-shrink-0"></i>
+                    บันทึกใน Drive: <code id="drivePath"
+                        class="font-mono ml-1 text-emerald-800 dark:text-emerald-300"></code>
+                </div>
+            </div>
+
+            <!-- Line Bot notice -->
+            <div
+                class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2">
+                <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-500 flex-shrink-0"></i>
+                Line Bot จะแจ้งเตือนทีมอัตโนมัติหลังลงทะเบียนสำเร็จ
+            </div>
+        </form>
+
+        <!-- Modal Footer -->
+        <div
+            class="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-end gap-3 bg-slate-50 dark:bg-slate-800/80">
+            <button onclick="closeModal()"
+                class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                ยกเลิก
+            </button>
+            <button onclick="submitDocForm()"
+                class="flex items-center gap-2 px-5 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm transition-colors"
+                id="submitBtn">
+                <i data-lucide="upload-cloud" class="w-4 h-4"></i>บันทึกและอัปโหลด
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════ SCRIPTS ═══════════════════════════ -->
+<script>
+    // ── Modal ──────────────────────────────────────────────────
+    function openModal() {
+        const modal = document.getElementById('docModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        lucide.createIcons();
+    }
+    function closeModal() {
+        const modal = document.getElementById('docModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+    document.getElementById('docModal').addEventListener('click', function (e) {
+        if (e.target === this) closeModal();
+    });
+
+    // ── File name display ──────────────────────────────────────
+    function updateFileName(input) {
+        const label = document.getElementById('fileName');
+        label.textContent = input.files.length > 0 ? input.files[0].name : 'ยังไม่ได้เลือกไฟล์';
+        updateDrivePath();
+    }
+
+    // ── Drive path preview ─────────────────────────────────────
+    function updateDrivePath() {
+        const eqSelect = document.getElementById('id_equipment');
+        const yearInput = document.getElementById('id_budget_year');
+        const preview = document.getElementById('drivePathPreview');
+        const pathEl = document.getElementById('drivePath');
+
+        const eqText = eqSelect && eqSelect.selectedIndex > 0
+            ? eqSelect.options[eqSelect.selectedIndex].text.split(' ')[0]
+            : 'UNASSIGNED';
+        const year = yearInput ? yearInput.value || '2568' : '2568';
+
+        pathEl.textContent = `LAMY / ${year} / ${eqText} /`;
+        preview.classList.remove('hidden');
+        lucide.createIcons();
+    }
+
+    document.getElementById('id_equipment')?.addEventListener('change', updateDrivePath);
+    document.getElementById('id_budget_year')?.addEventListener('input', updateDrivePath);
+
+    // ── Submit via Fetch ───────────────────────────────────────
+    async function submitDocForm() {
+        const form = document.getElementById('docForm');
+        const btn = document.getElementById('submitBtn');
+        const formData = new FormData(form);
+
+        // Basic validation
+        const title = formData.get('title');
+        if (!title || !title.trim()) {
+            alert('กรุณากรอกชื่อเอกสาร');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg> กำลังบันทึก...';
+
+        try {
+            const resp = await fetch("{% url 'doc_register' %}", {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRFToken': formData.get('csrfmiddlewaretoken') },
+            });
+            const data = await resp.json();
+
+            if (data.status === 'success') {
+                closeModal();
+                window.location.reload();
+            } else {
+                alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่ทราบสาเหตุ'));
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="upload-cloud" class="w-4 h-4"></i>บันทึกและอัปโหลด';
+                lucide.createIcons();
+            }
+        } catch (err) {
+            alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ' + err.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="upload-cloud" class="w-4 h-4"></i>บันทึกและอัปโหลด';
+            lucide.createIcons();
+        }
+    }
+</script>
+{% endblock content %}

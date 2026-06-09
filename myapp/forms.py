@@ -1,6 +1,6 @@
 from django import forms
 from .models import employee  # เรียกใช้ Model ที่เราสร้างไว้
-from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log,  Banpong2Log, MaintenanceLog, KPIMetric
+from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log,  Banpong2Log, MaintenanceLog, KPIMetric, RepairDocument
 from .models import MillReport, BoilerDailyKPI
 from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic
 
@@ -307,4 +307,61 @@ class CBMAcousticForm(forms.ModelForm):
             'decibel': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
             'sound_pattern': forms.Select(attrs={'class': 'form-select'}),
             'audio_file_id': forms.HiddenInput(),
+        }
+
+class RepairDocumentForm(forms.ModelForm):
+    class Meta:
+        model  = RepairDocument
+        fields = [
+            'title', 'equipment', 'department', 'doc_type',
+            'po_number', 'budget_year', 'budget_amount', 'description',
+        ]
+        widgets = {
+            'title': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'เช่น รายงานซ่อมปั๊มน้ำหม้อไอน้ำ JT',
+            }),
+            'equipment': forms.Select(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'department': forms.Select(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'doc_type': forms.Select(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'po_number': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'เช่น PO-2568-0001',
+            }),
+            'budget_year': forms.NumberInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'min': 2560, 'max': 2580,
+            }),
+            'budget_amount': forms.NumberInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'step': '0.01', 'placeholder': '0.00',
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'คำอธิบายเพิ่มเติม (ถ้ามี)',
+            }),
+        }
+        labels = {
+            'title':         'ชื่อเอกสาร',
+            'equipment':     'เครื่องจักร',
+            'department':    'แผนก',
+            'doc_type':      'ประเภทเอกสาร',
+            'po_number':     'เลข PO / Budget Code',
+            'budget_year':   'ปีงบประมาณ',
+            'budget_amount': 'งบประมาณ (บาท)',
+            'description':   'คำอธิบาย',
         }

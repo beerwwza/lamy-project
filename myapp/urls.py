@@ -21,6 +21,7 @@ urlpatterns = [
     path('boiler/operation/', operation_dashboard, name='operation_dashboard'),
     path('boiler/api/history/', boiler_history_api, name='boiler_history_api'),
 
+    path('boiler/export/', boiler_export_csv, name='boiler_export_csv'),
     path('boiler/kpi/add/', boiler_kpi_form, name='boiler_kpi_form'),
 
 
@@ -53,6 +54,10 @@ urlpatterns = [
     # Path สำหรับ Import Data
     path('import-data/', import_data, name='import_data'),
     path('maintenance/import_csv/', maintenance_import_csv, name='maintenance_import_csv'),
+    path('docs/',           doc_repository, name='doc_repository'),
+    path('docs/register/', doc_register,   name='doc_register'),
+    path('docs/delete/<int:doc_id>/', doc_delete, name='doc_delete'),
+    path('webhook/line/', line_webhook, name='line_webhook'),
 
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]
