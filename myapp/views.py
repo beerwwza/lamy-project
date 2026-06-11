@@ -2640,22 +2640,23 @@ def line_webhook(request):
             print(f'[LINE Webhook] Bot ตื่นแล้ว state_key={state_key}')
             _reply_line(
                 reply_token,
-                'คะ เจ้านาย 🙏\n'
-                'พิมพ์คำสั่งค้นหาได้เลยค่ะ เช่น\n'
-                '  ค้นหา PO-001\n'
-                '  ค้นหา BL-JT-001\n'
-                '  ค้นหา ปั๊มน้ำ',
+                'คะ เจ้านาย 🙏 พร้อมค้นหาแล้วค่ะ\n'
+                'พิมพ์ชื่อ / PO / รหัสเครื่องได้เลย\n'
+                'เช่น: PO-001  หรือ  BL-JT-001',
             )
             continue
 
-        # ── ขั้นที่ 2: รับคำสั่งค้นหา (เฉพาะเมื่อ bot ตื่นอยู่) ──
-        if text.startswith('ค้นหา') and not cache.get(state_key):
-            print(f'[LINE Webhook] ค้นหา แต่ bot ยังไม่ถูกปลุก (state_key={state_key})')
+        # ── ขั้นที่ 2: รับคำสั่งค้นหา ──────────────────────────────
+        # รองรับทั้งแบบ "ค้นหา xxx" และแบบพิมพ์ตรงๆ เมื่อ bot ตื่นอยู่
+        is_awake = bool(cache.get(state_key))
+        has_prefix = text.startswith('ค้นหา')
+
+        if has_prefix and not is_awake:
             _reply_line(reply_token, 'พิมพ์ "lamy" ก่อนเพื่อปลุก bot แล้วค่อยค้นหาค่ะ 🙏')
             continue
 
-        if cache.get(state_key) and text.startswith('ค้นหา'):
-            query = text[len('ค้นหา'):].strip()
+        if is_awake or has_prefix:
+            query = text[len('ค้นหา'):].strip() if has_prefix else text
             print(f'[LINE Webhook] ค้นหา: "{query}"')
 
             if not query:
