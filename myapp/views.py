@@ -2615,7 +2615,10 @@ def line_webhook(request):
     except Exception:
         return HttpResponse('OK', status=200)
 
-    for event in body.get('events', []):
+    events = body.get('events', [])
+    print(f'[LINE Webhook] รับ {len(events)} event(s)')
+
+    for event in events:
         if event.get('type') != 'message':
             continue
         msg = event.get('message', {})
@@ -2626,26 +2629,34 @@ def line_webhook(request):
         reply_token = event.get('replyToken', '')
         source      = event.get('source', {})
         user_id     = source.get('userId', 'unknown')
-        # รองรับทั้ง group chat และ 1-on-1
         chat_id     = source.get('groupId', source.get('roomId', user_id))
         state_key   = f'line_awake_{chat_id}_{user_id}'
+
+        print(f'[LINE Webhook] text="{text}" user={user_id[:8]}... chat={chat_id[:8]}...')
 
         # ── ขั้นที่ 1: ปลุก bot ──────────────────────────────────
         if text in _LINE_TRIGGERS:
             cache.set(state_key, True, _LINE_STATE_TTL)
+            print(f'[LINE Webhook] Bot ตื่นแล้ว state_key={state_key}')
             _reply_line(
                 reply_token,
                 'คะ เจ้านาย 🙏\n'
-                'พิมพ์คำสั่งค้นหาได้เลยค่ะ\n'
-                #'  ค้นหา PO-001\n'
-                #'  ค้นหา BL-JT-001\n'
-                #'  ค้นหา ปั๊มน้ำ',
+                'พิมพ์คำสั่งค้นหาได้เลยค่ะ เช่น\n'
+                '  ค้นหา PO-001\n'
+                '  ค้นหา BL-JT-001\n'
+                '  ค้นหา ปั๊มน้ำ',
             )
             continue
 
         # ── ขั้นที่ 2: รับคำสั่งค้นหา (เฉพาะเมื่อ bot ตื่นอยู่) ──
+        if text.startswith('ค้นหา') and not cache.get(state_key):
+            print(f'[LINE Webhook] ค้นหา แต่ bot ยังไม่ถูกปลุก (state_key={state_key})')
+            _reply_line(reply_token, 'พิมพ์ "lamy" ก่อนเพื่อปลุก bot แล้วค่อยค้นหาค่ะ 🙏')
+            continue
+
         if cache.get(state_key) and text.startswith('ค้นหา'):
             query = text[len('ค้นหา'):].strip()
+            print(f'[LINE Webhook] ค้นหา: "{query}"')
 
             if not query:
                 _reply_line(reply_token, 'กรุณาระบุสิ่งที่ต้องการค้นหาด้วยค่ะ\nเช่น: ค้นหา PO-001')
