@@ -2444,39 +2444,42 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
             'folderPath': folder_path,
         }).encode('utf-8')
 
-        # Step 1: POST ไปยัง GAS — ได้ 302 redirect กลับมา ไม่ follow อัตโนมัติ
         req = urllib.request.Request(
             script_url,
             data    = payload,
             headers = {'Content-Type': 'application/json'},
             method  = 'POST',
         )
-        no_redirect = urllib.request.build_opener(urllib.request.BaseHandler())
+
+        result = None
         try:
-            no_redirect.open(req, timeout=30)
+            # ลอง POST แบบ follow redirect ตามปกติก่อน
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
         except urllib.error.HTTPError as e:
+            # GAS บางครั้ง redirect ไปยัง URL ที่ต้องการ cookie
             if e.code not in (301, 302, 303, 307, 308):
                 raise
             echo_url = e.headers.get('Location')
-        else:
-            echo_url = None
+            if not echo_url:
+                print('[Drive] ไม่ได้รับ redirect URL จาก GAS')
+                return None
+            import http.cookiejar
+            cj = http.cookiejar.CookieJar()
+            opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+            with opener.open(echo_url, timeout=30) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
 
-        if not echo_url:
-            print('[Drive] ไม่ได้รับ redirect URL จาก GAS')
+        if not result:
+            print('[Drive] ไม่ได้รับ response จาก GAS')
             return None
 
-        # Step 2: GET ไปยัง echo URL เพื่อรับ JSON response
-        import http.cookiejar
-        cj  = http.cookiejar.CookieJar()
-        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
-        with opener.open(echo_url, timeout=30) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
-            file_id = result.get('fileId') or result.get('id') or result.get('file_id')
-            if file_id:
-                print(f'[Drive] อัปโหลดสำเร็จ: {file_id}')
-                return file_id
-            print(f'[Drive] ตอบกลับไม่มี fileId: {result}')
-            return None
+        file_id = result.get('fileId') or result.get('id') or result.get('file_id')
+        if file_id:
+            print(f'[Drive] อัปโหลดสำเร็จ: {file_id}')
+            return file_id
+        print(f'[Drive] ตอบกลับไม่มี fileId: {result}')
+        return None
     except Exception as e:
         print(f'[Drive Error] {e}')
         return None
