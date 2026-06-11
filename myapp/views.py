@@ -2452,12 +2452,15 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
         )
 
         result = None
+        raw_body = b''
         try:
-            # ลอง POST แบบ follow redirect ตามปกติก่อน
             with urllib.request.urlopen(req, timeout=30) as resp:
-                result = json.loads(resp.read().decode('utf-8'))
+                raw_body = resp.read()
+                print(f'[Drive DEBUG] status={resp.status} body={raw_body[:300]}')
+                result = json.loads(raw_body.decode('utf-8'))
         except urllib.error.HTTPError as e:
-            # GAS บางครั้ง redirect ไปยัง URL ที่ต้องการ cookie
+            raw_body = e.read()
+            print(f'[Drive DEBUG] HTTPError {e.code} body={raw_body[:300]}')
             if e.code not in (301, 302, 303, 307, 308):
                 raise
             echo_url = e.headers.get('Location')
@@ -2468,7 +2471,9 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
             cj = http.cookiejar.CookieJar()
             opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
             with opener.open(echo_url, timeout=30) as resp:
-                result = json.loads(resp.read().decode('utf-8'))
+                raw_body = resp.read()
+                print(f'[Drive DEBUG] redirect body={raw_body[:300]}')
+                result = json.loads(raw_body.decode('utf-8'))
 
         if not result:
             print('[Drive] ไม่ได้รับ response จาก GAS')
@@ -2481,7 +2486,7 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
         print(f'[Drive] ตอบกลับไม่มี fileId: {result}')
         return None
     except Exception as e:
-        print(f'[Drive Error] {e}')
+        print(f'[Drive Error] {type(e).__name__}: {e}')
         return None
 
 
