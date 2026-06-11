@@ -2422,10 +2422,11 @@ def doc_repository(request):
     return render(request, 'myapp/doc_repository.html', context)
 
 # ─── Helper: อัปโหลดไฟล์ไป Google Drive ผ่าน Apps Script ────────────────────
+
 def _upload_to_drive(uploaded_file, filename, folder_path):
     """
     อัปโหลดไฟล์ไป Google Drive ผ่าน Google Apps Script Web App
-    ต้องตั้งค่า GDRIVE_SCRIPT_URL ใน .env ก่อน
+    ต้องตั้งค่า GAS_WEBAPP_URL ใน .env ก่อน
     คืนค่า file_id หากสำเร็จ หรือ None หากล้มเหลว
     """
     script_url = os.environ.get('GAS_WEBAPP_URL', '')
@@ -2443,13 +2444,32 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
             'folderPath': folder_path,
         }).encode('utf-8')
 
+        # Step 1: POST ไปยัง GAS — ได้ 302 redirect กลับมา ไม่ follow อัตโนมัติ
         req = urllib.request.Request(
             script_url,
             data    = payload,
             headers = {'Content-Type': 'application/json'},
             method  = 'POST',
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        no_redirect = urllib.request.build_opener(urllib.request.BaseHandler())
+        try:
+            no_redirect.open(req, timeout=30)
+        except urllib.error.HTTPError as e:
+            if e.code not in (301, 302, 303, 307, 308):
+                raise
+            echo_url = e.headers.get('Location')
+        else:
+            echo_url = None
+
+        if not echo_url:
+            print('[Drive] ไม่ได้รับ redirect URL จาก GAS')
+            return None
+
+        # Step 2: GET ไปยัง echo URL เพื่อรับ JSON response
+        import http.cookiejar
+        cj  = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+        with opener.open(echo_url, timeout=30) as resp:
             result = json.loads(resp.read().decode('utf-8'))
             file_id = result.get('fileId') or result.get('id') or result.get('file_id')
             if file_id:
@@ -2612,10 +2632,10 @@ def line_webhook(request):
             _reply_line(
                 reply_token,
                 'คะ เจ้านาย 🙏\n'
-                'พิมพ์คำสั่งค้นหาได้เลยค่ะ เช่น\n'
-                '  ค้นหา PO-001\n'
-                '  ค้นหา BL-JT-001\n'
-                '  ค้นหา ปั๊มน้ำ',
+                'พิมพ์คำสั่งค้นหาได้เลยค่ะ\n'
+                #'  ค้นหา PO-001\n'
+                #'  ค้นหา BL-JT-001\n'
+                #'  ค้นหา ปั๊มน้ำ',
             )
             continue
 
