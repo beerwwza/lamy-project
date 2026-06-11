@@ -2452,15 +2452,10 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
         )
 
         result = None
-        raw_body = b''
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
-                raw_body = resp.read()
-                print(f'[Drive DEBUG] status={resp.status} body={raw_body[:300]}')
-                result = json.loads(raw_body.decode('utf-8'))
+                result = json.loads(resp.read().decode('utf-8'))
         except urllib.error.HTTPError as e:
-            raw_body = e.read()
-            print(f'[Drive DEBUG] HTTPError {e.code} body={raw_body[:300]}')
             if e.code not in (301, 302, 303, 307, 308):
                 raise
             echo_url = e.headers.get('Location')
@@ -2471,9 +2466,7 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
             cj = http.cookiejar.CookieJar()
             opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
             with opener.open(echo_url, timeout=30) as resp:
-                raw_body = resp.read()
-                print(f'[Drive DEBUG] redirect body={raw_body[:300]}')
-                result = json.loads(raw_body.decode('utf-8'))
+                result = json.loads(resp.read().decode('utf-8'))
 
         if not result:
             print('[Drive] ไม่ได้รับ response จาก GAS')
@@ -2491,8 +2484,9 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
 
 
 # ─── View 2: รับฟอร์มลงทะเบียน + อัปโหลด Drive + แจ้ง LINE ─────────────────
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
 @login_required
-@csrf_exempt
 def doc_register(request):
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
@@ -2509,6 +2503,8 @@ def doc_register(request):
     drive_success = False
 
     if uploaded_file:
+        if uploaded_file.size > MAX_UPLOAD_BYTES:
+            return JsonResponse({'status': 'error', 'message': f'ไฟล์ใหญ่เกิน 50 MB ({uploaded_file.size // (1024*1024)} MB)'}, status=400)
         eq_id       = doc.equipment.equipment_id if doc.equipment else 'UNASSIGNED'
         folder_path = f'LAMY/{doc.budget_year}/{eq_id}'
         file_id     = _upload_to_drive(uploaded_file, uploaded_file.name, folder_path)
