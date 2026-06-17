@@ -334,7 +334,7 @@ def dashboard(request):
     line_a_obj = MillReport.objects.filter(line='A', cane_weight__gt=0).order_by('-date').first()
     line_b_obj = MillReport.objects.filter(line='B', cane_weight__gt=0).order_by('-date').first()
     
-    recent_mill_qs = MillReport.objects.order_by('-date')[:10]
+    recent_mill_qs = MillReport.objects.select_related('created_by', 'updated_by').order_by('-date')[:10]
     recent_mill = []
     for r in recent_mill_qs:
         recent_mill.append({
@@ -342,6 +342,10 @@ def dashboard(request):
             'line': r.line,
             'cane_weight': f"{r.cane_weight:,.0f}" if r.cane_weight else "0",
             'ccs': f"{r.ccs:.2f}" if r.ccs else "-",
+            'created_by': r.created_by.get_full_name() or r.created_by.username if r.created_by else None,
+            'created_at': r.created_at.strftime('%d/%m %H:%M') if r.created_at else None,
+            'updated_by': r.updated_by.get_full_name() or r.updated_by.username if r.updated_by else None,
+            'updated_at': r.updated_at.strftime('%d/%m %H:%M') if r.updated_at else None,
         })
 
     mill_data = {
@@ -2483,8 +2487,115 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
         return None
 
 
+# ─── Helper: ส่ง JSON ไป GAS (รองรับ redirect) ───────────────────────────────
+
+def _send_to_gas(payload_dict, timeout=90):
+    script_url = os.environ.get('GAS_WEBAPP_URL', '')
+    if not script_url:
+        return None
+    payload = json.dumps(payload_dict).encode('utf-8')
+    req = urllib.request.Request(
+        script_url,
+        data=payload,
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    result = None
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        if e.code not in (301, 302, 303, 307, 308):
+            raise
+        location = e.headers.get('Location')
+        if not location:
+            return None
+        import http.cookiejar
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
+        with opener.open(location, timeout=timeout) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+    return result
+
+
+# ─── Helper: อัปโหลดไฟล์ใหญ่ผ่าน GAS chunk upload ───────────────────────────
+
+CHUNK_SIZE_BYTES = 20 * 1024 * 1024   # 20 MB raw → ~26 MB base64 (ปลอดภัยใต้ขีด GAS 50 MB)
+
+def _upload_to_drive_chunked(uploaded_file, filename, folder_path):
+    """
+    ใช้กับไฟล์ที่ใหญ่เกิน GAS single-upload limit (~35 MB)
+    GAS จะสร้าง Drive resumable session แล้วรับ chunk ทีละก้อน
+    """
+    import uuid
+    script_url = os.environ.get('GAS_WEBAPP_URL', '')
+    if not script_url:
+        print('[Drive Chunk] GAS_WEBAPP_URL ยังไม่ได้ตั้งค่าใน .env')
+        return None
+
+    upload_id = str(uuid.uuid4())
+    file_size  = uploaded_file.size
+    mime_type  = getattr(uploaded_file, 'content_type', 'application/octet-stream')
+
+    try:
+        # ① สร้าง resumable upload session ใน GAS
+        init = _send_to_gas({
+            'action':     'init',
+            'uploadId':   upload_id,
+            'filename':   filename,
+            'mimeType':   mime_type,
+            'folderPath': folder_path,
+            'fileSize':   file_size,
+        })
+        if not init or init.get('status') != 'ok':
+            print(f'[Drive Chunk] init ล้มเหลว: {init}')
+            return None
+
+        # ② ส่ง chunk ทีละก้อน
+        chunk_start = 0
+        while True:
+            chunk_data = uploaded_file.read(CHUNK_SIZE_BYTES)
+            if not chunk_data:
+                break
+
+            is_last = (chunk_start + len(chunk_data) >= file_size)
+            result  = _send_to_gas({
+                'action':     'chunk',
+                'uploadId':   upload_id,
+                'chunkStart': chunk_start,
+                'chunkData':  base64.b64encode(chunk_data).decode('utf-8'),
+                'fileSize':   file_size,
+                'mimeType':   mime_type,
+                'isLast':     is_last,
+            }, timeout=120)
+
+            if result is None:
+                print(f'[Drive Chunk] ไม่ได้รับ response ที่ offset {chunk_start}')
+                return None
+
+            if result.get('status') == 'done':
+                file_id = result.get('fileId')
+                print(f'[Drive Chunk] อัปโหลดสำเร็จ: {file_id}')
+                return file_id
+
+            if result.get('error'):
+                print(f'[Drive Chunk] error: {result["error"]}')
+                return None
+
+            chunk_start += len(chunk_data)
+
+        print('[Drive Chunk] สิ้นสุด loop โดยไม่ได้รับ fileId')
+        return None
+
+    except Exception as e:
+        print(f'[Drive Chunk Error] {type(e).__name__}: {e}')
+        return None
+
+
 # ─── View 2: รับฟอร์มลงทะเบียน + อัปโหลด Drive + แจ้ง LINE ─────────────────
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+MAX_UPLOAD_BYTES     = 100 * 1024 * 1024  # 100 MB
+GAS_SIZE_LIMIT_BYTES =  35 * 1024 * 1024  # 35 MB — เกินนี้ใช้ chunk upload
 
 @login_required
 def doc_register(request):
@@ -2504,17 +2615,24 @@ def doc_register(request):
 
     if uploaded_file:
         if uploaded_file.size > MAX_UPLOAD_BYTES:
-            return JsonResponse({'status': 'error', 'message': f'ไฟล์ใหญ่เกิน 50 MB ({uploaded_file.size // (1024*1024)} MB)'}, status=400)
+            return JsonResponse({'status': 'error', 'message': f'ไฟล์ใหญ่เกิน 100 MB ({uploaded_file.size // (1024*1024)} MB)'}, status=400)
+
         eq_id       = doc.equipment.equipment_id if doc.equipment else 'UNASSIGNED'
         folder_path = f'LAMY/{doc.budget_year}/{eq_id}'
-        file_id     = _upload_to_drive(uploaded_file, uploaded_file.name, folder_path)
+
+        if uploaded_file.size <= GAS_SIZE_LIMIT_BYTES:
+            # ไฟล์ ≤ 35 MB → ใช้ GAS single upload (base64 JSON)
+            file_id = _upload_to_drive(uploaded_file, uploaded_file.name, folder_path)
+        else:
+            # ไฟล์ > 35 MB → แบ่ง chunk ส่งผ่าน GAS resumable session
+            print(f'[Drive] ไฟล์ {uploaded_file.size // (1024*1024)} MB เกิน GAS limit → ใช้ chunk upload')
+            file_id = _upload_to_drive_chunked(uploaded_file, uploaded_file.name, folder_path)
 
         if file_id:
             doc.drive_file_id   = file_id
             doc.drive_file_name = uploaded_file.name
             drive_success       = True
         else:
-            # บันทึก record ไว้ก่อน แม้ Drive upload ล้มเหลว
             print(f'[Drive] upload ล้มเหลวสำหรับเอกสาร: {doc.title}')
 
     # ── ② บันทึกลงฐานข้อมูล ───────────────────────────────────

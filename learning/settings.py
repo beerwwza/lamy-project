@@ -33,6 +33,9 @@ ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'lamy23.cloud,localhost,1
 # อนุญาตให้ Django รับ Request จากโดเมนนี้ได้
 CSRF_TRUSTED_ORIGINS = [
     'https://lamy23.cloud',
+    'https://www.lamy23.cloud',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
 ]
 
 
@@ -136,8 +139,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_URL = '/'
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800   # 50 MB
-FILE_UPLOAD_MAX_MEMORY_SIZE  = 52428800  # 50 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600  # 100 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE  = 104857600 # 100 MB
 
 CACHES = {
     'default': {
