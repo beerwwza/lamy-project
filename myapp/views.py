@@ -2448,6 +2448,10 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
             'folderPath': folder_path,
         }).encode('utf-8')
 
+        import http.cookiejar
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
         req = urllib.request.Request(
             script_url,
             data    = payload,
@@ -2455,22 +2459,8 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
             method  = 'POST',
         )
 
-        result = None
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                result = json.loads(resp.read().decode('utf-8'))
-        except urllib.error.HTTPError as e:
-            if e.code not in (301, 302, 303, 307, 308):
-                raise
-            echo_url = e.headers.get('Location')
-            if not echo_url:
-                print('[Drive] ไม่ได้รับ redirect URL จาก GAS')
-                return None
-            import http.cookiejar
-            cj = http.cookiejar.CookieJar()
-            opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
-            with opener.open(echo_url, timeout=30) as resp:
-                result = json.loads(resp.read().decode('utf-8'))
+        with opener.open(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
 
         if not result:
             print('[Drive] ไม่ได้รับ response จาก GAS')
@@ -2493,6 +2483,10 @@ def _send_to_gas(payload_dict, timeout=90):
     script_url = os.environ.get('GAS_WEBAPP_URL', '')
     if not script_url:
         return None
+    import http.cookiejar
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+    )
     payload = json.dumps(payload_dict).encode('utf-8')
     req = urllib.request.Request(
         script_url,
@@ -2500,23 +2494,13 @@ def _send_to_gas(payload_dict, timeout=90):
         headers={'Content-Type': 'application/json'},
         method='POST',
     )
-    result = None
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
-    except urllib.error.HTTPError as e:
-        if e.code not in (301, 302, 303, 307, 308):
-            raise
-        location = e.headers.get('Location')
-        if not location:
-            return None
-        import http.cookiejar
-        opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
-        )
-        with opener.open(location, timeout=timeout) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
-    return result
+        with opener.open(req, timeout=timeout) as resp:
+            raw = resp.read().decode('utf-8')
+        return json.loads(raw)
+    except Exception as e:
+        print(f'[GAS] {type(e).__name__}: {e}')
+        return None
 
 
 # ─── Helper: อัปโหลดไฟล์ใหญ่ผ่าน GAS chunk upload ───────────────────────────
