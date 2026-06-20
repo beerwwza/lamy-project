@@ -17,14 +17,25 @@
 
 // ───────────────────────────────────────────────────────────────────────────
 function doPost(e) {
-  var data = JSON.parse(e.postData.contents);
-  var action = data.action || 'upload';
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return jsonResponse({ error: 'No POST body received' });
+    }
+    var data   = JSON.parse(e.postData.contents);
+    var action = data.action || 'upload';
 
-  if (action === 'upload') return handleSingleUpload(data);
-  if (action === 'init')   return handleInit(data);
-  if (action === 'chunk')  return handleChunk(data);
+    if (action === 'upload') return handleSingleUpload(data);
+    if (action === 'init')   return handleInit(data);
+    if (action === 'chunk')  return handleChunk(data);
 
-  return jsonResponse({ error: 'Unknown action: ' + action });
+    return jsonResponse({ error: 'Unknown action: ' + action });
+  } catch (err) {
+    return jsonResponse({ error: 'doPost: ' + err.toString() });
+  }
+}
+
+function doGet(e) {
+  return jsonResponse({ status: 'LAMY GAS Web App is running' });
 }
 
 // ── Mode 1: Single upload (ไฟล์ ≤ 35 MB) ───────────────────────────────────
