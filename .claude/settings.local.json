@@ -4,5 +4,6 @@
       "Bash(python manage.py check --deploy)",
       "Bash(python manage.py check)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": ["hostinger-mcp"]
 }

@@ -47,8 +47,38 @@ myapp/
 2. **Function-based views only** — No class-based views. All views are plain Python functions.
 3. **No REST framework** — JSON endpoints are plain Django views returning `JsonResponse`.
 4. **SQLite** — Default database. Do not introduce migrations requiring PostgreSQL-only features.
-5. **No JavaScript framework** — Frontend uses inline JS + Bootstrap + AJAX `fetch()`. No React/Vue/etc.
+5. **No JavaScript framework** — Frontend uses vanilla JS + Tailwind CSS + Lucide icons via CDN. **No React, Vue, Angular, Svelte, or any component framework.** No Babel, no JSX, no bundler.
 6. **Inline JavaScript** — JS logic lives inside `{% block %}` in templates, not separate `.js` files.
+7. **Django template rendering** — All data is rendered server-side via Django template tags (`{% if %}`, `{% for %}`, `{{ var }}`). Do not inject server data as JSON and parse it client-side with React or similar.
+8. **CDN dependencies** — `base.html` loads Tailwind CSS and Lucide Icons via CDN. Templates extend `base.html` and inherit these. Do not load React, Babel, or additional heavy CDN libraries.
+
+### Frontend Pattern (the right way)
+
+```html
+{% extends 'myapp/base.html' %}
+{% block content %}
+<!-- Use Django template tags for data -->
+{% if some_condition %}
+  <div class="...tailwind classes...">{{ value }}</div>
+{% endif %}
+{% for item in items %}
+  <tr>...</tr>
+{% endfor %}
+
+<!-- Plain JS for interactivity (tabs, toggles, AJAX) -->
+<script>
+  function showTab(name) {
+    document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+    document.getElementById('tab-' + name).style.display = 'block';
+  }
+  lucide.createIcons(); // re-call after DOM changes
+</script>
+{% endblock %}
+```
+
+### Why no React on this project
+
+React + Babel standalone requires `eval()` in the browser. In production environments this can be blocked silently, causing the entire page to render as a blank black screen with no visible error. The app crashed this way on `dashboard.html` — the React version was replaced with a plain Django template that works reliably.
 
 ---
 
@@ -257,12 +287,36 @@ CBM forms are submitted from the equipment CBM dashboard at `/equipment/cbm/<eq_
 - **Do not** create a second Django app (`python manage.py startapp`). All code goes in `myapp/`.
 - **Do not** use class-based views (CreateView, ListView, etc.). Use function-based views.
 - **Do not** install Django REST Framework. Use `JsonResponse` for JSON endpoints.
-- **Do not** introduce React, Vue, or any JS bundler. Frontend is vanilla JS + Bootstrap.
+- **Do not** introduce React, Vue, Angular, Svelte, or any component framework — not even via CDN. This caused a production outage (blank black screen) because Babel standalone requires `eval()` which is blocked in some environments. Use Django template tags + vanilla JS instead.
+- **Do not** load Babel standalone (`@babel/standalone`) or write JSX in templates. There is no transpilation step in this project.
+- **Do not** use `json_script` + client-side JSON parsing as a replacement for Django template rendering. Render data with `{{ var }}` and `{% for %}` / `{% if %}` tags.
+- **Do not** load more than the CDN libraries already in `base.html` (Tailwind CSS, Lucide icons, Google Fonts). If a new library is genuinely needed, add it to `base.html` after discussion — not per-template.
 - **Do not** use `DateTimeField` for shift-based log entries — use `DateField` + `TimeField` separately.
 - **Do not** make fields non-nullable without a default value — operators skip fields frequently.
 - **Do not** hardcode the `SECRET_KEY` in `settings.py` for production. Use `.env`.
 - **Do not** commit `db.sqlite3` or `.env` — both are in `.gitignore`.
 - **Do not** edit migration files manually. Always use `makemigrations`.
+
+### Dashboard view pattern — pre-compute alert flags in the view
+
+Django templates cannot do arithmetic comparisons (`value > 1.01`). When a template needs per-field alert colours, add boolean flags in the view's context dict instead of offloading logic to JavaScript:
+
+```python
+boiler_data = {
+    'downtime_a': float(kpi.downtime_a),
+    'downtime_a_alert': bool(kpi.downtime_a > 1.01),  # ← pre-computed flag
+    ...
+}
+```
+
+Then in the template:
+```html
+{% if boiler.downtime_a_alert %}
+  <div class="border-orange-400 text-orange-600">...</div>
+{% else %}
+  <div class="border-slate-200 text-slate-800">...</div>
+{% endif %}
+```
 
 ---
 

@@ -382,6 +382,10 @@ def dashboard(request):
         'flow_40bar': float(boiler_kpi.flow_40bar) if boiler_kpi else 0,
         'alert': bool(boiler_kpi and (boiler_kpi.downtime_a > 1.01 or boiler_kpi.downtime_b > 1.01
                                       or boiler_kpi.reduced_cap_a > 1.02 or boiler_kpi.reduced_cap_b > 1.02)),
+        'downtime_a_alert': bool(boiler_kpi and boiler_kpi.downtime_a > 1.01),
+        'downtime_b_alert': bool(boiler_kpi and boiler_kpi.downtime_b > 1.01),
+        'reduced_cap_a_alert': bool(boiler_kpi and boiler_kpi.reduced_cap_a > 1.02),
+        'reduced_cap_b_alert': bool(boiler_kpi and boiler_kpi.reduced_cap_b > 1.02),
     }
 
     # 3. Maintenance Data — วันนี้ (ยกเว้นโรงกลึง)
@@ -403,6 +407,10 @@ def dashboard(request):
         'downtime_reduced': round(maint_reduced, 2),
         'leaks': maint_leaks,
         'alert': maint_count > 0 or maint_leaks > 0,
+        'mttr_alert': maint_mttr > 2,
+        'stop_alert': float(maint_stop) > 0,
+        'reduced_alert': float(maint_reduced) > 0,
+        'leaks_alert': maint_leaks > 0,
     }
 
     # 4. Lathe Data
