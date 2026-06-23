@@ -121,3 +121,15 @@ class CBMOilAnalysisAdmin(admin.ModelAdmin):
 class CBMAcousticAdmin(admin.ModelAdmin):
     list_display = ('equipment', 'inspection_date', 'sound_pattern')
     list_filter = ('sound_pattern', 'inspection_date')
+
+@admin.register(InventoryItem)
+class InventoryItemAdmin(admin.ModelAdmin):
+    list_display  = ['code', 'name', 'category', 'department', 'stock', 'min_stock', 'is_low_stock']
+    list_filter   = ['category', 'department', 'is_active']
+    search_fields = ['code', 'name']
+
+@admin.register(InventoryTransaction)
+class InventoryTransactionAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'item', 'tx_type', 'quantity', 'department', 'employee_name', 'po_number']
+    list_filter  = ['tx_type', 'department']
+    search_fields = ['item__code', 'item__name', 'po_number']

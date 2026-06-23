@@ -6,8 +6,8 @@ import io
 import urllib.request
 import base64
 from datetime import datetime, time, timedelta
-from django.shortcuts import render, redirect
-from django.db.models import Sum, Avg, Count, Q
+from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Sum, Avg, Count, Q, F
 from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from .models import *
@@ -17,15 +17,17 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 import json
+from django.views.decorators.http import require_POST
 from django.core.serializers.json import DjangoJSONEncoder
 from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log, Banpong2Log, BoilerDailyKPI, LatheJob
 from .forms import BoilerOperationForm, ChengchenForm, TakumaForm, YoshimineForm, Banpong1Form, Banpong2Form, BoilerDailyKPIForm
 from .models import MillReport
 from .forms import MillReportForm
-from .models import MaintenanceLog, KPIMetric
+from .models import MaintenanceLog, KPIMetric, InventoryItem, InventoryTransaction
 from .forms import MaintenanceLogForm, KPIMetricForm
-from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic
+from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic, InventoryItem, InventoryTransaction
 from .forms import EquipmentForm, EquipmentBOMForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm, RepairDocumentForm 
+from decimal import Decimal, InvalidOperation
 
 
 # --- Equipment Views ---
@@ -2840,3 +2842,257 @@ def _send_line_notify(message):
     except Exception as e:
         print(f'[LINE Bot Error] {e}')
         return False
+
+# ---- helper: map choices -> dict สำหรับส่งสีไป template ----
+CATEGORY_META = {
+    'tools':       {'name': 'เครื่องมือช่าง',   'icon': '🔧', 'color': '#4f46e5'},
+    'spares':      {'name': 'อะไหล่เครื่องจักร', 'icon': '⚙️', 'color': '#ea580c'},
+    'consumables': {'name': 'วัสดุสิ้นเปลือง',   'icon': '📦', 'color': '#16a34a'},
+    'lubricants':  {'name': 'น้ำมัน/สารเคมี',    'icon': '🛢️', 'color': '#b45309'},
+}
+DEPARTMENT_META = {
+    'mill_a':      {'name': 'ลูกหีบ A',        'color': '#2563eb'},
+    'mill_b':      {'name': 'ลูกหีบ B',        'color': '#0284c7'},
+    'boiler_20':   {'name': 'หม้อน้ำ 20 bar',  'color': '#ea580c'},
+    'boiler_40':   {'name': 'หม้อน้ำ 40 bar',  'color': '#d97706'},
+    'maintenance': {'name': 'ซ่อมบำรุงเครื่องกล', 'color': '#dc2626'},
+    'lathe':       {'name': 'โรงกลึง',         'color': '#7c3aed'},
+}
+
+
+def _to_decimal(value, default='0'):
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError):
+        return Decimal(default)
+
+
+# =====================================================================
+# 1) DASHBOARD — ภาพรวม + KPI + Stock ต่ำ + TX ล่าสุด + สรุปแผนก
+# =====================================================================
+@login_required
+def inventory_dashboard(request):
+    items = InventoryItem.objects.filter(is_active=True)
+    low_stock = items.filter(stock__lte=F('min_stock'))
+
+    # สรุปแยกแผนก
+    dept_stats = []
+    for key, meta in DEPARTMENT_META.items():
+        di = items.filter(department=key)
+        issued = (InventoryTransaction.objects
+                  .filter(department=key, tx_type='issue')
+                  .aggregate(s=Sum('quantity'))['s'] or 0)
+        dept_stats.append({
+            'key': key, 'name': meta['name'], 'color': meta['color'],
+            'total': di.count(),
+            'low': di.filter(stock__lte=F('min_stock')).count(),
+            'issued': issued,
+            'value': sum(i.stock_value for i in di),
+        })
+
+    context = {
+        'total_items':     items.count(),
+        'low_stock_count': low_stock.count(),
+        'tx_total':        InventoryTransaction.objects.count(),
+        'total_value':     sum(i.stock_value for i in items),
+        'low_stock_items': low_stock[:6],
+        'recent_txs':      InventoryTransaction.objects.select_related('item')[:8],
+        'dept_stats':      dept_stats,
+        'category_meta':   CATEGORY_META,
+        'department_meta': DEPARTMENT_META,
+    }
+    return render(request, 'myapp/inventory/dashboard.html', context)
+
+
+# =====================================================================
+# 2) LIST — ตารางรายการ + filter หมวด/แผนก/ค้นหา
+# =====================================================================
+@login_required
+def inventory_list(request):
+    items = InventoryItem.objects.filter(is_active=True)
+    cat  = request.GET.get('cat', '')
+    dept = request.GET.get('dept', '')
+    q    = request.GET.get('q', '')
+
+    if cat:
+        items = items.filter(category=cat)
+    if dept:
+        items = items.filter(department=dept)
+    if q:
+        items = items.filter(Q(name__icontains=q) | Q(code__icontains=q))
+
+    context = {
+        'items': items,
+        'category_meta': CATEGORY_META,
+        'department_meta': DEPARTMENT_META,
+        'f_cat': cat, 'f_dept': dept, 'f_q': q,
+        'category_choices': InventoryItem.CATEGORY_CHOICES,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+    }
+    return render(request, 'myapp/inventory/list.html', context)
+
+
+# =====================================================================
+# 3) STOCK CARD — รายละเอียด 1 รายการ + ประวัติเคลื่อนไหว
+# =====================================================================
+@login_required
+def inventory_stock_card(request, pk):
+    item = get_object_or_404(InventoryItem, pk=pk)
+    context = {
+        'item': item,
+        'transactions': item.transactions.select_related('maintenance_log')[:30],
+        'category_meta': CATEGORY_META,
+        'department_meta': DEPARTMENT_META,
+    }
+    return render(request, 'myapp/inventory/stock_card.html', context)
+
+
+# =====================================================================
+# 4) DEPT SUMMARY + DETAIL — สรุปตามแผนก / drill-down
+# =====================================================================
+@login_required
+def inventory_dept_summary(request):
+    cards = []
+    for key, meta in DEPARTMENT_META.items():
+        di = InventoryItem.objects.filter(department=key, is_active=True)
+        issued = (InventoryTransaction.objects
+                  .filter(department=key, tx_type='issue')
+                  .aggregate(s=Sum('quantity'))['s'] or 0)
+        cards.append({
+            'key': key, 'name': meta['name'], 'color': meta['color'],
+            'total': di.count(),
+            'low': di.filter(stock__lte=F('min_stock')).count(),
+            'issued': issued,
+            'value': sum(i.stock_value for i in di),
+        })
+    return render(request, 'myapp/inventory/dept_summary.html',
+                  {'cards': cards, 'category_meta': CATEGORY_META})
+
+
+@login_required
+def inventory_dept_detail(request, key):
+    meta = DEPARTMENT_META.get(key)
+    items = InventoryItem.objects.filter(department=key, is_active=True)
+    txs = InventoryTransaction.objects.filter(department=key).select_related('item')
+    context = {
+        'dept_key': key, 'dept_meta': meta,
+        'items': items,
+        'recent_txs': txs[:8],
+        'issued': txs.filter(tx_type='issue').aggregate(s=Sum('quantity'))['s'] or 0,
+        'received': txs.filter(tx_type='receive').aggregate(s=Sum('quantity'))['s'] or 0,
+        'low_count': items.filter(stock__lte=F('min_stock')).count(),
+        'total_value': sum(i.stock_value for i in items),
+        'category_meta': CATEGORY_META,
+    }
+    return render(request, 'myapp/inventory/dept_detail.html', context)
+
+
+# =====================================================================
+# 5) TRANSACTIONS — ประวัติทั้งหมด + filter
+# =====================================================================
+@login_required
+def inventory_tx_list(request):
+    txs = InventoryTransaction.objects.select_related('item')
+    t_type = request.GET.get('type', '')
+    dept   = request.GET.get('dept', '')
+    if t_type:
+        txs = txs.filter(tx_type=t_type)
+    if dept:
+        txs = txs.filter(department=dept)
+    context = {
+        'transactions': txs,
+        'category_meta': CATEGORY_META,
+        'department_meta': DEPARTMENT_META,
+        'f_type': t_type, 'f_dept': dept,
+        'tx_types': InventoryTransaction.TX_TYPES,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+    }
+    return render(request, 'myapp/inventory/transactions.html', context)
+
+
+# =====================================================================
+# 6) API — เบิก-คืน / รับเข้า / เพิ่มรายการ  (เรียกด้วย fetch + CSRF)
+#    คืน JSON ให้ JS อัปเดตหน้าได้แบบ real-time
+# =====================================================================
+@login_required
+@require_POST
+def api_inventory_checkout(request):
+    """เบิกออก / คืน เครื่องมือช่าง"""
+    data = json.loads(request.body or '{}')
+    item = get_object_or_404(InventoryItem, pk=data.get('item_id'))
+    tx_type = data.get('type', 'issue')      # 'issue' หรือ 'return'
+    qty = _to_decimal(data.get('quantity', 1))
+
+    if not data.get('employee'):
+        return JsonResponse({'error': 'กรุณากรอกชื่อพนักงาน'}, status=400)
+    if tx_type == 'issue' and item.stock < qty:
+        return JsonResponse({'error': 'Stock ไม่เพียงพอ'}, status=400)
+
+    tx = InventoryTransaction.objects.create(
+        item=item, tx_type=tx_type, quantity=qty,
+        department=data.get('dept', item.department),
+        employee_name=data.get('employee', ''),
+        note=data.get('note', ''),
+        # ถ้าส่ง maintenance_log_id มา จะ link เข้าใบแจ้งซ่อมให้อัตโนมัติ
+        maintenance_log_id=data.get('maintenance_log_id') or None,
+        created_by=request.user,
+    )
+    return JsonResponse({'success': True, 'new_stock': float(item.stock), 'tx_id': tx.id})
+
+
+@login_required
+@require_POST
+def api_inventory_receive(request):
+    """รับสินค้าเข้าคลัง (พร้อม PO)"""
+    data = json.loads(request.body or '{}')
+    item = get_object_or_404(InventoryItem, pk=data.get('item_id'))
+    if not data.get('po_number'):
+        return JsonResponse({'error': 'กรุณาระบุเลขที่ PO'}, status=400)
+
+    InventoryTransaction.objects.create(
+        item=item, tx_type='receive',
+        quantity=_to_decimal(data.get('quantity', 1)),
+        department=item.department,
+        employee_name=request.user.get_full_name() or request.user.username,
+        po_number=data.get('po_number', ''),
+        supplier=data.get('supplier', ''),
+        created_by=request.user,
+    )
+    # อัปเดตราคา/หน่วยล่าสุดถ้าส่งมา
+    price = data.get('unit_price')
+    if price:
+        item.unit_price = _to_decimal(price)
+        item.save(update_fields=['unit_price'])
+    return JsonResponse({'success': True, 'new_stock': float(item.stock)})
+
+
+@login_required
+@require_POST
+def api_inventory_add_item(request):
+    """เพิ่มรายการใหม่เข้าคลัง + เปิดยอดตั้งต้น (ถ้ามี)"""
+    data = json.loads(request.body or '{}')
+    if not data.get('code') or not data.get('name'):
+        return JsonResponse({'error': 'กรุณากรอกรหัสและชื่อรายการ'}, status=400)
+    if InventoryItem.objects.filter(code=data['code']).exists():
+        return JsonResponse({'error': 'รหัสสินค้านี้มีอยู่แล้ว'}, status=400)
+
+    item = InventoryItem.objects.create(
+        code=data['code'], name=data['name'],
+        category=data.get('category', 'consumables'),
+        department=data.get('department', 'maintenance'),
+        unit=data.get('unit', 'ชิ้น'),
+        min_stock=_to_decimal(data.get('min_stock', 0)),
+        max_stock=_to_decimal(data.get('max_stock', 0)),
+        location=data.get('location', ''),
+        unit_price=_to_decimal(data.get('unit_price', 0)),
+    )
+    initial = _to_decimal(data.get('initial_stock', 0))
+    if initial > 0:
+        InventoryTransaction.objects.create(
+            item=item, tx_type='receive', quantity=initial,
+            department=item.department,
+            employee_name=request.user.get_full_name() or request.user.username,
+            po_number='Initial Stock', note='เปิดบัญชีครั้งแรก',
+            created_by=request.user,
+        )
+    return JsonResponse({'success': True, 'item_id': item.id})

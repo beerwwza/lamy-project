@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from decimal import Decimal
 
 # ==========================================
 # 1. User & Employee Management Models
@@ -834,6 +835,10 @@ class RepairDocument(models.Model):
     DOC_TYPE_CHOICES = [
         ('repair',     'รายงานการซ่อม'),
         ('inspection', 'รายงานการตรวจสอบ (Inspection)'),
+        ('drawing',    'Drawing'),
+        ('manual',     'คู่มือ'),
+        ('ebook',      'E-book'),
+        ('general',    'อื่นๆ ทั่วไป'),
     ]
 
     # ── Core Fields ──────────────────────────────────────────
@@ -883,3 +888,129 @@ class RepairDocument(models.Model):
     def drive_folder_path(self):
         eq_id = self.equipment.equipment_id if self.equipment else 'UNASSIGNED'
         return f'LAMY / {self.budget_year} / {eq_id}'
+    
+class InventoryItem(models.Model):
+    """รายการสต็อกแต่ละชิ้น — ครอบคลุมทั้ง 4 หมวด"""
+
+    CATEGORY_CHOICES = [
+        ('tools',       'เครื่องมือช่าง'),
+        ('spares',      'อะไหล่เครื่องจักร'),
+        ('consumables', 'วัสดุสิ้นเปลือง'),
+        ('lubricants',  'น้ำมัน/สารเคมี'),
+    ]
+
+    DEPARTMENT_CHOICES = [
+        ('mill_a',      'ลูกหีบ A'),
+        ('mill_b',      'ลูกหีบ B'),
+        ('boiler_20',   'หม้อน้ำ 20 bar'),
+        ('boiler_40',   'หม้อน้ำ 40 bar'),
+        ('maintenance', 'ซ่อมบำรุงเครื่องกล'),
+        ('lathe',       'โรงกลึง'),
+    ]
+
+    code        = models.CharField(max_length=30, unique=True, verbose_name="รหัสสินค้า")
+    name        = models.CharField(max_length=255, verbose_name="ชื่อรายการ")
+    category    = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='consumables', verbose_name="หมวดหมู่")
+    department  = models.CharField(max_length=20, choices=DEPARTMENT_CHOICES, default='maintenance', verbose_name="แผนก")
+    unit        = models.CharField(max_length=20, default='ชิ้น', verbose_name="หน่วยนับ")
+
+    stock       = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="ยอดคงเหลือ")
+    min_stock   = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="สต็อกขั้นต่ำ")
+    max_stock   = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="สต็อกสูงสุด")
+
+    location    = models.CharField(max_length=100, blank=True, verbose_name="ที่จัดเก็บ")
+    unit_price  = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="ราคา/หน่วย")
+
+    # เชื่อมอะไหล่เข้ากับ BOM ของเครื่องจักร (optional — ตาม requirement "เชื่อมบางส่วน")
+    linked_bom  = models.ForeignKey('EquipmentBOM', null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='inventory_items', verbose_name="ผูกกับ BOM อะไหล่")
+
+    is_active   = models.BooleanField(default=True, verbose_name="สถานะใช้งาน")
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['code']
+        verbose_name = "รายการคลัง (Inventory Item)"
+        verbose_name_plural = "รายการคลัง (Inventory Items)"
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+    @property
+    def is_low_stock(self):
+        """True ถ้ายอดคงเหลือ <= สต็อกขั้นต่ำ"""
+        return self.stock <= self.min_stock
+
+    @property
+    def stock_value(self):
+        """มูลค่าคงคลัง = ยอด x ราคา/หน่วย"""
+        return self.stock * self.unit_price
+
+    @property
+    def stock_percent(self):
+        """% เทียบสต็อกสูงสุด (ใช้วาด progress bar)"""
+        if self.max_stock and self.max_stock > 0:
+            return min(100, round((self.stock / self.max_stock) * 100))
+        return 0
+
+
+class InventoryTransaction(models.Model):
+    """บันทึกการเคลื่อนไหวทุกประเภท: รับเข้า / เบิกออก / คืน / ปรับยอด
+       ทุกครั้งที่ save() จะอัปเดต stock ของ InventoryItem อัตโนมัติ"""
+
+    TX_TYPES = [
+        ('receive', 'รับเข้า'),
+        ('issue',   'เบิกออก'),
+        ('return',  'คืน'),
+        ('adjust',  'ปรับยอด'),
+    ]
+
+    item          = models.ForeignKey(InventoryItem, on_delete=models.PROTECT,
+                                      related_name='transactions', verbose_name="รายการ")
+    tx_type       = models.CharField(max_length=10, choices=TX_TYPES, verbose_name="ประเภท")
+    quantity      = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="จำนวน")
+    department    = models.CharField(max_length=20, choices=InventoryItem.DEPARTMENT_CHOICES, verbose_name="แผนก")
+
+    employee_name = models.CharField(max_length=100, blank=True, verbose_name="ชื่อพนักงาน")
+    po_number     = models.CharField(max_length=50, blank=True, verbose_name="เลขที่ PO")
+    supplier      = models.CharField(max_length=200, blank=True, verbose_name="ผู้ขาย")
+    note          = models.TextField(blank=True, verbose_name="หมายเหตุ")
+
+    # เชื่อมกับใบแจ้งซ่อม (ตาม requirement: เบิกอะไหล่แล้ว link ไป Maintenance Log ได้)
+    maintenance_log = models.ForeignKey('MaintenanceLog', null=True, blank=True,
+                                        on_delete=models.SET_NULL, related_name='inventory_txs',
+                                        verbose_name="ใบแจ้งซ่อมที่เกี่ยวข้อง")
+
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='inventory_txs', verbose_name="ผู้บันทึก")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="วันที่ทำรายการ")
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "ประวัติเคลื่อนไหวคลัง (Transaction)"
+        verbose_name_plural = "ประวัติเคลื่อนไหวคลัง (Transactions)"
+
+    def __str__(self):
+        return f"{self.get_tx_type_display()} {self.item.code} x{self.quantity}"
+
+    def _delta(self):
+        """ผลต่อ stock ของ transaction นี้ (+ เพิ่ม / - ลด)"""
+        q = Decimal(self.quantity)
+        if self.tx_type in ('receive', 'return'):
+            return q
+        if self.tx_type == 'issue':
+            return -q
+        if self.tx_type == 'adjust':
+            return q  # ปรับยอด: ส่งค่าบวก/ลบเข้ามาได้
+        return Decimal(0)
+
+    def save(self, *args, **kwargs):
+        """บันทึก transaction แล้วอัปเดต stock ของ item ทันที
+           NOTE: เรียก save() ครั้งเดียวต่อรายการเท่านั้น (อย่าแก้ qty แล้ว save ซ้ำ
+           เพราะจะบวก/ลบ stock ซ้ำ — ถ้าต้องแก้ ใช้ adjust transaction ใหม่แทน)"""
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+        if is_new:
+            self.item.stock = (self.item.stock or Decimal(0)) + self._delta()
+            self.item.save(update_fields=['stock', 'updated_at'])

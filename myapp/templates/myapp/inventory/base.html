@@ -1,0 +1,91 @@
+{% extends 'myapp/base.html' %}
+{% load inventory_extras %}
+{% block content %}
+<div class="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+
+  <!-- Sidebar -->
+  <aside class="bg-slate-900 dark:bg-slate-950 border-r border-slate-700 z-20 flex flex-col w-56 flex-shrink-0">
+    <!-- Logo -->
+    <div class="h-16 flex flex-col justify-center px-4 border-b border-slate-700">
+      <span class="font-bold text-lg text-indigo-400">📦 Inventory OS</span>
+      <span class="text-xs text-slate-500 mt-0.5">LAMY FACTORY SYSTEM</span>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 overflow-y-auto py-4">
+      <ul class="space-y-0.5 px-2">
+        <li>
+          <a href="{% url 'inventory_dashboard' %}"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-indigo-600/20 hover:text-indigo-300 transition-colors text-sm
+             {% if request.resolver_match.url_name == 'inventory_dashboard' %}bg-indigo-600/30 text-indigo-300{% endif %}">
+            <span class="text-base">🏠</span> Dashboard
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'inventory_list' %}"
+             class="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-indigo-600/20 hover:text-indigo-300 transition-colors text-sm
+             {% if request.resolver_match.url_name == 'inventory_list' %}bg-indigo-600/30 text-indigo-300{% endif %}">
+            <span class="flex items-center gap-3"><span class="text-base">📋</span> รายการ Inventory</span>
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'inventory_dept_summary' %}"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-indigo-600/20 hover:text-indigo-300 transition-colors text-sm
+             {% if 'dept' in request.resolver_match.url_name %}bg-indigo-600/30 text-indigo-300{% endif %}">
+            <span class="text-base">🏭</span> สรุปตามแผนก
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'inventory_tx_list' %}"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-indigo-600/20 hover:text-indigo-300 transition-colors text-sm
+             {% if request.resolver_match.url_name == 'inventory_tx_list' %}bg-indigo-600/30 text-indigo-300{% endif %}">
+            <span class="text-base">📜</span> ประวัติการเคลื่อนไหว
+          </a>
+        </li>
+      </ul>
+
+      <!-- Divider -->
+      <div class="my-3 mx-4 border-t border-slate-700"></div>
+      <p class="px-4 text-xs text-slate-600 uppercase tracking-wider mb-2">Lamy Modules</p>
+      <ul class="space-y-0.5 px-2">
+        <li>
+          <a href="/maintenance/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-700 transition-colors text-sm">
+            <span class="text-base">🔧</span> แจ้งซ่อมเครื่องจักร
+          </a>
+        </li>
+        <li>
+          <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-700 transition-colors text-sm">
+            <span class="text-base">📊</span> Dashboard โรงงาน
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- User -->
+    <div class="p-4 border-t border-slate-700">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+          {{ request.user.username|first|upper }}
+        </div>
+        <span class="text-xs text-slate-400 truncate">{{ request.user.username }}</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+    <!-- Header -->
+    <header class="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 flex-shrink-0 gap-4">
+      <h1 class="text-base font-semibold text-slate-800 dark:text-slate-100 truncate">{% block page_title %}Inventory{% endblock %}</h1>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        {% block header_actions %}{% endblock %}
+      </div>
+    </header>
+
+    <!-- Scrollable content -->
+    <div class="flex-1 overflow-y-auto p-6">
+      {% block inv_content %}{% endblock %}
+    </div>
+  </main>
+</div>
+{% endblock %}

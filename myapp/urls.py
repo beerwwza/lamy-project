@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import * #Home, register, user_login, user_logout การใช้ * เป็นการเรียกฟังก์ชั่นทั้งหมดในไฟล์นั้นมา ไม่ต้องเรียกใช้ฟังก์ชั่นที่ละตัว
 from .views import equipment_toggle_status
+from myapp import views
 
 urlpatterns = [
     #path('', Home, name='home'), #localhost:8000
@@ -58,6 +59,19 @@ urlpatterns = [
     path('docs/register/', doc_register,   name='doc_register'),
     path('docs/delete/<int:doc_id>/', doc_delete, name='doc_delete'),
     path('webhook/line/', line_webhook, name='line_webhook'),
+
+    # ===== Inventory Module =====
+    path('inventory/',                    inventory_dashboard,    name='inventory_dashboard'),
+    path('inventory/list/',               inventory_list,         name='inventory_list'),
+    path('inventory/item/<int:pk>/',      inventory_stock_card,   name='inventory_stock_card'),
+    path('inventory/departments/',        inventory_dept_summary, name='inventory_dept_summary'),
+    path('inventory/department/<str:key>/', inventory_dept_detail, name='inventory_dept_detail'),
+    path('inventory/transactions/',       inventory_tx_list,      name='inventory_tx_list'),
+
+    # ----- API (fetch + CSRF) -----
+    path('api/inventory/checkout/',       api_inventory_checkout, name='api_inventory_checkout'),
+    path('api/inventory/receive/',        api_inventory_receive,  name='api_inventory_receive'),
+    path('api/inventory/add-item/',       api_inventory_add_item, name='api_inventory_add_item'),
 
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]
