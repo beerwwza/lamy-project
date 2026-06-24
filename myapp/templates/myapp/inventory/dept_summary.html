@@ -1,0 +1,40 @@
+{% extends 'myapp/inventory/base.html' %}
+{% load inventory_extras %}
+{% block page_title %}สรุปคลังสินค้าตามแผนก{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'inventory_dashboard' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← Dashboard</a>
+{% endblock %}
+
+{% block inv_content %}
+<div class="grid grid-cols-3 gap-4">
+  {% for card in cards %}
+  <a href="{% url 'inventory_dept_detail' card.key %}"
+     class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:shadow-md transition-shadow no-underline block"
+     style="border-left: 4px solid {{ card.color }};">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <p class="text-sm font-bold" style="color:{{ card.color }};">{{ card.name }}</p>
+        <p class="text-3xl font-black text-slate-800 dark:text-slate-100 mt-1">{{ card.total }}</p>
+        <p class="text-xs text-slate-400">รายการสินค้า</p>
+      </div>
+      {% if card.low > 0 %}
+      <span class="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-lg font-medium">⚠️ {{ card.low }} ต่ำ</span>
+      {% else %}
+      <span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg font-medium">✅ ปกติ</span>
+      {% endif %}
+    </div>
+    <div class="border-t border-slate-100 dark:border-slate-800 pt-3 grid grid-cols-2 gap-2 text-center">
+      <div>
+        <p class="text-base font-bold text-red-500">{{ card.issued|floatformat:0 }}</p>
+        <p class="text-xs text-slate-400">เบิกออกรวม</p>
+      </div>
+      <div>
+        <p class="text-base font-bold text-indigo-600">฿{{ card.value|floatformat:0 }}</p>
+        <p class="text-xs text-slate-400">มูลค่าคงคลัง</p>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

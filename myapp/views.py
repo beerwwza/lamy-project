@@ -1,10 +1,14 @@
+import os
 import pandas as pd
 import numpy as np
 import csv
 import io
+import urllib.request
+import base64
 from datetime import datetime, time, timedelta
-from django.shortcuts import render, redirect
-from django.db.models import Sum, Avg, Count
+from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Sum, Avg, Count, Q, F
+from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from .models import *
 from django.contrib.auth.models import User
@@ -13,17 +17,18 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 import json
+from django.views.decorators.http import require_POST
 from django.core.serializers.json import DjangoJSONEncoder
 from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log, Banpong2Log, BoilerDailyKPI, LatheJob
 from .forms import BoilerOperationForm, ChengchenForm, TakumaForm, YoshimineForm, Banpong1Form, Banpong2Form, BoilerDailyKPIForm
 from .models import MillReport
 from .forms import MillReportForm
-from .models import MaintenanceLog, KPIMetric
+from .models import MaintenanceLog, KPIMetric, InventoryItem, InventoryTransaction
 from .forms import MaintenanceLogForm, KPIMetricForm
+from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic, InventoryItem, InventoryTransaction
+from .forms import EquipmentForm, EquipmentBOMForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm, RepairDocumentForm 
+from decimal import Decimal, InvalidOperation
 
-
-from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic
-from .forms import EquipmentForm, EquipmentBOMForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm
 
 # --- Equipment Views ---
 @login_required
@@ -171,12 +176,20 @@ def equipment_cbm(request, eq_id=None):
     
     return redirect('equipment_data_detail', eq_id=eq_id)
 
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
+ALLOWED_IMAGE_MIMETYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'}
+
 @login_required
 def upload_equipment_image(request, eq_id):
     if request.method == 'POST' and request.FILES.get('image'):
+        uploaded = request.FILES['image']
+        ext = os.path.splitext(uploaded.name)[1].lower()
+        content_type = uploaded.content_type.split(';')[0].strip().lower()
+        if ext not in ALLOWED_IMAGE_EXTENSIONS or content_type not in ALLOWED_IMAGE_MIMETYPES:
+            return JsonResponse({'status': 'error', 'message': 'อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif, webp, bmp) เท่านั้น'})
         equipment = Equipment.objects.filter(equipment_id=eq_id).first()
         if equipment:
-            equipment.image = request.FILES['image']
+            equipment.image = uploaded
             equipment.save()
             return JsonResponse({'status': 'success', 'message': 'อัปโหลดรูปภาพสำเร็จ'})
         return JsonResponse({'status': 'error', 'message': 'ไม่พบเครื่องจักร'})
@@ -323,9 +336,24 @@ def dashboard(request):
     line_a_obj = MillReport.objects.filter(line='A', cane_weight__gt=0).order_by('-date').first()
     line_b_obj = MillReport.objects.filter(line='B', cane_weight__gt=0).order_by('-date').first()
     
+    recent_mill_qs = MillReport.objects.select_related('created_by', 'updated_by').order_by('-date')[:10]
+    recent_mill = []
+    for r in recent_mill_qs:
+        recent_mill.append({
+            'date': r.date.strftime('%Y-%m-%d'),
+            'line': r.line,
+            'cane_weight': f"{r.cane_weight:,.0f}" if r.cane_weight else "0",
+            'ccs': f"{r.ccs:.2f}" if r.ccs else "-",
+            'created_by': r.created_by.get_full_name() or r.created_by.username if r.created_by else None,
+            'created_at': r.created_at.strftime('%d/%m %H:%M') if r.created_at else None,
+            'updated_by': r.updated_by.get_full_name() or r.updated_by.username if r.updated_by else None,
+            'updated_at': r.updated_at.strftime('%d/%m %H:%M') if r.updated_at else None,
+        })
+
     mill_data = {
         'total_cane': f"{mill_agg['total_cane']:,.0f}" if mill_agg['total_cane'] else "0",
         'avg_trash': f"{mill_agg['avg_trash']:.2f}" if mill_agg['avg_trash'] else "0.00",
+        'recent': recent_mill,
         'line_a': {
             'date': line_a_obj.date.strftime('%Y-%m-%d') if line_a_obj else "-",
             'cane_weight': f"{line_a_obj.cane_weight:,.0f}" if line_a_obj and line_a_obj.cane_weight else "0",
@@ -344,41 +372,67 @@ def dashboard(request):
         }
     }
 
-    # 2. Boiler Data (Yoshimine as Example)
-    boiler_obj = YoshimineLog.objects.order_by('-yos_date', '-yos_time').first()
+    # 2. Boiler Data — ดึงจาก BoilerDailyKPI เหมือนหน้า boiler.html
+    boiler_kpi = BoilerDailyKPI.objects.order_by('-date').first()
     boiler_data = {
-        'steam_flow': f"{boiler_obj.yos_main_steam_flow:.1f}" if boiler_obj and boiler_obj.yos_main_steam_flow else "0.0",
-        'pressure': f"{boiler_obj.yos_main_steam_pressure:.1f}" if boiler_obj and boiler_obj.yos_main_steam_pressure else "0.0",
-        'temp': f"{boiler_obj.yos_main_steam_temp:.0f}" if boiler_obj and boiler_obj.yos_main_steam_temp else "0",
-        'eco': f"{boiler_obj.yos_eco_out_temp:.0f}" if boiler_obj and boiler_obj.yos_eco_out_temp else "0",
+        'date': boiler_kpi.date.strftime('%Y-%m-%d') if boiler_kpi else "-",
+        'downtime_a': float(boiler_kpi.downtime_a) if boiler_kpi else 0,
+        'downtime_b': float(boiler_kpi.downtime_b) if boiler_kpi else 0,
+        'reduced_cap_a': float(boiler_kpi.reduced_cap_a) if boiler_kpi else 0,
+        'reduced_cap_b': float(boiler_kpi.reduced_cap_b) if boiler_kpi else 0,
+        'flow_20bar': float(boiler_kpi.flow_20bar) if boiler_kpi else 0,
+        'flow_40bar': float(boiler_kpi.flow_40bar) if boiler_kpi else 0,
+        'alert': bool(boiler_kpi and (boiler_kpi.downtime_a > 1.01 or boiler_kpi.downtime_b > 1.01
+                                      or boiler_kpi.reduced_cap_a > 1.02 or boiler_kpi.reduced_cap_b > 1.02)),
+        'downtime_a_alert': bool(boiler_kpi and boiler_kpi.downtime_a > 1.01),
+        'downtime_b_alert': bool(boiler_kpi and boiler_kpi.downtime_b > 1.01),
+        'reduced_cap_a_alert': bool(boiler_kpi and boiler_kpi.reduced_cap_a > 1.02),
+        'reduced_cap_b_alert': bool(boiler_kpi and boiler_kpi.reduced_cap_b > 1.02),
     }
 
-    # 3. Maintenance Data (Latest) & 4. Lathe Data (Latest)
-    # Since MaintenanceLog is transactional, we might want "Today's Stats" or just "Latest Ticket"
-    # For dashboard summary, let's show "Today's Downtime" if available, else 0
+    # 3. Maintenance Data — วันนี้ (ยกเว้นโรงกลึง)
     today = datetime.now().date()
-    
-    # Maintenance (Exclude Lathe)
     maint_qs = MaintenanceLog.objects.filter(date=today).exclude(dept='โรงกลึง')
-    maint_downtime = maint_qs.aggregate(Sum('downtime_stop'))['downtime_stop__sum'] or 0
-    maint_tickets = maint_qs.count()
+    maint_count = maint_qs.count()
+    maint_agg = maint_qs.aggregate(
+        total_stop=Sum('downtime_stop'),
+        total_reduced=Sum('downtime_reduced'),
+    )
+    maint_stop = maint_agg['total_stop'] or 0
+    maint_reduced = maint_agg['total_reduced'] or 0
+    maint_leaks = maint_qs.filter(is_leak=True).count()
+    maint_mttr = round(maint_stop / maint_count, 2) if maint_count > 0 else 0
+    maint_data = {
+        'repairs': maint_count,
+        'mttr': maint_mttr,
+        'downtime_stop': round(maint_stop, 2),
+        'downtime_reduced': round(maint_reduced, 2),
+        'leaks': maint_leaks,
+        'alert': maint_count > 0 or maint_leaks > 0,
+        'mttr_alert': maint_mttr > 2,
+        'stop_alert': float(maint_stop) > 0,
+        'reduced_alert': float(maint_reduced) > 0,
+        'leaks_alert': maint_leaks > 0,
+    }
 
-    # Lathe (Dept = 'โรงกลึง')
-    lathe_qs = MaintenanceLog.objects.filter(date=today, dept='โรงกลึง')
-    lathe_downtime = lathe_qs.aggregate(Sum('downtime_stop'))['downtime_stop__sum'] or 0
-    lathe_jobs = lathe_qs.count()
+    # 4. Lathe Data
+    lathe_qs = LatheJob.objects.all()
+    lathe_agg = lathe_qs.aggregate(total_pieces=Sum('pieces'), total_hours=Sum('hours'))
+    lathe_pending = lathe_qs.filter(status='Pending').count()
+    lathe_data = {
+        'pending': lathe_pending,
+        'in_progress': lathe_qs.filter(status='In Progress').count(),
+        'done': lathe_qs.filter(status='Done').count(),
+        'total_pieces': int(lathe_agg['total_pieces'] or 0),
+        'total_hours': round(float(lathe_agg['total_hours'] or 0), 1),
+        'alert': lathe_pending > 5,
+    }
 
     context = {
         'mill': mill_data,
         'boiler': boiler_data,
-        'maint': {
-            'downtime': maint_downtime,
-            'tickets': maint_tickets
-        },
-        'lathe': {
-            'downtime': lathe_downtime,
-            'jobs': lathe_jobs
-        }
+        'maint': maint_data,
+        'lathe': lathe_data,
     }
     return render(request, 'myapp/dashboard.html', context)
 
@@ -719,12 +773,20 @@ def operation_dashboard(request):
     bp1 = Banpong1Log.objects.order_by('bp1_date', 'bp1_time').last()
     bp2 = Banpong2Log.objects.order_by('bp2_date', 'bp2_time').last()
 
+    def fmt_update(obj, date_field, time_field):
+        d = getattr(obj, date_field, None) if obj else None
+        t = getattr(obj, time_field, None) if obj else None
+        if d and t:
+            return f"{d.strftime('%d/%m/%Y')} {t.strftime('%H:%M')}"
+        return None
+
     machine_data = {
         'john_thomson': {
             'name': 'John Thomson',
             'press': get_val(jt, 'jt_steam_pressure'),
             'flow': get_val(jt, 'jt_steam_flow'),
             'temp': get_val(jt, 'jt_temp_steam'),
+            'last_update': fmt_update(jt, 'jt_date', 'jt_time'),
             'all_fields': get_all_fields(jt, 'jt')
         },
         'chengchen': {
@@ -732,6 +794,7 @@ def operation_dashboard(request):
             'press': get_val(ch, 'ch_steam_pressure'),
             'flow': get_val(ch, 'ch_steam_flow'),
             'temp': get_val(ch, 'ch_steam_temp'),
+            'last_update': fmt_update(ch, 'ch_date', 'ch_time'),
             'all_fields': get_all_fields(ch, 'ch')
         },
         'takuma': {
@@ -739,6 +802,7 @@ def operation_dashboard(request):
             'press': get_val(tk, 'tk_steam_pressure'),
             'flow': get_val(tk, 'tk_steam_flow'),
             'temp': get_val(tk, 'tk_steam_temp'),
+            'last_update': fmt_update(tk, 'tk_date', 'tk_time'),
             'all_fields': get_all_fields(tk, 'tk')
         },
         'yoshimine': {
@@ -746,6 +810,7 @@ def operation_dashboard(request):
             'press': get_val(yos, 'yos_main_steam_pressure'),
             'flow': get_val(yos, 'yos_main_steam_flow'),
             'temp': get_val(yos, 'yos_main_steam_temp'),
+            'last_update': fmt_update(yos, 'yos_date', 'yos_time'),
             'all_fields': get_all_fields(yos, 'yos')
         },
         'banpong1': {
@@ -753,6 +818,7 @@ def operation_dashboard(request):
             'press': get_val(bp1, 'bp1_main_steam_pressure'),
             'flow': get_val(bp1, 'bp1_main_steam_flow'),
             'temp': get_val(bp1, 'bp1_main_steam_temp'),
+            'last_update': fmt_update(bp1, 'bp1_date', 'bp1_time'),
             'all_fields': get_all_fields(bp1, 'bp1')
         },
         'banpong2': {
@@ -760,6 +826,7 @@ def operation_dashboard(request):
             'press': get_val(bp2, 'bp2_main_steam_pressure'),
             'flow': get_val(bp2, 'bp2_main_steam_flow'),
             'temp': get_val(bp2, 'bp2_main_steam_temp'),
+            'last_update': fmt_update(bp2, 'bp2_date', 'bp2_time'),
             'all_fields': get_all_fields(bp2, 'bp2')
         },
     }
@@ -1490,39 +1557,170 @@ def banpong2_operation_add(request):
 
 @login_required
 def boiler(request):
-    # 1. ดึงข้อมูล KPI ล่าสุดมาแสดงผลตัวเลข (Cards)
-    latest_kpi = BoilerDailyKPI.objects.order_by('-date').first()
+    from datetime import date as date_cls
 
-    # 2. ดึงข้อมูลย้อนหลัง 7 วันเพื่อทำกราฟ (เรียงตามวันที่)
-    history_kpi = BoilerDailyKPI.objects.order_by('-date')[:7]
-    history_kpi = reversed(list(history_kpi)) # กลับด้านให้เรียงจาก อดีต -> ปัจจุบัน
+    # 1. Date range from query params
+    days_param = request.GET.get('days', '7')
+    start_str = request.GET.get('start', '')
+    end_str = request.GET.get('end', '')
+    today = date_cls.today()
 
-    # 3. เตรียมข้อมูล Array สำหรับกราฟ
-    dates = []
-    press_20 = []
-    flow_20 = []
-    press_40 = []
-    flow_40 = []
+    is_custom = bool(start_str and end_str)
+    if is_custom:
+        try:
+            start_date = date_cls.fromisoformat(start_str)
+            end_date = date_cls.fromisoformat(end_str)
+        except ValueError:
+            start_date = today - timedelta(days=6)
+            end_date = today
+            is_custom = False
+    else:
+        try:
+            days = int(days_param)
+        except ValueError:
+            days = 7
+        end_date = today
+        start_date = today - timedelta(days=days - 1)
 
-    for kpi in history_kpi:
-        # แปลงวันที่เป็นรูปแบบสั้น (เช่น 05/01)
-        dates.append(kpi.date.strftime('%d/%m'))
-        press_20.append(kpi.pressure_20bar or 0)
-        flow_20.append(kpi.flow_20bar or 0)
-        press_40.append(kpi.pressure_40bar or 0)
-        flow_40.append(kpi.flow_40bar or 0)
+    # 2. Latest KPI in period
+    latest_kpi = BoilerDailyKPI.objects.filter(date__lte=end_date).order_by('-date').first()
 
-    # Context ส่งไปที่ Template
+    # 3. History for charts + stats
+    history_qs = list(BoilerDailyKPI.objects.filter(
+        date__gte=start_date, date__lte=end_date
+    ).order_by('date'))
+
+    # 4. Scorecard stats
+    def _stats(qs, field, threshold):
+        vals = [getattr(r, field) for r in qs if getattr(r, field) is not None]
+        if not vals:
+            return {'avg': None, 'max': None, 'min': None, 'days_ok': 0, 'days_total': 0}
+        days_ok = sum(1 for v in vals if v <= threshold)
+        return {
+            'avg': round(sum(vals) / len(vals), 3),
+            'max': round(max(vals), 3),
+            'min': round(min(vals), 3),
+            'days_ok': days_ok,
+            'days_total': len(vals),
+        }
+
+    scorecard = {
+        'downtime_a':   _stats(history_qs, 'downtime_a', 1.01),
+        'downtime_b':   _stats(history_qs, 'downtime_b', 1.01),
+        'downtime_melt':_stats(history_qs, 'downtime_sugar_melt', 0.70),
+        'reduced_a':    _stats(history_qs, 'reduced_cap_a', 1.02),
+        'reduced_b':    _stats(history_qs, 'reduced_cap_b', 1.02),
+    }
+
+    # 5. Trend: compare avg of current vs previous period
+    period_days = (end_date - start_date).days + 1
+    prev_end = start_date - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=period_days - 1)
+    prev_qs = list(BoilerDailyKPI.objects.filter(date__gte=prev_start, date__lte=prev_end))
+
+    def _avg(qs, field):
+        vals = [getattr(r, field) for r in qs if getattr(r, field) is not None]
+        return round(sum(vals) / len(vals), 3) if vals else None
+
+    kpi_fields = ['downtime_a', 'downtime_b', 'downtime_sugar_melt', 'reduced_cap_a', 'reduced_cap_b']
+    trend = {}
+    for f in kpi_fields:
+        curr = _avg(history_qs, f)
+        prev = _avg(prev_qs, f)
+        if curr is not None and prev is not None:
+            delta = round(curr - prev, 3)
+            trend[f] = {'delta': abs(delta), 'direction': 'up' if delta > 0 else ('down' if delta < 0 else 'flat')}
+        else:
+            trend[f] = {'delta': None, 'direction': 'flat'}
+
+    # 6. Alert history: records that exceeded threshold
+    thresholds = {
+        'downtime_a': (1.01, 'Downtime A'),
+        'downtime_b': (1.01, 'Downtime B'),
+        'downtime_sugar_melt': (0.70, 'Downtime ละลาย'),
+        'reduced_cap_a': (1.02, 'ลดกำลัง A'),
+        'reduced_cap_b': (1.02, 'ลดกำลัง B'),
+    }
+    alert_records = []
+    for rec in history_qs:
+        for field, (threshold, label) in thresholds.items():
+            val = getattr(rec, field)
+            if val is not None and val > threshold:
+                alert_records.append({
+                    'date': rec.date.strftime('%d/%m/%Y'),
+                    'kpi': label,
+                    'value': round(val, 3),
+                    'target': threshold,
+                    'excess': round(val - threshold, 3),
+                })
+    alert_records.sort(key=lambda x: x['date'], reverse=True)
+
+    # 7. Chart arrays
+    dates  = [r.date.strftime('%d/%m') for r in history_qs]
+    press_20 = [r.pressure_20bar or 0 for r in history_qs]
+    flow_20  = [r.flow_20bar or 0 for r in history_qs]
+    press_40 = [r.pressure_40bar or 0 for r in history_qs]
+    flow_40  = [r.flow_40bar or 0 for r in history_qs]
+
     context = {
         'latest_kpi': latest_kpi,
-        # แปลงข้อมูล List เป็น JSON String เพื่อให้ JavaScript นำไปใช้ได้
-        'chart_dates': json.dumps(dates, cls=DjangoJSONEncoder),
+        'scorecard': scorecard,
+        'trend': trend,
+        'alert_records': alert_records,
+        'selected_days': days_param,
+        'start_date': start_date.strftime('%Y-%m-%d'),
+        'end_date': end_date.strftime('%Y-%m-%d'),
+        'is_custom': is_custom,
+        'chart_dates':    json.dumps(dates, cls=DjangoJSONEncoder),
         'chart_press_20': json.dumps(press_20, cls=DjangoJSONEncoder),
-        'chart_flow_20': json.dumps(flow_20, cls=DjangoJSONEncoder),
+        'chart_flow_20':  json.dumps(flow_20, cls=DjangoJSONEncoder),
         'chart_press_40': json.dumps(press_40, cls=DjangoJSONEncoder),
-        'chart_flow_40': json.dumps(flow_40, cls=DjangoJSONEncoder),
+        'chart_flow_40':  json.dumps(flow_40, cls=DjangoJSONEncoder),
     }
     return render(request, 'myapp/boiler.html', context)
+
+
+@login_required
+def boiler_export_csv(request):
+    import csv
+    from datetime import date as date_cls
+    from django.http import HttpResponse
+
+    days_param = request.GET.get('days', '7')
+    start_str = request.GET.get('start', '')
+    end_str = request.GET.get('end', '')
+    today = date_cls.today()
+
+    if start_str and end_str:
+        try:
+            start_date = date_cls.fromisoformat(start_str)
+            end_date = date_cls.fromisoformat(end_str)
+        except ValueError:
+            start_date = today - timedelta(days=6)
+            end_date = today
+    else:
+        try:
+            days = int(days_param)
+        except ValueError:
+            days = 7
+        end_date = today
+        start_date = today - timedelta(days=days - 1)
+
+    qs = BoilerDailyKPI.objects.filter(date__gte=start_date, date__lte=end_date).order_by('date')
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = f'attachment; filename="boiler_kpi_{start_date}_{end_date}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Downtime A%', 'Downtime B%', 'Downtime Melt%',
+                     'Reduced Cap A%', 'Reduced Cap B%',
+                     'Pressure 20bar', 'Flow 20bar', 'Pressure 40bar', 'Flow 40bar',
+                     'Shredder (T/Day)'])
+    for r in qs:
+        writer.writerow([r.date, r.downtime_a, r.downtime_b, r.downtime_sugar_melt,
+                         r.reduced_cap_a, r.reduced_cap_b,
+                         r.pressure_20bar, r.flow_20bar, r.pressure_40bar, r.flow_40bar,
+                         r.shredder_consumption])
+    return response
 
 @login_required
 def boiler_kpi_form(request):    
@@ -1730,6 +1928,7 @@ def maintenance_import_csv(request):
             
     return JsonResponse({'success': False, 'error': 'ไม่มีไฟล์ถูกส่งมา'})
     
+@login_required
 def mill(request):
     # (Same as provided logic)
     today = datetime.now().date()
@@ -1814,6 +2013,7 @@ def mill(request):
     
     return render(request, 'myapp/mill.html', context)
 
+@login_required
 def mill_history_api(request):
     try:
         line = request.GET.get('line', 'A')
@@ -1884,12 +2084,15 @@ def mill_history_api(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
+@login_required
 def mill_report(request):
     if request.method == 'POST':
         form = MillReportForm(request.POST)
         if form.is_valid():
-            form.save()
-            return redirect('mill') 
+            obj = form.save(commit=False)
+            obj.created_by = request.user
+            obj.save()
+            return redirect('mill')
         else:
             print("Form errors:", form.errors)
     else:
@@ -2013,31 +2216,35 @@ def mill_import(request):
                     return 0
 
                 # --- บันทึกข้อมูลลง Database ---
-                MillReport.objects.update_or_create(
+                mill_obj, created = MillReport.objects.update_or_create(
                     date=date_obj,
                     line=line_selected,
                     defaults={
                         'cane_weight': get_num('น้ำหนักอ้อย'),
                         'target_crushing': get_num('เป้าหีบอ้อย'),
-                        
+
                         'first_mill_extraction': get_num('1st Mill Extraction'),
                         'reduced_pol_extraction': get_num('Reduced Pol Extraction'),
-                        
+
                         'cane_preparation_index': get_num('Cane Preparation Index'),
                         'purity_drop': get_num('Purity Drop'),
                         'bagasse_moisture': get_num('Bagasse Moisture'),
                         'pol_bagasse': get_num('Pol % Bagasse'),
-                        
+
                         'imbibition_cane': get_num('Imbibition % Cane'),
                         'imbibition_fiber': get_num('Imbibition % Fiber'),
                         'loss_bagasse': get_num('Loss in Bagasse'),
-                        
-                    
-                        
+
                         'ccs': get_num('CCS') if get_num('CCS') else 0,
                         'trash': get_num('Trash') if get_num('Trash') else 0,
                     }
                 )
+                if created:
+                    mill_obj.created_by = request.user
+                    mill_obj.save(update_fields=['created_by'])
+                else:
+                    mill_obj.updated_by = request.user
+                    mill_obj.save(update_fields=['updated_by'])
                 count += 1
             
             messages.success(request, f"Import ข้อมูลสำเร็จ {count} รายการ (Line {line_selected})")
@@ -2159,3 +2366,733 @@ def lathe_api(request):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
             
     return JsonResponse({'status': 'invalid method'}, status=405)
+
+
+# ─── View 1: หน้ารายการ + Dashboard ─────────────────────────────────────────
+@login_required
+def doc_repository(request):
+    from django.db.models import Sum, Count
+    from datetime import date
+
+    # ── Filters ──────────────────────────────────────────────
+    dept_filter  = request.GET.get('dept', '')
+    type_filter  = request.GET.get('type', '')
+    year_filter  = request.GET.get('year', '')
+    search_query = request.GET.get('q', '').strip()
+
+    docs = RepairDocument.objects.select_related('equipment', 'uploaded_by').all()
+
+    if dept_filter:
+        docs = docs.filter(department=dept_filter)
+    if type_filter:
+        docs = docs.filter(doc_type=type_filter)
+    if year_filter:
+        docs = docs.filter(budget_year=year_filter)
+    if search_query:
+        docs = docs.filter(
+            models.Q(title__icontains=search_query) |
+            models.Q(equipment__equipment_id__icontains=search_query) |
+            models.Q(po_number__icontains=search_query)
+        )
+
+    # ── KPIs ─────────────────────────────────────────────────
+    today        = date.today()
+    all_docs     = RepairDocument.objects.all()
+    total_docs   = all_docs.count()
+    monthly_docs = all_docs.filter(
+        created_at__year=today.year, created_at__month=today.month
+    ).count()
+    total_budget = all_docs.aggregate(s=Sum('budget_amount'))['s'] or 0
+
+    # นับแยกแผนก (สำหรับ filter badge)
+    dept_counts = {}
+    for dept, _ in RepairDocument.DEPT_CHOICES:
+        dept_counts[dept] = all_docs.filter(department=dept).count()
+
+    # ปีงบประมาณที่มีในระบบ (สำหรับ dropdown) — ต้องเป็น string เพื่อเทียบกับ year_filter ที่มาจาก GET
+    budget_years = [
+        str(y) for y in all_docs.values_list('budget_year', flat=True).distinct().order_by('-budget_year')
+    ]
+
+    context = {
+        'docs':          docs,
+        'equipments':    Equipment.objects.filter(is_active=True).order_by('equipment_id'),
+        'form':          RepairDocumentForm(),
+        # KPIs
+        'total_docs':    total_docs,
+        'monthly_docs':  monthly_docs,
+        'total_budget':  total_budget,
+        # Filter state
+        'dept_filter':   dept_filter,
+        'type_filter':   type_filter,
+        'year_filter':   year_filter,
+        'search_query':  search_query,
+        'dept_counts':   dept_counts,
+        'budget_years':  budget_years,
+        # Dept choices for filter tabs
+        'dept_choices':  RepairDocument.DEPT_CHOICES,
+        'doc_count':     docs.count(),
+    }
+    return render(request, 'myapp/doc_repository.html', context)
+
+# ─── Helper: อัปโหลดไฟล์ไป Google Drive ผ่าน Apps Script ────────────────────
+
+def _upload_to_drive(uploaded_file, filename, folder_path):
+    """
+    อัปโหลดไฟล์ไป Google Drive ผ่าน Google Apps Script Web App
+    ต้องตั้งค่า GAS_WEBAPP_URL ใน .env ก่อน
+    คืนค่า file_id หากสำเร็จ หรือ None หากล้มเหลว
+    """
+    script_url = os.environ.get('GAS_WEBAPP_URL', '')
+    if not script_url:
+        print('[Drive] GAS_WEBAPP_URL ยังไม่ได้ตั้งค่าใน .env')
+        return None
+
+    try:
+        file_data = base64.b64encode(uploaded_file.read()).decode('utf-8')
+        mime_type = getattr(uploaded_file, 'content_type', 'application/octet-stream')
+        payload = json.dumps({
+            'filename':   filename,
+            'mimeType':   mime_type,
+            'fileData':   file_data,
+            'folderPath': folder_path,
+        }).encode('utf-8')
+
+        import http.cookiejar
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
+        req = urllib.request.Request(
+            script_url,
+            data    = payload,
+            headers = {'Content-Type': 'application/json'},
+            method  = 'POST',
+        )
+
+        with opener.open(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode('utf-8'))
+
+        if not result:
+            print('[Drive] ไม่ได้รับ response จาก GAS')
+            return None
+
+        file_id = result.get('fileId') or result.get('id') or result.get('file_id')
+        if file_id:
+            print(f'[Drive] อัปโหลดสำเร็จ: {file_id}')
+            return file_id
+        print(f'[Drive] ตอบกลับไม่มี fileId: {result}')
+        return None
+    except Exception as e:
+        print(f'[Drive Error] {type(e).__name__}: {e}')
+        return None
+
+
+# ─── Helper: ส่ง JSON ไป GAS (รองรับ redirect) ───────────────────────────────
+
+def _send_to_gas(payload_dict, timeout=90):
+    script_url = os.environ.get('GAS_WEBAPP_URL', '')
+    if not script_url:
+        return None
+    import http.cookiejar
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+    )
+    payload = json.dumps(payload_dict).encode('utf-8')
+    req = urllib.request.Request(
+        script_url,
+        data=payload,
+        headers={'Content-Type': 'application/json'},
+        method='POST',
+    )
+    try:
+        with opener.open(req, timeout=timeout) as resp:
+            raw = resp.read().decode('utf-8')
+        return json.loads(raw)
+    except Exception as e:
+        print(f'[GAS] {type(e).__name__}: {e}')
+        return None
+
+
+# ─── Helper: อัปโหลดไฟล์ใหญ่ผ่าน GAS chunk upload ───────────────────────────
+
+CHUNK_SIZE_BYTES = 20 * 1024 * 1024   # 20 MB raw → ~26 MB base64 (ปลอดภัยใต้ขีด GAS 50 MB)
+
+def _upload_to_drive_chunked(uploaded_file, filename, folder_path):
+    """
+    ใช้กับไฟล์ที่ใหญ่เกิน GAS single-upload limit (~35 MB)
+    GAS จะสร้าง Drive resumable session แล้วรับ chunk ทีละก้อน
+    """
+    import uuid
+    script_url = os.environ.get('GAS_WEBAPP_URL', '')
+    if not script_url:
+        print('[Drive Chunk] GAS_WEBAPP_URL ยังไม่ได้ตั้งค่าใน .env')
+        return None
+
+    upload_id = str(uuid.uuid4())
+    file_size  = uploaded_file.size
+    mime_type  = getattr(uploaded_file, 'content_type', 'application/octet-stream')
+
+    try:
+        # ① สร้าง resumable upload session ใน GAS
+        init = _send_to_gas({
+            'action':     'init',
+            'uploadId':   upload_id,
+            'filename':   filename,
+            'mimeType':   mime_type,
+            'folderPath': folder_path,
+            'fileSize':   file_size,
+        })
+        if not init or init.get('status') != 'ok':
+            print(f'[Drive Chunk] init ล้มเหลว: {init}')
+            return None
+
+        # ② ส่ง chunk ทีละก้อน
+        chunk_start = 0
+        while True:
+            chunk_data = uploaded_file.read(CHUNK_SIZE_BYTES)
+            if not chunk_data:
+                break
+
+            is_last = (chunk_start + len(chunk_data) >= file_size)
+            result  = _send_to_gas({
+                'action':     'chunk',
+                'uploadId':   upload_id,
+                'chunkStart': chunk_start,
+                'chunkData':  base64.b64encode(chunk_data).decode('utf-8'),
+                'fileSize':   file_size,
+                'mimeType':   mime_type,
+                'isLast':     is_last,
+            }, timeout=120)
+
+            if result is None:
+                print(f'[Drive Chunk] ไม่ได้รับ response ที่ offset {chunk_start}')
+                return None
+
+            if result.get('status') == 'done':
+                file_id = result.get('fileId')
+                print(f'[Drive Chunk] อัปโหลดสำเร็จ: {file_id}')
+                return file_id
+
+            if result.get('error'):
+                print(f'[Drive Chunk] error: {result["error"]}')
+                return None
+
+            chunk_start += len(chunk_data)
+
+        print('[Drive Chunk] สิ้นสุด loop โดยไม่ได้รับ fileId')
+        return None
+
+    except Exception as e:
+        print(f'[Drive Chunk Error] {type(e).__name__}: {e}')
+        return None
+
+
+# ─── View 2: รับฟอร์มลงทะเบียน + อัปโหลด Drive + แจ้ง LINE ─────────────────
+MAX_UPLOAD_BYTES     = 100 * 1024 * 1024  # 100 MB
+GAS_SIZE_LIMIT_BYTES =  35 * 1024 * 1024  # 35 MB — เกินนี้ใช้ chunk upload
+
+@login_required
+def doc_register(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+
+    form = RepairDocumentForm(request.POST)
+    if not form.is_valid():
+        return JsonResponse({'status': 'error', 'message': str(form.errors)}, status=400)
+
+    doc = form.save(commit=False)
+    doc.uploaded_by = request.user
+
+    # ── ① อัปโหลดไฟล์ไป Google Drive ─────────────────────────
+    uploaded_file = request.FILES.get('document_file')
+    drive_success = False
+
+    if uploaded_file:
+        if uploaded_file.size > MAX_UPLOAD_BYTES:
+            return JsonResponse({'status': 'error', 'message': f'ไฟล์ใหญ่เกิน 100 MB ({uploaded_file.size // (1024*1024)} MB)'}, status=400)
+
+        eq_id       = doc.equipment.equipment_id if doc.equipment else 'UNASSIGNED'
+        folder_path = f'LAMY/{doc.budget_year}/{eq_id}'
+
+        if uploaded_file.size <= GAS_SIZE_LIMIT_BYTES:
+            # ไฟล์ ≤ 35 MB → ใช้ GAS single upload (base64 JSON)
+            file_id = _upload_to_drive(uploaded_file, uploaded_file.name, folder_path)
+        else:
+            # ไฟล์ > 35 MB → แบ่ง chunk ส่งผ่าน GAS resumable session
+            print(f'[Drive] ไฟล์ {uploaded_file.size // (1024*1024)} MB เกิน GAS limit → ใช้ chunk upload')
+            file_id = _upload_to_drive_chunked(uploaded_file, uploaded_file.name, folder_path)
+
+        if file_id:
+            doc.drive_file_id   = file_id
+            doc.drive_file_name = uploaded_file.name
+            drive_success       = True
+        else:
+            print(f'[Drive] upload ล้มเหลวสำหรับเอกสาร: {doc.title}')
+
+    # ── ② บันทึกลงฐานข้อมูล ───────────────────────────────────
+    doc.save()
+
+    # ── ③ แจ้งเตือน LINE Notify ───────────────────────────────
+    uploader_name = request.user.get_full_name() or request.user.username
+    eq_display    = doc.equipment.equipment_id if doc.equipment else '—'
+    drive_line    = f'\n📎 Drive: https://drive.google.com/file/d/{doc.drive_file_id}/view' if doc.drive_file_id else '\n📎 Drive: ยังไม่ได้อัปโหลด'
+
+    line_message = (
+        f'\n'
+        f'📄 เอกสารใหม่ลงทะเบียนแล้ว\n'
+        f'━━━━━━━━━━━━━━━━━━\n'
+        f'📋 ชื่อ: {doc.title}\n'
+        f'🔧 เครื่องจักร: {eq_display}\n'
+        f'🏭 แผนก: {doc.department}\n'
+        f'📝 ประเภท: {doc.get_doc_type_display()}\n'
+        f'💰 PO: {doc.po_number or "—"}\n'
+        f'👤 บันทึกโดย: {uploader_name}'
+        f'{drive_line}'
+    )
+    _send_line_notify(line_message)
+
+    # ── ④ ตอบกลับ ─────────────────────────────────────────────
+    messages.success(request, f'ลงทะเบียนเอกสาร "{doc.title}" เรียบร้อยแล้ว')
+    return JsonResponse({
+        'status':       'success',
+        'doc_id':       doc.id,
+        'title':        doc.title,
+        'drive_file_id': doc.drive_file_id or '',
+        'drive_success': drive_success,
+    })
+
+
+
+# ─── View 3: ลบเอกสาร (optional) ────────────────────────────────────────────
+@login_required
+def doc_delete(request, doc_id):
+    doc = RepairDocument.objects.filter(id=doc_id).first()
+    if doc:
+        title = doc.title
+        doc.delete()
+        messages.success(request, f'ลบเอกสาร "{title}" เรียบร้อยแล้ว')
+    else:
+        messages.error(request, 'ไม่พบเอกสารที่ระบุ')
+    return redirect('doc_repository')
+
+# ── LINE Bot helpers ──────────────────────────────────────────────────────────
+
+# คำที่ใช้ปลุก bot
+_LINE_TRIGGERS = {'lamy', 'LAMY', 'Lamy', 'รามี่'}
+# timeout สถานะ "รอคำสั่ง" (วินาที)
+_LINE_STATE_TTL = 300
+
+
+def _reply_line(reply_token, text):
+    """ตอบกลับข้อความผ่าน LINE Reply API (ใช้ replyToken จาก webhook event)"""
+    token = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '')
+    if not token or not reply_token:
+        return False
+    try:
+        payload = json.dumps({
+            'replyToken': reply_token,
+            'messages': [{'type': 'text', 'text': text}],
+        }).encode('utf-8')
+        req = urllib.request.Request(
+            'https://api.line.me/v2/bot/message/reply',
+            data=payload,
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {token}',
+            },
+            method='POST',
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            print(f'[LINE Bot] Reply OK: {resp.status}')
+            return True
+    except Exception as e:
+        print(f'[LINE Bot Reply Error] {e}')
+        return False
+
+
+@csrf_exempt
+def line_webhook(request):
+    """
+    Conversation flow:
+      1. ผู้ใช้พิมพ์ trigger word (lamy / LAMY / Lamy / รามี่)
+         → bot ตอบ "คะ เจ้านาย" และจำ state ไว้ 5 นาที
+      2. ผู้ใช้พิมพ์ "ค้นหา <คำ>"
+         → bot ค้นหาใน RepairDocument แล้วส่งผลลัพธ์พร้อมลิงก์
+    """
+    if request.method != 'POST':
+        return HttpResponse('OK', status=200)
+
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return HttpResponse('OK', status=200)
+
+    events = body.get('events', [])
+    print(f'[LINE Webhook] รับ {len(events)} event(s)')
+
+    for event in events:
+        if event.get('type') != 'message':
+            continue
+        msg = event.get('message', {})
+        if msg.get('type') != 'text':
+            continue
+
+        text        = msg.get('text', '').strip()
+        reply_token = event.get('replyToken', '')
+        source      = event.get('source', {})
+        user_id     = source.get('userId', 'unknown')
+        chat_id     = source.get('groupId', source.get('roomId', user_id))
+        state_key   = f'line_awake_{chat_id}_{user_id}'
+
+        print(f'[LINE Webhook] text="{text}" user={user_id[:8]}... chat={chat_id[:8]}...')
+
+        # ── ขั้นที่ 1: ปลุก bot ──────────────────────────────────
+        if text in _LINE_TRIGGERS:
+            cache.set(state_key, True, _LINE_STATE_TTL)
+            print(f'[LINE Webhook] Bot ตื่นแล้ว state_key={state_key}')
+            _reply_line(
+                reply_token,
+                'คะ เจ้านาย 🙏 พร้อมค้นหาแล้วค่ะ\n'
+                'พิมพ์ชื่อ / PO / รหัสเครื่องได้เลย\n'
+                'เช่น: PO-001  หรือ  BL-JT-001',
+            )
+            continue
+
+        # ── ขั้นที่ 2: รับคำสั่งค้นหา ──────────────────────────────
+        # รองรับทั้งแบบ "ค้นหา xxx" และแบบพิมพ์ตรงๆ เมื่อ bot ตื่นอยู่
+        is_awake = bool(cache.get(state_key))
+        has_prefix = text.startswith('ค้นหา')
+
+        if has_prefix and not is_awake:
+            _reply_line(reply_token, 'พิมพ์ "lamy" ก่อนเพื่อปลุก bot แล้วค่อยค้นหาค่ะ 🙏')
+            continue
+
+        if is_awake or has_prefix:
+            query = text[len('ค้นหา'):].strip() if has_prefix else text
+            print(f'[LINE Webhook] ค้นหา: "{query}"')
+
+            if not query:
+                _reply_line(reply_token, 'กรุณาระบุสิ่งที่ต้องการค้นหาด้วยค่ะ\nเช่น: ค้นหา PO-001')
+                continue
+
+            docs_qs = RepairDocument.objects.filter(
+                Q(po_number__icontains=query)  |
+                Q(title__icontains=query)       |
+                Q(equipment__equipment_id__icontains=query)
+            ).select_related('equipment').order_by('-created_at')
+
+            total = docs_qs.count()
+            docs  = docs_qs[:5]
+
+            if total == 0:
+                _reply_line(reply_token, f'ไม่พบเอกสารที่ตรงกับ "{query}" ค่ะ')
+                continue
+
+            header = f'พบ {total} รายการสำหรับ "{query}"'
+            if total > 5:
+                header += ' (แสดง 5 รายการล่าสุด)'
+            header += '\n' + '─' * 30
+
+            blocks = [header]
+            for doc in docs:
+                eq   = doc.equipment.equipment_id if doc.equipment else '-'
+                po   = doc.po_number or '-'
+                link = doc.drive_url or '(ยังไม่มีลิงก์ Drive)'
+                dept = doc.department or '-'
+                blocks.append(
+                    f'📄 {doc.title}\n'
+                    f'   แผนก : {dept}\n'
+                    f'   เครื่อง: {eq}  |  PO: {po}\n'
+                    f'   {link}'
+                )
+
+            _reply_line(reply_token, '\n\n'.join(blocks))
+            continue
+
+    return HttpResponse('OK', status=200)
+
+
+def _send_line_notify(message):
+    """ส่งข้อความผ่าน LINE Messaging API (Push Message)"""
+    token    = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '')
+    group_id = os.environ.get('LINE_GROUP_ID', '')
+
+    if not token or not group_id:
+        print('[LINE Bot] LINE_CHANNEL_ACCESS_TOKEN หรือ LINE_GROUP_ID ยังไม่ได้ตั้งค่า')
+        return False
+
+    try:
+        payload = json.dumps({
+            'to': group_id,
+            'messages': [{'type': 'text', 'text': message}]
+        }).encode('utf-8')
+
+        req = urllib.request.Request(
+            'https://api.line.me/v2/bot/message/push',
+            data    = payload,
+            headers = {
+                'Content-Type':  'application/json',
+                'Authorization': f'Bearer {token}',
+            },
+            method = 'POST',
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            print(f'[LINE Bot] ส่งสำเร็จ: {resp.status}')
+            return True
+    except Exception as e:
+        print(f'[LINE Bot Error] {e}')
+        return False
+
+# ---- helper: map choices -> dict สำหรับส่งสีไป template ----
+CATEGORY_META = {
+    'tools':       {'name': 'เครื่องมือช่าง',   'icon': '🔧', 'color': '#4f46e5'},
+    'spares':      {'name': 'อะไหล่เครื่องจักร', 'icon': '⚙️', 'color': '#ea580c'},
+    'consumables': {'name': 'วัสดุสิ้นเปลือง',   'icon': '📦', 'color': '#16a34a'},
+    'lubricants':  {'name': 'น้ำมัน/สารเคมี',    'icon': '🛢️', 'color': '#b45309'},
+}
+DEPARTMENT_META = {
+    'mill_a':      {'name': 'ลูกหีบ A',        'color': '#2563eb'},
+    'mill_b':      {'name': 'ลูกหีบ B',        'color': '#0284c7'},
+    'boiler_20':   {'name': 'หม้อน้ำ 20 bar',  'color': '#ea580c'},
+    'boiler_40':   {'name': 'หม้อน้ำ 40 bar',  'color': '#d97706'},
+    'maintenance': {'name': 'ซ่อมบำรุงเครื่องกล', 'color': '#dc2626'},
+    'lathe':       {'name': 'โรงกลึง',         'color': '#7c3aed'},
+}
+
+
+def _to_decimal(value, default='0'):
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError):
+        return Decimal(default)
+
+
+# =====================================================================
+# 1) DASHBOARD — ภาพรวม + KPI + Stock ต่ำ + TX ล่าสุด + สรุปแผนก
+# =====================================================================
+@login_required
+def inventory_dashboard(request):
+    items = InventoryItem.objects.filter(is_active=True)
+    low_stock = items.filter(stock__lte=F('min_stock'))
+
+    # สรุปแยกแผนก
+    dept_stats = []
+    for key, meta in DEPARTMENT_META.items():
+        di = items.filter(department=key)
+        issued = (InventoryTransaction.objects
+                  .filter(department=key, tx_type='issue')
+                  .aggregate(s=Sum('quantity'))['s'] or 0)
+        dept_stats.append({
+            'key': key, 'name': meta['name'], 'color': meta['color'],
+            'total': di.count(),
+            'low': di.filter(stock__lte=F('min_stock')).count(),
+            'issued': issued,
+            'value': sum(i.stock_value for i in di),
+        })
+
+    context = {
+        'total_items':     items.count(),
+        'low_stock_count': low_stock.count(),
+        'tx_total':        InventoryTransaction.objects.count(),
+        'total_value':     sum(i.stock_value for i in items),
+        'low_stock_items': low_stock[:6],
+        'recent_txs':      InventoryTransaction.objects.select_related('item')[:8],
+        'dept_stats':      dept_stats,
+        'category_meta':   CATEGORY_META,
+        'department_meta': DEPARTMENT_META,
+    }
+    return render(request, 'myapp/inventory/dashboard.html', context)
+
+
+# =====================================================================
+# 2) LIST — ตารางรายการ + filter หมวด/แผนก/ค้นหา
+# =====================================================================
+@login_required
+def inventory_list(request):
+    items = InventoryItem.objects.filter(is_active=True)
+    cat  = request.GET.get('cat', '')
+    dept = request.GET.get('dept', '')
+    q    = request.GET.get('q', '')
+
+    if cat:
+        items = items.filter(category=cat)
+    if dept:
+        items = items.filter(department=dept)
+    if q:
+        items = items.filter(Q(name__icontains=q) | Q(code__icontains=q))
+
+    context = {
+        'items': items,
+        'category_meta': CATEGORY_META,
+        'department_meta': DEPARTMENT_META,
+        'f_cat': cat, 'f_dept': dept, 'f_q': q,
+        'category_choices': InventoryItem.CATEGORY_CHOICES,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+    }
+    return render(request, 'myapp/inventory/list.html', context)
+
+
+# =====================================================================
+# 3) STOCK CARD — รายละเอียด 1 รายการ + ประวัติเคลื่อนไหว
+# =====================================================================
+@login_required
+def inventory_stock_card(request, pk):
+    item = get_object_or_404(InventoryItem, pk=pk)
+    context = {
+        'item': item,
+        'transactions': item.transactions.select_related('maintenance_log')[:30],
+        'category_meta': CATEGORY_META,
+        'department_meta': DEPARTMENT_META,
+    }
+    return render(request, 'myapp/inventory/stock_card.html', context)
+
+
+# =====================================================================
+# 4) DEPT SUMMARY + DETAIL — สรุปตามแผนก / drill-down
+# =====================================================================
+@login_required
+def inventory_dept_summary(request):
+    cards = []
+    for key, meta in DEPARTMENT_META.items():
+        di = InventoryItem.objects.filter(department=key, is_active=True)
+        issued = (InventoryTransaction.objects
+                  .filter(department=key, tx_type='issue')
+                  .aggregate(s=Sum('quantity'))['s'] or 0)
+        cards.append({
+            'key': key, 'name': meta['name'], 'color': meta['color'],
+            'total': di.count(),
+            'low': di.filter(stock__lte=F('min_stock')).count(),
+            'issued': issued,
+            'value': sum(i.stock_value for i in di),
+        })
+    return render(request, 'myapp/inventory/dept_summary.html',
+                  {'cards': cards, 'category_meta': CATEGORY_META})
+
+
+@login_required
+def inventory_dept_detail(request, key):
+    meta = DEPARTMENT_META.get(key)
+    items = InventoryItem.objects.filter(department=key, is_active=True)
+    txs = InventoryTransaction.objects.filter(department=key).select_related('item')
+    context = {
+        'dept_key': key, 'dept_meta': meta,
+        'items': items,
+        'recent_txs': txs[:8],
+        'issued': txs.filter(tx_type='issue').aggregate(s=Sum('quantity'))['s'] or 0,
+        'received': txs.filter(tx_type='receive').aggregate(s=Sum('quantity'))['s'] or 0,
+        'low_count': items.filter(stock__lte=F('min_stock')).count(),
+        'total_value': sum(i.stock_value for i in items),
+        'category_meta': CATEGORY_META,
+    }
+    return render(request, 'myapp/inventory/dept_detail.html', context)
+
+
+# =====================================================================
+# 5) TRANSACTIONS — ประวัติทั้งหมด + filter
+# =====================================================================
+@login_required
+def inventory_tx_list(request):
+    txs = InventoryTransaction.objects.select_related('item')
+    t_type = request.GET.get('type', '')
+    dept   = request.GET.get('dept', '')
+    if t_type:
+        txs = txs.filter(tx_type=t_type)
+    if dept:
+        txs = txs.filter(department=dept)
+    context = {
+        'transactions': txs,
+        'category_meta': CATEGORY_META,
+        'department_meta': DEPARTMENT_META,
+        'f_type': t_type, 'f_dept': dept,
+        'tx_types': InventoryTransaction.TX_TYPES,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+    }
+    return render(request, 'myapp/inventory/transactions.html', context)
+
+
+# =====================================================================
+# 6) API — เบิก-คืน / รับเข้า / เพิ่มรายการ  (เรียกด้วย fetch + CSRF)
+#    คืน JSON ให้ JS อัปเดตหน้าได้แบบ real-time
+# =====================================================================
+@login_required
+@require_POST
+def api_inventory_checkout(request):
+    """เบิกออก / คืน เครื่องมือช่าง"""
+    data = json.loads(request.body or '{}')
+    item = get_object_or_404(InventoryItem, pk=data.get('item_id'))
+    tx_type = data.get('type', 'issue')      # 'issue' หรือ 'return'
+    qty = _to_decimal(data.get('quantity', 1))
+
+    if not data.get('employee'):
+        return JsonResponse({'error': 'กรุณากรอกชื่อพนักงาน'}, status=400)
+    if tx_type == 'issue' and item.stock < qty:
+        return JsonResponse({'error': 'Stock ไม่เพียงพอ'}, status=400)
+
+    tx = InventoryTransaction.objects.create(
+        item=item, tx_type=tx_type, quantity=qty,
+        department=data.get('dept', item.department),
+        employee_name=data.get('employee', ''),
+        note=data.get('note', ''),
+        # ถ้าส่ง maintenance_log_id มา จะ link เข้าใบแจ้งซ่อมให้อัตโนมัติ
+        maintenance_log_id=data.get('maintenance_log_id') or None,
+        created_by=request.user,
+    )
+    return JsonResponse({'success': True, 'new_stock': float(item.stock), 'tx_id': tx.id})
+
+
+@login_required
+@require_POST
+def api_inventory_receive(request):
+    """รับสินค้าเข้าคลัง (พร้อม PO)"""
+    data = json.loads(request.body or '{}')
+    item = get_object_or_404(InventoryItem, pk=data.get('item_id'))
+    if not data.get('po_number'):
+        return JsonResponse({'error': 'กรุณาระบุเลขที่ PO'}, status=400)
+
+    InventoryTransaction.objects.create(
+        item=item, tx_type='receive',
+        quantity=_to_decimal(data.get('quantity', 1)),
+        department=item.department,
+        employee_name=request.user.get_full_name() or request.user.username,
+        po_number=data.get('po_number', ''),
+        supplier=data.get('supplier', ''),
+        created_by=request.user,
+    )
+    # อัปเดตราคา/หน่วยล่าสุดถ้าส่งมา
+    price = data.get('unit_price')
+    if price:
+        item.unit_price = _to_decimal(price)
+        item.save(update_fields=['unit_price'])
+    return JsonResponse({'success': True, 'new_stock': float(item.stock)})
+
+
+@login_required
+@require_POST
+def api_inventory_add_item(request):
+    """เพิ่มรายการใหม่เข้าคลัง + เปิดยอดตั้งต้น (ถ้ามี)"""
+    data = json.loads(request.body or '{}')
+    if not data.get('code') or not data.get('name'):
+        return JsonResponse({'error': 'กรุณากรอกรหัสและชื่อรายการ'}, status=400)
+    if InventoryItem.objects.filter(code=data['code']).exists():
+        return JsonResponse({'error': 'รหัสสินค้านี้มีอยู่แล้ว'}, status=400)
+
+    item = InventoryItem.objects.create(
+        code=data['code'], name=data['name'],
+        category=data.get('category', 'consumables'),
+        department=data.get('department', 'maintenance'),
+        unit=data.get('unit', 'ชิ้น'),
+        min_stock=_to_decimal(data.get('min_stock', 0)),
+        max_stock=_to_decimal(data.get('max_stock', 0)),
+        location=data.get('location', ''),
+        unit_price=_to_decimal(data.get('unit_price', 0)),
+    )
+    initial = _to_decimal(data.get('initial_stock', 0))
+    if initial > 0:
+        InventoryTransaction.objects.create(
+            item=item, tx_type='receive', quantity=initial,
+            department=item.department,
+            employee_name=request.user.get_full_name() or request.user.username,
+            po_number='Initial Stock', note='เปิดบัญชีครั้งแรก',
+            created_by=request.user,
+        )
+    return JsonResponse({'success': True, 'item_id': item.id})

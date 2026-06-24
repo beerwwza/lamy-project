@@ -1,56 +1,48 @@
 {% extends 'myapp/base.html' %}
 
-{% block title %} Boiler & Production KPI | Factory OS {% endblock title %}
+{% block title %} Boiler KPI Dashboard | Factory OS {% endblock title %}
 
 {% block content %}
-<!-- Load ApexCharts -->
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
 <div id="boiler-section" class="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950">
 
     <!-- Sidebar -->
-    <aside
-        class="w-64 flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 hidden md:flex flex-col transition-all duration-300">
+    <aside class="w-64 flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 hidden md:flex flex-col transition-all duration-300">
         <div class="h-16 flex items-center justify-center border-b border-slate-200 dark:border-slate-800">
-            <a href="{% url 'dashboard' %}"
-                class="flex items-center gap-2 font-bold text-xl tracking-tight text-indigo-600 dark:text-indigo-400">
+            <a href="{% url 'dashboard' %}" class="flex items-center gap-2 font-bold text-xl tracking-tight text-indigo-600 dark:text-indigo-400">
                 <i data-lucide="cpu" class="w-6 h-6"></i>
                 <span>FACTORY OS</span>
             </a>
         </div>
-
         <div class="flex-1 overflow-y-auto py-4">
             <nav class="px-4 space-y-2">
-                <a href="{% url 'dashboard' %}"
-                    class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <a href="{% url 'dashboard' %}" class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                     <i data-lucide="arrow-left" class="w-5 h-5"></i>
                     <span>Back to Main</span>
                 </a>
-
                 <div class="border-t border-slate-200 dark:border-slate-800 my-4"></div>
-
                 <p class="px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Boiler Menu</p>
-
-                <a href="#"
-                    class="flex items-center gap-3 px-4 py-3 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-300 rounded-lg transition-colors">
+                <a href="{% url 'boiler' %}" class="flex items-center gap-3 px-4 py-3 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-300 rounded-lg transition-colors">
                     <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
                     <span>Production KPI</span>
                 </a>
-
-                <a href="{% url 'operation_dashboard' %}"
-                    class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <a href="{% url 'operation_dashboard' %}" class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                     <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
                     <span>Operation View</span>
                 </a>
-
-                <a href="{% url 'boiler_kpi_form' %}"
-                    class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <a href="{% url 'boiler_kpi_form' %}" class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
                     <i data-lucide="edit" class="w-5 h-5"></i>
-                    <span>Record KPI Boiler</span>
+                    <span>Record KPI</span>
+                </a>
+                <div class="border-t border-slate-200 dark:border-slate-800 my-4"></div>
+                <p class="px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Operation Logs</p>
+                <a href="{% url 'boiler_operation_add' %}" class="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                    <span>JT / YM / CC / TK</span>
                 </a>
             </nav>
         </div>
-
         <div class="p-4 border-t border-slate-200 dark:border-slate-800">
             <a href="{% url 'logout' %}" onclick="return confirm('ต้องการออกจากระบบใช่หรือไม่?')"
                 class="flex items-center justify-center gap-3 w-full px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors">
@@ -64,393 +56,595 @@
     <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
 
         <!-- Mobile Header -->
-        <header
-            class="h-16 flex items-center justify-between px-6 bg-white dark:bg-slate-900 border-b border-slate-200 md:hidden">
-            <div class="font-bold text-lg">Factory KPI</div>
+        <header class="h-16 flex items-center justify-between px-6 bg-white dark:bg-slate-900 border-b border-slate-200 md:hidden">
+            <div class="font-bold text-lg">Boiler KPI</div>
             <button class="p-2"><i data-lucide="menu" class="w-6 h-6"></i></button>
         </header>
 
-        <div class="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8">
+        <!-- Filter Bar (sticky) -->
+        <div class="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 px-6 py-3">
+            <form method="GET" action="{% url 'boiler' %}" id="filter-form" class="flex flex-wrap items-center gap-3">
+                <!-- Preset Buttons -->
+                <div class="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+                    <button type="submit" name="days" value="7"
+                        class="preset-btn px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if not is_custom and selected_days == '7' %}bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm{% else %}text-slate-500 hover:text-slate-700 dark:hover:text-slate-300{% endif %}">
+                        7 วัน
+                    </button>
+                    <button type="submit" name="days" value="30"
+                        class="preset-btn px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if not is_custom and selected_days == '30' %}bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm{% else %}text-slate-500 hover:text-slate-700 dark:hover:text-slate-300{% endif %}">
+                        30 วัน
+                    </button>
+                    <button type="submit" name="days" value="90"
+                        class="preset-btn px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if not is_custom and selected_days == '90' %}bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm{% else %}text-slate-500 hover:text-slate-700 dark:hover:text-slate-300{% endif %}">
+                        90 วัน
+                    </button>
+                </div>
 
-            <!-- Title & Actions Section -->
-            <div class="flex flex-col xl:flex-row xl:justify-between xl:items-end gap-6">
+                <!-- Custom Date -->
+                <div class="flex items-center gap-2">
+                    <button type="button" id="custom-toggle"
+                        class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if is_custom %}bg-indigo-600 text-white{% else %}bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800{% endif %}">
+                        <i data-lucide="calendar" class="w-4 h-4 inline mr-1"></i>Custom
+                    </button>
+                    <div id="custom-date-inputs" class="flex items-center gap-2 {% if not is_custom %}hidden{% endif %}">
+                        <input type="date" name="start" value="{{ start_date }}" id="start-date"
+                            class="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-white">
+                        <span class="text-slate-400 text-sm">ถึง</span>
+                        <input type="date" name="end" value="{{ end_date }}" id="end-date"
+                            class="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-white">
+                        <button type="submit" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg font-medium hover:bg-indigo-700">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Spacer -->
+                <div class="flex-1"></div>
+
+                <!-- Period indicator -->
+                <span class="text-xs text-slate-400 dark:text-slate-500">
+                    {{ start_date }} — {{ end_date }}
+                </span>
+
+                <!-- Export CSV -->
+                <a href="{% url 'boiler_export_csv' %}?{% if is_custom %}start={{ start_date }}&end={{ end_date }}{% else %}days={{ selected_days }}{% endif %}"
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    Export CSV
+                </a>
+            </form>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto p-6 lg:p-8 space-y-6">
+
+            <!-- Page Header -->
+            <div class="flex items-start justify-between">
                 <div>
-                    <h2 class="text-3xl font-bold mb-2 text-slate-800 dark:text-white">Production & Boiler KPI</h2>
-                    <p class="text-slate-500 flex items-center gap-2">
-                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        System Normal | Data Date: <span class="font-medium text-slate-700 dark:text-slate-300">{{
-                            latest_kpi.date|default:"No Data" }}</span>
+                    <h2 class="text-2xl font-bold text-slate-800 dark:text-white">Boiler KPI Dashboard</h2>
+                    <p class="text-sm text-slate-500 mt-1 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                        ข้อมูลล่าสุด: <span class="font-medium text-slate-700 dark:text-slate-300">{{ latest_kpi.date|default:"ไม่มีข้อมูล" }}</span>
+                        &nbsp;|&nbsp; แสดงช่วง: <span class="font-medium text-slate-700 dark:text-slate-300">{{ start_date }} ถึง {{ end_date }}</span>
                     </p>
                 </div>
-
-                <!-- Action Buttons -->
-                <div class="flex flex-wrap items-center gap-2">
-                    <a href="{% url 'boiler_operation_add' %}"
-                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-indigo-600 text-white hover:bg-indigo-700">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> JT Log
-                    </a>
-                    <a href="{% url 'chengchen_operation_add' %}"
-                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-purple-600 text-white hover:bg-purple-700">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> CC Log
-                    </a>
-                    <a href="{% url 'takuma_operation_add' %}"
-                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-green-600 text-white hover:bg-green-700">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> TK Log
-                    </a>
-                    <a href="{% url 'yoshimine_operation_add' %}"
-                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-pink-600 text-white hover:bg-pink-700">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> YM Log
-                    </a>
-                    <a href="{% url 'banpong1_operation_add' %}"
-                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-orange-500 text-white hover:bg-orange-600">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> BP1 Log
-                    </a>
-                    <a href="{% url 'banpong2_operation_add' %}"
-                        class="px-3 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-colors bg-slate-600 text-white hover:bg-slate-700">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> BP2 Log
-                    </a>
+                <div class="flex gap-2 flex-wrap justify-end">
+                    <a href="{% url 'boiler_operation_add' %}" class="px-3 py-2 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700">+ JT</a>
+                    <a href="{% url 'chengchen_operation_add' %}" class="px-3 py-2 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700">+ CC</a>
+                    <a href="{% url 'takuma_operation_add' %}" class="px-3 py-2 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700">+ TK</a>
+                    <a href="{% url 'yoshimine_operation_add' %}" class="px-3 py-2 rounded-lg text-xs font-medium bg-pink-600 text-white hover:bg-pink-700">+ YM</a>
+                    <a href="{% url 'banpong1_operation_add' %}" class="px-3 py-2 rounded-lg text-xs font-medium bg-orange-500 text-white hover:bg-orange-600">+ BP1</a>
+                    <a href="{% url 'banpong2_operation_add' %}" class="px-3 py-2 rounded-lg text-xs font-medium bg-slate-600 text-white hover:bg-slate-700">+ BP2</a>
                 </div>
             </div>
 
-            <!-- SECTION 1: Efficiency & Loss (Items 1-5) -->
+            <!-- SCORECARD HEADER -->
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+                    <i data-lucide="clipboard-list" class="w-5 h-5 text-indigo-500"></i>
+                    <h3 class="font-bold text-slate-700 dark:text-slate-200">KPI Scorecard — ช่วงที่เลือก</h3>
+                    <span class="ml-2 text-xs text-slate-400">({{ start_date }} ถึง {{ end_date }})</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-y sm:divide-y-0 divide-slate-100 dark:divide-slate-800">
+
+                    {% with s=scorecard.downtime_a %}
+                    <div class="px-5 py-4">
+                        <p class="text-xs font-semibold text-slate-400 uppercase mb-2">Downtime A</p>
+                        <div class="flex items-baseline gap-1 mb-1">
+                            <span class="text-xl font-bold {% if s.avg and s.avg > 1.01 %}text-red-600{% else %}text-emerald-600{% endif %}">
+                                {{ s.avg|default:"—" }}
+                            </span>
+                            {% if s.avg %}<span class="text-xs text-slate-400">% avg</span>{% endif %}
+                        </div>
+                        <p class="text-xs text-slate-400">Max: <span class="font-medium text-slate-600 dark:text-slate-300">{{ s.max|default:"—" }}%</span></p>
+                        <div class="mt-2 flex items-center gap-1">
+                            <span class="text-xs font-bold {% if s.days_ok == s.days_total %}text-emerald-600{% elif s.days_total > 0 and s.days_ok|add:0 >= s.days_total|add:0|floatformat:0 %}text-orange-500{% else %}text-red-500{% endif %}">
+                                {{ s.days_ok }}/{{ s.days_total }}
+                            </span>
+                            <span class="text-xs text-slate-400">วันผ่านเกณฑ์</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Target &lt; 1.01%</p>
+                    </div>
+                    {% endwith %}
+
+                    {% with s=scorecard.downtime_b %}
+                    <div class="px-5 py-4">
+                        <p class="text-xs font-semibold text-slate-400 uppercase mb-2">Downtime B</p>
+                        <div class="flex items-baseline gap-1 mb-1">
+                            <span class="text-xl font-bold {% if s.avg and s.avg > 1.01 %}text-red-600{% else %}text-emerald-600{% endif %}">
+                                {{ s.avg|default:"—" }}
+                            </span>
+                            {% if s.avg %}<span class="text-xs text-slate-400">% avg</span>{% endif %}
+                        </div>
+                        <p class="text-xs text-slate-400">Max: <span class="font-medium text-slate-600 dark:text-slate-300">{{ s.max|default:"—" }}%</span></p>
+                        <div class="mt-2 flex items-center gap-1">
+                            <span class="text-xs font-bold {% if s.days_ok == s.days_total %}text-emerald-600{% else %}text-red-500{% endif %}">
+                                {{ s.days_ok }}/{{ s.days_total }}
+                            </span>
+                            <span class="text-xs text-slate-400">วันผ่านเกณฑ์</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Target &lt; 1.01%</p>
+                    </div>
+                    {% endwith %}
+
+                    {% with s=scorecard.downtime_melt %}
+                    <div class="px-5 py-4">
+                        <p class="text-xs font-semibold text-slate-400 uppercase mb-2">DT ละลาย</p>
+                        <div class="flex items-baseline gap-1 mb-1">
+                            <span class="text-xl font-bold {% if s.avg and s.avg > 0.7 %}text-orange-500{% else %}text-emerald-600{% endif %}">
+                                {{ s.avg|default:"—" }}
+                            </span>
+                            {% if s.avg %}<span class="text-xs text-slate-400">% avg</span>{% endif %}
+                        </div>
+                        <p class="text-xs text-slate-400">Max: <span class="font-medium text-slate-600 dark:text-slate-300">{{ s.max|default:"—" }}%</span></p>
+                        <div class="mt-2 flex items-center gap-1">
+                            <span class="text-xs font-bold {% if s.days_ok == s.days_total %}text-emerald-600{% else %}text-orange-500{% endif %}">
+                                {{ s.days_ok }}/{{ s.days_total }}
+                            </span>
+                            <span class="text-xs text-slate-400">วันผ่านเกณฑ์</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Target &lt; 0.70%</p>
+                    </div>
+                    {% endwith %}
+
+                    {% with s=scorecard.reduced_a %}
+                    <div class="px-5 py-4">
+                        <p class="text-xs font-semibold text-slate-400 uppercase mb-2">ลดกำลัง A</p>
+                        <div class="flex items-baseline gap-1 mb-1">
+                            <span class="text-xl font-bold {% if s.avg and s.avg > 1.02 %}text-red-600{% else %}text-emerald-600{% endif %}">
+                                {{ s.avg|default:"—" }}
+                            </span>
+                            {% if s.avg %}<span class="text-xs text-slate-400">% avg</span>{% endif %}
+                        </div>
+                        <p class="text-xs text-slate-400">Max: <span class="font-medium text-slate-600 dark:text-slate-300">{{ s.max|default:"—" }}%</span></p>
+                        <div class="mt-2 flex items-center gap-1">
+                            <span class="text-xs font-bold {% if s.days_ok == s.days_total %}text-emerald-600{% else %}text-red-500{% endif %}">
+                                {{ s.days_ok }}/{{ s.days_total }}
+                            </span>
+                            <span class="text-xs text-slate-400">วันผ่านเกณฑ์</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Target &lt; 1.02%</p>
+                    </div>
+                    {% endwith %}
+
+                    {% with s=scorecard.reduced_b %}
+                    <div class="px-5 py-4">
+                        <p class="text-xs font-semibold text-slate-400 uppercase mb-2">ลดกำลัง B</p>
+                        <div class="flex items-baseline gap-1 mb-1">
+                            <span class="text-xl font-bold {% if s.avg and s.avg > 1.02 %}text-red-600{% else %}text-emerald-600{% endif %}">
+                                {{ s.avg|default:"—" }}
+                            </span>
+                            {% if s.avg %}<span class="text-xs text-slate-400">% avg</span>{% endif %}
+                        </div>
+                        <p class="text-xs text-slate-400">Max: <span class="font-medium text-slate-600 dark:text-slate-300">{{ s.max|default:"—" }}%</span></p>
+                        <div class="mt-2 flex items-center gap-1">
+                            <span class="text-xs font-bold {% if s.days_ok == s.days_total %}text-emerald-600{% else %}text-red-500{% endif %}">
+                                {{ s.days_ok }}/{{ s.days_total }}
+                            </span>
+                            <span class="text-xs text-slate-400">วันผ่านเกณฑ์</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-0.5">Target &lt; 1.02%</p>
+                    </div>
+                    {% endwith %}
+
+                </div>
+            </div>
+
+            <!-- SECTION: Downtime & Capacity KPI Cards -->
             <div>
-                <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
-                    <i data-lucide="alert-circle" class="w-5 h-5 text-orange-500"></i>
-                    Downtime & Capacity Loss (Items 1-5)
+                <h3 class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i data-lucide="alert-circle" class="w-4 h-4 text-orange-500"></i>
+                    Downtime & Capacity Loss — ค่าล่าสุด ({{ latest_kpi.date|default:"—" }})
                 </h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <!-- Card 1: Downtime A -->
-                    <div
-                        class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-all hover:shadow-md group">
-                        <div class="flex justify-between items-start mb-2">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+
+                    <!-- Card: Downtime A -->
+                    {% with val=latest_kpi.downtime_a t=trend.downtime_a %}
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border-2 {% if val and val > 1.01 %}border-red-400{% else %}border-emerald-300{% endif %} transition-all hover:shadow-md">
+                        <div class="flex justify-between items-start mb-3">
                             <span class="text-xs font-semibold text-slate-500 uppercase">Downtime A</span>
+                            {% if t.direction == 'down' %}
+                            <span class="flex items-center gap-0.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                                <i data-lucide="trending-down" class="w-3 h-3"></i> -{{ t.delta }}%
+                            </span>
+                            {% elif t.direction == 'up' %}
+                            <span class="flex items-center gap-0.5 text-xs font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> +{{ t.delta }}%
+                            </span>
+                            {% endif %}
                         </div>
-                        <div class="text-2xl font-bold flex items-baseline gap-1 text-slate-800 dark:text-white">
-                            {{ latest_kpi.downtime_a|default:"-" }} <span
-                                class="text-sm font-normal text-slate-400">%</span>
+                        <div class="text-3xl font-bold {% if val and val > 1.01 %}text-red-600{% else %}text-slate-800 dark:text-white{% endif %} flex items-baseline gap-1">
+                            {{ val|default:"—" }}<span class="text-base font-normal text-slate-400">%</span>
                         </div>
-                        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
-                            <div class="h-1.5 rounded-full bg-green-500"
-                                style="width: {% widthratio latest_kpi.downtime_a|default:0 5 100 %}%"></div>
+                        <div class="mt-3 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full {% if val and val > 1.01 %}bg-red-500{% else %}bg-emerald-500{% endif %}"
+                                style="width: {% if val %}{% widthratio val 3 100 %}{% else %}0{% endif %}%"></div>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-2 font-medium">Target: < 1.01%</p>
+                        <p class="text-[10px] text-slate-400 mt-2">Target &lt; 1.01%</p>
                     </div>
+                    {% endwith %}
 
-                    <!-- Card 2: Downtime B -->
-                    <div
-                        class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-all hover:shadow-md group">
-                        <div class="flex justify-between items-start mb-2">
+                    <!-- Card: Downtime B -->
+                    {% with val=latest_kpi.downtime_b t=trend.downtime_b %}
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border-2 {% if val and val > 1.01 %}border-red-400{% else %}border-emerald-300{% endif %} transition-all hover:shadow-md">
+                        <div class="flex justify-between items-start mb-3">
                             <span class="text-xs font-semibold text-slate-500 uppercase">Downtime B</span>
+                            {% if t.direction == 'down' %}
+                            <span class="flex items-center gap-0.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                                <i data-lucide="trending-down" class="w-3 h-3"></i> -{{ t.delta }}%
+                            </span>
+                            {% elif t.direction == 'up' %}
+                            <span class="flex items-center gap-0.5 text-xs font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> +{{ t.delta }}%
+                            </span>
+                            {% endif %}
                         </div>
-                        <div
-                            class="text-2xl font-bold flex items-baseline gap-1 {% if latest_kpi.downtime_b|default:0 > 1.01 %}text-red-600{% else %}text-slate-800 dark:text-white{% endif %}">
-                            {{ latest_kpi.downtime_b|default:"-" }} <span
-                                class="text-sm font-normal text-slate-400">%</span>
+                        <div class="text-3xl font-bold {% if val and val > 1.01 %}text-red-600{% else %}text-slate-800 dark:text-white{% endif %} flex items-baseline gap-1">
+                            {{ val|default:"—" }}<span class="text-base font-normal text-slate-400">%</span>
                         </div>
-                        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
-                            <div class="h-1.5 rounded-full {% if latest_kpi.downtime_b|default:0 > 1.01 %}bg-red-500{% else %}bg-green-500{% endif %}"
-                                style="width: {% widthratio latest_kpi.downtime_b|default:0 5 100 %}%"></div>
+                        <div class="mt-3 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full {% if val and val > 1.01 %}bg-red-500{% else %}bg-emerald-500{% endif %}"
+                                style="width: {% if val %}{% widthratio val 3 100 %}{% else %}0{% endif %}%"></div>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-2 font-medium">Target: < 1.01%</p>
+                        <p class="text-[10px] text-slate-400 mt-2">Target &lt; 1.01%</p>
                     </div>
+                    {% endwith %}
 
-                    <!-- Card 3: Sugar Melt -->
-                    <div
-                        class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-all hover:shadow-md group">
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="text-xs font-semibold text-slate-500 uppercase">ละลายน้ำตาล</span>
+                    <!-- Card: Sugar Melt -->
+                    {% with val=latest_kpi.downtime_sugar_melt t=trend.downtime_sugar_melt %}
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border-2 {% if val and val > 0.7 %}border-orange-400{% else %}border-emerald-300{% endif %} transition-all hover:shadow-md">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="text-xs font-semibold text-slate-500 uppercase">DT ละลาย</span>
+                            {% if t.direction == 'down' %}
+                            <span class="flex items-center gap-0.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                                <i data-lucide="trending-down" class="w-3 h-3"></i> -{{ t.delta }}%
+                            </span>
+                            {% elif t.direction == 'up' %}
+                            <span class="flex items-center gap-0.5 text-xs font-bold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> +{{ t.delta }}%
+                            </span>
+                            {% endif %}
                         </div>
-                        <div
-                            class="text-2xl font-bold flex items-baseline gap-1 {% if latest_kpi.downtime_sugar_melt|default:0 > 0.7 %}text-yellow-600{% else %}text-slate-800 dark:text-white{% endif %}">
-                            {{ latest_kpi.downtime_sugar_melt|default:"-" }} <span
-                                class="text-sm font-normal text-slate-400">%</span>
+                        <div class="text-3xl font-bold {% if val and val > 0.7 %}text-orange-500{% else %}text-slate-800 dark:text-white{% endif %} flex items-baseline gap-1">
+                            {{ val|default:"—" }}<span class="text-base font-normal text-slate-400">%</span>
                         </div>
-                        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
-                            <div class="h-1.5 rounded-full {% if latest_kpi.downtime_sugar_melt|default:0 > 0.7 %}bg-yellow-500{% else %}bg-green-500{% endif %}"
-                                style="width: {% widthratio latest_kpi.downtime_sugar_melt|default:0 2 100 %}%"></div>
+                        <div class="mt-3 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full {% if val and val > 0.7 %}bg-orange-500{% else %}bg-emerald-500{% endif %}"
+                                style="width: {% if val %}{% widthratio val 2 100 %}{% else %}0{% endif %}%"></div>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-2 font-medium">Target: < 0.70%</p>
+                        <p class="text-[10px] text-slate-400 mt-2">Target &lt; 0.70%</p>
                     </div>
+                    {% endwith %}
 
-                    <!-- Card 4: Reduce Cap A -->
-                    <div
-                        class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-all hover:shadow-md group">
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="text-xs font-semibold text-slate-500 uppercase">ลดกำลังหีบ A</span>
+                    <!-- Card: Reduced Cap A -->
+                    {% with val=latest_kpi.reduced_cap_a t=trend.reduced_cap_a %}
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border-2 {% if val and val > 1.02 %}border-red-400{% else %}border-emerald-300{% endif %} transition-all hover:shadow-md">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="text-xs font-semibold text-slate-500 uppercase">ลดกำลัง A</span>
+                            {% if t.direction == 'down' %}
+                            <span class="flex items-center gap-0.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                                <i data-lucide="trending-down" class="w-3 h-3"></i> -{{ t.delta }}%
+                            </span>
+                            {% elif t.direction == 'up' %}
+                            <span class="flex items-center gap-0.5 text-xs font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> +{{ t.delta }}%
+                            </span>
+                            {% endif %}
                         </div>
-                        <div class="text-2xl font-bold flex items-baseline gap-1 text-slate-800 dark:text-white">
-                            {{ latest_kpi.reduced_cap_a|default:"-" }} <span
-                                class="text-sm font-normal text-slate-400">%</span>
+                        <div class="text-3xl font-bold {% if val and val > 1.02 %}text-red-600{% else %}text-slate-800 dark:text-white{% endif %} flex items-baseline gap-1">
+                            {{ val|default:"—" }}<span class="text-base font-normal text-slate-400">%</span>
                         </div>
-                        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
-                            <div class="h-1.5 rounded-full bg-green-500"
-                                style="width: {% widthratio latest_kpi.reduced_cap_a|default:0 5 100 %}%"></div>
+                        <div class="mt-3 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full {% if val and val > 1.02 %}bg-red-500{% else %}bg-emerald-500{% endif %}"
+                                style="width: {% if val %}{% widthratio val 3 100 %}{% else %}0{% endif %}%"></div>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-2 font-medium">Target: < 1.02%</p>
+                        <p class="text-[10px] text-slate-400 mt-2">Target &lt; 1.02%</p>
                     </div>
+                    {% endwith %}
 
-                    <!-- Card 5: Reduce Cap B -->
-                    <div
-                        class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-all hover:shadow-md group">
-                        <div class="flex justify-between items-start mb-2">
-                            <span class="text-xs font-semibold text-slate-500 uppercase">ลดกำลังหีบ B</span>
+                    <!-- Card: Reduced Cap B -->
+                    {% with val=latest_kpi.reduced_cap_b t=trend.reduced_cap_b %}
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border-2 {% if val and val > 1.02 %}border-red-400{% else %}border-emerald-300{% endif %} transition-all hover:shadow-md">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="text-xs font-semibold text-slate-500 uppercase">ลดกำลัง B</span>
+                            {% if t.direction == 'down' %}
+                            <span class="flex items-center gap-0.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                                <i data-lucide="trending-down" class="w-3 h-3"></i> -{{ t.delta }}%
+                            </span>
+                            {% elif t.direction == 'up' %}
+                            <span class="flex items-center gap-0.5 text-xs font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> +{{ t.delta }}%
+                            </span>
+                            {% endif %}
                         </div>
-                        <div class="text-2xl font-bold flex items-baseline gap-1 text-slate-800 dark:text-white">
-                            {{ latest_kpi.reduced_cap_b|default:"-" }} <span
-                                class="text-sm font-normal text-slate-400">%</span>
+                        <div class="text-3xl font-bold {% if val and val > 1.02 %}text-red-600{% else %}text-slate-800 dark:text-white{% endif %} flex items-baseline gap-1">
+                            {{ val|default:"—" }}<span class="text-base font-normal text-slate-400">%</span>
                         </div>
-                        <div class="mt-2 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
-                            <div class="h-1.5 rounded-full bg-green-500"
-                                style="width: {% widthratio latest_kpi.reduced_cap_b|default:0 5 100 %}%">
-                            </div>
+                        <div class="mt-3 w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full {% if val and val > 1.02 %}bg-red-500{% else %}bg-emerald-500{% endif %}"
+                                style="width: {% if val %}{% widthratio val 3 100 %}{% else %}0{% endif %}%"></div>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-2 font-medium">Target: < 1.02%</p>
+                        <p class="text-[10px] text-slate-400 mt-2">Target &lt; 1.02%</p>
                     </div>
+                    {% endwith %}
+
                 </div>
             </div>
 
-            <!-- SECTION 2: Steam Station (Items 6-9) -->
+            <!-- SECTION: Steam Station Charts -->
             <div>
-                <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
-                    <i data-lucide="gauge" class="w-5 h-5 text-blue-500"></i>
-                    Steam Station Monitoring (Items 6-9)
+                <h3 class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i data-lucide="gauge" class="w-4 h-4 text-blue-500"></i>
+                    Steam Header Monitoring — แนวโน้มช่วงที่เลือก
                 </h3>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                    <!-- 20 Bar System -->
-                    <div
-                        class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                        <div class="flex items-center justify-between mb-6">
-                            <h4 class="text-xl font-bold text-indigo-600 dark:text-indigo-400">Header 20 Bar</h4>
-                            <span
-                                class="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-xs font-semibold">Medium
-                                Pressure</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-8 divide-x divide-slate-100 dark:divide-slate-700">
-                            <!-- Pressure -->
-                            <div class="text-center px-2">
-                                <p class="text-sm text-slate-500 mb-1">Pressure</p>
-                                <div class="text-3xl font-bold text-slate-800 dark:text-white mb-1">{{latest_kpi.pressure_20bar|default:"-" }}</div>
-                                <span class="text-sm text-slate-400">Bar</span>
-                                <div
-                                    class="mt-2 text-xs font-medium text-green-600 bg-green-50 inline-block px-2 py-0.5 rounded">
-                                    Target: 21</div>
+                    <!-- 20 Bar -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h4 class="text-lg font-bold text-indigo-600 dark:text-indigo-400">Header 20 Bar</h4>
+                                <p class="text-xs text-slate-400">Medium Pressure Steam</p>
                             </div>
-                            <!-- Flow -->
-                            <div class="text-center px-2">
-                                <p class="text-sm text-slate-500 mb-1">Steam Flow</p>
-                                <div class="text-3xl font-bold text-slate-800 dark:text-white mb-1">{{latest_kpi.flow_20bar|default:"-" }}</div>
-                                <span class="text-sm text-slate-400">Ton/Hr</span>
-                                <div
-                                    class="mt-2 text-xs font-medium text-blue-600 bg-blue-50 inline-block px-2 py-0.5 rounded">
-                                    Target: 299</div>
-                            </div>
+                            <span class="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 rounded-full text-xs font-semibold">
+                                ล่าสุด: {{ latest_kpi.pressure_20bar|default:"—" }} bar / {{ latest_kpi.flow_20bar|default:"—" }} T/Hr
+                            </span>
                         </div>
-                        <div id="chart-20bar" class="mt-6"></div>
+                        <div id="chart-20bar" class="mt-2"></div>
+                        <div class="flex gap-4 mt-3 text-xs text-slate-400">
+                            <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-indigo-500 inline-block"></span>Pressure (Target: 21 bar)</span>
+                            <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-blue-400 inline-block"></span>Flow (Target: 299 T/Hr)</span>
+                            <span class="flex items-center gap-1"><span class="w-3 h-px bg-red-400 border-dashed border-t border-red-400 inline-block"></span>Target</span>
+                        </div>
                     </div>
 
-                    <!-- 40 Bar System -->
-                    <div
-                        class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                        <div class="flex items-center justify-between mb-6">
-                            <h4 class="text-xl font-bold text-orange-600 dark:text-orange-400">Header 40 Bar</h4>
-                            <span class="px-3 py-1 bg-orange-50 text-orange-600 rounded-full text-xs font-semibold">High
-                                Pressure</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-8 divide-x divide-slate-100 dark:divide-slate-700">
-                            <!-- Pressure -->
-                            <div class="text-center px-2">
-                                <p class="text-sm text-slate-500 mb-1">Pressure</p>
-                                <div class="text-3xl font-bold text-slate-800 dark:text-white mb-1">{{latest_kpi.pressure_40bar|default:"-" }}</div>
-                                <span class="text-sm text-slate-400">Bar</span>
-                                <div
-                                    class="mt-2 text-xs font-medium text-green-600 bg-green-50 inline-block px-2 py-0.5 rounded">
-                                    Target: 41</div>
+                    <!-- 40 Bar -->
+                    <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h4 class="text-lg font-bold text-orange-600 dark:text-orange-400">Header 40 Bar</h4>
+                                <p class="text-xs text-slate-400">High Pressure Steam</p>
                             </div>
-                            <!-- Flow -->
-                            <div class="text-center px-2">
-                                <p class="text-sm text-slate-500 mb-1">Steam Flow</p>
-                                <div class="text-3xl font-bold text-slate-800 dark:text-white mb-1">{{latest_kpi.flow_40bar|default:"-" }}</div>
-                                <span class="text-sm text-slate-400">Ton/Hr</span>
-                                <div
-                                    class="mt-2 text-xs font-medium text-blue-600 bg-blue-50 inline-block px-2 py-0.5 rounded">
-                                    Target: 405</div>
-                            </div>
+                            <span class="px-3 py-1 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300 rounded-full text-xs font-semibold">
+                                ล่าสุด: {{ latest_kpi.pressure_40bar|default:"—" }} bar / {{ latest_kpi.flow_40bar|default:"—" }} T/Hr
+                            </span>
                         </div>
-                        <div id="chart-40bar" class="mt-6"></div>
+                        <div id="chart-40bar" class="mt-2"></div>
+                        <div class="flex gap-4 mt-3 text-xs text-slate-400">
+                            <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-orange-500 inline-block"></span>Pressure (Target: 41 bar)</span>
+                            <span class="flex items-center gap-1"><span class="w-3 h-0.5 bg-amber-400 inline-block"></span>Flow (Target: 405 T/Hr)</span>
+                        </div>
                     </div>
 
                 </div>
             </div>
 
-            <!-- SECTION 3: Production & Alerts (Item 10) -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Cane Shredder -->
-                <div
-                    class="md:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-2">
-                            <i data-lucide="layers" class="w-5 h-5 text-purple-500"></i>
-                            Cane Shredder Consumption
-                        </h3>
-                        <p class="text-slate-500 text-sm">ปริมาณการใช้เครื่องตีใบอ้อยประจำวัน (Item 10)</p>
+            <!-- SECTION: Shredder + Alert History -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                <!-- Shredder Card -->
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4">
+                        <i data-lucide="layers" class="w-5 h-5 text-purple-500"></i>
+                        <h3 class="font-bold text-slate-700 dark:text-slate-200">Cane Shredder</h3>
                     </div>
-                    <div class="text-right">
-                        <div class="text-4xl font-bold text-purple-600 dark:text-purple-400">{{latest_kpi.shredder_consumption|default:"-" }}</div>
-                        <div class="text-slate-400 text-sm">Ton/Day</div>
-                        <div
-                            class="mt-2 inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                            <i data-lucide="trending-up" class="w-3 h-3"></i> Above Target (580)
+                    <div class="text-center py-4">
+                        <div class="text-5xl font-bold text-purple-600 dark:text-purple-400">{{ latest_kpi.shredder_consumption|default:"—" }}</div>
+                        <div class="text-slate-400 text-sm mt-1">Ton/Day</div>
+                        {% if latest_kpi.shredder_consumption %}
+                        <div class="mt-3 inline-flex items-center gap-1 text-xs {% if latest_kpi.shredder_consumption >= 580 %}text-emerald-600 bg-emerald-50{% else %}text-orange-600 bg-orange-50{% endif %} px-3 py-1 rounded-full font-medium">
+                            {% if latest_kpi.shredder_consumption >= 580 %}
+                            <i data-lucide="check-circle" class="w-3 h-3"></i> ผ่านเกณฑ์ (Target: 580)
+                            {% else %}
+                            <i data-lucide="alert-triangle" class="w-3 h-3"></i> ต่ำกว่าเกณฑ์ (Target: 580)
+                            {% endif %}
                         </div>
+                        {% endif %}
                     </div>
+                    <p class="text-xs text-slate-400 text-center">ปริมาณการใช้เครื่องตีใบอ้อยประจำวัน</p>
                 </div>
 
-                <!-- Alerts Summary -->
-                <div
-                    class="bg-red-50 dark:bg-red-900/20 p-6 rounded-2xl border border-red-100 dark:border-red-900/30 flex flex-col justify-center">
-                    <h4 class="font-bold text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
-                        <i data-lucide="bell" class="w-4 h-4"></i> Critical Alerts
-                    </h4>
-                    <ul class="space-y-3 text-sm">
-                        {% if latest_kpi.downtime_b|default:0 > 1.01 %}
-                        <li class="flex items-start gap-2 text-red-700 dark:text-red-300">
-                            <i data-lucide="x-circle" class="w-4 h-4 mt-0.5 shrink-0"></i>
-                            <span>Downtime B สูงกว่าเกณฑ์ปกติ ({{ latest_kpi.downtime_b }}%)</span>
-                        </li>
-                        {% endif %}
+                <!-- Alert History Table -->
+                <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="bell" class="w-5 h-5 text-red-500"></i>
+                            <h3 class="font-bold text-slate-700 dark:text-slate-200">Alert History</h3>
+                        </div>
+                        <span class="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 px-2 py-0.5 rounded-full font-bold">
+                            {{ alert_records|length }} รายการ
+                        </span>
+                    </div>
+                    {% if alert_records %}
+                    <div class="overflow-x-auto max-h-64">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 dark:bg-slate-700/50 text-xs text-slate-500 dark:text-slate-400 uppercase">
+                                <tr>
+                                    <th class="px-4 py-2 text-left">วันที่</th>
+                                    <th class="px-4 py-2 text-left">KPI</th>
+                                    <th class="px-4 py-2 text-right">ค่า</th>
+                                    <th class="px-4 py-2 text-right">Target</th>
+                                    <th class="px-4 py-2 text-right">เกิน</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                {% for rec in alert_records %}
+                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                                    <td class="px-4 py-2.5 text-slate-600 dark:text-slate-300 font-mono text-xs">{{ rec.date }}</td>
+                                    <td class="px-4 py-2.5 text-slate-700 dark:text-slate-200 font-medium">{{ rec.kpi }}</td>
+                                    <td class="px-4 py-2.5 text-right font-bold text-red-600">{{ rec.value }}%</td>
+                                    <td class="px-4 py-2.5 text-right text-slate-400 text-xs">{{ rec.target }}%</td>
+                                    <td class="px-4 py-2.5 text-right">
+                                        <span class="text-xs font-bold text-red-600 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded">+{{ rec.excess }}%</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="flex flex-col items-center justify-center py-10 text-slate-400">
+                        <i data-lucide="check-circle-2" class="w-10 h-10 text-emerald-400 mb-3"></i>
+                        <p class="font-medium text-slate-600 dark:text-slate-300">ไม่มีรายการเกินเกณฑ์</p>
+                        <p class="text-xs mt-1">ทุก KPI อยู่ในเกณฑ์ตลอดช่วงที่เลือก</p>
+                    </div>
+                    {% endif %}
+                </div>
 
-                        {% if latest_kpi.downtime_sugar_melt|default:0 > 0.7 %}
-                        <li class="flex items-start gap-2 text-yellow-700 dark:text-yellow-300">
-                            <i data-lucide="alert-triangle" class="w-4 h-4 mt-0.5 shrink-0"></i>
-                            <span>ละลายน้ำตาล ใกล้ถึงจุดวิกฤต ({{ latest_kpi.downtime_sugar_melt }}%)</span>
-                        </li>
-                        {% endif %}
+            </div>
 
-                        {% if latest_kpi.downtime_b|default:0 <= 1.01 and latest_kpi.downtime_sugar_melt|default:0 <= 0.7 %}
-                        <li class="flex items-start gap-2 text-green-700 dark:text-green-300">
-                            <i data-lucide="check-circle" class="w-4 h-4 mt-0.5 shrink-0"></i>
-                            <span>ระบบปกติ ไม่มีแจ้งเตือนวิกฤต</span>
-                        </li>
-                        {% endif %}
-                    </ul>
+            <!-- Management Module Links -->
+            <div class="pt-2 border-t border-slate-200 dark:border-slate-800">
+                <h3 class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Management Modules</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                    <a href="{% url 'operation_dashboard' %}" class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center mb-3 bg-cyan-100 text-cyan-600 group-hover:scale-110 transition-transform">
+                            <i data-lucide="play-circle" class="w-5 h-5"></i>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-700 dark:text-slate-200 group-hover:text-cyan-600 transition-colors">Operation</h4>
+                        <p class="text-xs text-slate-500 mt-0.5">บันทึก Data Sheet</p>
+                    </a>
+                    <a href="#" class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center mb-3 bg-orange-100 text-orange-600 group-hover:scale-110 transition-transform">
+                            <i data-lucide="wrench" class="w-5 h-5"></i>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-700 dark:text-slate-200 group-hover:text-orange-600 transition-colors">Maintenance</h4>
+                        <p class="text-xs text-slate-500 mt-0.5">ประวัติซ่อม, PM</p>
+                    </a>
+                    <a href="#" class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center mb-3 bg-emerald-100 text-emerald-600 group-hover:scale-110 transition-transform">
+                            <i data-lucide="dollar-sign" class="w-5 h-5"></i>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-700 dark:text-slate-200 group-hover:text-emerald-600 transition-colors">Budget</h4>
+                        <p class="text-xs text-slate-500 mt-0.5">คุมงบประมาณ</p>
+                    </a>
+                    <a href="#" class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center mb-3 bg-blue-100 text-blue-600 group-hover:scale-110 transition-transform">
+                            <i data-lucide="list" class="w-5 h-5"></i>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-700 dark:text-slate-200 group-hover:text-blue-600 transition-colors">Machine List</h4>
+                        <p class="text-xs text-slate-500 mt-0.5">ทะเบียนเครื่องจักร</p>
+                    </a>
+                    <a href="#" class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center mb-3 bg-purple-100 text-purple-600 group-hover:scale-110 transition-transform">
+                            <i data-lucide="book-open" class="w-5 h-5"></i>
+                        </div>
+                        <h4 class="font-bold text-sm text-slate-700 dark:text-slate-200 group-hover:text-purple-600 transition-colors">Manual</h4>
+                        <p class="text-xs text-slate-500 mt-0.5">คู่มือปฏิบัติงาน</p>
+                    </a>
                 </div>
             </div>
 
-            <!-- Management Modules Links -->
-            <div class="pt-6 border-t border-slate-200 dark:border-slate-800">
-                <h3 class="text-xl font-bold mb-6 text-slate-700 dark:text-slate-200">Management Modules</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-                    <a href="{% url 'operation_dashboard' %}"
-                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
-                        <div
-                            class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform dark:bg-opacity-20 bg-cyan-100 text-cyan-600 group-hover:scale-110">
-                            <i data-lucide="play-circle" class="w-6 h-6"></i>
-                        </div>
-                        <h4
-                            class="font-bold text-lg mb-1 transition-colors dark:text-slate-200 group-hover:text-cyan-600">
-                            Operation</h4>
-                        <p class="text-sm text-slate-500">บันทึก Data Sheet</p>
-                    </a>
-                    <a href="#"
-                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
-                        <div
-                            class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform dark:bg-opacity-20 bg-orange-100 text-orange-600 group-hover:scale-110">
-                            <i data-lucide="wrench" class="w-6 h-6"></i>
-                        </div>
-                        <h4
-                            class="font-bold text-lg mb-1 transition-colors dark:text-slate-200 group-hover:text-orange-600">
-                            Maintenance</h4>
-                        <p class="text-sm text-slate-500">ประวัติซ่อม, PM</p>
-                    </a>
-                    <a href="#"
-                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
-                        <div
-                            class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform dark:bg-opacity-20 bg-emerald-100 text-emerald-600 group-hover:scale-110">
-                            <i data-lucide="dollar-sign" class="w-6 h-6"></i>
-                        </div>
-                        <h4
-                            class="font-bold text-lg mb-1 transition-colors dark:text-slate-200 group-hover:text-emerald-600">
-                            Budget</h4>
-                        <p class="text-sm text-slate-500">คุมงบประมาณ</p>
-                    </a>
-                    <a href="#"
-                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
-                        <div
-                            class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform dark:bg-opacity-20 bg-blue-100 text-blue-600 group-hover:scale-110">
-                            <i data-lucide="list" class="w-6 h-6"></i>
-                        </div>
-                        <h4
-                            class="font-bold text-lg mb-1 transition-colors dark:text-slate-200 group-hover:text-blue-600">
-                            Machine List</h4>
-                        <p class="text-sm text-slate-500">ทะเบียนเครื่องจักร</p>
-                    </a>
-                    <a href="#"
-                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all group">
-                        <div
-                            class="w-12 h-12 rounded-lg flex items-center justify-center mb-4 transition-transform dark:bg-opacity-20 bg-purple-100 text-purple-600 group-hover:scale-110">
-                            <i data-lucide="book-open" class="w-6 h-6"></i>
-                        </div>
-                        <h4
-                            class="font-bold text-lg mb-1 transition-colors dark:text-slate-200 group-hover:text-purple-600">
-                            Manual</h4>
-                        <p class="text-sm text-slate-500">คู่มือปฏิบัติงาน</p>
-                    </a>
-                </div>
-            </div>
-
-        </div>
+        </div><!-- end scrollable -->
     </main>
 </div>
 
+<script type="application/json" id="chart-dates-data">{{ chart_dates|safe }}</script>
+<script type="application/json" id="chart-press20-data">{{ chart_press_20|safe }}</script>
+<script type="application/json" id="chart-flow20-data">{{ chart_flow_20|safe }}</script>
+<script type="application/json" id="chart-press40-data">{{ chart_press_40|safe }}</script>
+<script type="application/json" id="chart-flow40-data">{{ chart_flow_40|safe }}</script>
+
 <script>
-    // ดึงข้อมูล JSON จาก Django View
-    let dates, press20, flow20, press40, flow40;
+    // Custom date toggle
+    document.getElementById('custom-toggle').addEventListener('click', function () {
+        const inputs = document.getElementById('custom-date-inputs');
+        const hidden = inputs.classList.contains('hidden');
+        inputs.classList.toggle('hidden', !hidden);
+        this.classList.toggle('bg-indigo-600', hidden);
+        this.classList.toggle('text-white', hidden);
+        this.classList.toggle('bg-slate-100', !hidden);
+        this.classList.toggle('dark:bg-slate-800', !hidden);
+        this.classList.toggle('text-slate-600', !hidden);
+        this.classList.toggle('dark:text-slate-400', !hidden);
+    });
 
-    try {
-        // Attempt to parse Django context variables
-        dates = JSON.parse('{{ chart_dates|safe }}');
-        press20 = JSON.parse('{{ chart_press_20|safe }}');
-        flow20 = JSON.parse('{{ chart_flow_20|safe }}');
-        press40 = JSON.parse('{{ chart_press_40|safe }}');
-        flow40 = JSON.parse('{{ chart_flow_40|safe }}');
-    } catch (e) {
-        console.warn('Django template tags not rendered or data empty. Using mock data.');
-        dates = ["01/01", "02/01", "03/01", "04/01", "05/01", "06/01", "07/01"];
-        press20 = [21.0, 21.2, 21.5, 21.3, 21.5, 21.8, 21.4];
-        flow20 = [280, 285, 290, 295, 290, 300, 292];
-        press40 = [40.0, 40.2, 40.5, 40.3, 40.8, 41.0, 40.6];
-        flow40 = [390, 395, 400, 410, 405, 415, 408];
-    }
+    // Chart data via json_script (avoids IDE false positives on Django tags in JS)
+    const dates   = JSON.parse(document.getElementById('chart-dates-data').textContent);
+    const press20 = JSON.parse(document.getElementById('chart-press20-data').textContent);
+    const flow20  = JSON.parse(document.getElementById('chart-flow20-data').textContent);
+    const press40 = JSON.parse(document.getElementById('chart-press40-data').textContent);
+    const flow40  = JSON.parse(document.getElementById('chart-flow40-data').textContent);
 
-    // --- Chart 1: 20 Bar System Trend ---
-    var options20 = {
-        series: [{ name: 'Pressure (Bar)', data: press20 }, { name: 'Flow (Ton/Hr)', data: flow20 }],
-        chart: { height: 220, type: 'line', toolbar: { show: false }, fontFamily: 'inherit' },
-        stroke: { width: [2, 2], curve: 'smooth' },
+    const isDark = document.documentElement.classList.contains('dark');
+    const gridColor = isDark ? '#334155' : '#f1f5f9';
+    const labelColor = isDark ? '#94a3b8' : '#64748b';
+
+    // Chart 20 Bar with target line annotations
+    new ApexCharts(document.querySelector('#chart-20bar'), {
+        series: [
+            { name: 'Pressure (bar)', data: press20 },
+            { name: 'Flow (T/Hr)', data: flow20 }
+        ],
+        chart: { height: 220, type: 'line', toolbar: { show: false }, fontFamily: 'inherit', animations: { enabled: true } },
+        stroke: { width: [2.5, 2.5], curve: 'smooth' },
         colors: ['#6366f1', '#3b82f6'],
-        yaxis: [{ title: { text: 'Pressure' }, min: 15, max: 25 }, { opposite: true, title: { text: 'Flow' }, min: 0 }],
+        yaxis: [
+            { title: { text: 'Pressure (bar)', style: { color: labelColor, fontSize: '11px' } }, min: 15, max: 25, labels: { style: { colors: labelColor } } },
+            { opposite: true, title: { text: 'Flow (T/Hr)', style: { color: labelColor, fontSize: '11px' } }, min: 200, labels: { style: { colors: labelColor } } }
+        ],
+        annotations: {
+            yaxis: [
+                { y: 21, yAxisIndex: 0, borderColor: '#ef4444', borderWidth: 1, strokeDashArray: 4,
+                  label: { text: 'P Target 21', position: 'left', style: { background: '#fef2f2', color: '#ef4444', fontSize: '10px', padding: { top: 2, bottom: 2, left: 4, right: 4 } } } },
+                { y: 299, yAxisIndex: 1, borderColor: '#f97316', borderWidth: 1, strokeDashArray: 4,
+                  label: { text: 'F Target 299', position: 'right', style: { background: '#fff7ed', color: '#f97316', fontSize: '10px', padding: { top: 2, bottom: 2, left: 4, right: 4 } } } }
+            ]
+        },
         dataLabels: { enabled: false },
-        grid: { borderColor: '#f1f5f9' },
-        xaxis: { categories: dates },
-        legend: { position: 'top' },
-        tooltip: { x: { format: 'dd/MM' } }
-    };
-    new ApexCharts(document.querySelector("#chart-20bar"), options20).render();
+        grid: { borderColor: gridColor, strokeDashArray: 3 },
+        xaxis: { categories: dates, labels: { style: { colors: labelColor, fontSize: '11px' } }, axisBorder: { show: false } },
+        legend: { show: false },
+        tooltip: { shared: true, intersect: false, y: [{ formatter: v => v + ' bar' }, { formatter: v => v + ' T/Hr' }] }
+    }).render();
 
-    // --- Chart 2: 40 Bar System Trend ---
-    var options40 = {
-        series: [{ name: 'Pressure (Bar)', data: press40 }, { name: 'Flow (Ton/Hr)', data: flow40 }],
-        chart: { height: 220, type: 'line', toolbar: { show: false }, fontFamily: 'inherit' },
-        stroke: { width: [2, 2], curve: 'smooth' },
-        colors: ['#ea580c', '#f97316'],
-        yaxis: [{ title: { text: 'Pressure' }, min: 35, max: 45 }, { opposite: true, title: { text: 'Flow' }, min: 0 }],
+    // Chart 40 Bar with target line annotations
+    new ApexCharts(document.querySelector('#chart-40bar'), {
+        series: [
+            { name: 'Pressure (bar)', data: press40 },
+            { name: 'Flow (T/Hr)', data: flow40 }
+        ],
+        chart: { height: 220, type: 'line', toolbar: { show: false }, fontFamily: 'inherit', animations: { enabled: true } },
+        stroke: { width: [2.5, 2.5], curve: 'smooth' },
+        colors: ['#ea580c', '#f59e0b'],
+        yaxis: [
+            { title: { text: 'Pressure (bar)', style: { color: labelColor, fontSize: '11px' } }, min: 35, max: 45, labels: { style: { colors: labelColor } } },
+            { opposite: true, title: { text: 'Flow (T/Hr)', style: { color: labelColor, fontSize: '11px' } }, min: 300, labels: { style: { colors: labelColor } } }
+        ],
+        annotations: {
+            yaxis: [
+                { y: 41, yAxisIndex: 0, borderColor: '#ef4444', borderWidth: 1, strokeDashArray: 4,
+                  label: { text: 'P Target 41', position: 'left', style: { background: '#fef2f2', color: '#ef4444', fontSize: '10px', padding: { top: 2, bottom: 2, left: 4, right: 4 } } } },
+                { y: 405, yAxisIndex: 1, borderColor: '#dc2626', borderWidth: 1, strokeDashArray: 4,
+                  label: { text: 'F Target 405', position: 'right', style: { background: '#fff7ed', color: '#dc2626', fontSize: '10px', padding: { top: 2, bottom: 2, left: 4, right: 4 } } } }
+            ]
+        },
         dataLabels: { enabled: false },
-        grid: { borderColor: '#f1f5f9' },
-        xaxis: { categories: dates },
-        legend: { position: 'top' },
-        tooltip: { x: { format: 'dd/MM' } }
-    };
-    new ApexCharts(document.querySelector("#chart-40bar"), options40).render();
+        grid: { borderColor: gridColor, strokeDashArray: 3 },
+        xaxis: { categories: dates, labels: { style: { colors: labelColor, fontSize: '11px' } }, axisBorder: { show: false } },
+        legend: { show: false },
+        tooltip: { shared: true, intersect: false, y: [{ formatter: v => v + ' bar' }, { formatter: v => v + ' T/Hr' }] }
+    }).render();
 </script>
 
 {% endblock content %}

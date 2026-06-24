@@ -1,13 +1,14 @@
-version: '3.8'
-
 services:
   web:
     build: .
     # คำสั่งรัน Server (สังเกต 0.0.0.0 คือเปิดให้ข้างนอกเข้าได้)
-    command: python manage.py runserver 0.0.0.0:8000
+    command: sh -c "python manage.py migrate --no-input && python manage.py createcachetable --no-color 2>/dev/null || true && python manage.py runserver 0.0.0.0:8000"
+    env_file:
+      - .env          # อ่าน DJANGO_SECRET_KEY, DJANGO_DEBUG, DJANGO_ALLOWED_HOSTS จากไฟล์นี้
     volumes:
       - .:/app
       - static_volume:/app/staticfiles
+      - ./credentials:/app/credentials
     ports:
       - "8000:8000"
   nginx:

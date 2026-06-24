@@ -1,0 +1,223 @@
+{% extends 'myapp/inventory/base.html' %}
+{% load inventory_extras %}
+{% block page_title %}Stock Card: {{ item.code }}{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'inventory_list' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← รายการทั้งหมด</a>
+{% endblock %}
+
+{% block inv_content %}
+{% with cat=category_meta|get:item.category dept=department_meta|get:item.department %}
+<div class="grid grid-cols-3 gap-5">
+
+  <!-- Left: ข้อมูลรายการ -->
+  <div class="space-y-4">
+    <!-- Info card -->
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+      <span class="text-xs px-2 py-0.5 rounded-md font-medium"
+            style="background:{{ cat.color }}20; color:{{ cat.color }};">
+        {{ cat.icon }} {{ cat.name }}
+      </span>
+      <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 mt-3 mb-1">{{ item.name }}</h2>
+      <p class="font-mono text-xs text-slate-400 mb-4">{{ item.code }}</p>
+
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-slate-400">แผนก</dt>
+          <dd class="font-semibold" style="color:{{ dept.color }};">{{ dept.name }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-400">หน่วยนับ</dt>
+          <dd class="text-slate-700 dark:text-slate-200">{{ item.unit }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-400">ราคา/หน่วย</dt>
+          <dd class="text-slate-700 dark:text-slate-200">฿{{ item.unit_price }}</dd>
+        </div>
+        <div class="flex justify-between">
+          <dt class="text-slate-400">ที่จัดเก็บ</dt>
+          <dd class="text-slate-700 dark:text-slate-200">{{ item.location|default:"-" }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    <!-- Stock gauge -->
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+      <div class="flex justify-between items-end mb-2">
+        <span class="text-sm text-slate-500">ยอดคงเหลือ</span>
+        <span class="text-2xl font-black {% if item.is_low_stock %}text-red-500{% else %}text-emerald-600{% endif %}">
+          {{ item.stock }} <span class="text-sm font-normal text-slate-400">{{ item.unit }}</span>
+        </span>
+      </div>
+      <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3">
+        <div class="h-3 rounded-full transition-all {% if item.is_low_stock %}bg-red-400{% else %}bg-emerald-400{% endif %}"
+             style="width:{{ item.stock_percent }}%;"></div>
+      </div>
+      <div class="flex justify-between mt-1.5 text-xs text-slate-400">
+        <span>Min {{ item.min_stock }}</span>
+        <span>Max {{ item.max_stock }}</span>
+      </div>
+      <div class="mt-4 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 p-3 text-center">
+        <p class="text-xs text-indigo-400 mb-0.5">มูลค่าคงคลัง</p>
+        <p class="text-xl font-black text-indigo-600 dark:text-indigo-300">฿{{ item.stock_value|floatformat:2 }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right 2 cols: ฟอร์ม + ประวัติ -->
+  <div class="col-span-2 space-y-4">
+
+    <!-- ฟอร์มเบิก/คืน -->
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+      <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">📝 บันทึกรายการ</h3>
+      <div class="grid grid-cols-4 gap-3">
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">ประเภท</label>
+          <select id="tx_type" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="issue">เบิกออก</option>
+            <option value="return">คืน</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">จำนวน</label>
+          <input id="tx_qty" type="number" value="1" min="1"
+            class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">ชื่อพนักงาน *</label>
+          <input id="tx_emp" placeholder="กรอกชื่อ"
+            class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">หมายเหตุ</label>
+          <input id="tx_note" placeholder="(ไม่บังคับ)"
+            class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+      </div>
+      <div class="flex items-center gap-3 mt-3">
+        <button onclick="submitCheckout()"
+          class="px-5 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors">
+          เบิก / คืน
+        </button>
+        <button onclick="toggleReceive()"
+          class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors">
+          รับเข้า (PO)
+        </button>
+        <p id="tx_err" class="text-red-500 text-xs"></p>
+      </div>
+
+      <!-- รับเข้า -->
+      <div id="receivePanel" class="hidden mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+        <div class="grid grid-cols-4 gap-3">
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">จำนวน</label>
+            <input id="r_qty" type="number" value="1"
+              class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">เลขที่ PO *</label>
+            <input id="r_po" placeholder="PO-2568-001"
+              class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">ผู้ขาย</label>
+            <input id="r_supplier"
+              class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">ราคา/หน่วย</label>
+            <input id="r_price" type="number" value="0"
+              class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-3">
+          <button onclick="submitReceive()"
+            class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors">
+            บันทึกรับเข้า
+          </button>
+          <p id="r_err" class="text-red-500 text-xs"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ประวัติ -->
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+        <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">📜 ประวัติเคลื่อนไหว (30 รายการล่าสุด)</span>
+      </div>
+      {% for tx in transactions %}
+      <div class="flex items-start justify-between px-5 py-3 border-b border-slate-50 dark:border-slate-800">
+        <div class="flex items-start gap-3">
+          {% if tx.tx_type == 'receive' %}
+          <span class="text-xs px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 font-medium flex-shrink-0 mt-0.5">รับเข้า</span>
+          {% elif tx.tx_type == 'issue' %}
+          <span class="text-xs px-2 py-0.5 rounded-md bg-red-100 text-red-700 font-medium flex-shrink-0 mt-0.5">เบิกออก</span>
+          {% elif tx.tx_type == 'return' %}
+          <span class="text-xs px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 font-medium flex-shrink-0 mt-0.5">คืน</span>
+          {% else %}
+          <span class="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium flex-shrink-0 mt-0.5">ปรับยอด</span>
+          {% endif %}
+          <div>
+            {% if tx.employee_name %}<p class="text-sm text-slate-700 dark:text-slate-200">{{ tx.employee_name }}</p>{% endif %}
+            {% if tx.po_number %}<p class="text-xs text-slate-400">PO: {{ tx.po_number }}</p>{% endif %}
+            {% if tx.note %}<p class="text-xs text-slate-400 italic">{{ tx.note }}</p>{% endif %}
+          </div>
+        </div>
+        <div class="text-right flex-shrink-0 ml-3">
+          <p class="font-bold text-sm {% if tx.tx_type == 'issue' %}text-red-500{% else %}text-emerald-600{% endif %}">
+            {% if tx.tx_type == 'issue' %}-{% else %}+{% endif %}{{ tx.quantity }}
+          </p>
+          <p class="text-xs text-slate-400">{{ tx.created_at|date:"d/m/Y H:i" }}</p>
+        </div>
+      </div>
+      {% empty %}
+      <div class="py-12 text-center text-slate-400 text-sm">ยังไม่มีประวัติ</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endwith %}
+
+<script>
+function toggleReceive() {
+  const p = document.getElementById('receivePanel');
+  p.classList.toggle('hidden');
+}
+function submitCheckout() {
+  const err = document.getElementById('tx_err');
+  err.textContent = '';
+  fetch("{% url 'api_inventory_checkout' %}", {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify({
+      item_id: {{ item.pk }},
+      type: document.getElementById('tx_type').value,
+      quantity: document.getElementById('tx_qty').value,
+      employee: document.getElementById('tx_emp').value.trim(),
+      note: document.getElementById('tx_note').value.trim(),
+    })
+  }).then(r => r.json()).then(data => {
+    if (data.success) location.reload();
+    else err.textContent = data.error || 'เกิดข้อผิดพลาด';
+  });
+}
+function submitReceive() {
+  const err = document.getElementById('r_err');
+  err.textContent = '';
+  fetch("{% url 'api_inventory_receive' %}", {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify({
+      item_id: {{ item.pk }},
+      quantity: document.getElementById('r_qty').value,
+      po_number: document.getElementById('r_po').value.trim(),
+      supplier: document.getElementById('r_supplier').value.trim(),
+      unit_price: document.getElementById('r_price').value,
+    })
+  }).then(r => r.json()).then(data => {
+    if (data.success) location.reload();
+    else err.textContent = data.error || 'เกิดข้อผิดพลาด';
+  });
+}
+</script>
+{% endblock %}

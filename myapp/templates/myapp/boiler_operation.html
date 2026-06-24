@@ -121,7 +121,26 @@
             </div>
         </header>
 
+        <!-- Alert Strip (shown only when thresholds exceeded) -->
+        <div id="alert-strip" class="hidden px-6 py-3 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-200 dark:border-orange-800">
+            <div class="flex items-start gap-2 max-w-7xl mx-auto">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5"></i>
+                <div id="alert-items" class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-orange-700 dark:text-orange-300 font-medium"></div>
+            </div>
+        </div>
+
         <div class="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
+
+            <!-- Fleet Overview Panel -->
+            <div class="mb-6">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-1 h-5 bg-indigo-500 rounded-full"></div>
+                    <h3 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">All Boilers at a Glance</h3>
+                </div>
+                <div id="fleet-overview" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <!-- JS will populate -->
+                </div>
+            </div>
 
             <!-- Machine Selector (Tabs) -->
             <div class="mb-8">
@@ -411,14 +430,104 @@
 
     let currentMachine = 'john_thomson';
 
+    // --- Status helpers ---
+    function getThresholdStatus(value, target) {
+        if (!value || value === '-' || !target) return 'offline';
+        const v = parseFloat(value);
+        const t = parseFloat(target);
+        if (isNaN(v) || isNaN(t) || t === 0) return 'offline';
+        const pct = Math.abs(v - t) / t * 100;
+        if (pct <= 5) return 'ok';
+        if (pct <= 15) return 'warning';
+        return 'critical';
+    }
+
+    function statusColor(status) {
+        return {
+            ok: { text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', badge: 'bg-emerald-500', label: 'Running' },
+            warning: { text: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30', badge: 'bg-orange-500', label: 'Warning' },
+            critical: { text: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', badge: 'bg-red-500', label: 'Critical' },
+            offline: { text: 'text-slate-400 dark:text-slate-500', bg: 'bg-slate-100 dark:bg-slate-800', badge: 'bg-slate-400', label: 'Offline' },
+        }[status] || { text: 'text-slate-400', bg: 'bg-slate-100', badge: 'bg-slate-400', label: 'N/A' };
+    }
+
+    // --- Fleet Overview ---
+    function buildFleetOverview() {
+        const container = document.getElementById('fleet-overview');
+        const alerts = [];
+
+        container.innerHTML = machineList.map(m => {
+            const data = machineData[m.id] || {};
+            const tgt = targets[m.id] || {};
+            const pressStatus = getThresholdStatus(data.press, tgt.press);
+            const overallStatus = (pressStatus === 'ok' && data.press && data.press !== '-') ? 'ok' :
+                                  (pressStatus === 'warning') ? 'warning' :
+                                  (pressStatus === 'critical') ? 'critical' : 'offline';
+            const c = statusColor(overallStatus);
+
+            // Collect alerts
+            if (overallStatus === 'warning' || overallStatus === 'critical') {
+                alerts.push({ machine: data.name || m.label, status: overallStatus, press: data.press, target: tgt.press });
+            }
+
+            const metricRow = (label, val, tgt, unit) => {
+                const s = getThresholdStatus(val, tgt);
+                const col = s === 'ok' ? 'text-emerald-600 dark:text-emerald-400' :
+                            s === 'warning' ? 'text-orange-500' :
+                            s === 'critical' ? 'text-red-500' : 'text-slate-400';
+                return `<div class="flex justify-between items-baseline text-xs">
+                    <span class="text-slate-400">${label}</span>
+                    <span class="font-semibold ${col}">${val !== undefined && val !== null ? val : '-'} <span class="text-slate-400 font-normal">${unit}</span></span>
+                </div>`;
+            };
+
+            return `
+                <div onclick="switchMachine('${m.id}')" id="fleet-card-${m.id}"
+                    class="cursor-pointer bg-white dark:bg-[#1e293b] rounded-2xl p-4 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 transition-all shadow-sm hover:shadow-md">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">${data.name || m.label}</span>
+                        <span class="flex items-center gap-1 text-xs font-medium ${c.text} ml-1 flex-shrink-0">
+                            <span class="w-1.5 h-1.5 rounded-full ${c.badge} ${overallStatus === 'ok' ? 'animate-pulse' : ''}"></span>
+                            ${c.label}
+                        </span>
+                    </div>
+                    <div class="space-y-1.5">
+                        ${metricRow('P', data.press, tgt.press, 'bar')}
+                        ${metricRow('F', data.flow, tgt.flow, 'T/H')}
+                        ${metricRow('T', data.temp, tgt.temp, '°C')}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        buildAlertStrip(alerts);
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    // --- Alert Strip ---
+    function buildAlertStrip(alerts) {
+        const strip = document.getElementById('alert-strip');
+        const items = document.getElementById('alert-items');
+        if (alerts.length === 0) {
+            strip.classList.add('hidden');
+            return;
+        }
+        strip.classList.remove('hidden');
+        items.innerHTML = alerts.map(a =>
+            `<span>⚠ <strong>${a.machine}</strong>: Pressure ${a.press} bar (Target ${a.target} bar)</span>`
+        ).join('');
+        if (window.lucide) window.lucide.createIcons();
+    }
+
     function initTabs() {
         const container = document.getElementById('machine-tabs');
         container.innerHTML = machineList.map(m => `
-            <button onclick="switchMachine('${m.id}')" id="tab-${m.id}" 
+            <button onclick="switchMachine('${m.id}')" id="tab-${m.id}"
                 class="whitespace-nowrap px-6 py-3 rounded-2xl text-sm font-medium transition-all duration-300 border border-transparent shadow-sm">
                 ${m.label}
             </button>
         `).join('');
+        buildFleetOverview();
         switchMachine(currentMachine);
     }
 
@@ -501,9 +610,15 @@
                     <circle cx="100" cy="100" r="5" fill="#334155" class="dark:fill-white" />
                 </svg>
                 
-                <!-- Value Text (Moved below SVG with margin) -->
+                <!-- Value Text with threshold color -->
                 <div class="text-center mt-2 z-10">
-                    <div class="text-3xl font-bold text-slate-800 dark:text-white leading-none">${v}</div>
+                    <div class="text-3xl font-bold leading-none ${(() => {
+                        const s = getThresholdStatus(v, t);
+                        return s === 'ok' ? 'text-emerald-600 dark:text-emerald-400' :
+                               s === 'warning' ? 'text-orange-500 dark:text-orange-400' :
+                               s === 'critical' ? 'text-red-600 dark:text-red-400' :
+                               'text-slate-800 dark:text-white';
+                    })()}">${v}</div>
                     <div class="text-xs text-slate-400 font-medium">${unit}</div>
                 </div>
             </div>
@@ -529,9 +644,22 @@
             }
         });
 
+        // Update fleet card highlight
+        machineList.forEach(m => {
+            const card = document.getElementById(`fleet-card-${m.id}`);
+            if (card) {
+                if (m.id === key) {
+                    card.classList.add('ring-2', 'ring-indigo-500', 'ring-offset-2');
+                } else {
+                    card.classList.remove('ring-2', 'ring-indigo-500', 'ring-offset-2');
+                }
+            }
+        });
+
         // Update Content
         document.getElementById('machine-title').innerText = data.name || machineInfo.label;
-        document.getElementById('last-update-time').innerText = (new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+        const ts = data.last_update;
+        document.getElementById('last-update-time').innerText = ts || '--';
         document.getElementById('btn-add-log').href = machineInfo.url;
 
         // Update Gauges (SVG)
