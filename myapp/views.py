@@ -2443,34 +2443,20 @@ def _upload_to_drive(uploaded_file, filename, folder_path):
     ต้องตั้งค่า GAS_WEBAPP_URL ใน .env ก่อน
     คืนค่า file_id หากสำเร็จ หรือ None หากล้มเหลว
     """
-    script_url = os.environ.get('GAS_WEBAPP_URL', '')
-    if not script_url:
+    if not os.environ.get('GAS_WEBAPP_URL', ''):
         print('[Drive] GAS_WEBAPP_URL ยังไม่ได้ตั้งค่าใน .env')
         return None
 
     try:
         file_data = base64.b64encode(uploaded_file.read()).decode('utf-8')
         mime_type = getattr(uploaded_file, 'content_type', 'application/octet-stream')
-        payload = json.dumps({
+        result = _send_to_gas({
+            'action':     'upload',
             'filename':   filename,
             'mimeType':   mime_type,
             'fileData':   file_data,
             'folderPath': folder_path,
-        }).encode('utf-8')
-
-        import http.cookiejar
-        opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
-        )
-        req = urllib.request.Request(
-            script_url,
-            data    = payload,
-            headers = {'Content-Type': 'application/json'},
-            method  = 'POST',
-        )
-
-        with opener.open(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
+        }, timeout=90)
 
         if not result:
             print('[Drive] ไม่ได้รับ response จาก GAS')
