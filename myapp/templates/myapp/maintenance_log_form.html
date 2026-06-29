@@ -35,6 +35,12 @@
             <div>
                 <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">ชื่อเครื่องจักร</label>
                 {{ form.machine }}
+                <datalist id="equipment-datalist">
+                    {% for eq in equipment_choices %}
+                    <option value="{{ eq.name }}">{{ eq.equipment_id }}</option>
+                    {% endfor %}
+                </datalist>
+                <p class="text-xs text-slate-400 mt-1">พิมพ์ชื่อหรือเลือกจากรายการ — ระบบจะเชื่อมกับ Machine List อัตโนมัติ</p>
             </div>
 
             <div class="grid grid-cols-2 gap-4">

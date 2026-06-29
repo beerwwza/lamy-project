@@ -522,6 +522,13 @@ class MaintenanceLog(models.Model):
 
     date = models.DateField(verbose_name="วันที่")
     machine = models.CharField(max_length=255, verbose_name="เครื่องจักร")
+    equipment_fk = models.ForeignKey(
+        'Equipment',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='maintenance_logs',
+        verbose_name="เครื่องจักร (FK)"
+    )
     dept = models.CharField(max_length=100, verbose_name="แผนก", default="ไม่ระบุ")
     problem = models.TextField(verbose_name="ปัญหาที่เกิด")
     cause = models.TextField(verbose_name="สาเหตุ", blank=True, null=True)
@@ -709,6 +716,94 @@ class Equipment(models.Model):
 
     def __str__(self):
         return f"{self.equipment_id} - {self.name}"
+
+    def update_reliability_metrics(self):
+        from django.db.models import Sum
+        from django.db.models.functions import Coalesce
+        from datetime import date as today_date
+        logs = self.maintenance_logs.all()
+        n = logs.count()
+        if n == 0:
+            return
+        agg = logs.aggregate(
+            total_stop=Coalesce(Sum('downtime_stop'), 0.0),
+        )
+        total_down = agg['total_stop']
+        self.mttr = round(total_down / n, 2)
+        if self.installation_date:
+            operating_hours = (today_date.today() - self.installation_date).days * 24
+            uptime = max(operating_hours - total_down, 0)
+            self.mtbf = round(uptime / n, 2)
+        self.save(update_fields=['mtbf', 'mttr'])
+
+    class Meta:
+        verbose_name = "เครื่องจักร"
+        verbose_name_plural = "เครื่องจักรทั้งหมด"
+
+
+class PMSchedule(models.Model):
+    FREQUENCY_CHOICES = [
+        ('daily',     'รายวัน'),
+        ('weekly',    'รายสัปดาห์'),
+        ('monthly',   'รายเดือน'),
+        ('quarterly', 'รายไตรมาส (3 เดือน)'),
+        ('biannual',  'ราย 6 เดือน'),
+        ('annual',    'รายปี'),
+        ('hours',     'ตามชั่วโมงใช้งาน'),
+    ]
+
+    equipment           = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='pm_schedules', verbose_name="เครื่องจักร")
+    task_name           = models.CharField(max_length=255, verbose_name="งาน PM")
+    frequency_type      = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='monthly', verbose_name="ความถี่")
+    frequency_value     = models.IntegerField(default=1, verbose_name="ค่าความถี่")
+    last_completed_date = models.DateField(null=True, blank=True, verbose_name="ทำ PM ล่าสุด")
+    next_due_date       = models.DateField(null=True, blank=True, verbose_name="กำหนดทำ PM ครั้งต่อไป")
+    assigned_to         = models.CharField(max_length=100, blank=True, verbose_name="ผู้รับผิดชอบ")
+    instructions        = models.TextField(blank=True, verbose_name="คำแนะนำ / ขั้นตอน")
+    estimated_hours     = models.FloatField(default=1.0, verbose_name="เวลาที่ใช้ (ชม.)")
+    is_active           = models.BooleanField(default=True, verbose_name="ใช้งาน")
+    created_at          = models.DateTimeField(auto_now_add=True)
+    updated_at          = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.equipment_id} — {self.task_name}"
+
+    @property
+    def pm_status(self):
+        from datetime import date, timedelta
+        if not self.next_due_date:
+            return 'unscheduled'
+        today = date.today()
+        if self.next_due_date < today:
+            return 'overdue'
+        if self.next_due_date <= today + timedelta(days=7):
+            return 'due_soon'
+        return 'ok'
+
+    def calculate_next_due(self):
+        from datetime import date, timedelta
+        from dateutil.relativedelta import relativedelta
+        base = self.last_completed_date or date.today()
+        val  = self.frequency_value or 1
+        freq = self.frequency_type
+        if freq == 'daily':
+            self.next_due_date = base + timedelta(days=val)
+        elif freq == 'weekly':
+            self.next_due_date = base + timedelta(weeks=val)
+        elif freq == 'monthly':
+            self.next_due_date = base + relativedelta(months=val)
+        elif freq == 'quarterly':
+            self.next_due_date = base + relativedelta(months=3 * val)
+        elif freq == 'biannual':
+            self.next_due_date = base + relativedelta(months=6 * val)
+        elif freq == 'annual':
+            self.next_due_date = base + relativedelta(years=val)
+
+    class Meta:
+        ordering = ['next_due_date', 'task_name']
+        verbose_name = "แผน PM"
+        verbose_name_plural = "แผน PM ทั้งหมด"
+
 
 class EquipmentBOM(models.Model):
     equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='boms', verbose_name="เครื่องจักร")

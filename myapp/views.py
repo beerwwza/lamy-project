@@ -26,7 +26,9 @@ from .forms import MillReportForm
 from .models import MaintenanceLog, KPIMetric, InventoryItem, InventoryTransaction
 from .forms import MaintenanceLogForm, KPIMetricForm
 from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic, InventoryItem, InventoryTransaction
-from .forms import EquipmentForm, EquipmentBOMForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm, RepairDocumentForm 
+from .models import PMSchedule
+from .forms import EquipmentForm, EquipmentBOMForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm, RepairDocumentForm
+from .forms import PMScheduleForm
 from decimal import Decimal, InvalidOperation
 
 
@@ -55,6 +57,24 @@ def equipment_data(request, eq_id=None):
     if equipment and equipment.motor:
         motor_equipment = Equipment.objects.filter(equipment_id=equipment.motor.strip()).first()
     
+    # Phase 2: maintenance history via FK
+    maintenance_logs = MaintenanceLog.objects.filter(equipment_fk=equipment).order_by('-date')[:20]
+
+    # Phase 3: PM schedules
+    from django.urls import reverse
+    pm_schedules = PMSchedule.objects.filter(equipment=equipment, is_active=True).order_by('next_due_date')
+    pm_add_url   = reverse('pm_schedule_add', args=[equipment.equipment_id])
+
+    # Phase 4: reliability metrics
+    repair_count = MaintenanceLog.objects.filter(equipment_fk=equipment).count()
+    total_down   = MaintenanceLog.objects.filter(equipment_fk=equipment).aggregate(
+        td=Sum('downtime_stop'))['td'] or 0
+    mttr_calc    = round(total_down / repair_count, 2) if repair_count else 0
+    if equipment.mtbf and equipment.mttr:
+        avail_pct = round(equipment.mtbf / (equipment.mtbf + equipment.mttr) * 100, 1) if (equipment.mtbf + equipment.mttr) else None
+    else:
+        avail_pct = None
+
     context = {
         'equipment': equipment,
         'motor_equipment': motor_equipment,
@@ -65,13 +85,19 @@ def equipment_data(request, eq_id=None):
         'latest_cbm_oil': latest_cbm_oil,
         'latest_cbm_acoustic': latest_cbm_acoustic,
         'equipment_list': equipment_list,
-        # Forms for adding new CBM records
+        'maintenance_logs': maintenance_logs,
+        'pm_schedules': pm_schedules,
+        'pm_add_url': pm_add_url,
+        'repair_count': repair_count,
+        'total_down': total_down,
+        'mttr_calc': mttr_calc,
+        'avail_pct': avail_pct,
         'form_visual': CBMVisualTestForm(),
         'form_vibration': CBMVibrationForm(),
         'form_thermoscan': CBMThermoscanForm(),
         'form_oil': CBMOilAnalysisForm(),
         'form_acoustic': CBMAcousticForm(),
-        'form_bom': EquipmentBOMForm()
+        'form_bom': EquipmentBOMForm(),
     }
     return render(request, 'myapp/equipment_data.html', context)
 
@@ -207,11 +233,103 @@ def equipment_toggle_status(request, eq_id):
         messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
     return redirect('equipment_list')
 
+
+# ─── PM Schedule Views ────────────────────────────────────────────────────────
+
+@login_required
+def pm_schedule_add(request, eq_id):
+    equipment = get_object_or_404(Equipment, equipment_id=eq_id)
+    if request.method == 'POST':
+        form = PMScheduleForm(request.POST)
+        if form.is_valid():
+            pm = form.save(commit=False)
+            pm.equipment = equipment
+            if pm.last_completed_date and not pm.next_due_date:
+                pm.calculate_next_due()
+            pm.save()
+            messages.success(request, f'เพิ่มแผน PM "{pm.task_name}" เรียบร้อยแล้ว')
+            return redirect('equipment_data_detail', eq_id=eq_id)
+    else:
+        form = PMScheduleForm()
+    return render(request, 'myapp/pm_form.html', {
+        'form': form, 'equipment': equipment, 'action': 'เพิ่มแผน PM ใหม่',
+    })
+
+
+@login_required
+def pm_schedule_edit(request, pm_id):
+    pm = get_object_or_404(PMSchedule, id=pm_id)
+    if request.method == 'POST':
+        form = PMScheduleForm(request.POST, instance=pm)
+        if form.is_valid():
+            pm = form.save()
+            messages.success(request, f'แก้ไขแผน PM "{pm.task_name}" เรียบร้อยแล้ว')
+            return redirect('equipment_data_detail', eq_id=pm.equipment_id)
+    else:
+        form = PMScheduleForm(instance=pm)
+    return render(request, 'myapp/pm_form.html', {
+        'form': form, 'equipment': pm.equipment, 'action': 'แก้ไขแผน PM', 'pm': pm,
+    })
+
+
+@login_required
+def pm_schedule_complete(request, pm_id):
+    from datetime import date
+    if request.method != 'POST':
+        return redirect('equipment_list')
+    pm = get_object_or_404(PMSchedule, id=pm_id)
+    pm.last_completed_date = date.today()
+    pm.calculate_next_due()
+    pm.save()
+    messages.success(request, f'บันทึกการทำ PM "{pm.task_name}" เรียบร้อย — ครั้งต่อไป {pm.next_due_date}')
+    return redirect('equipment_data_detail', eq_id=pm.equipment_id)
+
+
+@login_required
+def pm_schedule_delete(request, pm_id):
+    if request.method != 'POST':
+        return redirect('equipment_list')
+    pm = get_object_or_404(PMSchedule, id=pm_id)
+    eq_id = pm.equipment_id
+    task  = pm.task_name
+    pm.delete()
+    messages.success(request, f'ลบแผน PM "{task}" เรียบร้อยแล้ว')
+    return redirect('equipment_data_detail', eq_id=eq_id)
+
+
 @login_required
 def equipment_list(request):
-    equipments = Equipment.objects.all().order_by('equipment_id')
-    locations = Equipment.objects.exclude(location__isnull=True).exclude(location__exact='').values_list('location', flat=True).distinct().order_by('location')
-    context = {'equipments': equipments, 'locations': list(locations)}
+    from datetime import date
+    from django.db.models import Max, Prefetch
+
+    equipments = list(
+        Equipment.objects.all()
+        .order_by('equipment_id')
+        .annotate(last_repair=Max('maintenance_logs__date'))
+        .prefetch_related(
+            Prefetch('pm_schedules',
+                     queryset=PMSchedule.objects.filter(is_active=True),
+                     to_attr='active_pms')
+        )
+    )
+    today = date.today()
+    for eq in equipments:
+        statuses = [pm.pm_status for pm in eq.active_pms]
+        if 'overdue' in statuses:
+            eq.pm_worst = 'overdue'
+        elif 'due_soon' in statuses:
+            eq.pm_worst = 'due_soon'
+        elif statuses:
+            eq.pm_worst = 'ok'
+        else:
+            eq.pm_worst = None
+
+    locations = Equipment.objects.exclude(location__isnull=True).exclude(location__exact='') \
+                                 .values_list('location', flat=True).distinct().order_by('location')
+    context = {
+        'equipments':  equipments,
+        'locations':   list(locations),
+    }
     return render(request, 'myapp/equipment_list.html', context)
 
 #def Home(request):
@@ -1739,6 +1857,19 @@ def boiler_kpi_form(request):
     return render(request, 'myapp/boiler_kpi_form.html', {'form': form})
 
 
+def _auto_link_equipment(log):
+    if log.equipment_fk_id:
+        return
+    key = (log.machine or '').strip().lower()
+    if not key:
+        return
+    eq = (Equipment.objects.filter(equipment_id__iexact=key).first() or
+          Equipment.objects.filter(name__iexact=key).first() or
+          Equipment.objects.filter(name__icontains=key).first())
+    if eq:
+        log.equipment_fk = eq
+
+
 @login_required
 def maintenance_dashboard(request):
     logs = MaintenanceLog.objects.all().order_by('-date')
@@ -1787,29 +1918,50 @@ def maintenance_dashboard(request):
 
 @login_required
 def maintenance_log_add(request):
+    equipment_choices = Equipment.objects.filter(is_active=True).order_by('equipment_id')
+    prefill_eq = request.GET.get('equipment', '')
     if request.method == 'POST':
         form = MaintenanceLogForm(request.POST)
         if form.is_valid():
-            form.save()
+            log = form.save(commit=False)
+            _auto_link_equipment(log)
+            log.save()
+            if log.equipment_fk:
+                log.equipment_fk.update_reliability_metrics()
             return redirect('maintenance_dashboard')
     else:
-        form = MaintenanceLogForm()
-    return render(request, 'myapp/maintenance_log_form.html', {'form': form})
+        initial = {}
+        if prefill_eq:
+            eq = Equipment.objects.filter(equipment_id=prefill_eq).first()
+            if eq:
+                initial['machine'] = eq.name
+        form = MaintenanceLogForm(initial=initial)
+    return render(request, 'myapp/maintenance_log_form.html', {
+        'form': form,
+        'equipment_choices': equipment_choices,
+    })
 
 @login_required
 def maintenance_log_edit(request, log_id):
-    from django.shortcuts import get_object_or_404
-    from .models import MaintenanceLog
-    
     log = get_object_or_404(MaintenanceLog, id=log_id)
+    equipment_choices = Equipment.objects.filter(is_active=True).order_by('equipment_id')
     if request.method == 'POST':
         form = MaintenanceLogForm(request.POST, instance=log)
         if form.is_valid():
-            form.save()
+            log = form.save(commit=False)
+            _auto_link_equipment(log)
+            log.save()
+            if log.equipment_fk:
+                log.equipment_fk.update_reliability_metrics()
             return redirect('maintenance_dashboard')
     else:
         form = MaintenanceLogForm(instance=log)
-    return render(request, 'myapp/maintenance_log_form.html', {'form': form, 'is_edit': True, 'log_id': log_id})
+    return render(request, 'myapp/maintenance_log_form.html', {
+        'form': form,
+        'equipment_choices': equipment_choices,
+        'is_edit': True,
+        'log_id': log_id,
+    })
 
 @login_required
 def maintenance_kpi_metric_add(request):
