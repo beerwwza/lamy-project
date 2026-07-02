@@ -1,0 +1,203 @@
+{% extends 'myapp/base.html' %}
+{% load static %}
+
+{% block title %}{{ cbm_label }} - {{ equipment.equipment_id }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+    <nav class="flex text-sm text-slate-500 font-medium whitespace-nowrap mb-6" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-2 flex-wrap">
+            <li class="inline-flex items-center">
+                <a href="{% url 'dashboard' %}" class="inline-flex items-center hover:text-blue-600 transition-colors">
+                    <i data-lucide="home" class="w-4 h-4 mr-1"></i>หน้าหลัก
+                </a>
+            </li>
+            <li>
+                <div class="flex items-center">
+                    <span class="mx-2 text-slate-300">/</span>
+                    <a href="{% url 'equipment_list' %}" class="hover:text-blue-600 transition-colors">ฐานข้อมูลเครื่องจักร</a>
+                </div>
+            </li>
+            <li>
+                <div class="flex items-center">
+                    <span class="mx-2 text-slate-300">/</span>
+                    <a href="{% url 'equipment_data_detail' equipment.equipment_id %}" class="hover:text-blue-600 transition-colors">{{ equipment.equipment_id }}</a>
+                </div>
+            </li>
+            <li aria-current="page">
+                <div class="flex items-center">
+                    <span class="mx-2 text-slate-300">/</span>
+                    <span class="text-blue-600 font-semibold">{{ cbm_label }}</span>
+                </div>
+            </li>
+        </ol>
+    </nav>
+
+    <a href="{% url 'equipment_data_detail' equipment.equipment_id %}"
+        class="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 mb-4 transition-colors">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับไปหน้าเครื่องจักร
+    </a>
+
+    <div class="mb-6">
+        <h2 class="text-xl font-bold text-slate-800">{{ cbm_label }}</h2>
+        <p class="text-sm text-slate-500 mt-1">{{ equipment.name }} ({{ equipment.equipment_id }})</p>
+    </div>
+
+    {% if not records %}
+    <div class="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400">
+        ยังไม่มีข้อมูลการตรวจสอบ {{ cbm_label }}
+    </div>
+    {% else %}
+
+        <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] mb-6">
+            <div class="h-80 relative">
+                {% if cbm_type == 'visual' %}
+                <canvas id="conditionChart"></canvas>
+                {% else %}
+                <canvas id="trendChart"></canvas>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)]">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
+                    <tr>
+                        <th class="px-4 py-3">วันที่</th>
+                        <th class="px-4 py-3">ผู้ตรวจสอบ</th>
+                        {% if cbm_type == 'visual' %}
+                        <th class="px-4 py-3">สภาพโดยรวม</th>
+                        <th class="px-4 py-3">รายละเอียด/ข้อเสนอแนะ</th>
+                        {% elif cbm_type == 'vibration' %}
+                        <th class="px-4 py-3">จุดที่วัด</th>
+                        <th class="px-4 py-3">Velocity (mm/s)</th>
+                        <th class="px-4 py-3">Acceleration (g)</th>
+                        <th class="px-4 py-3">Bearing Temp (°C)</th>
+                        <th class="px-4 py-3">สถานะ</th>
+                        {% elif cbm_type == 'thermoscan' %}
+                        <th class="px-4 py-3">จุดที่ถ่าย</th>
+                        <th class="px-4 py-3">Max Temp (°C)</th>
+                        <th class="px-4 py-3">Ambient (°C)</th>
+                        <th class="px-4 py-3">Delta T (°C)</th>
+                        {% elif cbm_type == 'oil' %}
+                        <th class="px-4 py-3">ชนิดน้ำมัน</th>
+                        <th class="px-4 py-3">Viscosity (cSt)</th>
+                        <th class="px-4 py-3">Water Content (%)</th>
+                        <th class="px-4 py-3">หมายเหตุ</th>
+                        {% elif cbm_type == 'acoustic' %}
+                        <th class="px-4 py-3">จุดตรวจสอบ</th>
+                        <th class="px-4 py-3">Decibel (dB/RMS)</th>
+                        <th class="px-4 py-3">ลักษณะเสียง</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for r in records %}
+                    <tr class="hover:bg-slate-50">
+                        {% if cbm_type == 'oil' %}
+                        <td class="px-4 py-3">{{ r.collection_date|date:"d M Y" }}</td>
+                        {% else %}
+                        <td class="px-4 py-3">{{ r.inspection_date|date:"d M Y" }}</td>
+                        {% endif %}
+                        <td class="px-4 py-3">{{ r.inspector }}</td>
+
+                        {% if cbm_type == 'visual' %}
+                        <td class="px-4 py-3">
+                            {% if r.overall_condition == 'good' %}
+                            <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold">ปกติ (Good)</span>
+                            {% elif r.overall_condition == 'fair' %}
+                            <span class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-bold">เฝ้าระวัง (Fair)</span>
+                            {% else %}
+                            <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-md font-bold">ผิดปกติ (Poor)</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-slate-500">{{ r.remark|default:"-" }}</td>
+
+                        {% elif cbm_type == 'vibration' %}
+                        <td class="px-4 py-3">{{ r.measurement_point }}</td>
+                        <td class="px-4 py-3">{{ r.velocity|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.acceleration|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.bearing_temp|default:"-" }}</td>
+                        <td class="px-4 py-3">
+                            {% if r.status == 'normal' %}
+                            <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold">Normal</span>
+                            {% elif r.status == 'warning' %}
+                            <span class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-bold">Warning</span>
+                            {% else %}
+                            <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-md font-bold">Alarm</span>
+                            {% endif %}
+                        </td>
+
+                        {% elif cbm_type == 'thermoscan' %}
+                        <td class="px-4 py-3">{{ r.location_target }}</td>
+                        <td class="px-4 py-3">{{ r.max_temp|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.ambient_temp|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.delta_t|default:"-" }}</td>
+
+                        {% elif cbm_type == 'oil' %}
+                        <td class="px-4 py-3">{{ r.oil_type|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.viscosity|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.water_content|default:"-" }}</td>
+                        <td class="px-4 py-3 text-slate-500">{{ r.oil_remark|default:"-" }}</td>
+
+                        {% elif cbm_type == 'acoustic' %}
+                        <td class="px-4 py-3">{{ r.inspection_point|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.decibel|default:"-" }}</td>
+                        <td class="px-4 py-3">
+                            {% if r.sound_pattern == 'normal' %}
+                            <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold">{{ r.get_sound_pattern_display }}</span>
+                            {% else %}
+                            <span class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-bold">{{ r.get_sound_pattern_display }}</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    {% if records %}
+    const rawJson = '{{ chart_data_json|safe }}';
+    const chartData = JSON.parse(rawJson);
+
+    {% if cbm_type == 'visual' %}
+    new Chart(document.getElementById('conditionChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['ปกติ (Good)', 'เฝ้าระวัง (Fair)', 'ผิดปกติ (Poor)'],
+            datasets: [{
+                data: [chartData.good, chartData.fair, chartData.poor],
+                backgroundColor: ['#10B981', '#F59E0B', '#EF4444']
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+    {% else %}
+    const palette = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444'];
+    new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: chartData.datasets.map((ds, i) => ({
+                label: ds.label,
+                data: ds.data,
+                borderColor: palette[i % palette.length],
+                backgroundColor: palette[i % palette.length],
+                tension: 0.3,
+                spanGaps: true
+            }))
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+    {% endif %}
+    {% endif %}
+
+    if (window.lucide) { lucide.createIcons(); }
+</script>
+{% endblock %}

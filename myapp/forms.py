@@ -2,8 +2,8 @@ from django import forms
 from .models import employee  # เรียกใช้ Model ที่เราสร้างไว้
 from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log,  Banpong2Log, MaintenanceLog, KPIMetric, RepairDocument
 from .models import MillReport, BoilerDailyKPI
-from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic
-from .models import PMSchedule
+from .models import Equipment, EquipmentBOM, EquipmentLink, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic
+from .models import PMSchedule, PMPlan, PMPlanItem, WorkOrder
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
@@ -217,10 +217,13 @@ class KPIMetricForm(forms.ModelForm):
 class EquipmentForm(forms.ModelForm):
     class Meta:
         model = Equipment
-        fields = '__all__'
+        exclude = ['motor', 'panel', 'starter', 'breaker', 'drive_type', 'updated_by']
 
     def __init__(self, *args, **kwargs):
         super(EquipmentForm, self).__init__(*args, **kwargs)
+        for fname in ['mtbf', 'mttr', 'acc_cost']:
+            if fname in self.fields:
+                self.fields[fname].required = False
         for field in self.fields:
             if field != 'image' and field != 'is_active':
                 self.fields[field].widget.attrs.update({
@@ -246,6 +249,17 @@ class EquipmentBOMForm(forms.ModelForm):
                     'class': 'form-control',
                     'min': '0'
                 })
+
+class EquipmentLinkForm(forms.ModelForm):
+    class Meta:
+        model = EquipmentLink
+        fields = ['label', 'linked_equipment_id', 'order']
+        widgets = {
+            'label': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น Pump, Utility Fan'}),
+            'linked_equipment_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'รหัสเครื่องจักร'}),
+            'order': forms.NumberInput(attrs={'class': 'form-control'}),
+        }
+
 
 class CBMVisualTestForm(forms.ModelForm):
     class Meta:
@@ -404,4 +418,55 @@ class PMScheduleForm(forms.ModelForm):
             'instructions':         'คำแนะนำ / ขั้นตอน',
             'estimated_hours':      'เวลาที่ใช้ (ชม.)',
             'is_active':            'เปิดใช้งาน',
+        }
+
+
+class PMPlanForm(forms.ModelForm):
+    class Meta:
+        model = PMPlan
+        fields = ['pm_code', 'title', 'interval_value', 'interval_unit', 'time_of_day', 'start_date', 'assigned_team', 'is_active']
+        widgets = {
+            'pm_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น PM-A02-M1'}),
+            'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น PM 1 เดือน (ตรวจสอบทั่วไป & อัดจาระบี)'}),
+            'interval_value': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'interval_unit': forms.Select(attrs={'class': 'form-control'}),
+            'time_of_day': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'start_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'assigned_team': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น ทีมช่างกล A02'}),
+        }
+
+
+class PMPlanItemForm(forms.ModelForm):
+    class Meta:
+        model = PMPlanItem
+        fields = ['description', 'order']
+        widgets = {
+            'description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น ตรวจสอบระดับน้ำมัน'}),
+            'order': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+        }
+
+
+class WorkOrderForm(forms.ModelForm):
+    class Meta:
+        model = WorkOrder
+        fields = ['problem_title', 'description', 'reporter', 'reporter_dept', 'report_date']
+        widgets = {
+            'problem_title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น ซีลปั๊มรั่ว มีน้ำไหลซึม'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'รายละเอียดเพิ่มเติม'}),
+            'reporter': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ชื่อผู้แจ้ง'}),
+            'reporter_dept': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'แผนก'}),
+            'report_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        }
+
+
+class WorkOrderStatusForm(forms.ModelForm):
+    class Meta:
+        model = WorkOrder
+        fields = ['status', 'current_action', 'progress_percent', 'mechanic', 'completed_date']
+        widgets = {
+            'status': forms.Select(attrs={'class': 'form-control'}),
+            'current_action': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น กำลังเบิกอะไหล่'}),
+            'progress_percent': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'max': '100'}),
+            'mechanic': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ชื่อช่างซ่อม'}),
+            'completed_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
         }

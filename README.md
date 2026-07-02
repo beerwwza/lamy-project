@@ -399,11 +399,15 @@ Maintenance
 Equipment
 ├── Equipment
 ├── EquipmentBOM           (spare parts)
+├── EquipmentLink          (linked equipment, e.g. driving motor)
 ├── CBMVisualTest
 ├── CBMVibration
 ├── CBMThermoscan
 ├── CBMOilAnalysis
-└── CBMAcoustic
+├── CBMAcoustic
+├── PMPlan                 (preventive maintenance schedule)
+│   └── PMPlanItem         (checklist tasks per PM cycle)
+└── WorkOrder              (repair job history, linked to Equipment)
 
 Shop
 └── LatheJob
@@ -479,6 +483,15 @@ Database migrations: **49 migration files** in `myapp/migrations/`.
 | GET/POST | `/equipment/bom/` | BOM management |
 | POST | `/equipment/<eq_id>/bom/add/` | Add spare part |
 | POST | `/equipment/bom/delete/<bom_id>/` | Delete spare part |
+| POST | `/equipment/<eq_id>/pm/add/` | Add PM plan |
+| POST | `/equipment/pm/edit/<plan_id>/` | Edit PM plan |
+| POST | `/equipment/pm/delete/<plan_id>/` | Delete PM plan |
+| POST | `/equipment/pm/<plan_id>/complete/` | Mark PM cycle complete (recalculates next due date) |
+| POST | `/equipment/pm/<plan_id>/item/add/` | Add PM checklist item |
+| POST | `/equipment/pm/item/delete/<item_id>/` | Delete PM checklist item |
+| POST | `/equipment/<eq_id>/wo/add/` | Create work order (auto-generates `WO-YYMM-####`) |
+| POST | `/equipment/wo/edit/<wo_id>/` | Update work order status/mechanic/progress |
+| POST | `/equipment/wo/delete/<wo_id>/` | Delete work order |
 
 ### Lathe / Shop
 
