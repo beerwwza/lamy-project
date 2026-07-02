@@ -137,28 +137,21 @@
     <script>
         function toggleCardEdit(cardId) {
             const card = document.getElementById(cardId);
-            const inputs = card.querySelectorAll('.editable-field');
-            const btn = document.getElementById('btn-' + cardId);
-
             const isEditing = card.classList.contains('is-editing');
 
             if (isEditing) {
-                // Save mode -> View mode
-                card.classList.remove('is-editing');
-                btn.innerHTML = '<i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข';
-                btn.className = 'text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors';
-
-                inputs.forEach(input => {
-                    if (input.tagName === 'SELECT') {
-                        input.disabled = true;
-                        input.classList.add('appearance-none');
-                    } else {
-                        input.readOnly = true;
-                    }
-                    input.classList.remove('bg-slate-50', 'border-slate-200', 'px-3', 'py-1.5', 'focus:bg-white', 'focus:border-blue-500', 'focus:ring-1', 'focus:ring-blue-500');
-                    input.classList.add('bg-transparent', 'border-transparent', 'px-0', 'py-0', 'pointer-events-none');
-                });
+                saveCardEdit(cardId);
             } else {
+                setCardEditMode(cardId, true);
+            }
+        }
+
+        function setCardEditMode(cardId, editing) {
+            const card = document.getElementById(cardId);
+            const inputs = card.querySelectorAll('.editable-field');
+            const btn = document.getElementById('btn-' + cardId);
+
+            if (editing) {
                 // View mode -> Edit mode
                 card.classList.add('is-editing');
                 btn.innerHTML = '<i data-lucide="save" class="w-3.5 h-3.5"></i> บันทึก';
@@ -174,8 +167,90 @@
                     input.classList.add('bg-slate-50', 'border-slate-200', 'px-3', 'py-1.5', 'focus:bg-white', 'focus:border-blue-500', 'focus:ring-1', 'focus:ring-blue-500');
                     input.classList.remove('bg-transparent', 'border-transparent', 'px-0', 'py-0', 'pointer-events-none');
                 });
+            } else {
+                // Save mode -> View mode
+                card.classList.remove('is-editing');
+                btn.innerHTML = '<i data-lucide="edit-2" class="w-3 h-3"></i> แก้ไข';
+                btn.className = 'text-blue-500 hover:text-blue-700 text-xs font-semibold flex items-center gap-1 transition-colors';
+
+                inputs.forEach(input => {
+                    if (input.tagName === 'SELECT') {
+                        input.disabled = true;
+                        input.classList.add('appearance-none');
+                    } else {
+                        input.readOnly = true;
+                    }
+                    input.classList.remove('bg-slate-50', 'border-slate-200', 'px-3', 'py-1.5', 'focus:bg-white', 'focus:border-blue-500', 'focus:ring-1', 'focus:ring-blue-500');
+                    input.classList.add('bg-transparent', 'border-transparent', 'px-0', 'py-0', 'pointer-events-none');
+                });
+            }
+            // Motor field: toggle view/edit panels
+            const motorView = document.getElementById('motor-view');
+            const motorEdit = document.getElementById('motor-edit');
+            if (motorView && motorEdit) {
+                motorView.classList.toggle('hidden', editing);
+                motorEdit.classList.toggle('hidden', !editing);
             }
             if (window.lucide) { lucide.createIcons(); }
+        }
+
+        function saveCardEdit(cardId) {
+            const card = document.getElementById(cardId);
+            const btn = document.getElementById('btn-' + cardId);
+            const fields = card.querySelectorAll('.editable-field[name]');
+
+            const eqId = "{{ equipment.equipment_id }}";
+            const originalMotor = "{{ equipment.motor|default:'' }}";
+            const payload = new URLSearchParams();
+            fields.forEach(input => {
+                payload.append(input.name, input.value);
+            });
+
+            // Collect motor field (uses class motor-field instead of editable-field)
+            const motorInput = document.querySelector('.motor-field[name]');
+            if (motorInput) {
+                payload.append(motorInput.name, motorInput.value);
+            }
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+                || '{{ csrf_token }}';
+
+            const originalBtnHtml = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> กำลังบันทึก...';
+            btn.disabled = true;
+
+            fetch(`/equipment/${eqId}/inline-update/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: payload.toString()
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const newMotor = motorInput ? motorInput.value : originalMotor;
+                        if (newMotor !== originalMotor) {
+                            window.location.reload();
+                            return;
+                        }
+                        setCardEditMode(cardId, false);
+                    } else {
+                        alert('เกิดข้อผิดพลาด: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    if (card.classList.contains('is-editing')) {
+                        btn.innerHTML = originalBtnHtml;
+                        if (window.lucide) { lucide.createIcons(); }
+                    }
+                });
         }
     </script>
     <div id="tab-content-info" class="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-12 tab-pane">
@@ -322,26 +397,20 @@
 
                         <div class="col-span-5 text-slate-500 font-medium">ชื่อเครื่องจักร</div>
                         <div class="col-span-7">
-                            <input type="text" value="{{ equipment.name|default:'' }}" readonly
+                            <input type="text" name="name" value="{{ equipment.name|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ตำแหน่งที่ตั้ง</div>
                         <div class="col-span-7">
-                            <input type="text" value="{{ equipment.location|default:'' }}" readonly
+                            <input type="text" name="location" value="{{ equipment.location|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">กระบวนการ</div>
                         <div class="col-span-7">
-                            <input type="text" value="{{ equipment.process|default:'' }}" readonly
+                            <input type="text" name="process" value="{{ equipment.process|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
-                        </div>
-
-                        <div class="col-span-5 text-slate-500 font-medium">สังกัดเครื่องจักรหลัก</div>
-                        <div class="col-span-7">
-                            <input type="text" value="{{ equipment.belongs_to|default:'' }}" readonly
-                                class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-blue-600 font-medium pointer-events-none">
                         </div>
                     </div>
                 </div>
@@ -368,19 +437,19 @@
                         <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm items-center">
                             <div class="col-span-5 text-slate-500 font-medium">รหัสสินค้า/รุ่น</div>
                             <div class="col-span-7">
-                                <input type="text" value="{{ equipment.model|default:'' }}" readonly
+                                <input type="text" name="model" value="{{ equipment.model|default:'' }}" readonly
                                     class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
                             </div>
 
                             <div class="col-span-5 text-slate-500 font-medium">ผู้ผลิต (Mfr.)</div>
                             <div class="col-span-7">
-                                <input type="text" value="{{ equipment.manufacturer|default:'' }}" readonly
+                                <input type="text" name="manufacturer" value="{{ equipment.manufacturer|default:'' }}" readonly
                                     class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                             </div>
 
                             <div class="col-span-5 text-slate-500 font-medium">หมายเลขเครื่อง (SN)</div>
                             <div class="col-span-7">
-                                <input type="text" value="{{ equipment.serial_no|default:'' }}" readonly
+                                <input type="text" name="serial_no" value="{{ equipment.serial_no|default:'' }}" readonly
                                     class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                             </div>
                         </div>
@@ -393,19 +462,19 @@
                         <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm items-center">
                             <div class="col-span-5 text-slate-500 font-medium">อัตราการไหล (Capacity ,m3/hr)</div>
                             <div class="col-span-7">
-                                <input type="text" value="{{ equipment.capacity|default:'' }}" readonly
+                                <input type="text" name="capacity" value="{{ equipment.capacity|default:'' }}" readonly
                                     class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-semibold text-slate-800 pointer-events-none">
                             </div>
 
                             <div class="col-span-5 text-slate-500 font-medium">ระยะส่ง (Head ,m)</div>
                             <div class="col-span-7">
-                                <input type="text" value="{{ equipment.head_size|default:'' }}" readonly
+                                <input type="text" name="head_size" value="{{ equipment.head_size|default:'' }}" readonly
                                     class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                             </div>
 
                             <div class="col-span-5 text-slate-500 font-medium">ความเร็วรอบ (RPM)</div>
                             <div class="col-span-7">
-                                <input type="text" value="{{ equipment.rpm|default:'' }}" readonly
+                                <input type="text" name="rpm" value="{{ equipment.rpm|default:'' }}" readonly
                                     class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                             </div>
                         </div>
@@ -418,44 +487,110 @@
                             Utilities</h4>
                         <div class="grid grid-cols-12 gap-y-2.5 gap-x-4 text-sm items-center">
                             <div class="col-span-5 text-slate-500 font-medium">มอเตอร์ขับเคลื่อน</div>
-                            <div class="col-span-7 relative flex items-center gap-2">
-                                <div class="relative flex-grow">
-                                    <i data-lucide="zap"
-                                        class="w-3.5 h-3.5 fill-yellow-400 text-yellow-500 absolute left-2 top-2.5 z-10 pointer-events-none"></i>
-                                    <input type="text" value="{{ equipment.motor|default:'' }}" readonly
-                                        class="editable-field w-full outline-none transition-colors border rounded-md pl-7 pr-3 py-0 bg-transparent border-transparent text-blue-600 font-medium pointer-events-none">
+                            <div class="col-span-7">
+                                <!-- VIEW: แสดงชื่อมอเตอร์เป็น clickable link -->
+                                <div id="motor-view" class="flex items-center gap-1.5 min-h-[26px]">
+                                    <i data-lucide="zap" class="w-3.5 h-3.5 fill-yellow-400 text-yellow-500 flex-shrink-0 pointer-events-none"></i>
+                                    {% if motor_equipment %}
+                                    <a href="{% url 'equipment_data_detail' motor_equipment.equipment_id %}"
+                                       class="text-blue-600 font-medium hover:text-blue-800 hover:underline flex items-center gap-1 transition-colors text-sm">
+                                        {{ motor_equipment.name }}
+                                        <i data-lucide="external-link" class="w-3 h-3 opacity-50"></i>
+                                    </a>
+                                    {% elif equipment.motor %}
+                                    <span class="text-slate-600 text-sm font-medium">{{ equipment.motor }}</span>
+                                    {% else %}
+                                    <span class="text-slate-300 text-sm italic">ยังไม่กำหนด</span>
+                                    {% endif %}
                                 </div>
-                                {% if motor_equipment %}
-                                <a href="{% url 'equipment_data_detail' motor_equipment.equipment_id %}" target="_blank"
-                                    class="flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 p-1.5 rounded-md transition-colors shadow-sm border border-blue-200"
-                                    title="หน้าย่อยเครื่องจักรมอเตอร์ (เปิดแท็บใหม่)">
-                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                                </a>
-                                {% endif %}
+                                <!-- EDIT: input + datalist autocomplete -->
+                                <div id="motor-edit" class="hidden relative">
+                                    <i data-lucide="zap" class="w-3.5 h-3.5 fill-yellow-400 text-yellow-500 absolute left-2 top-1/2 -translate-y-1/2 z-10 pointer-events-none"></i>
+                                    <input type="text" name="motor" value="{{ equipment.motor|default:'' }}"
+                                           list="motor-datalist" placeholder="รหัสเครื่องจักร เช่น MTR-001"
+                                           class="motor-field w-full outline-none transition-colors border rounded-md pl-7 pr-3 py-1.5 bg-slate-50 border-slate-200 text-blue-600 font-medium focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                    <datalist id="motor-datalist">
+                                        {% for eq in equipment_list %}
+                                        <option value="{{ eq.equipment_id }}">{{ eq.name }}</option>
+                                        {% endfor %}
+                                    </datalist>
+                                </div>
                             </div>
 
                             <div class="col-span-5 text-slate-500 font-medium">ตู้คอนโทรล (Panel)</div>
                             <div class="col-span-7">
-                                <input type="text" value="{{ equipment.panel|default:'' }}" readonly
+                                <input type="text" name="panel" value="{{ equipment.panel|default:'' }}" readonly
                                     class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                             </div>
 
                             <div class="col-span-5 text-slate-500 font-medium">ชุดสตาร์ท (Starter)</div>
                             <div class="col-span-7">
-                                <input type="text" value="{{ equipment.starter|default:'' }}" readonly
+                                <input type="text" name="starter" value="{{ equipment.starter|default:'' }}" readonly
                                     class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                             </div>
 
                             <div class="col-span-5 text-slate-500 font-medium">เบรกเกอร์ (Breaker)</div>
                             <div class="col-span-7">
-                                <input type="text" value="{{ equipment.breaker|default:'' }}" readonly
+                                <input type="text" name="breaker" value="{{ equipment.breaker|default:'' }}" readonly
                                     class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                             </div>
 
                             <div class="col-span-5 text-slate-500 font-medium">ประเภทการส่งกำลัง</div>
                             <div class="col-span-7">
-                                <input type="text" value="{{ equipment.drive_type|default:'' }}" readonly
+                                <input type="text" name="drive_type" value="{{ equipment.drive_type|default:'' }}" readonly
                                     class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
+                            </div>
+
+                            <!-- Dynamic Equipment Links -->
+                            {% if links %}
+                            <div class="col-span-12 border-t border-slate-100 pt-2 mt-0.5"></div>
+                            {% for link in links %}
+                            <div class="col-span-5 text-slate-500 font-medium">{{ link.label }}</div>
+                            <div class="col-span-7 flex items-center gap-1.5">
+                                <i data-lucide="link" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"></i>
+                                {% if link.resolved %}
+                                <a href="{% url 'equipment_data_detail' link.resolved.equipment_id %}"
+                                   class="text-blue-600 font-medium hover:text-blue-800 hover:underline flex items-center gap-1 text-sm transition-colors">
+                                    {{ link.resolved.name }}
+                                    <i data-lucide="external-link" class="w-3 h-3 opacity-50"></i>
+                                </a>
+                                {% elif link.linked_equipment_id %}
+                                <span class="text-slate-500 text-sm">{{ link.linked_equipment_id }}</span>
+                                {% else %}
+                                <span class="text-slate-300 text-sm italic">ยังไม่กำหนด</span>
+                                {% endif %}
+                                <form method="POST" action="{% url 'equipment_link_delete' link.id %}" class="ml-auto"
+                                      onsubmit="return confirm('ลบ {{ link.label }} ออกจากรายการ?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-red-400 hover:text-red-600 transition-colors p-0.5" title="ลบรายการ">
+                                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+
+                            <!-- Add Link Form -->
+                            <div class="col-span-12 mt-1.5">
+                                <form method="POST" action="{% url 'equipment_link_add' equipment.equipment_id %}"
+                                      class="flex gap-2 items-center">
+                                    {% csrf_token %}
+                                    <input type="text" name="label" placeholder="หัวข้อ เช่น Pump"
+                                           class="flex-1 min-w-0 border border-slate-200 rounded-md px-2 py-1 text-xs focus:border-blue-400 outline-none bg-slate-50" required>
+                                    <input type="text" name="linked_equipment_id" list="link-datalist"
+                                           placeholder="รหัสเครื่องจักร"
+                                           class="flex-1 min-w-0 border border-slate-200 rounded-md px-2 py-1 text-xs focus:border-blue-400 outline-none bg-slate-50">
+                                    <datalist id="link-datalist">
+                                        {% for eq in equipment_list %}
+                                        <option value="{{ eq.equipment_id }}">{{ eq.name }}</option>
+                                        {% endfor %}
+                                    </datalist>
+                                    <input type="hidden" name="order" value="0">
+                                    <button type="submit"
+                                            class="flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-md px-2 py-1 text-xs font-semibold transition-colors whitespace-nowrap flex-shrink-0">
+                                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> เพิ่ม
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -479,25 +614,25 @@
                     <div class="grid grid-cols-12 gap-y-4 gap-x-4 text-sm items-center">
                         <div class="col-span-5 text-slate-500 font-medium">วันที่ติดตั้ง</div>
                         <div class="col-span-7">
-                            <input type="text" value="{{ equipment.installation_date|default:'' }}" readonly
+                            <input type="date" name="installation_date" value="{{ equipment.installation_date|date:'Y-m-d'|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent text-slate-700 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">วันหมดประกัน</div>
                         <div class="col-span-7">
-                            <input type="text" value="{{ equipment.warranty_exp|default:'' }}" readonly
+                            <input type="date" name="warranty_exp" value="{{ equipment.warranty_exp|date:'Y-m-d'|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-red-500 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ราคาซื้อ</div>
                         <div class="col-span-7">
-                            <input type="text" value="{{ equipment.purchase_price|default:'' }}" readonly
+                            <input type="text" name="purchase_price" value="{{ equipment.purchase_price|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-slate-800 pointer-events-none">
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ราคาซ่อมทดแทน</div>
                         <div class="col-span-7">
-                            <input type="text" value="{{ equipment.replacement_cost|default:'' }}" readonly
+                            <input type="text" name="replacement_cost" value="{{ equipment.replacement_cost|default:'' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-slate-800 pointer-events-none">
                         </div>
                     </div>
@@ -521,7 +656,7 @@
                     <div class="grid grid-cols-12 gap-y-5 gap-x-4 text-sm items-center">
                         <div class="col-span-5 text-slate-500 font-medium">ระดับความสำคัญ</div>
                         <div class="col-span-7">
-                            <select disabled
+                            <select name="priority_level" disabled
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-red-600 appearance-none">
                                 <option value="1" {% if equipment.priority_level == '1' %}selected{% endif %}>1
                                     -CRITICAL(กระทบการผลิตโดยตรง)</option>
@@ -531,20 +666,22 @@
                             </select>
                         </div>
                         <div class="col-span-5 text-slate-500 font-medium">MTBF (ระยะเวลาเฉลี่ยก่อนเสีย)</div>
-                        <div class="col-span-7">
-                            <input type="text" value="{{ equipment.mtbf|default:'0' }} ชั่วโมง" readonly
+                        <div class="col-span-7 flex items-center gap-2">
+                            <input type="text" name="mtbf" value="{{ equipment.mtbf|default:'0' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-green-600 pointer-events-none">
+                            <span class="text-slate-400 text-xs whitespace-nowrap">ชั่วโมง</span>
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">MTTR (เวลารวมที่หยุดซ่อม)</div>
-                        <div class="col-span-7">
-                            <input type="text" value="{{ equipment.mttr|default:'0' }} ชั่วโมง" readonly
+                        <div class="col-span-7 flex items-center gap-2">
+                            <input type="text" name="mttr" value="{{ equipment.mttr|default:'0' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-orange-500 pointer-events-none">
+                            <span class="text-slate-400 text-xs whitespace-nowrap">ชั่วโมง</span>
                         </div>
 
                         <div class="col-span-5 text-slate-500 font-medium">ค่าใช้จ่ายสะสม (BM+PM)</div>
                         <div class="col-span-7">
-                            <input type="text" value="{{ equipment.acc_cost|default:'0.00' }}" readonly
+                            <input type="text" name="acc_cost" value="{{ equipment.acc_cost|default:'0.00' }}" readonly
                                 class="editable-field w-full outline-none transition-colors border rounded-md px-0 py-0 bg-transparent border-transparent font-bold text-slate-800 pointer-events-none">
                         </div>
                     </div>
@@ -592,7 +729,7 @@
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             {% for bom in boms %}
-                            <tr class="hover:bg-slate-50 transition-colors group">
+                            <tr id="bom-row-{{ bom.id }}" class="hover:bg-slate-50 transition-colors group">
                                 <td class="px-5 py-3 font-medium text-blue-600">{{ bom.part_no }}</td>
                                 <td class="px-5 py-3 text-slate-700">{{ bom.part_name }}</td>
                                 <td class="px-5 py-3 text-center text-slate-600">{{ bom.qty }}</td>
@@ -610,13 +747,65 @@
                                     {% endif %}
                                 </td>
                                 <td class="px-5 py-3 text-center">
-                                    <form method="POST" action="{% url 'bom_delete' bom.id %}" class="inline"
-                                        onsubmit="return confirm('ต้องการลบอะไหล่ {{ bom.part_no }} ใช่หรือไม่?')">
+                                    <div class="flex items-center justify-center gap-3">
+                                        <button type="button" onclick="toggleBomEdit('{{ bom.id }}')"
+                                            class="text-slate-400 hover:text-blue-600 transition-colors"
+                                            title="แก้ไขรายการ">
+                                            <i data-lucide="square-pen" class="w-4 h-4"></i>
+                                        </button>
+                                        <form method="POST" action="{% url 'bom_delete' bom.id %}" class="inline"
+                                            onsubmit="return confirm('ต้องการลบอะไหล่ {{ bom.part_no }} ใช่หรือไม่?')">
+                                            {% csrf_token %}
+                                            <button type="submit"
+                                                class="text-slate-400 hover:text-red-600 transition-colors"
+                                                title="ลบรายการ">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr id="bom-edit-row-{{ bom.id }}" class="hidden bg-blue-50/50 border-t-2 border-blue-200">
+                                <td colspan="7" class="px-5 py-4">
+                                    <form method="POST" action="{% url 'bom_edit' bom.id %}"
+                                        class="flex flex-wrap items-end gap-3">
                                         {% csrf_token %}
+                                        <div class="flex-1 min-w-[120px]">
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">Mat ID.
+                                                *</label>
+                                            <input type="text" name="part_no" required value="{{ bom.part_no }}"
+                                                class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                        </div>
+                                        <div class="flex-[2] min-w-[200px]">
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">Description
+                                                *</label>
+                                            <input type="text" name="part_name" required value="{{ bom.part_name }}"
+                                                class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                        </div>
+                                        <div class="w-20">
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">Q'ty</label>
+                                            <input type="number" name="qty" value="{{ bom.qty }}" min="0"
+                                                class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                        </div>
+                                        <div class="flex-1 min-w-[100px]">
+                                            <label
+                                                class="block text-xs font-semibold text-slate-500 mb-1">Storeroom</label>
+                                            <input type="text" name="location" value="{{ bom.location|default:'' }}"
+                                                class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                        </div>
+                                        <div class="w-24">
+                                            <label
+                                                class="block text-xs font-semibold text-slate-500 mb-1">Balance</label>
+                                            <input type="number" name="stock_qty" value="{{ bom.stock_qty }}" min="0"
+                                                class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                        </div>
                                         <button type="submit"
-                                            class="text-slate-400 hover:text-red-600 transition-colors"
-                                            title="ลบรายการ">
-                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                                            <i data-lucide="check" class="w-4 h-4"></i> บันทึก
+                                        </button>
+                                        <button type="button" onclick="toggleBomEdit('{{ bom.id }}')"
+                                            class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+                                            ยกเลิก
                                         </button>
                                     </form>
                                 </td>
@@ -694,55 +883,180 @@
                             <i data-lucide="calendar-check" class="w-5 h-5 text-indigo-600"></i>
                             แผนบำรุงรักษาเชิงป้องกัน (PM)
                         </h3>
-                        <button class="text-indigo-600 hover:text-indigo-700 text-sm font-semibold transition-colors">
-                            ดูทั้งหมด
+                        <button type="button" onclick="togglePmAddForm()"
+                            class="text-indigo-600 hover:text-indigo-700 text-sm font-semibold transition-colors flex items-center gap-1">
+                            <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มแผน PM
                         </button>
                     </div>
+
+                    <!-- PM Summary Report -->
+                    <div class="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-4 text-xs text-slate-600 flex-wrap">
+                        <span>แผนทั้งหมด: <strong class="text-slate-800">{{ pm_summary.total }}</strong></span>
+                        <span class="text-red-600">เลยกำหนด: <strong>{{ pm_summary.overdue }}</strong></span>
+                        <span class="text-amber-600">ใกล้ครบกำหนด: <strong>{{ pm_summary.due_soon }}</strong></span>
+                        <span class="text-green-600">ทำแล้วเดือนนี้: <strong>{{ pm_summary.completed_this_month }}</strong></span>
+                        <button type="button" onclick="togglePmHistory()"
+                            class="ml-auto text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
+                            <i data-lucide="history" class="w-3.5 h-3.5"></i> ประวัติการทำ PM
+                        </button>
+                    </div>
+
+                    <!-- PM Completion History -->
+                    <div id="pm-history" class="hidden px-5 py-4 bg-white border-b border-slate-100 max-h-56 overflow-y-auto space-y-2">
+                        {% for log in pm_completion_history %}
+                        <div class="flex justify-between items-center text-xs text-slate-600 border-b border-slate-100 pb-2">
+                            <span><strong class="text-slate-800">{{ log.plan.pm_code }}</strong> — {{ log.plan.title }}</span>
+                            <span class="text-slate-400 whitespace-nowrap">{{ log.completed_date|date:"d M Y" }}{% if log.completed_by %} · {{ log.completed_by }}{% endif %}</span>
+                        </div>
+                        {% empty %}
+                        <p class="text-xs text-slate-400 text-center py-2">ยังไม่มีประวัติการทำ PM</p>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Add PM Plan Form -->
+                    <div id="pm-add-form" class="hidden px-5 py-4 bg-indigo-50/50 border-b border-indigo-100">
+                        <form method="POST" action="{% url 'pm_plan_add' equipment.equipment_id %}"
+                            class="grid grid-cols-2 gap-3">
+                            {% csrf_token %}
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">รหัสแผน PM *</label>
+                                <input type="text" name="pm_code" required placeholder="เช่น PM-A02-M1"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">ทีมผู้รับผิดชอบ</label>
+                                <input type="text" name="assigned_team" placeholder="เช่น ทีมช่างกล A02"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">ชื่อแผน/รายละเอียด *</label>
+                                <input type="text" name="title" required
+                                    placeholder="เช่น PM 1 เดือน (ตรวจสอบทั่วไป & อัดจาระบี)"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">ทุกๆ *</label>
+                                <input type="number" name="interval_value" min="1" value="1" required
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">หน่วยความถี่ *</label>
+                                <select name="interval_unit"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                                    <option value="day">วัน</option>
+                                    <option value="week">สัปดาห์</option>
+                                    <option value="month" selected>เดือน</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">วันที่เริ่มแผน *</label>
+                                <input type="date" name="start_date" required
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">เวลาที่ทำ</label>
+                                <input type="time" name="time_of_day"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            </div>
+                            <div class="col-span-2 flex gap-2 justify-end pt-1">
+                                <button type="button" onclick="togglePmAddForm()"
+                                    class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">ยกเลิก</button>
+                                <button type="submit"
+                                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">บันทึกแผน
+                                    PM</button>
+                            </div>
+                        </form>
+                    </div>
+
                     <div class="p-5 flex-grow space-y-4">
-                        <!-- PM Item 1 -->
+                        {% for plan in pm_plans %}
                         <div
                             class="border border-slate-200 rounded-lg p-4 hover:border-indigo-300 transition-colors group">
                             <div class="flex justify-between items-start mb-2">
                                 <div>
                                     <span
-                                        class="bg-indigo-100 text-indigo-700 text-[10px] uppercase px-2 py-0.5 rounded font-bold tracking-wider">PM-A02-M1</span>
-                                    <h4 class="font-semibold text-slate-800 mt-1">PM 1 เดือน (ตรวจสอบทั่วไป & อัดจาระบี)
-                                    </h4>
+                                        class="bg-indigo-100 text-indigo-700 text-[10px] uppercase px-2 py-0.5 rounded font-bold tracking-wider">{{ plan.pm_code }}</span>
+                                    <h4 class="font-semibold text-slate-800 mt-1">{{ plan.title }}</h4>
                                 </div>
+                                {% if plan.is_overdue %}
+                                <span
+                                    class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-md font-semibold border border-red-200 whitespace-nowrap">เลยกำหนด
+                                    {{ plan.days_overdue }} วัน</span>
+                                {% elif plan.is_due_soon %}
                                 <span
                                     class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-semibold border border-amber-200 whitespace-nowrap">Due
-                                    in 5 days</span>
-                            </div>
-                            <div class="flex items-center text-sm text-slate-500 mt-3 gap-4">
-                                <div class="flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4"></i>
-                                    คิวถัดไป: 15 มี.ค. 2024</div>
-                                <div class="flex items-center gap-1.5"><i data-lucide="user" class="w-4 h-4"></i>
-                                    ทีมซ่างกล
-                                    A02</div>
-                            </div>
-                        </div>
-                        <!-- PM Item 2 -->
-                        <div
-                            class="border border-slate-200 rounded-lg p-4 hover:border-indigo-300 transition-colors group">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <span
-                                        class="bg-indigo-100 text-indigo-700 text-[10px] uppercase px-2 py-0.5 rounded font-bold tracking-wider">PM-A02-M6</span>
-                                    <h4 class="font-semibold text-slate-800 mt-1">PM 6 เดือน (เปลี่ยนถ่ายน้ำมัน &
-                                        Alignment)
-                                    </h4>
-                                </div>
+                                    in {{ plan.days_left }} days</span>
+                                {% else %}
                                 <span
                                     class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-medium border border-slate-200 whitespace-nowrap">ในแผน</span>
+                                {% endif %}
                             </div>
-                            <div class="flex items-center text-sm text-slate-500 mt-3 gap-4">
+                            <div class="flex items-center text-sm text-slate-500 mt-3 gap-4 flex-wrap">
                                 <div class="flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4"></i>
-                                    คิวถัดไป: 10 ส.ค. 2024</div>
+                                    คิวถัดไป: {{ plan.next_due_date|date:"d M Y" }}</div>
+                                {% if plan.assigned_team %}
                                 <div class="flex items-center gap-1.5"><i data-lucide="user" class="w-4 h-4"></i>
-                                    ทีมซ่างกล
-                                    A02</div>
+                                    {{ plan.assigned_team }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs">
+                                <button type="button" onclick="togglePmItems({{ plan.id }})"
+                                    class="text-slate-500 hover:text-indigo-600 font-medium flex items-center gap-1">
+                                    <i data-lucide="list-checks" class="w-3.5 h-3.5"></i> รายการที่ต้องทำ
+                                    ({{ plan.items.all|length }})
+                                </button>
+                                <form method="POST" action="{% url 'pm_plan_complete' plan.id %}" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                        class="text-green-600 hover:text-green-700 font-medium flex items-center gap-1">
+                                        <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> ทำ PM แล้ว
+                                    </button>
+                                </form>
+                                <form method="POST" action="{% url 'pm_plan_delete' plan.id %}" class="inline ml-auto"
+                                    onsubmit="return confirm('ต้องการลบแผน PM {{ plan.pm_code }} ใช่หรือไม่?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-slate-400 hover:text-red-600" title="ลบแผน">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </form>
+                            </div>
+
+                            <!-- Checklist -->
+                            <div id="pm-items-{{ plan.id }}"
+                                class="hidden mt-3 pt-3 border-t border-slate-100 space-y-2">
+                                {% for item in plan.items.all %}
+                                <div
+                                    class="flex items-center justify-between text-sm text-slate-600 bg-slate-50 rounded px-3 py-1.5">
+                                    <span>{{ item.description }}</span>
+                                    <form method="POST" action="{% url 'pm_plan_item_delete' item.id %}"
+                                        class="inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="text-slate-400 hover:text-red-600">
+                                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                                {% empty %}
+                                <p class="text-xs text-slate-400">ยังไม่มีรายการที่ต้องทำ</p>
+                                {% endfor %}
+                                <form method="POST" action="{% url 'pm_plan_item_add' plan.id %}"
+                                    class="flex gap-2 pt-1">
+                                    {% csrf_token %}
+                                    <input type="text" name="description" required placeholder="เพิ่มรายการที่ต้องทำ"
+                                        class="flex-grow border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                                    <button type="submit"
+                                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap">เพิ่ม</button>
+                                </form>
                             </div>
                         </div>
+                        {% empty %}
+                        <div class="text-center text-slate-400 py-8">
+                            <i data-lucide="calendar-x" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
+                            <p class="text-sm font-medium">ยังไม่มีแผน PM สำหรับเครื่องจักรนี้</p>
+                            <p class="text-xs mt-1">กดปุ่ม "เพิ่มแผน PM" ด้านบนเพื่อสร้างแผนใหม่</p>
+                        </div>
+                        {% endfor %}
                     </div>
                 </div>
 
@@ -754,53 +1068,174 @@
                             <i data-lucide="wrench" class="w-5 h-5 text-orange-500"></i>
                             ประวัติใบสั่งซ่อม (Work Orders)
                         </h3>
-                        <button
+                        <button type="button" onclick="toggleWoAddForm()"
                             class="bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
                             <i data-lucide="plus" class="w-4 h-4"></i> แจ้งซ่อม
                         </button>
                     </div>
+
+                    <!-- Work Order Summary Report -->
+                    <div class="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-4 text-xs text-slate-600 flex-wrap">
+                        <span>ทั้งหมด: <strong class="text-slate-800">{{ wo_summary.total }}</strong></span>
+                        <span class="text-slate-500">รอดำเนินการ: <strong>{{ wo_summary.pending }}</strong></span>
+                        <span class="text-amber-600">กำลังดำเนินการ: <strong>{{ wo_summary.in_progress }}</strong></span>
+                        <span class="text-green-600">ปิดงานแล้ว: <strong>{{ wo_summary.completed }}</strong></span>
+                        {% if wo_summary.avg_resolution_days is not None %}
+                        <span class="ml-auto">เวลาซ่อมเฉลี่ย: <strong class="text-slate-800">{{ wo_summary.avg_resolution_days }} วัน</strong></span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Add Work Order Form -->
+                    <div id="wo-add-form" class="hidden px-5 py-4 bg-orange-50/50 border-b border-orange-100">
+                        <form method="POST" action="{% url 'work_order_add' equipment.equipment_id %}"
+                            class="grid grid-cols-2 gap-3">
+                            {% csrf_token %}
+                            <div class="col-span-2">
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">อาการ/ปัญหา *</label>
+                                <input type="text" name="problem_title" required
+                                    placeholder="เช่น ซีลปั๊มรั่ว มีน้ำไหลซึม"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">รายละเอียดเพิ่มเติม</label>
+                                <textarea name="description" rows="2" placeholder="รายละเอียดของปัญหา"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">ผู้แจ้ง *</label>
+                                <input type="text" name="reporter" required placeholder="ชื่อผู้แจ้ง"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">แผนก</label>
+                                <input type="text" name="reporter_dept" placeholder="เช่น ผลิต"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs font-semibold text-slate-500 mb-1">วันที่แจ้ง *</label>
+                                <input type="date" name="report_date" required value="{% now 'Y-m-d' %}"
+                                    class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
+                            </div>
+                            <div class="col-span-2 flex gap-2 justify-end pt-1">
+                                <button type="button" onclick="toggleWoAddForm()"
+                                    class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">ยกเลิก</button>
+                                <button type="submit"
+                                    class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">แจ้งซ่อม</button>
+                            </div>
+                        </form>
+                    </div>
+
                     <div class="p-5 flex-grow space-y-4">
-                        <!-- WO Item 1 -->
-                        <div class="border border-slate-200 rounded-lg p-4 hover:border-orange-300 transition-colors">
+                        {% for wo in work_orders %}
+                        <div
+                            class="border border-slate-200 rounded-lg p-4 transition-colors {% if wo.status == 'completed' %}bg-slate-50/50 grayscale-[50%] opacity-80{% else %}hover:border-orange-300{% endif %}">
                             <div class="flex justify-between items-start mb-2">
                                 <div>
-                                    <a href="#"
-                                        class="text-orange-600 font-bold text-sm tracking-wide hover:underline">WO-2312-0054</a>
-                                    <h4 class="font-medium text-slate-800 mt-0.5 text-sm">ซีลปั๊มรั่ว มีน้ำไหลซึม</h4>
+                                    <span
+                                        class="{% if wo.status == 'completed' %}text-slate-600{% else %}text-orange-600{% endif %} font-bold text-sm tracking-wide">{{ wo.wo_no }}</span>
+                                    <h4 class="font-medium text-slate-800 mt-0.5 text-sm">{{ wo.problem_title }}</h4>
                                 </div>
+                                {% if wo.status == 'completed' %}
+                                <span
+                                    class="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-green-200">Completed</span>
+                                {% elif wo.status == 'in_progress' %}
                                 <span
                                     class="bg-amber-100 text-amber-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-amber-200">In
                                     Progress</span>
-                            </div>
-                            <p class="text-xs text-slate-500 mb-3">พบน้ำรั่วซึมบริเวณ Mechanical seal ฝั่งขับ ประมาณ 1
-                                ลิตร/ชม.</p>
-                            <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2">
-                                <div class="bg-amber-500 h-1.5 rounded-full" style="width: 45%"></div>
-                            </div>
-                            <div class="flex justify-between text-[10px] text-slate-400 font-medium">
-                                <span>ผู้แจ้ง: สมชาย (ผลิต) • 10 ม.ค. 24</span>
-                                <span>กำลังเบิกอะไหล่</span>
-                            </div>
-                        </div>
-
-                        <!-- WO Item 2 -->
-                        <div class="border border-slate-200 rounded-lg p-4 bg-slate-50/50 grayscale-[50%] opacity-80">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <a href="#"
-                                        class="text-slate-600 font-bold text-sm tracking-wide hover:underline">WO-2309-0112</a>
-                                    <h4 class="font-medium text-slate-700 mt-0.5 text-sm">เปลี่ยนแบริ่งตามวาระ</h4>
-                                </div>
+                                {% else %}
                                 <span
-                                    class="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-green-200">Completed</span>
+                                    class="bg-slate-100 text-slate-600 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-slate-200">Pending</span>
+                                {% endif %}
                             </div>
-                            <p class="text-xs text-slate-500 mb-3">เสียงดังผิดปกติ เปลี่ยนลูกปืนหน้า-หลัง เรียบร้อย</p>
-                            <div
-                                class="flex justify-between text-[10px] text-slate-400 font-medium border-t border-slate-200 pt-2">
-                                <span>ช่างซ่อม: นพพล (PM)</span>
-                                <span>ปิดงาน: 15 ก.ย. 23</span>
+                            {% if wo.description %}
+                            <p class="text-xs text-slate-500 mb-3">{{ wo.description }}</p>
+                            {% endif %}
+                            {% if wo.status == 'in_progress' %}
+                            <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2">
+                                <div class="bg-amber-500 h-1.5 rounded-full" style="width: {{ wo.progress_percent }}%">
+                                </div>
+                            </div>
+                            {% endif %}
+                            <div class="flex justify-between text-[10px] text-slate-400 font-medium flex-wrap gap-1">
+                                {% if wo.status == 'completed' %}
+                                <span>ช่างซ่อม: {{ wo.mechanic|default:"-" }}</span>
+                                <span>ปิดงาน: {{ wo.completed_date|date:"d M y" }}</span>
+                                {% else %}
+                                <span>ผู้แจ้ง: {{ wo.reporter }}{% if wo.reporter_dept %}
+                                    ({{ wo.reporter_dept }}){% endif %} • {{ wo.report_date|date:"d M y" }}</span>
+                                <span>{{ wo.current_action|default:"" }}</span>
+                                {% endif %}
+                            </div>
+
+                            <div class="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs">
+                                <button type="button" onclick="toggleWoEdit({{ wo.id }})"
+                                    class="text-slate-500 hover:text-orange-600 font-medium flex items-center gap-1">
+                                    <i data-lucide="square-pen" class="w-3.5 h-3.5"></i> อัปเดตสถานะ
+                                </button>
+                                <form method="POST" action="{% url 'work_order_delete' wo.id %}" class="inline ml-auto"
+                                    onsubmit="return confirm('ต้องการลบใบสั่งซ่อม {{ wo.wo_no }} ใช่หรือไม่?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-slate-400 hover:text-red-600"
+                                        title="ลบใบสั่งซ่อม">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </form>
+                            </div>
+
+                            <!-- Status Update Form -->
+                            <div id="wo-edit-{{ wo.id }}" class="hidden mt-3 pt-3 border-t border-slate-100">
+                                <form method="POST" action="{% url 'work_order_edit' wo.id %}"
+                                    class="grid grid-cols-2 gap-3">
+                                    {% csrf_token %}
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">สถานะ</label>
+                                        <select name="status"
+                                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
+                                            <option value="pending" {% if wo.status == 'pending' %}selected{% endif %}>รอดำเนินการ</option>
+                                            <option value="in_progress" {% if wo.status == 'in_progress' %}selected{% endif %}>กำลังดำเนินการ</option>
+                                            <option value="completed" {% if wo.status == 'completed' %}selected{% endif %}>ปิดงาน</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">ช่างผู้รับผิดชอบ</label>
+                                        <input type="text" name="mechanic" value="{{ wo.mechanic|default:'' }}"
+                                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
+                                    </div>
+                                    <div class="col-span-2">
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">การดำเนินการปัจจุบัน</label>
+                                        <input type="text" name="current_action"
+                                            value="{{ wo.current_action|default:'' }}" placeholder="เช่น กำลังเบิกอะไหล่"
+                                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">ความคืบหน้า
+                                            (%)</label>
+                                        <input type="number" name="progress_percent" min="0" max="100"
+                                            value="{{ wo.progress_percent }}"
+                                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 mb-1">วันที่ปิดงาน</label>
+                                        <input type="date" name="completed_date"
+                                            value="{{ wo.completed_date|date:'Y-m-d' }}"
+                                            class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
+                                    </div>
+                                    <div class="col-span-2 flex gap-2 justify-end pt-1">
+                                        <button type="button" onclick="toggleWoEdit({{ wo.id }})"
+                                            class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">ยกเลิก</button>
+                                        <button type="submit"
+                                            class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">บันทึก</button>
+                                    </div>
+                                </form>
                             </div>
                         </div>
+                        {% empty %}
+                        <div class="text-center text-slate-400 py-8">
+                            <i data-lucide="wrench" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
+                            <p class="text-sm font-medium">ยังไม่มีประวัติใบสั่งซ่อมสำหรับเครื่องจักรนี้</p>
+                            <p class="text-xs mt-1">กดปุ่ม "แจ้งซ่อม" ด้านบนเพื่อสร้างใบสั่งซ่อมใหม่</p>
+                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
@@ -885,8 +1320,8 @@
                         <div class="flex-grow space-y-4">
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 <!-- Visual Status -->
-                                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-blue-300 transition-colors"
-                                    onclick="switchCbmSubTab('visual')">
+                                <a href="{% url 'cbm_summary' 'visual' equipment.equipment_id %}"
+                                    class="block bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-blue-300 transition-colors">
                                     <div class="flex justify-between items-start mb-3">
                                         <div class="flex items-center gap-2">
                                             <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
@@ -894,19 +1329,31 @@
                                             </div>
                                             <div>
                                                 <h4 class="font-bold text-slate-700 text-sm">Visual Test</h4>
-                                                <p class="text-[10px] text-slate-500">อัปเดต: 12 ม.ค. 2024</p>
+                                                <p class="text-[10px] text-slate-500">
+                                                    {% if latest_cbm_visual %}อัปเดต: {{ latest_cbm_visual.inspection_date|date:"d M Y" }}{% else %}ยังไม่มีข้อมูล{% endif %}
+                                                </p>
                                             </div>
                                         </div>
-                                        <span
-                                            class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold">ปกติ
-                                            (Normal)</span>
+                                        {% if latest_cbm_visual %}
+                                            {% if latest_cbm_visual.overall_condition == 'good' %}
+                                            <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">ปกติ (Normal)</span>
+                                            {% elif latest_cbm_visual.overall_condition == 'fair' %}
+                                            <span class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">เฝ้าระวัง (Alert)</span>
+                                            {% else %}
+                                            <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">ผิดปกติ (Poor)</span>
+                                            {% endif %}
+                                        {% else %}
+                                        <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">ยังไม่มีข้อมูล (N/A)</span>
+                                        {% endif %}
                                     </div>
-                                    <p class="text-xs text-slate-600">ไม่พบรอยรั่วซึม หรือความหลุดหลวมบริเวณภายนอก</p>
-                                </div>
+                                    <p class="text-xs text-slate-600{% if not latest_cbm_visual %} text-slate-400 italic{% endif %}">
+                                        {% if latest_cbm_visual %}{{ latest_cbm_visual.remark|default:"ไม่มีหมายเหตุเพิ่มเติม" }}{% else %}ยังไม่เคยมีการตรวจสอบ{% endif %}
+                                    </p>
+                                </a>
 
                                 <!-- Vibration Status -->
-                                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-emerald-300 transition-colors"
-                                    onclick="switchCbmSubTab('vibration')">
+                                <a href="{% url 'cbm_summary' 'vibration' equipment.equipment_id %}"
+                                    class="block bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-emerald-300 transition-colors">
                                     <div class="flex justify-between items-start mb-3">
                                         <div class="flex items-center gap-2">
                                             <div
@@ -915,20 +1362,31 @@
                                             </div>
                                             <div>
                                                 <h4 class="font-bold text-slate-700 text-sm">Vibration</h4>
-                                                <p class="text-[10px] text-slate-500">อัปเดต: 10 มี.ค. 2024</p>
+                                                <p class="text-[10px] text-slate-500">
+                                                    {% if latest_cbm_vibration %}อัปเดต: {{ latest_cbm_vibration.inspection_date|date:"d M Y" }}{% else %}ยังไม่มีข้อมูล{% endif %}
+                                                </p>
                                             </div>
                                         </div>
-                                        <span
-                                            class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-bold">เฝ้าระวัง
-                                            (Alert)</span>
+                                        {% if latest_cbm_vibration %}
+                                            {% if latest_cbm_vibration.status == 'normal' %}
+                                            <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">Normal</span>
+                                            {% elif latest_cbm_vibration.status == 'warning' %}
+                                            <span class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">เฝ้าระวัง (Warning)</span>
+                                            {% else %}
+                                            <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">Alarm</span>
+                                            {% endif %}
+                                        {% else %}
+                                        <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">ยังไม่มีข้อมูล (N/A)</span>
+                                        {% endif %}
                                     </div>
-                                    <p class="text-xs text-slate-600">พบค่าความสั่นสะเทือนสูงฝั่ง Drive End (4.2 mm/s)
+                                    <p class="text-xs text-slate-600{% if not latest_cbm_vibration %} text-slate-400 italic{% endif %}">
+                                        {% if latest_cbm_vibration %}{{ latest_cbm_vibration.measurement_point }}: {{ latest_cbm_vibration.velocity|default:"-" }} mm/s{% else %}ยังไม่เคยมีการตรวจสอบ{% endif %}
                                     </p>
-                                </div>
+                                </a>
 
                                 <!-- Thermoscan Status -->
-                                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-red-300 transition-colors"
-                                    onclick="switchCbmSubTab('thermoscan')">
+                                <a href="{% url 'cbm_summary' 'thermoscan' equipment.equipment_id %}"
+                                    class="block bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-red-300 transition-colors">
                                     <div class="flex justify-between items-start mb-3">
                                         <div class="flex items-center gap-2">
                                             <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
@@ -936,20 +1394,25 @@
                                             </div>
                                             <div>
                                                 <h4 class="font-bold text-slate-700 text-sm">Thermoscan</h4>
-                                                <p class="text-[10px] text-slate-500">อัปเดต: 10 มี.ค. 2024</p>
+                                                <p class="text-[10px] text-slate-500">
+                                                    {% if latest_cbm_thermoscan %}อัปเดต: {{ latest_cbm_thermoscan.inspection_date|date:"d M Y" }}{% else %}ยังไม่มีข้อมูล{% endif %}
+                                                </p>
                                             </div>
                                         </div>
-                                        <span
-                                            class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold">ปกติ
-                                            (Normal)</span>
+                                        {% if latest_cbm_thermoscan %}
+                                        <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">ดูข้อมูล</span>
+                                        {% else %}
+                                        <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">ยังไม่มีข้อมูล (N/A)</span>
+                                        {% endif %}
                                     </div>
-                                    <p class="text-xs text-slate-600">อุณหภูมิมอเตอร์เฉลี่ย 65°C อยู่ในเกณฑ์ที่รับได้
+                                    <p class="text-xs text-slate-600{% if not latest_cbm_thermoscan %} text-slate-400 italic{% endif %}">
+                                        {% if latest_cbm_thermoscan %}{{ latest_cbm_thermoscan.location_target }}: Max {{ latest_cbm_thermoscan.max_temp|default:"-" }}°C / Δ{{ latest_cbm_thermoscan.delta_t|default:"-" }}°C{% else %}ยังไม่เคยมีการตรวจสอบ{% endif %}
                                     </p>
-                                </div>
+                                </a>
 
                                 <!-- Oil Analysis Status -->
-                                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-sky-300 transition-colors"
-                                    onclick="switchCbmSubTab('oil')">
+                                <a href="{% url 'cbm_summary' 'oil' equipment.equipment_id %}"
+                                    class="block bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-sky-300 transition-colors">
                                     <div class="flex justify-between items-start mb-3">
                                         <div class="flex items-center gap-2">
                                             <div class="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">
@@ -957,22 +1420,21 @@
                                             </div>
                                             <div>
                                                 <h4 class="font-bold text-slate-700 text-sm">Oil Analysis</h4>
-                                                <p class="text-[10px] text-slate-500">อัปเดต: รอผล</p>
+                                                <p class="text-[10px] text-slate-500">
+                                                    {% if latest_cbm_oil %}อัปเดต: {{ latest_cbm_oil.collection_date|date:"d M Y" }}{% else %}ยังไม่มีข้อมูล{% endif %}
+                                                </p>
                                             </div>
                                         </div>
-                                        <span
-                                            class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-bold">ยังไม่มีข้อมูล
-                                            (N/A)</span>
+                                        <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">{% if latest_cbm_oil %}ดูข้อมูล{% else %}ยังไม่มีข้อมูล (N/A){% endif %}</span>
                                     </div>
-                                    <p class="text-xs text-slate-600 text-slate-400 italic">ส่งเก็บตัวอย่างเมื่อ 10
-                                        มี.ค.
-                                        2024
+                                    <p class="text-xs text-slate-600{% if not latest_cbm_oil %} text-slate-400 italic{% endif %}">
+                                        {% if latest_cbm_oil %}{{ latest_cbm_oil.oil_remark|default:"ไม่มีหมายเหตุเพิ่มเติม" }}{% else %}ยังไม่เคยเก็บตัวอย่าง{% endif %}
                                     </p>
-                                </div>
+                                </a>
 
                                 <!-- Acoustic Status -->
-                                <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-purple-300 transition-colors"
-                                    onclick="switchCbmSubTab('acoustic')">
+                                <a href="{% url 'cbm_summary' 'acoustic' equipment.equipment_id %}"
+                                    class="block bg-white border border-slate-200 rounded-xl p-4 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] cursor-pointer hover:border-purple-300 transition-colors">
                                     <div class="flex justify-between items-start mb-3">
                                         <div class="flex items-center gap-2">
                                             <div
@@ -981,15 +1443,25 @@
                                             </div>
                                             <div>
                                                 <h4 class="font-bold text-slate-700 text-sm">Acoustic Emission</h4>
-                                                <p class="text-[10px] text-slate-500">อัปเดต: 10 มี.ค. 2024</p>
+                                                <p class="text-[10px] text-slate-500">
+                                                    {% if latest_cbm_acoustic %}อัปเดต: {{ latest_cbm_acoustic.inspection_date|date:"d M Y" }}{% else %}ยังไม่มีข้อมูล{% endif %}
+                                                </p>
                                             </div>
                                         </div>
-                                        <span
-                                            class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold">ปกติ
-                                            (Normal)</span>
+                                        {% if latest_cbm_acoustic %}
+                                            {% if latest_cbm_acoustic.sound_pattern == 'normal' %}
+                                            <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">ปกติ (Normal)</span>
+                                            {% else %}
+                                            <span class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">{{ latest_cbm_acoustic.get_sound_pattern_display }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                        <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-bold whitespace-nowrap">ยังไม่มีข้อมูล (N/A)</span>
+                                        {% endif %}
                                     </div>
-                                    <p class="text-xs text-slate-600">เสียงการทำงานของ Bearing ปกติ ไม่พบการกระแทก</p>
-                                </div>
+                                    <p class="text-xs text-slate-600{% if not latest_cbm_acoustic %} text-slate-400 italic{% endif %}">
+                                        {% if latest_cbm_acoustic %}{{ latest_cbm_acoustic.inspection_point|default:"-" }}{% else %}ยังไม่เคยมีการตรวจสอบ{% endif %}
+                                    </p>
+                                </a>
                             </div>
 
                         </div>
@@ -1631,6 +2103,31 @@
 
         function openBomModal(action, partNo = '') {
             window.open(`{% url "equipment_bom" %}?action=${action}&partNo=${partNo}`, 'BOMWindow', 'width=700,height=500,left=250,top=150');
+        }
+
+        function toggleBomEdit(bomId) {
+            document.getElementById(`bom-row-${bomId}`).classList.toggle('hidden');
+            document.getElementById(`bom-edit-row-${bomId}`).classList.toggle('hidden');
+        }
+
+        function togglePmAddForm() {
+            document.getElementById('pm-add-form').classList.toggle('hidden');
+        }
+
+        function togglePmItems(planId) {
+            document.getElementById(`pm-items-${planId}`).classList.toggle('hidden');
+        }
+
+        function togglePmHistory() {
+            document.getElementById('pm-history').classList.toggle('hidden');
+        }
+
+        function toggleWoAddForm() {
+            document.getElementById('wo-add-form').classList.toggle('hidden');
+        }
+
+        function toggleWoEdit(woId) {
+            document.getElementById(`wo-edit-${woId}`).classList.toggle('hidden');
         }
 
         function uploadCBMFileToDrive(input, fieldName, statusId) {

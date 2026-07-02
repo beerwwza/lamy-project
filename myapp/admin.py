@@ -97,6 +97,34 @@ class EquipmentBOMAdmin(admin.ModelAdmin):
     list_display = ('part_no', 'part_name', 'equipment', 'qty', 'stock_qty')
     search_fields = ('part_no', 'part_name', 'equipment__equipment_id')
 
+@admin.register(EquipmentLink)
+class EquipmentLinkAdmin(admin.ModelAdmin):
+    list_display = ('equipment', 'label', 'linked_equipment_id', 'order')
+    list_filter = ('equipment',)
+    search_fields = ('label', 'linked_equipment_id')
+
+@admin.register(PMPlan)
+class PMPlanAdmin(admin.ModelAdmin):
+    list_display = ('pm_code', 'title', 'equipment', 'interval_value', 'interval_unit', 'last_completed_date', 'is_active')
+    list_filter = ('interval_unit', 'is_active')
+    search_fields = ('pm_code', 'title', 'equipment__equipment_id')
+
+@admin.register(PMPlanItem)
+class PMPlanItemAdmin(admin.ModelAdmin):
+    list_display = ('description', 'plan', 'order')
+
+@admin.register(WorkOrder)
+class WorkOrderAdmin(admin.ModelAdmin):
+    list_display = ('wo_no', 'equipment', 'problem_title', 'status', 'reporter', 'report_date', 'mechanic')
+    list_filter = ('status', 'report_date')
+    search_fields = ('wo_no', 'problem_title', 'equipment__equipment_id', 'reporter')
+
+@admin.register(PMPlanCompletion)
+class PMPlanCompletionAdmin(admin.ModelAdmin):
+    list_display = ('plan', 'completed_date', 'completed_by')
+    list_filter = ('completed_date',)
+    search_fields = ('plan__pm_code', 'completed_by')
+
 @admin.register(CBMVisualTest)
 class CBMVisualTestAdmin(admin.ModelAdmin):
     list_display = ('equipment', 'inspection_date', 'overall_condition')

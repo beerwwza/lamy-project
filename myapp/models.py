@@ -703,6 +703,7 @@ class Equipment(models.Model):
     attachment_file_id = models.CharField(max_length=255, null=True, blank=True, verbose_name="รหัสไฟล์ Google Drive")
     attachment_file_name = models.CharField(max_length=255, null=True, blank=True, verbose_name="ชื่อไฟล์แนบ")
     
+    updated_by = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้แก้ไขล่าสุด")
     is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -722,6 +723,27 @@ class EquipmentBOM(models.Model):
 
     def __str__(self):
         return f"{self.part_no} - {self.part_name}"
+
+class EquipmentLink(models.Model):
+    equipment = models.ForeignKey(
+        Equipment, on_delete=models.CASCADE,
+        related_name='links', verbose_name="เครื่องจักร"
+    )
+    label = models.CharField(max_length=100, verbose_name="หัวข้อ")
+    linked_equipment_id = models.CharField(
+        max_length=50, blank=True, null=True,
+        verbose_name="รหัสเครื่องจักรที่เชื่อม"
+    )
+    order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = "ชิ้นส่วนที่เชื่อมโยง"
+
+    def __str__(self):
+        return f"{self.label} → {self.linked_equipment_id or '-'}"
+
 
 class CBMVisualTest(models.Model):
     equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='cbm_visual_tests', verbose_name="เครื่องจักร")
@@ -1014,3 +1036,95 @@ class InventoryTransaction(models.Model):
         if is_new:
             self.item.stock = (self.item.stock or Decimal(0)) + self._delta()
             self.item.save(update_fields=['stock', 'updated_at'])
+
+
+# ==========================================
+# 6. NEW: PM Plan & Work Order Models
+# ==========================================
+
+class PMPlan(models.Model):
+    INTERVAL_UNIT_CHOICES = [
+        ('day', 'วัน'),
+        ('week', 'สัปดาห์'),
+        ('month', 'เดือน'),
+    ]
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='pm_plans', verbose_name="เครื่องจักร")
+    pm_code = models.CharField(max_length=50, verbose_name="รหัสแผน PM")
+    title = models.CharField(max_length=255, verbose_name="ชื่อแผน/รายละเอียด")
+    interval_value = models.PositiveIntegerField(default=1, verbose_name="ทุกๆ")
+    interval_unit = models.CharField(max_length=10, choices=INTERVAL_UNIT_CHOICES, default='month', verbose_name="หน่วยความถี่")
+    time_of_day = models.TimeField(null=True, blank=True, verbose_name="เวลาที่ทำ")
+    start_date = models.DateField(verbose_name="วันที่เริ่มแผน")
+    last_completed_date = models.DateField(null=True, blank=True, verbose_name="วันที่ทำ PM ล่าสุด")
+    assigned_team = models.CharField(max_length=100, blank=True, null=True, verbose_name="ทีมผู้รับผิดชอบ")
+    is_active = models.BooleanField(default=True, verbose_name="ใช้งานอยู่")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['pm_code']
+        verbose_name = "แผนบำรุงรักษาเชิงป้องกัน"
+        verbose_name_plural = "แผนบำรุงรักษาเชิงป้องกัน"
+
+    def __str__(self):
+        return f"{self.pm_code} - {self.title}"
+
+
+class PMPlanItem(models.Model):
+    plan = models.ForeignKey(PMPlan, on_delete=models.CASCADE, related_name='items', verbose_name="แผน PM")
+    description = models.CharField(max_length=255, verbose_name="รายการที่ต้องทำ")
+    order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = "รายการตรวจใน PM"
+        verbose_name_plural = "รายการตรวจใน PM"
+
+    def __str__(self):
+        return self.description
+
+
+class WorkOrder(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'รอดำเนินการ'),
+        ('in_progress', 'กำลังดำเนินการ'),
+        ('completed', 'ปิดงาน'),
+    ]
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='work_orders', verbose_name="เครื่องจักร")
+    wo_no = models.CharField(max_length=50, unique=True, verbose_name="เลขที่ใบสั่งซ่อม")
+    problem_title = models.CharField(max_length=255, verbose_name="อาการ/ปัญหา")
+    description = models.TextField(blank=True, null=True, verbose_name="รายละเอียดเพิ่มเติม")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name="สถานะงาน")
+    current_action = models.CharField(max_length=255, blank=True, null=True, verbose_name="การดำเนินการปัจจุบัน")
+    progress_percent = models.PositiveIntegerField(default=0, verbose_name="ความคืบหน้า (%)")
+    reporter = models.CharField(max_length=100, verbose_name="ผู้แจ้ง")
+    reporter_dept = models.CharField(max_length=100, blank=True, null=True, verbose_name="แผนกผู้แจ้ง")
+    report_date = models.DateField(verbose_name="วันที่แจ้ง")
+    mechanic = models.CharField(max_length=100, blank=True, null=True, verbose_name="ช่างผู้รับผิดชอบ")
+    completed_date = models.DateField(null=True, blank=True, verbose_name="วันที่ปิดงาน")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-report_date', '-created_at']
+        verbose_name = "ใบสั่งซ่อม"
+        verbose_name_plural = "ใบสั่งซ่อม"
+
+    def __str__(self):
+        return self.wo_no
+
+
+class PMPlanCompletion(models.Model):
+    plan = models.ForeignKey(PMPlan, on_delete=models.CASCADE, related_name='completions', verbose_name="แผน PM")
+    completed_date = models.DateField(verbose_name="วันที่ทำ PM")
+    completed_by = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้ทำ PM")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-completed_date', '-created_at']
+        verbose_name = "ประวัติการทำ PM"
+        verbose_name_plural = "ประวัติการทำ PM"
+
+    def __str__(self):
+        return f"{self.plan.pm_code} - {self.completed_date}"

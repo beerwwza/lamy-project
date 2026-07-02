@@ -25,9 +25,26 @@ from .models import MillReport
 from .forms import MillReportForm
 from .models import MaintenanceLog, KPIMetric, InventoryItem, InventoryTransaction
 from .forms import MaintenanceLogForm, KPIMetricForm
-from .models import Equipment, EquipmentBOM, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic, InventoryItem, InventoryTransaction
-from .forms import EquipmentForm, EquipmentBOMForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm, RepairDocumentForm 
+from .models import Equipment, EquipmentBOM, EquipmentLink, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic, InventoryItem, InventoryTransaction
+from .forms import EquipmentForm, EquipmentBOMForm, EquipmentLinkForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm, RepairDocumentForm
+from .forms import PMPlanForm, PMPlanItemForm, WorkOrderForm, WorkOrderStatusForm
 from decimal import Decimal, InvalidOperation
+from django.utils import timezone
+import calendar
+
+
+def _add_interval(base_date, value, unit):
+    """คำนวณวันที่ถัดไปจากวันที่ตั้งต้น + จำนวนหน่วยความถี่ (ไม่ใช้ python-dateutil)"""
+    if unit == 'day':
+        return base_date + timedelta(days=value)
+    if unit == 'week':
+        return base_date + timedelta(weeks=value)
+    # month
+    month_index = base_date.month - 1 + value
+    year = base_date.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(base_date.day, calendar.monthrange(year, month)[1])
+    return base_date.replace(year=year, month=month, day=day)
 
 
 # --- Equipment Views ---
@@ -54,10 +71,55 @@ def equipment_data(request, eq_id=None):
     motor_equipment = None
     if equipment and equipment.motor:
         motor_equipment = Equipment.objects.filter(equipment_id=equipment.motor.strip()).first()
-    
+
+    links = list(EquipmentLink.objects.filter(equipment=equipment)) if equipment else []
+    if links:
+        link_eq_ids = [l.linked_equipment_id.strip() for l in links if l.linked_equipment_id]
+        link_eq_map = {e.equipment_id: e for e in Equipment.objects.filter(equipment_id__in=link_eq_ids)}
+        for link in links:
+            link.resolved = link_eq_map.get(link.linked_equipment_id.strip(), None) if link.linked_equipment_id else None
+
+    today = timezone.now().date()
+    pm_plans = list(PMPlan.objects.filter(equipment=equipment).prefetch_related('items'))
+    for plan in pm_plans:
+        base = plan.last_completed_date or plan.start_date
+        plan.next_due_date = _add_interval(base, plan.interval_value, plan.interval_unit)
+        days_left = (plan.next_due_date - today).days
+        plan.days_left = days_left
+        plan.days_overdue = abs(days_left) if days_left < 0 else 0
+        plan.is_overdue = days_left < 0
+        plan.is_due_soon = 0 <= days_left <= 7
+    pm_plans.sort(key=lambda p: p.next_due_date)
+
+    pm_summary = {
+        'total': len(pm_plans),
+        'overdue': sum(1 for p in pm_plans if p.is_overdue),
+        'due_soon': sum(1 for p in pm_plans if p.is_due_soon),
+        'completed_this_month': PMPlanCompletion.objects.filter(
+            plan__equipment=equipment, completed_date__year=today.year, completed_date__month=today.month
+        ).count(),
+    }
+    pm_completion_history = PMPlanCompletion.objects.filter(plan__equipment=equipment).select_related('plan')[:20]
+
+    work_orders = WorkOrder.objects.filter(equipment=equipment)
+    completed_wos = [wo for wo in work_orders if wo.status == 'completed' and wo.completed_date]
+    wo_avg_resolution_days = (
+        round(sum((wo.completed_date - wo.report_date).days for wo in completed_wos) / len(completed_wos), 1)
+        if completed_wos else None
+    )
+    wo_summary = {
+        'total': len(work_orders),
+        'pending': sum(1 for wo in work_orders if wo.status == 'pending'),
+        'in_progress': sum(1 for wo in work_orders if wo.status == 'in_progress'),
+        'completed': len(completed_wos),
+        'avg_resolution_days': wo_avg_resolution_days,
+    }
+
     context = {
         'equipment': equipment,
         'motor_equipment': motor_equipment,
+        'links': links,
+        'form_link': EquipmentLinkForm(),
         'boms': boms,
         'latest_cbm_visual': latest_cbm_visual,
         'latest_cbm_vibration': latest_cbm_vibration,
@@ -71,7 +133,16 @@ def equipment_data(request, eq_id=None):
         'form_thermoscan': CBMThermoscanForm(),
         'form_oil': CBMOilAnalysisForm(),
         'form_acoustic': CBMAcousticForm(),
-        'form_bom': EquipmentBOMForm()
+        'form_bom': EquipmentBOMForm(),
+        'pm_plans': pm_plans,
+        'form_pm_plan': PMPlanForm(),
+        'form_pm_item': PMPlanItemForm(),
+        'work_orders': work_orders,
+        'form_wo': WorkOrderForm(),
+        'form_wo_status': WorkOrderStatusForm(),
+        'pm_summary': pm_summary,
+        'pm_completion_history': pm_completion_history,
+        'wo_summary': wo_summary,
     }
     return render(request, 'myapp/equipment_data.html', context)
 
@@ -83,16 +154,28 @@ def equipment_form(request, eq_id=None):
     if request.method == 'POST':
         form = EquipmentForm(request.POST, request.FILES, instance=equipment)
         if form.is_valid():
-            saved_eq = form.save()
-            messages.success(request, f'บันทึกข้อมูลเครื่องจักร {saved_eq.equipment_id} เรียบร้อยแล้ว')
-            return redirect('equipment_list')
+            try:
+                instance = form.save(commit=False)
+                instance.mtbf = instance.mtbf if instance.mtbf is not None else 0
+                instance.mttr = instance.mttr if instance.mttr is not None else 0
+                instance.acc_cost = instance.acc_cost if instance.acc_cost is not None else 0
+                instance.updated_by = request.user.username
+                instance.save()
+                messages.success(request, f'บันทึกข้อมูลเครื่องจักร {instance.equipment_id} เรียบร้อยแล้ว')
+                if eq_id:
+                    return redirect('equipment_form_edit', eq_id=instance.equipment_id)
+                else:
+                    return redirect('equipment_list')
+            except Exception as e:
+                messages.error(request, f'เกิดข้อผิดพลาดในการบันทึก: [{type(e).__name__}] {str(e)}')
         else:
-            messages.error(request, 'บันทึกไม่สำเร็จ กรุณาตรวจสอบข้อมูลอีกครั้ง')
-            return render(request, 'myapp/equipment_form.html', {'form': form, 'equipment': equipment})
-            
+            error_details = '; '.join([f'{k}: {", ".join(v)}' for k, v in form.errors.items()])
+            messages.error(request, f'บันทึกไม่สำเร็จ — {error_details}')
+        return render(request, 'myapp/equipment_form.html', {'form': form, 'equipment': equipment})
+
     else:
         form = EquipmentForm(instance=equipment)
-        
+
     return render(request, 'myapp/equipment_form.html', {'form': form, 'equipment': equipment})
 
 @login_required
@@ -144,6 +227,209 @@ def bom_delete(request, bom_id):
         return redirect('equipment_list')
 
 @login_required
+def bom_edit(request, bom_id):
+    bom = EquipmentBOM.objects.filter(id=bom_id).first()
+    if not bom:
+        messages.error(request, 'ไม่พบรายการอะไหล่ที่ต้องการแก้ไข')
+        return redirect('equipment_list')
+
+    eq_id = bom.equipment.equipment_id
+    if request.method == 'POST':
+        form = EquipmentBOMForm(request.POST, instance=bom)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'แก้ไขอะไหล่ {bom.part_no} เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'แก้ไขอะไหล่ไม่สำเร็จ กรุณาตรวจสอบข้อมูลอีกครั้ง')
+    return redirect('equipment_data_detail', eq_id=eq_id)
+
+@login_required
+def equipment_link_add(request, eq_id):
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+    if not equipment:
+        messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
+        return redirect('equipment_list')
+    if request.method == 'POST':
+        form = EquipmentLinkForm(request.POST)
+        if form.is_valid():
+            link = form.save(commit=False)
+            link.equipment = equipment
+            link.save()
+            messages.success(request, f'เพิ่ม {link.label} เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'เพิ่มไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+    return redirect('equipment_data_detail', eq_id=eq_id)
+
+
+@login_required
+def equipment_link_delete(request, link_id):
+    link = EquipmentLink.objects.filter(id=link_id).first()
+    if link:
+        eq_id = link.equipment.equipment_id
+        label = link.label
+        link.delete()
+        messages.success(request, f'ลบ {label} เรียบร้อยแล้ว')
+        return redirect('equipment_data_detail', eq_id=eq_id)
+    messages.error(request, 'ไม่พบรายการที่ต้องการลบ')
+    return redirect('equipment_list')
+
+
+# --- PM Plan Views ---
+@login_required
+def pm_plan_add(request, eq_id):
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+    if not equipment:
+        messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
+        return redirect('equipment_list')
+    if request.method == 'POST':
+        form = PMPlanForm(request.POST)
+        if form.is_valid():
+            plan = form.save(commit=False)
+            plan.equipment = equipment
+            plan.save()
+            messages.success(request, f'เพิ่มแผน PM {plan.pm_code} เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'เพิ่มแผน PM ไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+    return redirect('equipment_data_detail', eq_id=eq_id)
+
+
+@login_required
+def pm_plan_edit(request, plan_id):
+    plan = PMPlan.objects.filter(id=plan_id).first()
+    if not plan:
+        messages.error(request, 'ไม่พบแผน PM ที่ต้องการแก้ไข')
+        return redirect('equipment_list')
+    eq_id = plan.equipment.equipment_id
+    if request.method == 'POST':
+        form = PMPlanForm(request.POST, instance=plan)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'แก้ไขแผน PM {plan.pm_code} เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'แก้ไขแผน PM ไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+    return redirect('equipment_data_detail', eq_id=eq_id)
+
+
+@login_required
+def pm_plan_delete(request, plan_id):
+    plan = PMPlan.objects.filter(id=plan_id).first()
+    if plan:
+        eq_id = plan.equipment.equipment_id
+        pm_code = plan.pm_code
+        plan.delete()
+        messages.success(request, f'ลบแผน PM {pm_code} เรียบร้อยแล้ว')
+        return redirect('equipment_data_detail', eq_id=eq_id)
+    messages.error(request, 'ไม่พบแผน PM ที่ต้องการลบ')
+    return redirect('equipment_list')
+
+
+@login_required
+@require_POST
+def pm_plan_complete(request, plan_id):
+    plan = PMPlan.objects.filter(id=plan_id).first()
+    if plan:
+        eq_id = plan.equipment.equipment_id
+        today = timezone.now().date()
+        plan.last_completed_date = today
+        plan.save()
+        PMPlanCompletion.objects.create(plan=plan, completed_date=today, completed_by=request.user.username)
+        messages.success(request, f'บันทึกการทำ PM {plan.pm_code} เรียบร้อยแล้ว')
+        return redirect('equipment_data_detail', eq_id=eq_id)
+    messages.error(request, 'ไม่พบแผน PM ที่ระบุ')
+    return redirect('equipment_list')
+
+
+@login_required
+def pm_plan_item_add(request, plan_id):
+    plan = PMPlan.objects.filter(id=plan_id).first()
+    if not plan:
+        messages.error(request, 'ไม่พบแผน PM ที่ระบุ')
+        return redirect('equipment_list')
+    eq_id = plan.equipment.equipment_id
+    if request.method == 'POST':
+        form = PMPlanItemForm(request.POST)
+        if form.is_valid():
+            item = form.save(commit=False)
+            item.plan = plan
+            item.save()
+            messages.success(request, f'เพิ่มรายการตรวจ "{item.description}" เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'เพิ่มรายการตรวจไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+    return redirect('equipment_data_detail', eq_id=eq_id)
+
+
+@login_required
+def pm_plan_item_delete(request, item_id):
+    item = PMPlanItem.objects.filter(id=item_id).first()
+    if item:
+        eq_id = item.plan.equipment.equipment_id
+        description = item.description
+        item.delete()
+        messages.success(request, f'ลบรายการตรวจ "{description}" เรียบร้อยแล้ว')
+        return redirect('equipment_data_detail', eq_id=eq_id)
+    messages.error(request, 'ไม่พบรายการตรวจที่ต้องการลบ')
+    return redirect('equipment_list')
+
+
+# --- Work Order Views ---
+@login_required
+def work_order_add(request, eq_id):
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+    if not equipment:
+        messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
+        return redirect('equipment_list')
+    if request.method == 'POST':
+        form = WorkOrderForm(request.POST)
+        if form.is_valid():
+            wo = form.save(commit=False)
+            wo.equipment = equipment
+            if not wo.report_date:
+                wo.report_date = timezone.now().date()
+            yymm = wo.report_date.strftime('%y%m')
+            seq = WorkOrder.objects.filter(wo_no__startswith=f'WO-{yymm}-').count() + 1
+            wo.wo_no = f'WO-{yymm}-{seq:04d}'
+            wo.status = 'pending'
+            wo.save()
+            messages.success(request, f'แจ้งซ่อม {wo.wo_no} เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'แจ้งซ่อมไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+    return redirect('equipment_data_detail', eq_id=eq_id)
+
+
+@login_required
+def work_order_edit(request, wo_id):
+    wo = WorkOrder.objects.filter(id=wo_id).first()
+    if not wo:
+        messages.error(request, 'ไม่พบใบสั่งซ่อมที่ระบุ')
+        return redirect('equipment_list')
+    eq_id = wo.equipment.equipment_id
+    if request.method == 'POST':
+        form = WorkOrderStatusForm(request.POST, instance=wo)
+        if form.is_valid():
+            wo = form.save(commit=False)
+            if wo.status == 'completed' and not wo.completed_date:
+                wo.completed_date = timezone.now().date()
+            wo.save()
+            messages.success(request, f'อัปเดตสถานะ {wo.wo_no} เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'อัปเดตสถานะไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+    return redirect('equipment_data_detail', eq_id=eq_id)
+
+
+@login_required
+def work_order_delete(request, wo_id):
+    wo = WorkOrder.objects.filter(id=wo_id).first()
+    if wo:
+        eq_id = wo.equipment.equipment_id
+        wo_no = wo.wo_no
+        wo.delete()
+        messages.success(request, f'ลบใบสั่งซ่อม {wo_no} เรียบร้อยแล้ว')
+        return redirect('equipment_data_detail', eq_id=eq_id)
+    messages.error(request, 'ไม่พบใบสั่งซ่อมที่ต้องการลบ')
+    return redirect('equipment_list')
+
+
+@login_required
 def equipment_cbm(request, eq_id=None):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first()
     if not equipment:
@@ -176,6 +462,63 @@ def equipment_cbm(request, eq_id=None):
     
     return redirect('equipment_data_detail', eq_id=eq_id)
 
+
+CBM_TYPE_CONFIG = {
+    'visual':     {'model': CBMVisualTest, 'date_field': 'inspection_date', 'label': 'Visual Test', 'numeric_fields': []},
+    'vibration':  {'model': CBMVibration, 'date_field': 'inspection_date', 'label': 'Vibration',
+                   'numeric_fields': [('velocity', 'Velocity (mm/s)'), ('acceleration', 'Acceleration (g)'), ('bearing_temp', 'Bearing Temp (°C)')]},
+    'thermoscan': {'model': CBMThermoscan, 'date_field': 'inspection_date', 'label': 'Thermoscan',
+                   'numeric_fields': [('max_temp', 'Max Temp (°C)'), ('ambient_temp', 'Ambient (°C)'), ('delta_t', 'Delta T (°C)')]},
+    'oil':        {'model': CBMOilAnalysis, 'date_field': 'collection_date', 'label': 'Oil Analysis',
+                   'numeric_fields': [('viscosity', 'Viscosity (cSt)'), ('water_content', 'Water Content (%)')]},
+    'acoustic':   {'model': CBMAcoustic, 'date_field': 'inspection_date', 'label': 'Acoustic Emission',
+                   'numeric_fields': [('decibel', 'Decibel (dB/RMS)')]},
+}
+
+@login_required
+def cbm_summary(request, eq_id, cbm_type):
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+    if not equipment:
+        messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
+        return redirect('equipment_list')
+
+    config = CBM_TYPE_CONFIG.get(cbm_type)
+    if not config:
+        messages.error(request, 'ประเภทการตรวจสอบไม่ถูกต้อง')
+        return redirect('equipment_data_detail', eq_id=eq_id)
+
+    records = list(config['model'].objects.filter(equipment=equipment).order_by(config['date_field']))
+    dates = [getattr(r, config['date_field']).strftime('%Y-%m-%d') for r in records]
+
+    condition_counts = None
+    if cbm_type == 'visual':
+        condition_counts = {
+            'good': sum(1 for r in records if r.overall_condition == 'good'),
+            'fair': sum(1 for r in records if r.overall_condition == 'fair'),
+            'poor': sum(1 for r in records if r.overall_condition == 'poor'),
+        }
+        chart_data_json = json.dumps(condition_counts, cls=DjangoJSONEncoder)
+    else:
+        chart_data = {
+            'labels': dates,
+            'datasets': [
+                {'label': field_label, 'data': [getattr(r, field_name) for r in records]}
+                for field_name, field_label in config['numeric_fields']
+            ],
+        }
+        chart_data_json = json.dumps(chart_data, cls=DjangoJSONEncoder)
+
+    context = {
+        'equipment': equipment,
+        'cbm_type': cbm_type,
+        'cbm_label': config['label'],
+        'records': list(reversed(records)),
+        'chart_data_json': chart_data_json,
+        'condition_counts': condition_counts,
+    }
+    return render(request, 'myapp/cbm_summary.html', context)
+
+
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
 ALLOWED_IMAGE_MIMETYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'}
 
@@ -195,6 +538,46 @@ def upload_equipment_image(request, eq_id):
         return JsonResponse({'status': 'error', 'message': 'ไม่พบเครื่องจักร'})
     return JsonResponse({'status': 'error', 'message': 'ไม่มีรูปภาพถูกส่งมา'})
 
+EQUIPMENT_INLINE_FIELDS = {
+    'name': 'str', 'location': 'str', 'process': 'str', 'belongs_to': 'str',
+    'model': 'str', 'manufacturer': 'str', 'serial_no': 'str', 'capacity': 'str',
+    'head_size': 'str', 'rpm': 'str', 'motor': 'str', 'panel': 'str',
+    'starter': 'str', 'breaker': 'str', 'drive_type': 'str',
+    'installation_date': 'date', 'warranty_exp': 'date',
+    'purchase_price': 'decimal', 'replacement_cost': 'decimal',
+    'priority_level': 'choice', 'mtbf': 'float', 'mttr': 'float', 'acc_cost': 'decimal',
+}
+
+@login_required
+@require_POST
+def equipment_inline_update(request, eq_id):
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+    if not equipment:
+        return JsonResponse({'status': 'error', 'message': 'ไม่พบเครื่องจักร'})
+
+    for field, ftype in EQUIPMENT_INLINE_FIELDS.items():
+        if field not in request.POST:
+            continue
+        raw = request.POST.get(field, '').strip()
+        try:
+            if ftype == 'str':
+                setattr(equipment, field, raw)
+            elif ftype == 'date':
+                setattr(equipment, field, datetime.strptime(raw, '%Y-%m-%d').date() if raw else None)
+            elif ftype == 'float':
+                setattr(equipment, field, float(raw) if raw else 0)
+            elif ftype == 'decimal':
+                setattr(equipment, field, Decimal(raw) if raw else Decimal('0'))
+            elif ftype == 'choice':
+                if raw in ('1', '2', '3'):
+                    setattr(equipment, field, raw)
+        except (ValueError, InvalidOperation):
+            return JsonResponse({'status': 'error', 'message': f'ค่าฟิลด์ {field} ไม่ถูกต้อง'})
+
+    equipment.updated_by = request.user.username
+    equipment.save()
+    return JsonResponse({'status': 'success', 'message': 'บันทึกข้อมูลเรียบร้อยแล้ว'})
+
 @login_required
 def equipment_toggle_status(request, eq_id):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first()
@@ -210,8 +593,8 @@ def equipment_toggle_status(request, eq_id):
 @login_required
 def equipment_list(request):
     equipments = Equipment.objects.all().order_by('equipment_id')
-    locations = Equipment.objects.exclude(location__isnull=True).exclude(location__exact='').values_list('location', flat=True).distinct().order_by('location')
-    context = {'equipments': equipments, 'locations': list(locations)}
+    processes = Equipment.objects.exclude(process__isnull=True).exclude(process__exact='').values_list('process', flat=True).distinct().order_by('process')
+    context = {'equipments': equipments, 'processes': list(processes)}
     return render(request, 'myapp/equipment_list.html', context)
 
 #def Home(request):
