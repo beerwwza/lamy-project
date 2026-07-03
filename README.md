@@ -411,9 +411,14 @@ Equipment
 
 Shop
 └── LatheJob
+
+Inventory
+├── InventoryItem          (stock item: tools/spares/consumables/lubricants)
+├── InventoryTransaction   (receive/issue/return/adjust; auto-updates item.stock)
+└── ToolReadinessCheck     (readiness checklist for tools before checkout)
 ```
 
-Database migrations: **49 migration files** in `myapp/migrations/`.
+Database migrations: **60 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -499,6 +504,24 @@ Database migrations: **49 migration files** in `myapp/migrations/`.
 |---|---|---|
 | GET | `/lathe/` | Lathe job dashboard |
 | GET | `/api/lathe/` | Lathe job data (JSON) |
+
+### Inventory
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/inventory/` | Inventory dashboard (KPIs, low stock, recent tx, dept summary) |
+| GET | `/inventory/list/` | Filterable item list (category/department/search) |
+| GET | `/inventory/item/<pk>/` | Stock card — item detail + transaction history |
+| GET | `/inventory/departments/` | Department summary cards |
+| GET | `/inventory/department/<key>/` | Department drill-down |
+| GET | `/inventory/transactions/` | Full transaction history (filterable) |
+| GET | `/inventory/checkout/` | เบิก-คืน เครื่องมือ — item picker + checkout/return modal |
+| GET | `/inventory/receive/` | รับสินค้าเข้า — item picker + receive-with-PO modal |
+| GET | `/inventory/readiness/` | ตรวจสอบความพร้อมเครื่องมือ — readiness checklist history |
+| GET/POST | `/inventory/readiness/add/` | Record a new tool readiness check |
+| POST | `/api/inventory/checkout/` | JSON API: issue/return a transaction |
+| POST | `/api/inventory/receive/` | JSON API: receive stock with PO |
+| POST | `/api/inventory/add-item/` | JSON API: create new inventory item |
 
 ### Admin
 

@@ -1,0 +1,149 @@
+{% extends 'myapp/inventory/base.html' %}
+{% load inventory_extras %}
+{% block page_title %}รับสินค้าเข้า{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'inventory_dashboard' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← Dashboard</a>
+{% endblock %}
+
+{% block inv_content %}
+<!-- Filter -->
+<form method="get" class="flex flex-wrap gap-3 mb-5">
+  <input type="text" name="q" value="{{ f_q }}" placeholder="ค้นหา รหัส / ชื่อสินค้า..."
+    class="flex-1 min-w-48 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+  <select name="cat" class="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="">-- ทุกหมวด --</option>
+    {% for val, label in category_choices %}
+    <option value="{{ val }}" {% if f_cat == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="dept" class="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="">-- ทุกแผนก --</option>
+    {% for val, label in department_choices %}
+    <option value="{{ val }}" {% if f_dept == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors">ค้นหา</button>
+</form>
+
+<!-- Table -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+  <!-- Header -->
+  <div class="grid gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wider"
+       style="grid-template-columns: 100px 1fr 150px 130px 100px 110px;">
+    <div>รหัส</div>
+    <div>ชื่อรายการ</div>
+    <div>หมวดหมู่</div>
+    <div>แผนก</div>
+    <div class="text-right">ยอดคงเหลือ</div>
+    <div class="text-center">การทำรายการ</div>
+  </div>
+
+  {% for item in items %}
+  {% with cat=category_meta|get:item.category dept=department_meta|get:item.department %}
+  <div class="grid gap-4 px-5 py-3.5 border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors items-center"
+       style="grid-template-columns: 100px 1fr 150px 130px 100px 110px;">
+    <div class="font-mono text-xs text-slate-400">{{ item.code }}</div>
+    <div class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ item.name }}</div>
+    <div>
+      <span class="text-xs px-2 py-0.5 rounded-md font-medium"
+            style="background:{{ cat.color }}20; color:{{ cat.color }};">
+        {{ cat.icon }} {{ cat.name }}
+      </span>
+    </div>
+    <div class="text-sm font-medium" style="color:{{ dept.color }};">{{ dept.name }}</div>
+    <div class="text-right font-black {% if item.is_low_stock %}text-red-500{% else %}text-emerald-600{% endif %}">
+      {{ item.stock }}<span class="text-slate-400 font-normal text-xs ml-0.5">{{ item.unit }}</span>
+    </div>
+    <div class="text-center">
+      <button type="button"
+        onclick="openReceiveModal({{ item.pk }}, '{{ item.name|escapejs }}', '{{ item.stock }}', '{{ item.unit|escapejs }}')"
+        class="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium transition-colors">
+        รับเข้า
+      </button>
+    </div>
+  </div>
+  {% endwith %}
+  {% empty %}
+  <div class="py-16 text-center text-slate-400 text-sm">ไม่พบรายการสินค้า</div>
+  {% endfor %}
+</div>
+
+<p class="mt-3 text-xs text-slate-400">{{ items.count }} รายการ</p>
+
+<!-- Modal: รับเข้า -->
+<div id="receiveModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+      <h3 class="font-bold text-slate-800 dark:text-slate-100">รับเข้า (PO): <span id="r_item_name"></span></h3>
+      <button onclick="closeReceiveModal()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+    </div>
+    <div class="p-6 space-y-3">
+      <input type="hidden" id="r_item_id">
+      <p class="text-xs text-slate-400">คงเหลือ: <span id="r_item_stock" class="font-semibold"></span> <span id="r_item_unit"></span></p>
+
+      <div>
+        <label class="text-xs text-slate-500 block mb-1">จำนวน</label>
+        <input id="r_qty" type="number" value="1"
+          class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="text-xs text-slate-500 block mb-1">เลขที่ PO *</label>
+        <input id="r_po" placeholder="PO-2568-001"
+          class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="text-xs text-slate-500 block mb-1">ผู้ขาย</label>
+        <input id="r_supplier"
+          class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="text-xs text-slate-500 block mb-1">ราคา/หน่วย</label>
+        <input id="r_price" type="number" value="0"
+          class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <p id="r_err" class="text-red-500 text-xs"></p>
+      <button onclick="submitReceive()"
+        class="w-full px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors">
+        บันทึกรับเข้า
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openReceiveModal(id, name, stock, unit) {
+  document.getElementById('r_item_id').value = id;
+  document.getElementById('r_item_name').textContent = name;
+  document.getElementById('r_item_stock').textContent = stock;
+  document.getElementById('r_item_unit').textContent = unit;
+  document.getElementById('r_qty').value = 1;
+  document.getElementById('r_po').value = '';
+  document.getElementById('r_supplier').value = '';
+  document.getElementById('r_price').value = 0;
+  document.getElementById('r_err').textContent = '';
+  document.getElementById('receiveModal').classList.remove('hidden');
+}
+function closeReceiveModal() {
+  document.getElementById('receiveModal').classList.add('hidden');
+}
+function submitReceive() {
+  const err = document.getElementById('r_err');
+  err.textContent = '';
+  fetch("{% url 'api_inventory_receive' %}", {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify({
+      item_id: document.getElementById('r_item_id').value,
+      quantity: document.getElementById('r_qty').value,
+      po_number: document.getElementById('r_po').value.trim(),
+      supplier: document.getElementById('r_supplier').value.trim(),
+      unit_price: document.getElementById('r_price').value,
+    })
+  }).then(r => r.json()).then(data => {
+    if (data.success) location.reload();
+    else err.textContent = data.error || 'เกิดข้อผิดพลาด';
+  });
+}
+</script>
+{% endblock %}

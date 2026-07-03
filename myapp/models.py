@@ -1133,6 +1133,43 @@ class InventoryTransaction(models.Model):
             self.item.save(update_fields=['stock', 'updated_at'])
 
 
+class ToolReadinessCheck(models.Model):
+    """เช็คลิสต์ตรวจสอบความพร้อมเครื่องมือช่าง (category='tools') ก่อนเบิกใช้งาน
+       เป็น log แบบ standalone — ไม่ผูกเป็นเงื่อนไขบังคับกับการเบิก (api_inventory_checkout)"""
+
+    STATUS_CHOICES = [
+        ('ready',     'พร้อมใช้งาน'),
+        ('not_ready', 'ไม่พร้อมใช้งาน'),
+    ]
+
+    item        = models.ForeignKey(InventoryItem, on_delete=models.PROTECT,
+                                    limit_choices_to={'category': 'tools'},
+                                    related_name='readiness_checks', verbose_name="เครื่องมือ")
+    check_date  = models.DateField(verbose_name="วันที่ตรวจสอบ")
+    inspector   = models.CharField(max_length=100, verbose_name="ผู้ตรวจสอบ")
+
+    condition_ok     = models.BooleanField(default=True, verbose_name="สภาพเครื่องมือ (ไม่ชำรุด)")
+    calibration_ok   = models.BooleanField(default=True, verbose_name="สอบเทียบ/ปรับตั้งถูกต้อง")
+    completeness_ok  = models.BooleanField(default=True, verbose_name="อุปกรณ์/อะไหล่ประกอบครบชุด")
+    safety_ok        = models.BooleanField(default=True, verbose_name="ปลอดภัยต่อการใช้งาน")
+
+    overall_status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='ready',
+                                      verbose_name="สรุปผล")
+    note = models.TextField(blank=True, verbose_name="หมายเหตุ")
+
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='tool_readiness_checks', verbose_name="ผู้บันทึก")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-check_date', '-created_at']
+        verbose_name = "ตรวจสอบความพร้อมเครื่องมือ (Tool Readiness Check)"
+        verbose_name_plural = "ตรวจสอบความพร้อมเครื่องมือ (Tool Readiness Checks)"
+
+    def __str__(self):
+        return f"{self.item.code} - {self.check_date} - {self.get_overall_status_display()}"
+
+
 # ==========================================
 # 6. NEW: PM Plan & Work Order Models
 # ==========================================

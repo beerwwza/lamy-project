@@ -1,0 +1,72 @@
+{% extends 'myapp/inventory/base.html' %}
+{% load inventory_extras %}
+{% block page_title %}ตรวจสอบความพร้อมเครื่องมือ{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'inventory_readiness_add' %}"
+  class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors">
+  + บันทึกการตรวจสอบ
+</a>
+{% endblock %}
+
+{% block inv_content %}
+<!-- Filter -->
+<form method="get" class="flex flex-wrap gap-3 mb-5">
+  <select name="item" class="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="">-- ทุกเครื่องมือ --</option>
+    {% for t in tool_items %}
+    <option value="{{ t.pk }}" {% if f_item == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.code }} - {{ t.name }}</option>
+    {% endfor %}
+  </select>
+  <select name="status" class="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="">-- ทุกสถานะ --</option>
+    {% for val, label in status_choices %}
+    <option value="{{ val }}" {% if f_status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors">กรอง</button>
+</form>
+
+<!-- Table -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+  <div class="grid gap-3 px-5 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wider"
+       style="grid-template-columns: 130px 1fr 100px 60px 60px 60px 60px 110px 1fr;">
+    <div>วันที่ตรวจ</div>
+    <div>เครื่องมือ</div>
+    <div>ผู้ตรวจสอบ</div>
+    <div class="text-center">สภาพ</div>
+    <div class="text-center">สอบเทียบ</div>
+    <div class="text-center">ครบชุด</div>
+    <div class="text-center">ปลอดภัย</div>
+    <div class="text-center">สรุปผล</div>
+    <div>หมายเหตุ</div>
+  </div>
+
+  {% for check in checks %}
+  <div class="grid gap-3 px-5 py-3.5 border-b border-slate-50 dark:border-slate-800 items-center"
+       style="grid-template-columns: 130px 1fr 100px 60px 60px 60px 60px 110px 1fr;">
+    <div class="text-xs text-slate-400">{{ check.check_date|date:"d/m/Y" }}</div>
+    <div class="min-w-0">
+      <a href="{% url 'inventory_stock_card' check.item.pk %}" class="text-sm font-medium text-slate-800 dark:text-slate-100 hover:text-indigo-600 truncate block">{{ check.item.name }}</a>
+      <p class="text-xs font-mono text-slate-400">{{ check.item.code }}</p>
+    </div>
+    <div class="text-xs text-slate-500 truncate">{{ check.inspector }}</div>
+    <div class="text-center">{% if check.condition_ok %}✅{% else %}❌{% endif %}</div>
+    <div class="text-center">{% if check.calibration_ok %}✅{% else %}❌{% endif %}</div>
+    <div class="text-center">{% if check.completeness_ok %}✅{% else %}❌{% endif %}</div>
+    <div class="text-center">{% if check.safety_ok %}✅{% else %}❌{% endif %}</div>
+    <div class="text-center">
+      {% if check.overall_status == 'ready' %}
+      <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">พร้อมใช้งาน</span>
+      {% else %}
+      <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">ไม่พร้อมใช้งาน</span>
+      {% endif %}
+    </div>
+    <div class="text-xs text-slate-400 italic truncate">{{ check.note|truncatechars:30 }}</div>
+  </div>
+  {% empty %}
+  <div class="py-16 text-center text-slate-400 text-sm">ยังไม่มีการตรวจสอบความพร้อมเครื่องมือ</div>
+  {% endfor %}
+</div>
+<p class="mt-3 text-xs text-slate-400">{{ checks.count }} รายการ</p>
+{% endblock %}

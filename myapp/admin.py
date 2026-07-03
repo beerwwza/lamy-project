@@ -161,3 +161,9 @@ class InventoryTransactionAdmin(admin.ModelAdmin):
     list_display = ['created_at', 'item', 'tx_type', 'quantity', 'department', 'employee_name', 'po_number']
     list_filter  = ['tx_type', 'department']
     search_fields = ['item__code', 'item__name', 'po_number']
+
+@admin.register(ToolReadinessCheck)
+class ToolReadinessCheckAdmin(admin.ModelAdmin):
+    list_display  = ['item', 'check_date', 'inspector', 'overall_status', 'created_at']
+    list_filter   = ['overall_status', 'check_date']
+    search_fields = ['item__code', 'item__name', 'inspector']

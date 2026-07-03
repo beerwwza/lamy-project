@@ -3588,3 +3588,123 @@ def api_inventory_add_item(request):
             created_by=request.user,
         )
     return JsonResponse({'success': True, 'item_id': item.id})
+
+
+# =====================================================================
+# 7) CHECKOUT PAGE — เลือกรายการจากตาราง แล้วเบิก/คืนผ่าน modal
+#    (reuse api_inventory_checkout — ไม่มี API ใหม่)
+# =====================================================================
+@login_required
+def inventory_checkout_page(request):
+    items = InventoryItem.objects.filter(is_active=True)
+    cat  = request.GET.get('cat', '')
+    dept = request.GET.get('dept', '')
+    q    = request.GET.get('q', '')
+
+    if cat:
+        items = items.filter(category=cat)
+    if dept:
+        items = items.filter(department=dept)
+    if q:
+        items = items.filter(Q(name__icontains=q) | Q(code__icontains=q))
+
+    context = {
+        'items': items,
+        'category_meta': CATEGORY_META,
+        'department_meta': DEPARTMENT_META,
+        'f_cat': cat, 'f_dept': dept, 'f_q': q,
+        'category_choices': InventoryItem.CATEGORY_CHOICES,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+    }
+    return render(request, 'myapp/inventory/checkout.html', context)
+
+
+# =====================================================================
+# 8) RECEIVE PAGE — เลือกรายการจากตาราง แล้วรับเข้าผ่าน modal
+#    (reuse api_inventory_receive — ไม่มี API ใหม่)
+# =====================================================================
+@login_required
+def inventory_receive_page(request):
+    items = InventoryItem.objects.filter(is_active=True)
+    cat  = request.GET.get('cat', '')
+    dept = request.GET.get('dept', '')
+    q    = request.GET.get('q', '')
+
+    if cat:
+        items = items.filter(category=cat)
+    if dept:
+        items = items.filter(department=dept)
+    if q:
+        items = items.filter(Q(name__icontains=q) | Q(code__icontains=q))
+
+    context = {
+        'items': items,
+        'category_meta': CATEGORY_META,
+        'department_meta': DEPARTMENT_META,
+        'f_cat': cat, 'f_dept': dept, 'f_q': q,
+        'category_choices': InventoryItem.CATEGORY_CHOICES,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+    }
+    return render(request, 'myapp/inventory/receive.html', context)
+
+
+# =====================================================================
+# 9) TOOL READINESS CHECKLIST — log ความพร้อมเครื่องมือก่อนเบิก
+# =====================================================================
+@login_required
+def inventory_readiness_list(request):
+    checks = ToolReadinessCheck.objects.select_related('item', 'created_by')
+    status  = request.GET.get('status', '')
+    item_id = request.GET.get('item', '')
+
+    if status:
+        checks = checks.filter(overall_status=status)
+    if item_id:
+        checks = checks.filter(item_id=item_id)
+
+    context = {
+        'checks': checks,
+        'tool_items': InventoryItem.objects.filter(category='tools', is_active=True),
+        'f_status': status, 'f_item': item_id,
+        'status_choices': ToolReadinessCheck.STATUS_CHOICES,
+    }
+    return render(request, 'myapp/inventory/readiness_list.html', context)
+
+
+@login_required
+def inventory_readiness_add(request):
+    tool_items = InventoryItem.objects.filter(category='tools', is_active=True)
+
+    if request.method == 'POST':
+        item = get_object_or_404(InventoryItem, pk=request.POST.get('item'), category='tools')
+        inspector = request.POST.get('inspector', '').strip()
+        check_date = request.POST.get('check_date') or timezone.now().date()
+
+        if not inspector:
+            return render(request, 'myapp/inventory/readiness_form.html', {
+                'tool_items': tool_items,
+                'status_choices': ToolReadinessCheck.STATUS_CHOICES,
+                'today': timezone.now().date(),
+                'error': 'กรุณากรอกชื่อผู้ตรวจสอบ',
+            })
+
+        ToolReadinessCheck.objects.create(
+            item=item,
+            check_date=check_date,
+            inspector=inspector,
+            condition_ok='condition_ok' in request.POST,
+            calibration_ok='calibration_ok' in request.POST,
+            completeness_ok='completeness_ok' in request.POST,
+            safety_ok='safety_ok' in request.POST,
+            overall_status=request.POST.get('overall_status', 'ready'),
+            note=request.POST.get('note', '').strip(),
+            created_by=request.user,
+        )
+        return redirect('inventory_readiness_list')
+
+    context = {
+        'tool_items': tool_items,
+        'status_choices': ToolReadinessCheck.STATUS_CHOICES,
+        'today': timezone.now().date(),
+    }
+    return render(request, 'myapp/inventory/readiness_form.html', context)
