@@ -158,9 +158,9 @@ class InventoryItemAdmin(admin.ModelAdmin):
 
 @admin.register(InventoryTransaction)
 class InventoryTransactionAdmin(admin.ModelAdmin):
-    list_display = ['created_at', 'item', 'tx_type', 'quantity', 'department', 'employee_name', 'po_number']
+    list_display = ['created_at', 'item', 'tx_type', 'quantity', 'department', 'work_group', 'equipment', 'employee_name', 'po_number']
     list_filter  = ['tx_type', 'department']
-    search_fields = ['item__code', 'item__name', 'po_number']
+    search_fields = ['item__code', 'item__name', 'po_number', 'work_group', 'equipment__equipment_id', 'equipment__name']
 
 @admin.register(ToolReadinessCheck)
 class ToolReadinessCheckAdmin(admin.ModelAdmin):

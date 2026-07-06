@@ -3365,7 +3365,7 @@ def _to_decimal(value, default='0'):
 @login_required
 def inventory_dashboard(request):
     items = InventoryItem.objects.filter(is_active=True)
-    low_stock = items.filter(stock__lte=F('min_stock'))
+    low_stock = items.exclude(category='tools').filter(stock__lte=F('min_stock'))
 
     # สรุปแยกแผนก
     dept_stats = []
@@ -3377,7 +3377,7 @@ def inventory_dashboard(request):
         dept_stats.append({
             'key': key, 'name': meta['name'], 'color': meta['color'],
             'total': di.count(),
-            'low': di.filter(stock__lte=F('min_stock')).count(),
+            'low': di.exclude(category='tools').filter(stock__lte=F('min_stock')).count(),
             'issued': issued,
             'value': sum(i.stock_value for i in di),
         })
@@ -3397,19 +3397,25 @@ def inventory_dashboard(request):
 
 
 # =====================================================================
-# 2) LIST — ตารางรายการ + filter หมวด/แผนก/ค้นหา
+# 2) LIST — ตารางรายการ + filter หมวด/แผนก/สถานะ/ค้นหา + เบิก-คืน/รับเข้า
+#    (รวม inventory_checkout_page และ inventory_receive_page เดิมเข้าที่นี่)
 # =====================================================================
 @login_required
 def inventory_list(request):
     items = InventoryItem.objects.filter(is_active=True)
-    cat  = request.GET.get('cat', '')
-    dept = request.GET.get('dept', '')
-    q    = request.GET.get('q', '')
+    cat    = request.GET.get('cat', '')
+    dept   = request.GET.get('dept', '')
+    status = request.GET.get('status', '')
+    q      = request.GET.get('q', '')
 
     if cat:
         items = items.filter(category=cat)
     if dept:
         items = items.filter(department=dept)
+    if status == 'low':
+        items = items.exclude(category='tools').filter(stock__lte=F('min_stock'))
+    elif status == 'out':
+        items = items.filter(stock__lte=0)
     if q:
         items = items.filter(Q(name__icontains=q) | Q(code__icontains=q))
 
@@ -3417,9 +3423,11 @@ def inventory_list(request):
         'items': items,
         'category_meta': CATEGORY_META,
         'department_meta': DEPARTMENT_META,
-        'f_cat': cat, 'f_dept': dept, 'f_q': q,
+        'f_cat': cat, 'f_dept': dept, 'f_status': status, 'f_q': q,
         'category_choices': InventoryItem.CATEGORY_CHOICES,
         'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+        'equipment_choices': Equipment.objects.all().order_by('equipment_id'),
+        'process_choices': list(Equipment.objects.exclude(process__isnull=True).exclude(process__exact='').values_list('process', flat=True).distinct().order_by('process')),
     }
     return render(request, 'myapp/inventory/list.html', context)
 
@@ -3432,9 +3440,13 @@ def inventory_stock_card(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)
     context = {
         'item': item,
-        'transactions': item.transactions.select_related('maintenance_log')[:30],
+        'transactions': item.transactions.select_related('maintenance_log', 'equipment')[:30],
         'category_meta': CATEGORY_META,
         'department_meta': DEPARTMENT_META,
+        'category_choices': InventoryItem.CATEGORY_CHOICES,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+        'equipment_choices': Equipment.objects.all().order_by('equipment_id'),
+        'process_choices': list(Equipment.objects.exclude(process__isnull=True).exclude(process__exact='').values_list('process', flat=True).distinct().order_by('process')),
     }
     return render(request, 'myapp/inventory/stock_card.html', context)
 
@@ -3453,7 +3465,7 @@ def inventory_dept_summary(request):
         cards.append({
             'key': key, 'name': meta['name'], 'color': meta['color'],
             'total': di.count(),
-            'low': di.filter(stock__lte=F('min_stock')).count(),
+            'low': di.exclude(category='tools').filter(stock__lte=F('min_stock')).count(),
             'issued': issued,
             'value': sum(i.stock_value for i in di),
         })
@@ -3472,7 +3484,7 @@ def inventory_dept_detail(request, key):
         'recent_txs': txs[:8],
         'issued': txs.filter(tx_type='issue').aggregate(s=Sum('quantity'))['s'] or 0,
         'received': txs.filter(tx_type='receive').aggregate(s=Sum('quantity'))['s'] or 0,
-        'low_count': items.filter(stock__lte=F('min_stock')).count(),
+        'low_count': items.exclude(category='tools').filter(stock__lte=F('min_stock')).count(),
         'total_value': sum(i.stock_value for i in items),
         'category_meta': CATEGORY_META,
     }
@@ -3519,10 +3531,14 @@ def api_inventory_checkout(request):
         return JsonResponse({'error': 'กรุณากรอกชื่อพนักงาน'}, status=400)
     if tx_type == 'issue' and item.stock < qty:
         return JsonResponse({'error': 'Stock ไม่เพียงพอ'}, status=400)
+    if tx_type == 'return' and qty > item.outstanding_issued:
+        return JsonResponse({'error': f'คืนได้ไม่เกินยอดที่เบิกไป ({item.outstanding_issued} {item.unit})'}, status=400)
 
     tx = InventoryTransaction.objects.create(
         item=item, tx_type=tx_type, quantity=qty,
         department=data.get('dept', item.department),
+        work_group=data.get('work_group', ''),
+        equipment_id=data.get('equipment_id') or None,
         employee_name=data.get('employee', ''),
         note=data.get('note', ''),
         # ถ้าส่ง maintenance_log_id มา จะ link เข้าใบแจ้งซ่อมให้อัตโนมัติ
@@ -3544,7 +3560,9 @@ def api_inventory_receive(request):
     InventoryTransaction.objects.create(
         item=item, tx_type='receive',
         quantity=_to_decimal(data.get('quantity', 1)),
-        department=item.department,
+        department=data.get('dept', item.department),
+        work_group=data.get('work_group', ''),
+        equipment_id=data.get('equipment_id') or None,
         employee_name=request.user.get_full_name() or request.user.username,
         po_number=data.get('po_number', ''),
         supplier=data.get('supplier', ''),
@@ -3590,62 +3608,30 @@ def api_inventory_add_item(request):
     return JsonResponse({'success': True, 'item_id': item.id})
 
 
-# =====================================================================
-# 7) CHECKOUT PAGE — เลือกรายการจากตาราง แล้วเบิก/คืนผ่าน modal
-#    (reuse api_inventory_checkout — ไม่มี API ใหม่)
-# =====================================================================
 @login_required
-def inventory_checkout_page(request):
-    items = InventoryItem.objects.filter(is_active=True)
-    cat  = request.GET.get('cat', '')
-    dept = request.GET.get('dept', '')
-    q    = request.GET.get('q', '')
+@require_POST
+def api_inventory_update_item(request, pk):
+    """แก้ไขข้อมูลรายการที่มีอยู่แล้ว (ไม่รวม stock — เปลี่ยนได้ผ่าน transaction เท่านั้น)"""
+    item = get_object_or_404(InventoryItem, pk=pk)
+    data = json.loads(request.body or '{}')
+    code = data.get('code', '').strip()
+    name = data.get('name', '').strip()
+    if not code or not name:
+        return JsonResponse({'error': 'กรุณากรอกรหัสและชื่อรายการ'}, status=400)
+    if InventoryItem.objects.exclude(pk=item.pk).filter(code=code).exists():
+        return JsonResponse({'error': 'รหัสสินค้านี้มีอยู่แล้ว'}, status=400)
 
-    if cat:
-        items = items.filter(category=cat)
-    if dept:
-        items = items.filter(department=dept)
-    if q:
-        items = items.filter(Q(name__icontains=q) | Q(code__icontains=q))
-
-    context = {
-        'items': items,
-        'category_meta': CATEGORY_META,
-        'department_meta': DEPARTMENT_META,
-        'f_cat': cat, 'f_dept': dept, 'f_q': q,
-        'category_choices': InventoryItem.CATEGORY_CHOICES,
-        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
-    }
-    return render(request, 'myapp/inventory/checkout.html', context)
-
-
-# =====================================================================
-# 8) RECEIVE PAGE — เลือกรายการจากตาราง แล้วรับเข้าผ่าน modal
-#    (reuse api_inventory_receive — ไม่มี API ใหม่)
-# =====================================================================
-@login_required
-def inventory_receive_page(request):
-    items = InventoryItem.objects.filter(is_active=True)
-    cat  = request.GET.get('cat', '')
-    dept = request.GET.get('dept', '')
-    q    = request.GET.get('q', '')
-
-    if cat:
-        items = items.filter(category=cat)
-    if dept:
-        items = items.filter(department=dept)
-    if q:
-        items = items.filter(Q(name__icontains=q) | Q(code__icontains=q))
-
-    context = {
-        'items': items,
-        'category_meta': CATEGORY_META,
-        'department_meta': DEPARTMENT_META,
-        'f_cat': cat, 'f_dept': dept, 'f_q': q,
-        'category_choices': InventoryItem.CATEGORY_CHOICES,
-        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
-    }
-    return render(request, 'myapp/inventory/receive.html', context)
+    item.code = code
+    item.name = name
+    item.category = data.get('category', item.category)
+    item.department = data.get('department', item.department)
+    item.unit = data.get('unit', item.unit)
+    item.min_stock = _to_decimal(data.get('min_stock', item.min_stock))
+    item.max_stock = _to_decimal(data.get('max_stock', item.max_stock))
+    item.location = data.get('location', item.location)
+    item.unit_price = _to_decimal(data.get('unit_price', item.unit_price))
+    item.save()
+    return JsonResponse({'success': True})
 
 
 # =====================================================================

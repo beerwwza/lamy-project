@@ -3,6 +3,10 @@
 {% block page_title %}Stock Card: {{ item.code }}{% endblock %}
 
 {% block header_actions %}
+<button onclick="document.getElementById('editItemModal').classList.remove('hidden')"
+  class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors">
+  แก้ไข
+</button>
 <a href="{% url 'inventory_list' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← รายการทั้งหมด</a>
 {% endblock %}
 
@@ -69,7 +73,8 @@
 
     <!-- ฟอร์มเบิก/คืน -->
     <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
-      <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">📝 บันทึกรายการ</h3>
+      <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">📝 บันทึกรายการ</h3>
+      <p class="text-xs text-slate-400 mb-3">ค้างเบิกอยู่ (คืนได้ไม่เกิน): <span class="font-semibold">{{ item.outstanding_issued }}</span> {{ item.unit }}</p>
       <div class="grid grid-cols-4 gap-3">
         <div>
           <label class="text-xs text-slate-500 block mb-1">ประเภท</label>
@@ -82,6 +87,37 @@
           <label class="text-xs text-slate-500 block mb-1">จำนวน</label>
           <input id="tx_qty" type="number" value="1" min="1"
             class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">แผนก</label>
+          <select id="tx_dept" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {% for val, label in department_choices %}
+            <option value="{{ val }}" {% if val == item.department %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">กลุ่มงาน</label>
+          <input id="tx_workgroup" placeholder="(ไม่บังคับ)"
+            class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">กระบวนการ</label>
+          <select id="tx_process" onchange="filterEquipmentByProcess('tx_process','tx_equipment')" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">-- ทุกกระบวนการ --</option>
+            {% for p in process_choices %}
+            <option value="{{ p }}">{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">รหัสเครื่องจักร</label>
+          <select id="tx_equipment" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">-- ไม่ระบุ --</option>
+            {% for eq in equipment_choices %}
+            <option value="{{ eq.equipment_id }}" data-process="{{ eq.process|default:'' }}">{{ eq.equipment_id }} — {{ eq.name }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div>
           <label class="text-xs text-slate-500 block mb-1">ชื่อพนักงาน *</label>
@@ -113,6 +149,37 @@
             <label class="text-xs text-slate-500 block mb-1">จำนวน</label>
             <input id="r_qty" type="number" value="1"
               class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">แผนก</label>
+            <select id="r_dept" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              {% for val, label in department_choices %}
+              <option value="{{ val }}" {% if val == item.department %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">กลุ่มงาน</label>
+            <input id="r_workgroup" placeholder="(ไม่บังคับ)"
+              class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">กระบวนการ</label>
+            <select id="r_process" onchange="filterEquipmentByProcess('r_process','r_equipment')" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">-- ทุกกระบวนการ --</option>
+              {% for p in process_choices %}
+              <option value="{{ p }}">{{ p }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">รหัสเครื่องจักร</label>
+            <select id="r_equipment" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="">-- ไม่ระบุ --</option>
+              {% for eq in equipment_choices %}
+              <option value="{{ eq.equipment_id }}" data-process="{{ eq.process|default:'' }}">{{ eq.equipment_id }} — {{ eq.name }}</option>
+              {% endfor %}
+            </select>
           </div>
           <div>
             <label class="text-xs text-slate-500 block mb-1">เลขที่ PO *</label>
@@ -159,6 +226,8 @@
           {% endif %}
           <div>
             {% if tx.employee_name %}<p class="text-sm text-slate-700 dark:text-slate-200">{{ tx.employee_name }}</p>{% endif %}
+            {% if tx.equipment %}<p class="text-xs text-slate-400">🔧 {{ tx.equipment.equipment_id }} — {{ tx.equipment.name }}</p>{% endif %}
+            {% if tx.work_group %}<p class="text-xs text-slate-400">กลุ่มงาน: {{ tx.work_group }}</p>{% endif %}
             {% if tx.po_number %}<p class="text-xs text-slate-400">PO: {{ tx.po_number }}</p>{% endif %}
             {% if tx.note %}<p class="text-xs text-slate-400 italic">{{ tx.note }}</p>{% endif %}
           </div>
@@ -178,10 +247,115 @@
 </div>
 {% endwith %}
 
+<!-- Modal: แก้ไขข้อมูลสินค้า -->
+<div id="editItemModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md max-h-screen overflow-y-auto">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+      <h3 class="font-bold text-slate-800 dark:text-slate-100">แก้ไขข้อมูลสินค้า</h3>
+      <button onclick="document.getElementById('editItemModal').classList.add('hidden')"
+              class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+    </div>
+    <div class="p-6 space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-medium text-slate-500 block mb-1">รหัสสินค้า *</label>
+          <input id="ei_code" value="{{ item.code }}" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-500 block mb-1">หน่วยนับ</label>
+          <input id="ei_unit" value="{{ item.unit }}" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 block mb-1">ชื่อรายการ *</label>
+        <input id="ei_name" value="{{ item.name }}" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-medium text-slate-500 block mb-1">หมวดหมู่</label>
+          <select id="ei_cat" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+            {% for val, label in category_choices %}
+            <option value="{{ val }}" {% if val == item.category %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-500 block mb-1">แผนก</label>
+          <select id="ei_dept" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+            {% for val, label in department_choices %}
+            <option value="{{ val }}" {% if val == item.department %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+          <label class="text-xs font-medium text-slate-500 block mb-1">Min Stock</label>
+          <input id="ei_min" type="number" value="{{ item.min_stock }}" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-500 block mb-1">Max Stock</label>
+          <input id="ei_max" type="number" value="{{ item.max_stock }}" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-slate-500 block mb-1">ราคา/หน่วย</label>
+          <input id="ei_price" type="number" value="{{ item.unit_price }}" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 block mb-1">ที่จัดเก็บ</label>
+        <input id="ei_loc" value="{{ item.location }}" placeholder="เช่น ชั้น A-3" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+      </div>
+      <p id="ei_err" class="text-red-500 text-xs hidden"></p>
+      <div class="flex gap-2 pt-1">
+        <button onclick="submitEditItem()"
+          class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">
+          บันทึก
+        </button>
+        <button onclick="document.getElementById('editItemModal').classList.add('hidden')"
+          class="flex-1 border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium py-2 rounded-lg text-sm transition-colors">
+          ยกเลิก
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+function submitEditItem() {
+  const err = document.getElementById('ei_err');
+  err.classList.add('hidden');
+  fetch("{% url 'api_inventory_update_item' item.pk %}", {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify({
+      code: document.getElementById('ei_code').value.trim(),
+      name: document.getElementById('ei_name').value.trim(),
+      category: document.getElementById('ei_cat').value,
+      department: document.getElementById('ei_dept').value,
+      unit: document.getElementById('ei_unit').value,
+      unit_price: document.getElementById('ei_price').value,
+      min_stock: document.getElementById('ei_min').value,
+      max_stock: document.getElementById('ei_max').value,
+      location: document.getElementById('ei_loc').value,
+    })
+  }).then(r => r.json()).then(data => {
+    if (data.success) location.reload();
+    else { err.textContent = data.error || 'เกิดข้อผิดพลาด'; err.classList.remove('hidden'); }
+  });
+}
 function toggleReceive() {
   const p = document.getElementById('receivePanel');
   p.classList.toggle('hidden');
+}
+function filterEquipmentByProcess(processId, equipmentId) {
+  const proc = document.getElementById(processId).value;
+  const sel = document.getElementById(equipmentId);
+  sel.value = '';
+  [...sel.options].forEach(opt => {
+    if (!opt.value) return;
+    opt.hidden = !!proc && opt.dataset.process !== proc;
+  });
 }
 function submitCheckout() {
   const err = document.getElementById('tx_err');
@@ -193,6 +367,9 @@ function submitCheckout() {
       item_id: {{ item.pk }},
       type: document.getElementById('tx_type').value,
       quantity: document.getElementById('tx_qty').value,
+      dept: document.getElementById('tx_dept').value,
+      work_group: document.getElementById('tx_workgroup').value.trim(),
+      equipment_id: document.getElementById('tx_equipment').value,
       employee: document.getElementById('tx_emp').value.trim(),
       note: document.getElementById('tx_note').value.trim(),
     })
@@ -210,6 +387,9 @@ function submitReceive() {
     body: JSON.stringify({
       item_id: {{ item.pk }},
       quantity: document.getElementById('r_qty').value,
+      dept: document.getElementById('r_dept').value,
+      work_group: document.getElementById('r_workgroup').value.trim(),
+      equipment_id: document.getElementById('r_equipment').value,
       po_number: document.getElementById('r_po').value.trim(),
       supplier: document.getElementById('r_supplier').value.trim(),
       unit_price: document.getElementById('r_price').value,

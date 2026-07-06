@@ -51,7 +51,7 @@
   <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
     <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-slate-800">
       <span class="font-semibold text-sm text-slate-700 dark:text-slate-200">⚠️ รายการ Stock ต่ำ</span>
-      <a href="{% url 'inventory_list' %}" class="text-xs text-indigo-500 hover:underline">คลิกดูรายละเอียด →</a>
+      <a href="{% url 'inventory_list' %}?status=low" class="text-xs text-indigo-500 hover:underline">คลิกดูรายละเอียด →</a>
     </div>
     {% for item in low_stock_items %}
     {% with cat=category_meta|get:item.category dept=department_meta|get:item.department %}

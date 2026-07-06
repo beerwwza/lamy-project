@@ -85,8 +85,6 @@ urlpatterns = [
     path('inventory/departments/',        inventory_dept_summary, name='inventory_dept_summary'),
     path('inventory/department/<str:key>/', inventory_dept_detail, name='inventory_dept_detail'),
     path('inventory/transactions/',       inventory_tx_list,      name='inventory_tx_list'),
-    path('inventory/checkout/',           inventory_checkout_page,  name='inventory_checkout'),
-    path('inventory/receive/',            inventory_receive_page,   name='inventory_receive'),
     path('inventory/readiness/',          inventory_readiness_list, name='inventory_readiness_list'),
     path('inventory/readiness/add/',      inventory_readiness_add,  name='inventory_readiness_add'),
 
@@ -94,6 +92,7 @@ urlpatterns = [
     path('api/inventory/checkout/',       api_inventory_checkout, name='api_inventory_checkout'),
     path('api/inventory/receive/',        api_inventory_receive,  name='api_inventory_receive'),
     path('api/inventory/add-item/',       api_inventory_add_item, name='api_inventory_add_item'),
+    path('api/inventory/item/<int:pk>/edit/', api_inventory_update_item, name='api_inventory_update_item'),
 
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]

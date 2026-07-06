@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Sum, Q
 from django.contrib.auth.models import User
 from decimal import Decimal
 
@@ -1056,8 +1057,19 @@ class InventoryItem(models.Model):
 
     @property
     def is_low_stock(self):
-        """True ถ้ายอดคงเหลือ <= สต็อกขั้นต่ำ"""
+        """True ถ้ายอดคงเหลือ <= สต็อกขั้นต่ำ (ยกเว้นหมวดเครื่องมือช่าง — ไม่ต้องแจ้งเตือน)"""
+        if self.category == 'tools':
+            return False
         return self.stock <= self.min_stock
+
+    @property
+    def outstanding_issued(self):
+        """ยอดที่เบิกออกไปแล้วแต่ยังไม่ถูกคืน (Σissue − Σreturn ของทั้งรายการ)"""
+        agg = self.transactions.aggregate(
+            issued=Sum('quantity', filter=Q(tx_type='issue')),
+            returned=Sum('quantity', filter=Q(tx_type='return')),
+        )
+        return (agg['issued'] or Decimal(0)) - (agg['returned'] or Decimal(0))
 
     @property
     def stock_value(self):
@@ -1088,6 +1100,11 @@ class InventoryTransaction(models.Model):
     tx_type       = models.CharField(max_length=10, choices=TX_TYPES, verbose_name="ประเภท")
     quantity      = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="จำนวน")
     department    = models.CharField(max_length=20, choices=InventoryItem.DEPARTMENT_CHOICES, verbose_name="แผนก")
+    work_group    = models.CharField(max_length=100, blank=True, verbose_name="กลุ่มงาน")
+
+    # เชื่อมกับเครื่องจักรที่เบิกไปใช้ (Machine List) — เพื่อเก็บประวัติ/งบซ่อมของเครื่องจักรนั้น
+    equipment     = models.ForeignKey('Equipment', null=True, blank=True, on_delete=models.SET_NULL,
+                                      related_name='inventory_txs', verbose_name="รหัสเครื่องจักร")
 
     employee_name = models.CharField(max_length=100, blank=True, verbose_name="ชื่อพนักงาน")
     po_number     = models.CharField(max_length=50, blank=True, verbose_name="เลขที่ PO")
@@ -1131,6 +1148,10 @@ class InventoryTransaction(models.Model):
         if is_new:
             self.item.stock = (self.item.stock or Decimal(0)) + self._delta()
             self.item.save(update_fields=['stock', 'updated_at'])
+            if self.tx_type == 'issue' and self.equipment_id:
+                eq = self.equipment
+                eq.acc_cost = (eq.acc_cost or Decimal(0)) + Decimal(self.quantity) * (self.item.unit_price or Decimal(0))
+                eq.save(update_fields=['acc_cost'])
 
 
 class ToolReadinessCheck(models.Model):
