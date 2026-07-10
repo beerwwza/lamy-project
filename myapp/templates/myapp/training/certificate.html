@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>ใบรับรอง - {{ record.employee.name }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Kanit', sans-serif; }
+    @media print { @page { size: landscape; margin: 1cm; } }
+  </style>
+</head>
+<body class="bg-white p-10" onload="window.print()">
+  <div class="max-w-3xl mx-auto border-8 border-slate-800 p-10 text-center relative">
+    <div class="absolute inset-2 border-2 border-amber-500 pointer-events-none"></div>
+    <h1 class="text-4xl font-bold text-amber-500 mt-4">ใบประกาศนียบัตร</h1>
+    <p class="text-slate-500 mt-3">ขอมอบประกาศนียบัตรฉบับนี้เพื่อแสดงว่า</p>
+    <h2 class="text-3xl font-bold text-slate-800 my-6 inline-block border-b-2 border-slate-200 pb-2 min-w-[50%]">{{ record.employee.name }}</h2>
+    <p class="text-slate-500">ได้ผ่านการฝึกอบรมและทดสอบความรู้ในหลักสูตร</p>
+    <h3 class="text-2xl font-bold text-blue-600 my-4">{{ record.course.name }}</h3>
+    <p class="text-slate-500">ด้วยคะแนนทดสอบ <strong>{{ record.score|default:"-" }}</strong> / 100</p>
+
+    <div class="flex justify-around mt-16">
+      <div class="text-center">
+        <div class="border-b border-slate-800 w-48 h-10 mx-auto"></div>
+        <p class="mt-2 font-bold text-sm">ผู้อำนวยการศูนย์ฝึกอบรม</p>
+      </div>
+      <div class="text-center">
+        <div class="border-b border-slate-800 w-48 h-10 mx-auto"></div>
+        <p class="mt-2 font-bold text-sm">ผู้จัดการแผนกบำรุงรักษา</p>
+      </div>
+    </div>
+
+    <p class="text-xs text-slate-400 mt-10">ออกให้ ณ วันที่: {{ record.date }} &middot; รหัสอ้างอิง: TR-{{ record.id }}</p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,108 @@
+{% extends 'myapp/training/base.html' %}
+{% block title %}ความคืบหน้าการฝึกอบรม - Knowledge Center{% endblock %}
+{% block page_title %}ความคืบหน้าการฝึกอบรม{% endblock %}
+{% block header_actions %}
+<a href="{% url 'training_record_bulk_add' %}" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+  <i data-lucide="users" class="w-4 h-4"></i> มอบหมายแบบกลุ่ม
+</a>
+<a href="{% url 'training_record_add' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+  <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มประวัติ
+</a>
+{% endblock %}
+
+{% block training_content %}
+<div class="space-y-4">
+
+  <!-- Filter bar -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+    <form method="get" class="flex flex-col md:flex-row gap-3 items-start md:items-center">
+      <select name="employee" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
+        <option value="">พนักงานทุกคน</option>
+        {% for emp in employees %}
+        <option value="{{ emp.id }}" {% if employee_filter == emp.id|stringformat:"s" %}selected{% endif %}>{{ emp.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="status" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
+        <option value="">สถานะทั้งหมด</option>
+        {% for value, label in status_choices %}
+        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="type" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
+        <option value="">ประเภททั้งหมด</option>
+        {% for value, label in type_choices %}
+        <option value="{{ value }}" {% if type_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+        <i data-lucide="filter" class="w-4 h-4"></i> กรอง
+      </button>
+      {% if employee_filter or status_filter or type_filter %}
+      <a href="{% url 'training_progress' %}" class="text-sm text-slate-400 hover:text-red-500">ล้างตัวกรอง</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Records table -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-slate-900">
+          <tr>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">พนักงาน</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">หลักสูตร</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">วันที่</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">ประเภท</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">คะแนน</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">สถานะ</th>
+            <th class="p-3 text-right font-semibold text-slate-600 dark:text-slate-300">การจัดการ</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+          {% for row in rows %}
+          {% with record=row.record %}
+          <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+            <td class="p-3">
+              <a href="{% url 'training_profile' record.employee.id %}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ record.employee.name }}</a>
+            </td>
+            <td class="p-3 text-slate-700 dark:text-slate-300">{{ record.course.name }}</td>
+            <td class="p-3 text-slate-500 dark:text-slate-400">{{ record.date }}</td>
+            <td class="p-3 text-slate-500 dark:text-slate-400">
+              {{ record.get_training_type_display }}
+              {% if row.exam_attempt %}<span class="block text-xs text-slate-400">คะแนน {{ row.exam_attempt.score }}% (รอบ {{ row.exam_attempt.attempt_no }})</span>{% endif %}
+            </td>
+            <td class="p-3 text-slate-700 dark:text-slate-300">{{ record.score|default:"-" }}</td>
+            <td class="p-3">
+              {% if record.status == 'passed' %}
+              <span class="px-2 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">ผ่าน</span>
+              {% elif record.status == 'failed' %}
+              <span class="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">ไม่ผ่าน</span>
+              {% else %}
+              <span class="px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">รอประเมิน</span>
+              {% endif %}
+            </td>
+            <td class="p-3 text-right whitespace-nowrap">
+              {% if record.status == 'passed' %}
+              <a href="{% url 'training_certificate' record.id %}" target="_blank" class="text-slate-400 hover:text-indigo-500 mr-2" title="ใบรับรอง"><i data-lucide="award" class="w-4 h-4 inline"></i></a>
+              {% elif record.status == 'pending' %}
+              <form method="post" action="{% url 'training_record_approve' record.id %}" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="text-slate-400 hover:text-emerald-500 mr-2" title="อนุมัติ"><i data-lucide="check" class="w-4 h-4 inline"></i></button>
+              </form>
+              {% endif %}
+              <form method="post" action="{% url 'training_record_delete' record.id %}" class="inline" onsubmit="return confirm('ยืนยันการลบ?');">
+                {% csrf_token %}
+                <button type="submit" class="text-slate-400 hover:text-red-500" title="ลบ"><i data-lucide="trash-2" class="w-4 h-4 inline"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% endwith %}
+          {% empty %}
+          <tr><td colspan="7" class="p-8 text-center text-slate-400">ยังไม่มีประวัติการฝึกอบรม</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

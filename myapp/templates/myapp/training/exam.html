@@ -1,0 +1,127 @@
+{% extends 'myapp/training/base.html' %}
+{% block title %}ผลสอบ Skill Bible - Knowledge Center{% endblock %}
+{% block page_title %}ผลสอบ Skill Bible{% endblock %}
+{% block header_actions %}
+<a href="{% url 'training_exam_export_csv' %}" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+  <i data-lucide="download" class="w-4 h-4"></i> ส่งออก CSV
+</a>
+<label class="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-pointer">
+  <i data-lucide="upload" class="w-4 h-4"></i> นำเข้า CSV
+  <input type="file" id="exam-csv-input" accept=".csv" class="hidden" onchange="importExamCsv(event)">
+</label>
+<a href="{% url 'training_exam_edit' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+  <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มคะแนนสอบ
+</a>
+{% endblock %}
+
+{% block training_content %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 dark:bg-slate-900">
+        <tr>
+          <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">อันดับ</th>
+          <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">พนักงาน</th>
+          <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">แผนก</th>
+          <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">คะแนนสูงสุด</th>
+          <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">วันที่สอบ</th>
+          <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">ผล</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for row in ranking %}
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+          <td class="p-3">
+            {% if row.is_gold %}
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-yellow-400 text-white font-bold text-xs">{{ row.rank }}</span>
+            {% elif row.is_silver %}
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-300 text-white font-bold text-xs">{{ row.rank }}</span>
+            {% elif row.is_bronze %}
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-600 text-white font-bold text-xs">{{ row.rank }}</span>
+            {% else %}
+            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 font-bold text-xs">{{ row.rank }}</span>
+            {% endif %}
+          </td>
+          <td class="p-3 font-medium text-slate-700 dark:text-slate-200">{{ row.employee.name }}</td>
+          <td class="p-3 text-slate-500 dark:text-slate-400">{{ row.employee.department }}</td>
+          <td class="p-3 font-bold text-slate-700 dark:text-slate-200">{{ row.score }}</td>
+          <td class="p-3 text-slate-500 dark:text-slate-400">{{ row.exam_date }}</td>
+          <td class="p-3">
+            {% if row.passed %}
+            <span class="text-emerald-600 dark:text-emerald-400 font-bold text-xs">ผ่าน (&gt;={{ exam_pass_score }})</span>
+            {% else %}
+            <span class="text-red-600 dark:text-red-400 font-bold text-xs">ไม่ผ่าน</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="p-8 text-center text-slate-400">ยังไม่มีข้อมูลคะแนนสอบ</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="mt-6">
+  <h3 class="font-bold text-slate-800 dark:text-slate-100 mb-3">ผลสอบออนไลน์รายหลักสูตร (ล่าสุด)</h3>
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-slate-900">
+          <tr>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">พนักงาน</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">หลักสูตร</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">คะแนน</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">วันที่สอบ</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">ผล</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+          {% for a in recent_course_attempts %}
+          <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+            <td class="p-3 font-medium text-slate-700 dark:text-slate-200">{{ a.employee.name }}</td>
+            <td class="p-3 text-slate-500 dark:text-slate-400">{{ a.course.name }}</td>
+            <td class="p-3 font-bold text-slate-700 dark:text-slate-200">{{ a.score }}%</td>
+            <td class="p-3 text-slate-500 dark:text-slate-400">{{ a.submitted_at|date:"d/m/Y H:i" }}</td>
+            <td class="p-3">
+              {% if a.passed %}
+              <span class="text-emerald-600 dark:text-emerald-400 font-bold text-xs">ผ่าน</span>
+              {% else %}
+              <span class="text-red-600 dark:text-red-400 font-bold text-xs">ไม่ผ่าน</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="p-8 text-center text-slate-400">ยังไม่มีผลสอบออนไลน์</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function importExamCsv(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch("{% url 'training_exam_import_csv' %}", {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-CSRFToken': csrfToken }
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert(`นำเข้าคะแนนสอบสำเร็จ ${result.count} รายการ`);
+      location.reload();
+    } else {
+      alert(result.error || 'เกิดข้อผิดพลาด');
+    }
+  }
+</script>
+{% endblock %}

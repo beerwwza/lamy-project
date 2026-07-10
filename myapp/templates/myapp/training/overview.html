@@ -1,0 +1,155 @@
+{% extends 'myapp/training/base.html' %}
+{% block title %}ภาพรวม - Knowledge Center{% endblock %}
+{% block page_title %}ภาพรวม (Overview){% endblock %}
+
+{% block training_content %}
+<div class="space-y-6">
+
+  {% if expiring_soon_count %}
+  <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300">
+    <i data-lucide="bell" class="w-4 h-4 flex-shrink-0"></i>
+    มีใบรับรองที่กำลังจะหมดอายุภายใน 30 วัน จำนวน {{ expiring_soon_count }} รายการ
+  </div>
+  {% endif %}
+
+  <!-- KPI Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+      <div class="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 flex items-center justify-center mb-3">
+        <i data-lucide="users" class="w-5 h-5 text-indigo-600 dark:text-indigo-400"></i>
+      </div>
+      <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ total_employees }}</p>
+      <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">จำนวนพนักงาน</p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+      <div class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-900/40 flex items-center justify-center mb-3">
+        <i data-lucide="star" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+      </div>
+      <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ avg_level }}</p>
+      <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">ระดับทักษะเฉลี่ย</p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+      <div class="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/40 flex items-center justify-center mb-3">
+        <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600 dark:text-emerald-400"></i>
+      </div>
+      <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{{ pass_rate }}%</p>
+      <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">อัตราผ่านการฝึกอบรม</p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+      <div class="w-9 h-9 rounded-lg bg-sky-50 dark:bg-sky-900/40 flex items-center justify-center mb-3">
+        <i data-lucide="clock" class="w-5 h-5 text-sky-600 dark:text-sky-400"></i>
+      </div>
+      <p class="text-2xl font-bold text-sky-600 dark:text-sky-400">{{ avg_hours }} ชม.</p>
+      <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">ชั่วโมงอบรมเฉลี่ย/คน</p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+      <div class="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-900/40 flex items-center justify-center mb-3">
+        <i data-lucide="wallet" class="w-5 h-5 text-purple-600 dark:text-purple-400"></i>
+      </div>
+      <p class="text-2xl font-bold text-purple-600 dark:text-purple-400">{{ total_budget|floatformat:0 }} ฿</p>
+      <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">งบประมาณอบรมสะสม</p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+      <div class="w-9 h-9 rounded-lg bg-green-50 dark:bg-green-900/40 flex items-center justify-center mb-3">
+        <i data-lucide="medal" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
+      </div>
+      <p class="text-2xl font-bold text-green-600 dark:text-green-400">{{ l3_expert_count }}</p>
+      <p class="text-sm font-medium text-slate-700 dark:text-slate-300 mt-0.5">ผู้เชี่ยวชาญ (L3)</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- KPI Targets -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <h3 class="font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+        <i data-lucide="target" class="w-4 h-4 text-red-500"></i> เป้าหมาย KPI ปี 68/69 (พนักงาน {{ target_total }} คน)
+      </h3>
+
+      <div class="space-y-4">
+        <div>
+          <div class="flex justify-between text-sm font-medium mb-1">
+            <span class="text-slate-600 dark:text-slate-300">1. เข้ารับการประเมิน 100%</span>
+            <span class="text-slate-500">{{ evaluated_count }} / {{ target_total }} คน</span>
+          </div>
+          <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+            <div class="h-2 rounded-full bg-purple-500" style="width: {{ evaluated_pct }}%"></div>
+          </div>
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-medium mb-1">
+            <span class="text-slate-600 dark:text-slate-300">2. ช่างเทคนิคระดับต้น L1 (&gt;70%)</span>
+            <span class="text-slate-500">{{ l1_count }} / {{ target_l1 }} คน</span>
+          </div>
+          <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+            <div class="h-2 rounded-full bg-amber-500" style="width: {{ l1_pct }}%"></div>
+          </div>
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-medium mb-1">
+            <span class="text-slate-600 dark:text-slate-300">3. ช่างเทคนิค L2 (&gt;=20%)</span>
+            <span class="text-slate-500">{{ l2_count }} / {{ target_l2 }} คน</span>
+          </div>
+          <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+            <div class="h-2 rounded-full bg-blue-500" style="width: {{ l2_pct }}%"></div>
+          </div>
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-medium mb-1">
+            <span class="text-slate-600 dark:text-slate-300">4. ผู้เชี่ยวชาญ L3 (&gt;=10%)</span>
+            <span class="text-slate-500">{{ l3_expert_count }} / {{ target_l3 }} คน</span>
+          </div>
+          <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+            <div class="h-2 rounded-full bg-emerald-500" style="width: {{ l3_pct }}%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Plan -->
+    <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <h3 class="font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+        <i data-lucide="calendar" class="w-4 h-4 text-sky-500"></i> กรอบเวลาและแผนงาน (Action Plan)
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+          <p class="text-center font-bold text-slate-700 dark:text-slate-200">ก่อนหีบ</p>
+          <p class="text-center text-xs text-amber-600 mb-3">พ.ย. - ธ.ค.</p>
+          <ul class="text-xs text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside">
+            <li>สำรวจ/แบ่งกลุ่ม รายวิชาที่ไม่ผ่าน</li>
+            <li>จัดทำหลักสูตรพื้นฐานตาม Skill Bible</li>
+            <li>จัดตารางเรียน/ออกข้อสอบ</li>
+            <li>Pre-test L1 &gt;&gt; ค้นหา L2 ที่มีแวว</li>
+            <li>ทบทวนเนื้อหา + สอบรอบที่ 1</li>
+          </ul>
+        </div>
+        <div class="rounded-lg border-2 border-amber-400 bg-amber-50/50 dark:bg-amber-900/10 p-4 relative">
+          <span class="absolute -top-2.5 right-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ปัจจุบัน</span>
+          <p class="text-center font-bold text-slate-700 dark:text-slate-200">ระหว่างหีบ</p>
+          <p class="text-center text-xs text-amber-600 mb-3">ม.ค. - ก.พ.</p>
+          <ul class="text-xs text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside">
+            <li>Checklist ผ่าน/ไม่ผ่าน รายบุคคล</li>
+            <li>ทำ Coaching รายบุคคล</li>
+            <li>ทบทวน + สอบรอบที่ 2 (ผู้ไม่ผ่าน L1)</li>
+            <li>คัด L2 ท็อป 25 มาเทรนวิธีสอน</li>
+            <li>คัด L3 จาก L2 ที่โดดเด่น</li>
+          </ul>
+        </div>
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+          <p class="text-center font-bold text-slate-700 dark:text-slate-200">หลังหีบ</p>
+          <p class="text-center text-xs text-amber-600 mb-3">มี.ค. - เม.ย.</p>
+          <ul class="text-xs text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside">
+            <li>มอบหมาย L2 สอนในเนื้อหา Skill Bible</li>
+            <li>มอบหมาย L3 กำกับ/ปรึกษาให้ L2</li>
+            <li>ทบทวน + สอบรอบที่ 3 (กลุ่มเสี่ยง)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

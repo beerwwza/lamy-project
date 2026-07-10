@@ -1,0 +1,31 @@
+{% extends 'myapp/training/kiosk_base.html' %}
+{% block title %}ผลสอบ - {{ course.name }}{% endblock %}
+
+{% block kiosk_content %}
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-8 text-center">
+  {% if attempt.passed %}
+  <i data-lucide="circle-check-big" class="w-14 h-14 text-emerald-500 mx-auto mb-3"></i>
+  <h2 class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mb-1">ผ่านการทดสอบ</h2>
+  {% else %}
+  <i data-lucide="circle-x" class="w-14 h-14 text-red-500 mx-auto mb-3"></i>
+  <h2 class="text-2xl font-bold text-red-600 dark:text-red-400 mb-1">ไม่ผ่านการทดสอบ</h2>
+  {% endif %}
+
+  <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ employee.name }} &middot; {{ course.name }}</p>
+  <p class="text-4xl font-bold text-slate-800 dark:text-slate-100 my-4">{{ attempt.score }}%</p>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">
+    ตอบถูกต้องเต็ม {{ attempt.fully_correct_count }} จาก {{ attempt.total_questions }} ข้อ &middot; เกณฑ์ผ่าน {{ exam_pass_score }}%
+  </p>
+
+  <div class="flex gap-3 max-w-sm mx-auto">
+    <a href="{% url 'training_learn_detail' course.id employee.id %}" class="flex-1 py-2 text-center text-slate-600 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition">
+      กลับหน้าหลักสูตร
+    </a>
+    {% if attempt.training_record and attempt.training_record.status == 'passed' %}
+    <a href="{% url 'training_certificate' attempt.training_record.id %}" target="_blank" class="flex-1 py-2 text-center text-white font-bold bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition">
+      ดูใบรับรอง
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

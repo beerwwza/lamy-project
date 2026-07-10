@@ -1,4 +1,5 @@
 import os
+import random
 import pandas as pd
 import numpy as np
 import csv
@@ -7,9 +8,9 @@ import urllib.request
 import base64
 from datetime import datetime, time, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
-from django.db.models import Sum, Avg, Count, Q, F
+from django.db.models import Sum, Avg, Count, Q, F, Max
 from django.core.cache import cache
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, Http404
 from .models import *
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
@@ -29,6 +30,12 @@ from .models import Equipment, EquipmentBOM, EquipmentLink, CBMVisualTest, CBMVi
 from .models import PMSchedule
 from .forms import EquipmentForm, EquipmentBOMForm, EquipmentLinkForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm, RepairDocumentForm
 from .forms import PMScheduleForm, PMPlanForm, PMPlanItemForm, WorkOrderForm, WorkOrderStatusForm
+from .models import TrainingSkill, EmployeeSkillLevel, TrainingCourse, TrainingRecord, TrainingExamScore
+from .models import (TrainingCourseMaterial, TrainingQuizQuestion, TrainingQuizChoice,
+                      TrainingCourseExamAttempt, TrainingCourseExamAnswer)
+from .forms import (TrainingSkillForm, EmployeeSkillLevelForm, TrainingCourseForm, TrainingRecordForm,
+                     TrainingExamScoreForm, BulkTrainingAssignForm, TrainingCourseMaterialForm,
+                     TrainingQuizQuestionForm, TrainingQuizChoiceFormSet)
 from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 import calendar
@@ -3694,3 +3701,755 @@ def inventory_readiness_add(request):
         'today': timezone.now().date(),
     }
     return render(request, 'myapp/inventory/readiness_form.html', context)
+
+
+# ==========================================
+# Training / Knowledge Center Module Views
+# ==========================================
+
+EXAM_PASS_SCORE = 60
+
+ALLOWED_DOCUMENT_EXTENSIONS = {'.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'}
+ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov'}
+
+TRAINING_TARGET_TOTAL = 122
+TRAINING_TARGET_L1 = 85
+TRAINING_TARGET_L2 = 24
+TRAINING_TARGET_L3 = 12
+
+CAREER_LADDER = [
+    'ช่างฝึกหัด',
+    'ช่างเทคนิค L1',
+    'ช่างเทคนิค L2',
+    'ช่างผู้เชี่ยวชาญ L3',
+    'หัวหน้าช่าง',
+]
+
+
+def get_expiring_certs_count(days_ahead=30):
+    """นับใบรับรองที่กำลังจะหมดอายุใน N วันข้างหน้า (ยังไม่หมดอายุตอนนี้)"""
+    today = timezone.now().date()
+    soon = today + timedelta(days=days_ahead)
+    records = TrainingRecord.objects.filter(
+        status='passed', course__expiry_months__isnull=False
+    ).select_related('course')
+    count = 0
+    for r in records:
+        expiry_date = _add_interval(r.date, r.course.expiry_months, 'month')
+        if today <= expiry_date <= soon:
+            count += 1
+    return count
+
+
+@login_required
+def training_overview(request):
+    total_employees = employee.objects.count()
+
+    avg_level = EmployeeSkillLevel.objects.aggregate(a=Avg('level'))['a'] or 0
+
+    total_records = TrainingRecord.objects.count()
+    passed_records = TrainingRecord.objects.filter(status='passed').count()
+    pass_rate = round(passed_records / total_records * 100, 1) if total_records else 0
+
+    passed_qs = TrainingRecord.objects.filter(status='passed').select_related('course')
+    total_hours = sum(float(r.course.duration_days) * 8 for r in passed_qs)
+    avg_hours = round(total_hours / total_employees, 1) if total_employees else 0
+    total_budget = sum(float(r.course.cost_per_person) for r in passed_qs)
+
+    best_per_employee = EmployeeSkillLevel.objects.values('employee').annotate(max_level=Max('level'))
+    evaluated_count = best_per_employee.count()
+    l1_count = best_per_employee.filter(max_level__gte=1).count()
+    l2_count = best_per_employee.filter(max_level__gte=2).count()
+    l3_count = best_per_employee.filter(max_level__gte=3).count()
+
+    def pct(value, target):
+        return min(round(value / target * 100), 100) if target else 0
+
+    context = {
+        'total_employees': total_employees,
+        'avg_level': round(avg_level, 2),
+        'pass_rate': pass_rate,
+        'avg_hours': avg_hours,
+        'total_budget': total_budget,
+        'l3_expert_count': l3_count,
+
+        'target_total': TRAINING_TARGET_TOTAL,
+        'target_l1': TRAINING_TARGET_L1,
+        'target_l2': TRAINING_TARGET_L2,
+        'target_l3': TRAINING_TARGET_L3,
+        'evaluated_count': evaluated_count,
+        'l1_count': l1_count,
+        'l2_count': l2_count,
+        'evaluated_pct': pct(evaluated_count, TRAINING_TARGET_TOTAL),
+        'l1_pct': pct(l1_count, TRAINING_TARGET_L1),
+        'l2_pct': pct(l2_count, TRAINING_TARGET_L2),
+        'l3_pct': pct(l3_count, TRAINING_TARGET_L3),
+
+        'expiring_soon_count': get_expiring_certs_count(),
+    }
+    return render(request, 'myapp/training/overview.html', context)
+
+
+@login_required
+def training_exam(request):
+    scores_qs = TrainingExamScore.objects.select_related('employee').all()
+    best_per_emp = {}
+    for s in scores_qs:
+        current = best_per_emp.get(s.employee_id)
+        if current is None or s.score > current['score']:
+            best_per_emp[s.employee_id] = {'employee': s.employee, 'score': s.score, 'exam_date': s.exam_date}
+
+    ranking = sorted(best_per_emp.values(), key=lambda x: -x['score'])
+    for i, row in enumerate(ranking):
+        rank = i + 1
+        row['rank'] = rank
+        row['is_gold'] = rank == 1
+        row['is_silver'] = rank == 2
+        row['is_bronze'] = rank == 3
+        row['passed'] = row['score'] >= EXAM_PASS_SCORE
+
+    recent_course_attempts = TrainingCourseExamAttempt.objects.select_related('employee', 'course').order_by('-submitted_at')[:20]
+
+    context = {
+        'ranking': ranking,
+        'exam_pass_score': EXAM_PASS_SCORE,
+        'recent_course_attempts': recent_course_attempts,
+    }
+    return render(request, 'myapp/training/exam.html', context)
+
+
+@login_required
+def training_exam_edit(request):
+    if request.method == 'POST':
+        form = TrainingExamScoreForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('training_exam')
+    else:
+        form = TrainingExamScoreForm()
+    return render(request, 'myapp/training/exam_form.html', {'form': form})
+
+
+@login_required
+@require_POST
+def training_exam_delete(request, score_id):
+    score = get_object_or_404(TrainingExamScore, id=score_id)
+    score.delete()
+    return redirect('training_exam')
+
+
+@login_required
+def training_exam_export_csv(request):
+    scores_qs = TrainingExamScore.objects.select_related('employee').all()
+    best_per_emp = {}
+    for s in scores_qs:
+        current = best_per_emp.get(s.employee_id)
+        if current is None or s.score > current['score']:
+            best_per_emp[s.employee_id] = s
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="skill_bible_exam_scores.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['รหัสพนักงาน', 'ชื่อ-นามสกุล', 'แผนก', 'คะแนนสูงสุด', 'วันที่สอบ'])
+    for s in sorted(best_per_emp.values(), key=lambda x: -x.score):
+        writer.writerow([s.employee.employeeID, s.employee.name, s.employee.department, s.score, s.exam_date])
+    return response
+
+
+@login_required
+def training_exam_import_csv(request):
+    if request.method == 'POST' and request.FILES.get('file'):
+        csv_file = request.FILES['file']
+        if not csv_file.name.endswith('.csv'):
+            return JsonResponse({'success': False, 'error': 'กรุณาอัปโหลดไฟล์นามสกุล .csv เท่านั้น'})
+        try:
+            decoded_file = csv_file.read().decode('utf-8-sig')
+            reader = csv.DictReader(io.StringIO(decoded_file))
+            success_count = 0
+            for row in reader:
+                emp_id = (row.get('รหัสพนักงาน') or '').strip()
+                score_val = row.get('คะแนน') or row.get('คะแนนสูงสุด')
+                exam_date_val = row.get('วันที่สอบ')
+                if not emp_id or not score_val or not exam_date_val:
+                    continue
+                emp = employee.objects.filter(employeeID=emp_id).first()
+                if not emp:
+                    continue
+                attempt_no = TrainingExamScore.objects.filter(employee=emp).count() + 1
+                TrainingExamScore.objects.create(
+                    employee=emp, attempt_no=attempt_no,
+                    score=Decimal(score_val), exam_date=exam_date_val,
+                )
+                success_count += 1
+            return JsonResponse({'success': True, 'count': success_count})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    return JsonResponse({'success': False, 'error': 'ไม่พบไฟล์ที่อัปโหลด'})
+
+
+@login_required
+def training_matrix(request):
+    employees = employee.objects.all().order_by('name')
+    skills = TrainingSkill.objects.all().order_by('display_order')
+    level_map = {(l.employee_id, l.skill_id): l.level for l in EmployeeSkillLevel.objects.all()}
+
+    rows = []
+    for emp in employees:
+        cells = [{'skill_id': sk.id, 'level': level_map.get((emp.id, sk.id), 0)} for sk in skills]
+        rows.append({'employee': emp, 'cells': cells})
+
+    context = {'skills': skills, 'rows': rows, 'level_choices': EmployeeSkillLevel.LEVEL_CHOICES}
+    return render(request, 'myapp/training/matrix.html', context)
+
+
+@login_required
+@require_POST
+def training_matrix_update(request):
+    emp_id = request.POST.get('employee_id')
+    skill_id = request.POST.get('skill_id')
+    level = request.POST.get('level')
+    try:
+        level = int(level)
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'ระดับไม่ถูกต้อง'})
+
+    emp = get_object_or_404(employee, id=emp_id)
+    skill = get_object_or_404(TrainingSkill, id=skill_id)
+    EmployeeSkillLevel.objects.update_or_create(
+        employee=emp, skill=skill, defaults={'level': level}
+    )
+    return JsonResponse({'success': True, 'level': level})
+
+
+@login_required
+def training_progress(request):
+    employee_filter = request.GET.get('employee', '')
+    status_filter = request.GET.get('status', '')
+    type_filter = request.GET.get('type', '')
+
+    records = TrainingRecord.objects.select_related('employee', 'course').all()
+    if employee_filter:
+        records = records.filter(employee_id=employee_filter)
+    if status_filter:
+        records = records.filter(status=status_filter)
+    if type_filter:
+        records = records.filter(training_type=type_filter)
+
+    attempts_by_record_id = {
+        a.training_record_id: a
+        for a in TrainingCourseExamAttempt.objects.filter(training_record__in=records)
+    }
+    rows = [{'record': r, 'exam_attempt': attempts_by_record_id.get(r.id)} for r in records]
+
+    context = {
+        'rows': rows,
+        'employees': employee.objects.all().order_by('name'),
+        'status_choices': TrainingRecord.STATUS_CHOICES,
+        'type_choices': TrainingRecord.TYPE_CHOICES,
+        'employee_filter': employee_filter,
+        'status_filter': status_filter,
+        'type_filter': type_filter,
+    }
+    return render(request, 'myapp/training/progress.html', context)
+
+
+@login_required
+def training_record_add(request):
+    if request.method == 'POST':
+        form = TrainingRecordForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('training_progress')
+    else:
+        form = TrainingRecordForm()
+    return render(request, 'myapp/training/record_form.html', {'form': form})
+
+
+@login_required
+def training_record_bulk_add(request):
+    if request.method == 'POST':
+        form = BulkTrainingAssignForm(request.POST)
+        if form.is_valid():
+            course = form.cleaned_data['course']
+            for emp in form.cleaned_data['employees']:
+                TrainingRecord.objects.create(
+                    employee=emp, course=course,
+                    date=form.cleaned_data['date'],
+                    training_type=form.cleaned_data['training_type'],
+                    status=form.cleaned_data['status'],
+                )
+            return redirect('training_progress')
+    else:
+        form = BulkTrainingAssignForm()
+    return render(request, 'myapp/training/record_bulk_form.html', {'form': form})
+
+
+@login_required
+@require_POST
+def training_record_delete(request, record_id):
+    record = get_object_or_404(TrainingRecord, id=record_id)
+    record.delete()
+    return redirect('training_progress')
+
+
+@login_required
+@require_POST
+def training_record_approve(request, record_id):
+    record = get_object_or_404(TrainingRecord, id=record_id)
+    record.status = 'passed'
+    record.approved_by = request.user
+    record.save()
+    return redirect('training_progress')
+
+
+@login_required
+def training_courses(request):
+    q = request.GET.get('q', '').strip()
+    courses = TrainingCourse.objects.select_related('skill').prefetch_related('materials', 'quiz_questions').all()
+    if q:
+        courses = courses.filter(name__icontains=q)
+    context = {'courses': courses, 'search_query': q}
+    return render(request, 'myapp/training/courses.html', context)
+
+
+@login_required
+def training_course_add(request):
+    if request.method == 'POST':
+        form = TrainingCourseForm(request.POST)
+        if form.is_valid():
+            course = form.save()
+            return redirect('training_course_edit', course_id=course.id)
+    else:
+        form = TrainingCourseForm()
+    return render(request, 'myapp/training/course_form.html', {'form': form})
+
+
+@login_required
+@require_POST
+def training_course_delete(request, course_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    course.delete()
+    return redirect('training_courses')
+
+
+@login_required
+def training_course_assign(request, course_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    if request.method == 'POST':
+        emp_id = request.POST.get('employee_id')
+        date_val = request.POST.get('date')
+        emp = get_object_or_404(employee, id=emp_id)
+        TrainingRecord.objects.create(
+            employee=emp, course=course, date=date_val,
+            training_type='classroom', status='pending',
+        )
+        return redirect('training_courses')
+    context = {
+        'course': course,
+        'employees': employee.objects.all().order_by('name'),
+        'today': timezone.now().date(),
+    }
+    return render(request, 'myapp/training/course_assign.html', context)
+
+
+def _build_profile_context(emp):
+    skill_levels = EmployeeSkillLevel.objects.filter(employee=emp).select_related('skill').order_by('skill__display_order')
+    skill_rows = [{'skill': sl.skill, 'level': sl.level, 'pct': round(sl.level / 3 * 100)} for sl in skill_levels]
+
+    today = timezone.now().date()
+    records = TrainingRecord.objects.filter(employee=emp).select_related('course').order_by('-date')
+    record_rows = []
+    for r in records:
+        is_expired = False
+        is_expiring_soon = False
+        if r.status == 'passed' and r.course.expiry_months:
+            expiry_date = _add_interval(r.date, r.course.expiry_months, 'month')
+            is_expired = expiry_date < today
+            is_expiring_soon = not is_expired and (expiry_date - today).days <= 30
+        record_rows.append({'record': r, 'is_expired': is_expired, 'is_expiring_soon': is_expiring_soon})
+
+    exam_scores = TrainingExamScore.objects.filter(employee=emp).order_by('-exam_date')
+    best_exam_score = exam_scores.aggregate(m=Max('score'))['m']
+
+    course_exam_attempts = TrainingCourseExamAttempt.objects.filter(employee=emp).select_related('course').order_by('-submitted_at')
+
+    return {
+        'employee': emp,
+        'skill_rows': skill_rows,
+        'record_rows': record_rows,
+        'exam_scores': exam_scores,
+        'best_exam_score': best_exam_score,
+        'course_exam_attempts': course_exam_attempts,
+    }
+
+
+@login_required
+def training_profile(request, employee_id):
+    emp = get_object_or_404(employee, id=employee_id)
+    context = _build_profile_context(emp)
+    return render(request, 'myapp/training/profile.html', context)
+
+
+@login_required
+def training_profile_print(request, employee_id):
+    emp = get_object_or_404(employee, id=employee_id)
+    context = _build_profile_context(emp)
+    return render(request, 'myapp/training/profile_print.html', context)
+
+
+@login_required
+def training_certificate(request, record_id):
+    record = get_object_or_404(TrainingRecord.objects.select_related('employee', 'course'), id=record_id)
+    if record.status != 'passed':
+        raise Http404('ยังไม่ผ่านการฝึกอบรม ไม่สามารถออกใบรับรองได้')
+    context = {'record': record}
+    return render(request, 'myapp/training/certificate.html', context)
+
+
+@login_required
+def training_career(request, employee_id=None):
+    emp = None
+    current_step_index = None
+    if employee_id:
+        emp = get_object_or_404(employee, id=employee_id)
+        if emp.group in CAREER_LADDER:
+            current_step_index = CAREER_LADDER.index(emp.group)
+
+    steps = [{'index': i, 'name': name, 'is_current': i == current_step_index}
+             for i, name in enumerate(CAREER_LADDER)]
+
+    context = {
+        'employee': emp,
+        'steps': steps,
+        'employees': employee.objects.all().order_by('name'),
+    }
+    return render(request, 'myapp/training/career.html', context)
+
+
+@login_required
+def training_gap(request):
+    skills = TrainingSkill.objects.all().order_by('display_order')
+    total_employees = employee.objects.count()
+
+    gap_rows = []
+    for sk in skills:
+        counts = {0: 0, 1: 0, 2: 0, 3: 0}
+        for row in EmployeeSkillLevel.objects.filter(skill=sk).values('level').annotate(c=Count('id')):
+            counts[row['level']] = row['c']
+
+        evaluated = sum(counts.values())
+        missing = total_employees - evaluated
+        critical = counts[0] + missing
+        warning = counts[1]
+        good = counts[2] + counts[3]
+
+        critical_ratio = critical / total_employees if total_employees else 0
+        warning_ratio = warning / total_employees if total_employees else 0
+
+        if critical_ratio > 0.3:
+            severity = 'critical'
+            recommendation = f'เร่งจัดอบรมพื้นฐานด้าน {sk.name} ด่วน (ยังไม่ผ่าน {critical} คน)'
+        elif warning_ratio > 0.3:
+            severity = 'warning'
+            recommendation = f'วางแผนจัด Workshop เพิ่มเติมสำหรับทักษะ {sk.name}'
+        else:
+            severity = 'good'
+            recommendation = f'ทักษะ {sk.name} อยู่ในเกณฑ์ดี ควรรักษาระดับต่อไป'
+
+        gap_rows.append({
+            'skill': sk, 'critical': critical, 'warning': warning, 'good': good,
+            'severity': severity, 'recommendation': recommendation,
+        })
+
+    context = {'gap_rows': gap_rows, 'total_employees': total_employees}
+    return render(request, 'myapp/training/gap.html', context)
+
+
+# ----- คลังหลักสูตร: เอกสาร/วิดีโอการเรียน -----
+
+@login_required
+def training_course_edit(request, course_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    if request.method == 'POST':
+        form = TrainingCourseForm(request.POST, instance=course)
+        if form.is_valid():
+            form.save()
+            return redirect('training_course_edit', course_id=course.id)
+    else:
+        form = TrainingCourseForm(instance=course)
+
+    materials = course.materials.all()
+    context = {
+        'course': course,
+        'form': form,
+        'documents': [m for m in materials if m.material_type == 'document'],
+        'videos': [m for m in materials if m.material_type == 'video'],
+        'question_count': course.quiz_questions.filter(is_active=True).count(),
+    }
+    return render(request, 'myapp/training/course_edit.html', context)
+
+
+@login_required
+@require_POST
+def training_course_material_upload(request, course_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    uploaded = request.FILES.get('file')
+    material_type = request.POST.get('material_type')
+    title = request.POST.get('title', '').strip()
+
+    if not uploaded or material_type not in ('document', 'video'):
+        return JsonResponse({'success': False, 'error': 'ข้อมูลไม่ครบถ้วน'})
+
+    ext = os.path.splitext(uploaded.name)[1].lower()
+    allowed = ALLOWED_VIDEO_EXTENSIONS if material_type == 'video' else ALLOWED_DOCUMENT_EXTENSIONS
+    if ext not in allowed:
+        return JsonResponse({'success': False, 'error': f'นามสกุลไฟล์ {ext} ไม่ได้รับอนุญาตสำหรับประเภทนี้'})
+
+    material = TrainingCourseMaterial.objects.create(
+        course=course, material_type=material_type,
+        title=title or uploaded.name,
+        file=uploaded,
+        display_order=course.materials.count(),
+    )
+    return JsonResponse({
+        'success': True,
+        'id': material.id,
+        'title': material.title,
+        'material_type': material.material_type,
+        'file_url': material.file.url,
+        'is_video': material.material_type == 'video',
+    })
+
+
+@login_required
+@require_POST
+def training_course_material_delete(request, material_id):
+    material = get_object_or_404(TrainingCourseMaterial, id=material_id)
+    course_id = material.course_id
+    material.delete()
+    return redirect('training_course_edit', course_id=course_id)
+
+
+# ----- คลังหลักสูตร: คลังคำถามแบบทดสอบ -----
+
+@login_required
+def training_quiz_manage(request, course_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    questions = course.quiz_questions.prefetch_related('choices').all()
+    context = {'course': course, 'questions': questions}
+    return render(request, 'myapp/training/quiz_manage.html', context)
+
+
+def _validate_correct_choice(formset, correct_index):
+    """ตรวจสอบว่าเลือกคำตอบที่ถูกต้องไว้ 1 ข้อ และตัวเลือกนั้นมีข้อความจริง (ไม่ใช่แถวว่างที่ formset จะข้ามไป)"""
+    if correct_index is None or not correct_index.isdigit():
+        return False
+    idx = int(correct_index)
+    if idx >= len(formset.forms):
+        return False
+    return bool(formset.forms[idx].cleaned_data.get('choice_text', '').strip())
+
+
+def _finalize_choices(formset, correct_index):
+    """ตั้งค่า is_correct ตามข้อที่เลือก และเรียงลำดับ display_order ตามลำดับที่ส่งมา (เนื่องจากฟอร์มไม่ให้ผู้ใช้กรอกลำดับเอง)"""
+    idx = int(correct_index)
+    for i, cform in enumerate(formset.forms):
+        if cform.cleaned_data.get('DELETE'):
+            continue
+        instance = cform.instance
+        if instance.pk:
+            is_correct = (i == idx)
+            instance.is_correct = is_correct
+            instance.display_order = i
+            instance.save(update_fields=['is_correct', 'display_order'])
+
+
+@login_required
+def training_quiz_question_add(request, course_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    question = TrainingQuizQuestion(course=course)
+    formset_error = None
+    correct_choice_initial = None
+
+    if request.method == 'POST':
+        question_form = TrainingQuizQuestionForm(request.POST)
+        formset = TrainingQuizChoiceFormSet(request.POST, instance=question)
+        correct_index = request.POST.get('correct_choice')
+        correct_choice_initial = int(correct_index) if correct_index and correct_index.isdigit() else None
+
+        if question_form.is_valid() and formset.is_valid():
+            if _validate_correct_choice(formset, correct_index):
+                question = question_form.save(commit=False)
+                question.course = course
+                question.display_order = TrainingQuizQuestion.objects.filter(course=course).count()
+                question.save()
+                formset.instance = question
+                formset.save()
+                _finalize_choices(formset, correct_index)
+                return redirect('training_quiz_manage', course_id=course.id)
+            formset_error = 'กรุณาเลือกคำตอบที่ถูกต้อง 1 ข้อ (ตัวเลือกที่เลือกต้องมีข้อความคำตอบ)'
+    else:
+        question_form = TrainingQuizQuestionForm()
+        formset = TrainingQuizChoiceFormSet(instance=question)
+
+    context = {
+        'course': course, 'question_form': question_form, 'formset': formset,
+        'formset_error': formset_error, 'correct_choice_initial': correct_choice_initial,
+    }
+    return render(request, 'myapp/training/quiz_question_form.html', context)
+
+
+@login_required
+def training_quiz_question_edit(request, question_id):
+    question = get_object_or_404(TrainingQuizQuestion, id=question_id)
+    course = question.course
+    formset_error = None
+    correct_choice_initial = None
+
+    if request.method == 'POST':
+        question_form = TrainingQuizQuestionForm(request.POST, instance=question)
+        formset = TrainingQuizChoiceFormSet(request.POST, instance=question)
+        correct_index = request.POST.get('correct_choice')
+        correct_choice_initial = int(correct_index) if correct_index and correct_index.isdigit() else None
+
+        if question_form.is_valid() and formset.is_valid():
+            if _validate_correct_choice(formset, correct_index):
+                question_form.save()
+                formset.save()
+                _finalize_choices(formset, correct_index)
+                return redirect('training_quiz_manage', course_id=course.id)
+            formset_error = 'กรุณาเลือกคำตอบที่ถูกต้อง 1 ข้อ (ตัวเลือกที่เลือกต้องมีข้อความคำตอบ)'
+    else:
+        question_form = TrainingQuizQuestionForm(instance=question)
+        formset = TrainingQuizChoiceFormSet(instance=question)
+        existing_choices = list(question.choices.all())
+        correct_choice_initial = next((i for i, c in enumerate(existing_choices) if c.is_correct), None)
+
+    context = {
+        'course': course, 'question': question, 'question_form': question_form, 'formset': formset,
+        'formset_error': formset_error, 'correct_choice_initial': correct_choice_initial,
+    }
+    return render(request, 'myapp/training/quiz_question_form.html', context)
+
+
+@login_required
+@require_POST
+def training_quiz_question_delete(request, question_id):
+    question = get_object_or_404(TrainingQuizQuestion, id=question_id)
+    course_id = question.course_id
+    question.delete()
+    return redirect('training_quiz_manage', course_id=course_id)
+
+
+# ----- โหมด Kiosk: พนักงานดูสื่อการเรียนแล้วสอบทันที -----
+
+EXAM_QUESTION_SAMPLE_SIZE = 10
+
+
+def _grade_course_exam(questions, submitted_answers):
+    """questions: list ของ TrainingQuizQuestion ที่สุ่มมาใช้ในการสอบครั้งนี้ (แต่ละคำถามมีคำตอบที่ถูกเพียง 1 ข้อ)
+    submitted_answers: dict {question_id: selected_choice_id หรือ None}
+    ถูก = 100% ของข้อนั้น, ผิด = 0%
+    """
+    total = len(questions)
+    fully_correct = 0
+    results = []
+    for q in questions:
+        correct_choice = next((c for c in q.choices.all() if c.is_correct), None)
+        selected_id = submitted_answers.get(q.id)
+        is_correct = bool(correct_choice and selected_id == correct_choice.id)
+        if is_correct:
+            fully_correct += 1
+        results.append((q, selected_id, is_correct))
+    overall_score = round(fully_correct / total * 100, 2) if total else 0
+    return overall_score, fully_correct, total, results
+
+
+@login_required
+def training_learn(request, course_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    context = {
+        'course': course,
+        'employees': employee.objects.all().order_by('name'),
+    }
+    return render(request, 'myapp/training/learn_picker.html', context)
+
+
+@login_required
+def training_learn_detail(request, course_id, employee_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    emp = get_object_or_404(employee, id=employee_id)
+    materials = course.materials.all()
+    context = {
+        'course': course,
+        'employee': emp,
+        'documents': [m for m in materials if m.material_type == 'document'],
+        'videos': [m for m in materials if m.material_type == 'video'],
+        'has_quiz': course.quiz_questions.filter(is_active=True).exists(),
+    }
+    return render(request, 'myapp/training/learn_detail.html', context)
+
+
+@login_required
+def training_exam_take(request, course_id, employee_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    emp = get_object_or_404(employee, id=employee_id)
+
+    if request.method == 'POST':
+        question_ids = [int(v) for v in request.POST.getlist('question_ids') if v.isdigit()]
+        questions = list(
+            course.quiz_questions.filter(is_active=True, id__in=question_ids).prefetch_related('choices')
+        )
+
+        submitted_answers = {}
+        for q in questions:
+            val = request.POST.get(f'q_{q.id}')
+            submitted_answers[q.id] = int(val) if val and val.isdigit() else None
+
+        overall_score, fully_correct, total, results = _grade_course_exam(questions, submitted_answers)
+
+        today = timezone.now().date()
+        attempt_no = TrainingCourseExamAttempt.objects.filter(employee=emp, course=course).count() + 1
+        attempt = TrainingCourseExamAttempt.objects.create(
+            employee=emp, course=course, attempt_no=attempt_no,
+            total_questions=total, fully_correct_count=fully_correct, score=overall_score,
+            passed=(overall_score >= EXAM_PASS_SCORE),
+        )
+        for q, selected_id, is_correct in results:
+            answer = TrainingCourseExamAnswer.objects.create(
+                attempt=attempt, question=q,
+                question_score=(100 if is_correct else 0), is_fully_correct=is_correct,
+            )
+            if selected_id:
+                answer.selected_choices.set([selected_id])
+
+        record, _ = TrainingRecord.objects.update_or_create(
+            employee=emp, course=course, training_type='online',
+            defaults={'date': today, 'score': overall_score,
+                      'status': 'passed' if attempt.passed else 'failed'},
+        )
+        attempt.training_record = record
+        attempt.save(update_fields=['training_record'])
+
+        return redirect('training_exam_result', course_id=course.id, employee_id=emp.id, attempt_id=attempt.id)
+
+    all_active_questions = list(course.quiz_questions.filter(is_active=True).prefetch_related('choices'))
+    sample_size = min(EXAM_QUESTION_SAMPLE_SIZE, len(all_active_questions))
+    questions = random.sample(all_active_questions, sample_size) if sample_size else []
+
+    context = {'course': course, 'employee': emp, 'questions': questions}
+    return render(request, 'myapp/training/exam_take.html', context)
+
+
+@login_required
+def training_exam_result(request, course_id, employee_id, attempt_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    emp = get_object_or_404(employee, id=employee_id)
+    attempt = get_object_or_404(TrainingCourseExamAttempt, id=attempt_id, course=course, employee=emp)
+    context = {
+        'course': course,
+        'employee': emp,
+        'attempt': attempt,
+        'exam_pass_score': EXAM_PASS_SCORE,
+    }
+    return render(request, 'myapp/training/exam_result.html', context)

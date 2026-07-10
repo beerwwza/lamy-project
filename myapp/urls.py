@@ -94,5 +94,43 @@ urlpatterns = [
     path('api/inventory/add-item/',       api_inventory_add_item, name='api_inventory_add_item'),
     path('api/inventory/item/<int:pk>/edit/', api_inventory_update_item, name='api_inventory_update_item'),
 
+    # ===== Training / Knowledge Center Module =====
+    path('training/',                          training_overview,        name='training_overview'),
+    path('training/exam/',                     training_exam,            name='training_exam'),
+    path('training/exam/edit/',                training_exam_edit,       name='training_exam_edit'),
+    path('training/exam/delete/<int:score_id>/', training_exam_delete,   name='training_exam_delete'),
+    path('training/exam/export/',              training_exam_export_csv, name='training_exam_export_csv'),
+    path('training/exam/import/',              training_exam_import_csv, name='training_exam_import_csv'),
+    path('training/matrix/',                   training_matrix,          name='training_matrix'),
+    path('training/matrix/update/',            training_matrix_update,   name='training_matrix_update'),
+    path('training/progress/',                 training_progress,        name='training_progress'),
+    path('training/progress/add/',             training_record_add,      name='training_record_add'),
+    path('training/progress/bulk-add/',        training_record_bulk_add, name='training_record_bulk_add'),
+    path('training/progress/delete/<int:record_id>/',  training_record_delete,  name='training_record_delete'),
+    path('training/progress/approve/<int:record_id>/', training_record_approve, name='training_record_approve'),
+    path('training/courses/',                  training_courses,         name='training_courses'),
+    path('training/courses/add/',              training_course_add,      name='training_course_add'),
+    path('training/courses/delete/<int:course_id>/', training_course_delete, name='training_course_delete'),
+    path('training/courses/assign/<int:course_id>/', training_course_assign, name='training_course_assign'),
+    path('training/profile/<int:employee_id>/',       training_profile,       name='training_profile'),
+    path('training/profile/<int:employee_id>/print/', training_profile_print, name='training_profile_print'),
+    path('training/certificate/<int:record_id>/',     training_certificate,   name='training_certificate'),
+    path('training/career/',                   training_career,          name='training_career'),
+    path('training/career/<int:employee_id>/', training_career,          name='training_career_detail'),
+    path('training/gap/',                      training_gap,             name='training_gap'),
+
+    path('training/courses/<int:course_id>/edit/',                training_course_edit,             name='training_course_edit'),
+    path('training/courses/<int:course_id>/materials/upload/',    training_course_material_upload,  name='training_course_material_upload'),
+    path('training/materials/delete/<int:material_id>/',          training_course_material_delete,  name='training_course_material_delete'),
+    path('training/courses/<int:course_id>/quiz/',                training_quiz_manage,             name='training_quiz_manage'),
+    path('training/courses/<int:course_id>/quiz/add/',            training_quiz_question_add,       name='training_quiz_question_add'),
+    path('training/quiz/<int:question_id>/edit/',                 training_quiz_question_edit,      name='training_quiz_question_edit'),
+    path('training/quiz/delete/<int:question_id>/',               training_quiz_question_delete,    name='training_quiz_question_delete'),
+
+    path('training/learn/<int:course_id>/',                       training_learn,                   name='training_learn'),
+    path('training/learn/<int:course_id>/<int:employee_id>/',     training_learn_detail,            name='training_learn_detail'),
+    path('training/learn/<int:course_id>/<int:employee_id>/exam/', training_exam_take,              name='training_exam_take'),
+    path('training/learn/<int:course_id>/<int:employee_id>/exam/result/<int:attempt_id>/', training_exam_result, name='training_exam_result'),
+
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]

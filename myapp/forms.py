@@ -1,9 +1,12 @@
 from django import forms
+from django.forms import inlineformset_factory
 from .models import employee  # เรียกใช้ Model ที่เราสร้างไว้
 from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log,  Banpong2Log, MaintenanceLog, KPIMetric, RepairDocument
 from .models import MillReport, BoilerDailyKPI
 from .models import Equipment, EquipmentBOM, EquipmentLink, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic
 from .models import PMSchedule, PMPlan, PMPlanItem, WorkOrder
+from .models import TrainingSkill, EmployeeSkillLevel, TrainingCourse, TrainingRecord, TrainingExamScore
+from .models import TrainingCourseMaterial, TrainingQuizQuestion, TrainingQuizChoice
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
@@ -470,3 +473,133 @@ class WorkOrderStatusForm(forms.ModelForm):
             'mechanic': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ชื่อช่างซ่อม'}),
             'completed_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
         }
+
+
+# ===== Training / Knowledge Center Module =====
+
+class TrainingSkillForm(forms.ModelForm):
+    class Meta:
+        model = TrainingSkill
+        fields = ['name', 'description', 'display_order']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น Bolt&nut'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'display_order': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+        }
+
+
+class EmployeeSkillLevelForm(forms.ModelForm):
+    class Meta:
+        model = EmployeeSkillLevel
+        fields = ['employee', 'skill', 'level']
+        widgets = {
+            'employee': forms.Select(attrs={'class': 'form-control'}),
+            'skill': forms.Select(attrs={'class': 'form-control'}),
+            'level': forms.Select(attrs={'class': 'form-control'}),
+        }
+
+
+class TrainingCourseForm(forms.ModelForm):
+    class Meta:
+        model = TrainingCourse
+        fields = ['name', 'skill', 'description', 'duration_days', 'cost_per_person', 'expiry_months', 'is_active']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น การขัน Bolt & Nut ที่ถูกวิธี'}),
+            'skill': forms.Select(attrs={'class': 'form-control'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'duration_days': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.5', 'min': '0.5'}),
+            'cost_per_person': forms.NumberInput(attrs={'class': 'form-control', 'step': '100', 'min': '0'}),
+            'expiry_months': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'placeholder': 'เว้นว่างถ้าไม่มีวันหมดอายุ'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+
+class TrainingRecordForm(forms.ModelForm):
+    class Meta:
+        model = TrainingRecord
+        fields = ['employee', 'course', 'date', 'training_type', 'score', 'status', 'notes']
+        widgets = {
+            'employee': forms.Select(attrs={'class': 'form-control'}),
+            'course': forms.Select(attrs={'class': 'form-control'}),
+            'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'training_type': forms.Select(attrs={'class': 'form-control'}),
+            'score': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'max': '100'}),
+            'status': forms.Select(attrs={'class': 'form-control'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+
+class TrainingExamScoreForm(forms.ModelForm):
+    class Meta:
+        model = TrainingExamScore
+        fields = ['employee', 'attempt_no', 'score', 'exam_date', 'notes']
+        widgets = {
+            'employee': forms.Select(attrs={'class': 'form-control'}),
+            'attempt_no': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'score': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'max': '100'}),
+            'exam_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+
+class BulkTrainingAssignForm(forms.Form):
+    course = forms.ModelChoiceField(
+        queryset=TrainingCourse.objects.filter(is_active=True),
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label='หลักสูตร',
+    )
+    employees = forms.ModelMultipleChoiceField(
+        queryset=employee.objects.all().order_by('name'),
+        widget=forms.CheckboxSelectMultiple(),
+        label='พนักงาน',
+    )
+    date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        label='วันที่อบรม',
+    )
+    training_type = forms.ChoiceField(
+        choices=TrainingRecord.TYPE_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label='ประเภทการอบรม',
+    )
+    status = forms.ChoiceField(
+        choices=TrainingRecord.STATUS_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        label='สถานะ',
+    )
+
+
+class TrainingCourseMaterialForm(forms.ModelForm):
+    class Meta:
+        model = TrainingCourseMaterial
+        fields = ['material_type', 'title', 'file', 'display_order']
+        widgets = {
+            'material_type': forms.Select(attrs={'class': 'form-control'}),
+            'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น คู่มือการขัน Bolt & Nut'}),
+            'file': forms.FileInput(attrs={'class': 'form-control'}),
+            'display_order': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+        }
+
+
+class TrainingQuizQuestionForm(forms.ModelForm):
+    class Meta:
+        model = TrainingQuizQuestion
+        fields = ['question_text']
+        widgets = {
+            'question_text': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+
+class TrainingQuizChoiceForm(forms.ModelForm):
+    class Meta:
+        model = TrainingQuizChoice
+        fields = ['choice_text']
+        widgets = {
+            'choice_text': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+
+
+TrainingQuizChoiceFormSet = inlineformset_factory(
+    TrainingQuizQuestion, TrainingQuizChoice,
+    form=TrainingQuizChoiceForm, extra=4, can_delete=True,
+)

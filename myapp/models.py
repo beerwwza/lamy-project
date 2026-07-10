@@ -1281,3 +1281,197 @@ class PMPlanCompletion(models.Model):
 
     def __str__(self):
         return f"{self.plan.pm_code} - {self.completed_date}"
+
+
+# ==========================================
+# N. Training / Knowledge Center Module
+# ==========================================
+
+class TrainingSkill(models.Model):
+    name = models.CharField(max_length=100, unique=True, verbose_name="ชื่อทักษะ")
+    description = models.TextField(null=True, blank=True, verbose_name="คำอธิบาย")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับการแสดงผล")
+
+    class Meta:
+        verbose_name = "ทักษะ (Skill Bible)"
+        verbose_name_plural = "ทักษะ (Skill Bible)"
+        ordering = ['display_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class EmployeeSkillLevel(models.Model):
+    LEVEL_CHOICES = [
+        (0, 'L0 - ยังไม่ผ่าน'),
+        (1, 'L1 - เบื้องต้น'),
+        (2, 'L2 - ปฏิบัติงานได้'),
+        (3, 'L3 - ผู้เชี่ยวชาญ'),
+    ]
+    employee = models.ForeignKey(employee, on_delete=models.CASCADE, related_name='skill_levels', verbose_name="พนักงาน")
+    skill = models.ForeignKey(TrainingSkill, on_delete=models.CASCADE, related_name='employee_levels', verbose_name="ทักษะ")
+    level = models.PositiveSmallIntegerField(choices=LEVEL_CHOICES, default=0, verbose_name="ระดับ")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "ระดับทักษะพนักงาน"
+        verbose_name_plural = "ระดับทักษะพนักงาน"
+        unique_together = ('employee', 'skill')
+        ordering = ['employee__name', 'skill__display_order']
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.skill.name}: L{self.level}"
+
+
+class TrainingCourse(models.Model):
+    name = models.CharField(max_length=255, verbose_name="ชื่อหลักสูตร")
+    skill = models.ForeignKey(TrainingSkill, on_delete=models.SET_NULL, null=True, blank=True,
+                               related_name='courses', verbose_name="ทักษะที่เกี่ยวข้อง")
+    description = models.TextField(null=True, blank=True, verbose_name="รายละเอียด")
+    duration_days = models.DecimalField(max_digits=4, decimal_places=1, default=1, verbose_name="ระยะเวลา (วัน)")
+    cost_per_person = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="ค่าใช้จ่ายต่อคน (บาท)")
+    expiry_months = models.PositiveIntegerField(null=True, blank=True, verbose_name="อายุใบรับรอง (เดือน) - เว้นว่างถ้าไม่หมดอายุ")
+    is_active = models.BooleanField(default=True, verbose_name="เปิดใช้งาน")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "หลักสูตรฝึกอบรม"
+        verbose_name_plural = "หลักสูตรฝึกอบรม"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class TrainingRecord(models.Model):
+    TYPE_CHOICES = [
+        ('classroom', 'ในห้องเรียน'),
+        ('ojt', 'OJT (หน้างานจริง)'),
+        ('online', 'ออนไลน์'),
+    ]
+    STATUS_CHOICES = [
+        ('passed', 'ผ่าน'),
+        ('pending', 'รอประเมิน'),
+        ('failed', 'ไม่ผ่าน'),
+    ]
+    employee = models.ForeignKey(employee, on_delete=models.CASCADE, related_name='training_records', verbose_name="พนักงาน")
+    course = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name='records', verbose_name="หลักสูตร")
+    date = models.DateField(verbose_name="วันที่อบรม")
+    training_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='classroom', verbose_name="ประเภทการอบรม")
+    score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name="คะแนน")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name="สถานะ")
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="อนุมัติโดย")
+    notes = models.TextField(null=True, blank=True, verbose_name="หมายเหตุ")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "ประวัติการฝึกอบรม"
+        verbose_name_plural = "ประวัติการฝึกอบรม"
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.course.name} ({self.date})"
+
+
+class TrainingExamScore(models.Model):
+    employee = models.ForeignKey(employee, on_delete=models.CASCADE, related_name='exam_scores', verbose_name="พนักงาน")
+    attempt_no = models.PositiveSmallIntegerField(default=1, verbose_name="ครั้งที่สอบ (0=Pre-test)")
+    score = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="คะแนน")
+    exam_date = models.DateField(verbose_name="วันที่สอบ")
+    notes = models.TextField(null=True, blank=True, verbose_name="หมายเหตุ")
+
+    class Meta:
+        verbose_name = "คะแนนสอบ Skill Bible"
+        verbose_name_plural = "คะแนนสอบ Skill Bible"
+        ordering = ['employee__name', 'attempt_no']
+
+    def __str__(self):
+        return f"{self.employee.name} - รอบ {self.attempt_no}: {self.score}"
+
+
+class TrainingCourseMaterial(models.Model):
+    MATERIAL_TYPE_CHOICES = [
+        ('document', 'เอกสาร'),
+        ('video', 'วิดีโอ'),
+    ]
+    course = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name='materials', verbose_name="หลักสูตร")
+    material_type = models.CharField(max_length=20, choices=MATERIAL_TYPE_CHOICES, verbose_name="ประเภทไฟล์")
+    title = models.CharField(max_length=255, verbose_name="ชื่อไฟล์/หัวข้อ")
+    file = models.FileField(upload_to='training/materials/%Y/%m/', verbose_name="ไฟล์")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับการแสดงผล")
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "เอกสาร/วิดีโอการเรียน"
+        verbose_name_plural = "เอกสาร/วิดีโอการเรียน"
+        ordering = ['course', 'material_type', 'display_order']
+
+    def __str__(self):
+        return f"{self.course.name} - {self.title}"
+
+
+class TrainingQuizQuestion(models.Model):
+    course = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name='quiz_questions', verbose_name="หลักสูตร")
+    question_text = models.TextField(verbose_name="คำถาม")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับคำถาม")
+    is_active = models.BooleanField(default=True, verbose_name="เปิดใช้งาน")
+
+    class Meta:
+        verbose_name = "คำถามแบบทดสอบ"
+        verbose_name_plural = "คำถามแบบทดสอบ"
+        ordering = ['course', 'display_order']
+
+    def __str__(self):
+        return f"{self.course.name} - {self.question_text[:50]}"
+
+
+class TrainingQuizChoice(models.Model):
+    question = models.ForeignKey(TrainingQuizQuestion, on_delete=models.CASCADE, related_name='choices', verbose_name="คำถาม")
+    choice_text = models.CharField(max_length=500, verbose_name="ตัวเลือก")
+    is_correct = models.BooleanField(default=False, verbose_name="คำตอบถูกต้อง")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับตัวเลือก")
+
+    class Meta:
+        verbose_name = "ตัวเลือกคำถาม"
+        verbose_name_plural = "ตัวเลือกคำถาม"
+        ordering = ['question', 'display_order']
+
+    def __str__(self):
+        return self.choice_text
+
+
+class TrainingCourseExamAttempt(models.Model):
+    employee = models.ForeignKey(employee, on_delete=models.CASCADE, related_name='course_exam_attempts', verbose_name="พนักงาน")
+    course = models.ForeignKey(TrainingCourse, on_delete=models.CASCADE, related_name='exam_attempts', verbose_name="หลักสูตร")
+    attempt_no = models.PositiveSmallIntegerField(default=1, verbose_name="ครั้งที่สอบ")
+    total_questions = models.PositiveSmallIntegerField(verbose_name="จำนวนข้อทั้งหมด")
+    fully_correct_count = models.PositiveSmallIntegerField(verbose_name="จำนวนข้อที่ถูกต้องเต็ม 100%")
+    score = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="คะแนนเฉลี่ย (%)")
+    passed = models.BooleanField(verbose_name="ผ่าน/ไม่ผ่าน")
+    training_record = models.ForeignKey(TrainingRecord, on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='course_exam_attempts', verbose_name="ประวัติการฝึกอบรมที่เกี่ยวข้อง")
+    submitted_at = models.DateTimeField(auto_now_add=True, verbose_name="วันที่ส่งคำตอบ")
+
+    class Meta:
+        verbose_name = "ผลสอบออนไลน์รายหลักสูตร"
+        verbose_name_plural = "ผลสอบออนไลน์รายหลักสูตร"
+        ordering = ['-submitted_at']
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.course.name} (รอบ {self.attempt_no}): {self.score}%"
+
+
+class TrainingCourseExamAnswer(models.Model):
+    attempt = models.ForeignKey(TrainingCourseExamAttempt, on_delete=models.CASCADE, related_name='answers', verbose_name="ครั้งที่สอบ")
+    question = models.ForeignKey(TrainingQuizQuestion, on_delete=models.CASCADE, related_name='answers', verbose_name="คำถาม")
+    selected_choices = models.ManyToManyField(TrainingQuizChoice, related_name='selected_in_answers', verbose_name="ตัวเลือกที่เลือก")
+    question_score = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="คะแนนข้อนี้ (%)")
+    is_fully_correct = models.BooleanField(verbose_name="ถูกต้องเต็มข้อ")
+
+    class Meta:
+        verbose_name = "คำตอบรายข้อ"
+        verbose_name_plural = "คำตอบรายข้อ"
+        ordering = ['attempt', 'question__display_order']
+
+    def __str__(self):
+        return f"{self.attempt} - {self.question_id}"

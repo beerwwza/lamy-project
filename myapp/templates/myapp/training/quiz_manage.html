@@ -1,0 +1,45 @@
+{% extends 'myapp/training/base.html' %}
+{% block title %}จัดการคำถามแบบทดสอบ - Knowledge Center{% endblock %}
+{% block page_title %}แบบทดสอบ: {{ course.name }}{% endblock %}
+{% block header_actions %}
+<a href="{% url 'training_quiz_question_add' course.id %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+  <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มคำถาม
+</a>
+<a href="{% url 'training_course_edit' course.id %}" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+  <i data-lucide="arrow-left" class="w-4 h-4"></i> กลับหลักสูตร
+</a>
+{% endblock %}
+
+{% block training_content %}
+<div class="space-y-4">
+  {% for q in questions %}
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+    <div class="flex items-start justify-between gap-3 mb-3">
+      <div>
+        <p class="text-xs text-slate-400 mb-1">ข้อ {{ forloop.counter }} {% if not q.is_active %}<span class="text-red-500 font-bold">(ปิดใช้งาน)</span>{% endif %}</p>
+        <p class="font-medium text-slate-800 dark:text-slate-100">{{ q.question_text }}</p>
+      </div>
+      <div class="flex gap-2 flex-shrink-0">
+        <a href="{% url 'training_quiz_question_edit' q.id %}" class="text-slate-400 hover:text-indigo-500" title="แก้ไข"><i data-lucide="pencil" class="w-4 h-4"></i></a>
+        <form method="post" action="{% url 'training_quiz_question_delete' q.id %}" onsubmit="return confirm('ยืนยันการลบคำถามนี้?');">
+          {% csrf_token %}
+          <button type="submit" class="text-slate-400 hover:text-red-500" title="ลบ"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+        </form>
+      </div>
+    </div>
+    <ul class="space-y-1">
+      {% for c in q.choices.all %}
+      <li class="flex items-center gap-2 text-sm {% if c.is_correct %}text-emerald-600 dark:text-emerald-400 font-medium{% else %}text-slate-500 dark:text-slate-400{% endif %}">
+        {% if c.is_correct %}<i data-lucide="check-square" class="w-4 h-4"></i>{% else %}<i data-lucide="square" class="w-4 h-4"></i>{% endif %}
+        {{ c.choice_text }}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% empty %}
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-8 text-center text-slate-400">
+    ยังไม่มีคำถามในหลักสูตรนี้
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends 'myapp/training/base.html' %}
+{% block title %}โปรไฟล์ {{ employee.name }} - Knowledge Center{% endblock %}
+{% block page_title %}โปรไฟล์รายบุคคล{% endblock %}
+{% block header_actions %}
+<a href="{% url 'training_profile_print' employee.id %}" target="_blank" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+  <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์โปรไฟล์
+</a>
+{% endblock %}
+
+{% block training_content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex items-center gap-4">
+    <div class="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+      {{ employee.name|first }}
+    </div>
+    <div>
+      <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">{{ employee.name }}</h2>
+      <p class="text-sm text-slate-500 dark:text-slate-400">{{ employee.employeeID }} &middot; {{ employee.department }} &middot; {{ employee.group }}</p>
+      {% if best_exam_score is not None %}
+      <p class="text-xs text-slate-400 mt-1">คะแนนสอบ Skill Bible สูงสุด: <span class="font-bold text-indigo-600 dark:text-indigo-400">{{ best_exam_score }}</span></p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Skill progress -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <h3 class="font-bold text-slate-800 dark:text-slate-100 mb-4">ระดับทักษะรายบุคคล</h3>
+      <div class="space-y-3">
+        {% for row in skill_rows %}
+        <div>
+          <div class="flex justify-between text-sm mb-1">
+            <span class="text-slate-600 dark:text-slate-300">{{ row.skill.name }}</span>
+            <span class="text-slate-500">L{{ row.level }}</span>
+          </div>
+          <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+            <div class="h-2 rounded-full {% if row.level == 0 %}bg-red-500{% elif row.level == 1 %}bg-amber-500{% elif row.level == 2 %}bg-blue-500{% else %}bg-emerald-500{% endif %}" style="width: {{ row.pct }}%"></div>
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-sm text-slate-400">ยังไม่มีการประเมินทักษะ</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Training history timeline -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+      <h3 class="font-bold text-slate-800 dark:text-slate-100 mb-4">ประวัติการฝึกอบรม</h3>
+      <div class="space-y-3">
+        {% for row in record_rows %}
+        <div class="rounded-lg border p-3 {% if row.is_expired %}border-red-300 bg-red-50 dark:bg-red-900/10 dark:border-red-800{% elif row.is_expiring_soon %}border-amber-300 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800{% else %}border-slate-200 dark:border-slate-700{% endif %}">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ row.record.course.name }}</p>
+              <p class="text-xs text-slate-400">{{ row.record.date }} &middot; {{ row.record.get_training_type_display }}</p>
+            </div>
+            {% if row.record.status == 'passed' %}
+            <a href="{% url 'training_certificate' row.record.id %}" target="_blank" class="text-indigo-500 hover:text-indigo-700" title="ใบรับรอง"><i data-lucide="award" class="w-4 h-4"></i></a>
+            {% endif %}
+          </div>
+          {% if row.is_expired %}
+          <p class="text-xs text-red-600 dark:text-red-400 font-medium mt-1">ใบรับรองหมดอายุแล้ว</p>
+          {% elif row.is_expiring_soon %}
+          <p class="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">ใบรับรองใกล้หมดอายุ</p>
+          {% endif %}
+        </div>
+        {% empty %}
+        <p class="text-sm text-slate-400">ยังไม่มีประวัติการฝึกอบรม</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ผลสอบออนไลน์รายหลักสูตร -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+    <h3 class="font-bold text-slate-800 dark:text-slate-100 mb-4">ผลสอบออนไลน์รายหลักสูตร</h3>
+    <div class="space-y-2">
+      {% for a in course_exam_attempts %}
+      <div class="flex items-center justify-between border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+        <div>
+          <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{{ a.course.name }}</p>
+          <p class="text-xs text-slate-400">รอบ {{ a.attempt_no }} &middot; {{ a.submitted_at|date:"d/m/Y H:i" }}</p>
+        </div>
+        <div class="text-right">
+          <p class="font-bold {% if a.passed %}text-emerald-600 dark:text-emerald-400{% else %}text-red-600 dark:text-red-400{% endif %}">{{ a.score }}%</p>
+          <p class="text-xs text-slate-400">{{ a.fully_correct_count }}/{{ a.total_questions }} ข้อ</p>
+        </div>
+      </div>
+      {% empty %}
+      <p class="text-sm text-slate-400">ยังไม่มีผลสอบออนไลน์</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

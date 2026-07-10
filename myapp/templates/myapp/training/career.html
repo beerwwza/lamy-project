@@ -1,0 +1,36 @@
+{% extends 'myapp/training/base.html' %}
+{% block title %}เส้นทางอาชีพ - Knowledge Center{% endblock %}
+{% block page_title %}เส้นทางอาชีพ (Career Ladder){% endblock %}
+
+{% block training_content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+    <form method="get" action="" onchange="this.submit()">
+      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">เลือกพนักงานเพื่อดูตำแหน่งปัจจุบัน</label>
+      <select onchange="location.href = '/training/career/' + this.value + '/'" class="w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg p-2 text-sm">
+        <option value="">-- เลือกพนักงาน --</option>
+        {% for emp in employees %}
+        <option value="{{ emp.id }}" {% if employee and employee.id == emp.id %}selected{% endif %}>{{ emp.name }} ({{ emp.department }})</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+
+  <div class="flex flex-col gap-6">
+    {% for step in steps %}
+    <div class="relative rounded-xl border-2 p-5 flex items-center justify-between
+                {% if step.is_current %}border-indigo-500 bg-indigo-50 dark:bg-indigo-900/10{% else %}border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800{% endif %}">
+      {% if step.is_current %}
+      <span class="absolute -top-3 right-4 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full">ตำแหน่งปัจจุบัน</span>
+      {% endif %}
+      <span class="font-bold text-slate-700 dark:text-slate-200">{{ step.name }}</span>
+      <i data-lucide="{% if step.is_current %}map-pin{% else %}circle{% endif %}" class="w-5 h-5 {% if step.is_current %}text-indigo-600{% else %}text-slate-300{% endif %}"></i>
+    </div>
+    {% if not forloop.last %}
+    <div class="flex justify-center -my-4"><i data-lucide="arrow-up" class="w-4 h-4 text-slate-300"></i></div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

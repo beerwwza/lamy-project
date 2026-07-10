@@ -1,0 +1,82 @@
+{% extends 'myapp/training/base.html' %}
+{% block title %}{% if question %}แก้ไขคำถาม{% else %}เพิ่มคำถาม{% endif %} - Knowledge Center{% endblock %}
+{% block page_title %}{% if question %}แก้ไขคำถาม{% else %}เพิ่มคำถามใหม่{% endif %}: {{ course.name }}{% endblock %}
+
+{% block training_content %}
+<div class="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+  <form method="post" id="question-form" class="space-y-4">
+    {% csrf_token %}
+
+    <div>
+      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">{{ question_form.question_text.label }}</label>
+      {{ question_form.question_text }}
+      {% if question_form.question_text.errors %}<p class="text-xs text-red-500 mt-1">{{ question_form.question_text.errors }}</p>{% endif %}
+    </div>
+    <div class="pt-4 border-t border-slate-200 dark:border-slate-700">
+      <div class="flex items-center justify-between mb-2">
+        <label class="block text-xs font-bold text-slate-500 dark:text-slate-400">ตัวเลือกคำตอบ (เลือกวงกลมหน้าคำตอบที่ถูกต้องเพียง 1 ข้อ)</label>
+        <button type="button" onclick="addChoiceForm()" class="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+          <i data-lucide="plus" class="w-3 h-3"></i> เพิ่มตัวเลือก
+        </button>
+      </div>
+      {% if formset_error %}<p class="text-xs text-red-500 mb-2">{{ formset_error }}</p>{% endif %}
+
+      {{ formset.management_form }}
+      <div id="choice-forms">
+        {% for cform in formset %}
+        <div class="choice-form flex items-center gap-2 border border-slate-200 dark:border-slate-700 rounded-lg p-2 mb-2">
+          {% for hidden in cform.hidden_fields %}{{ hidden }}{% endfor %}
+          <input type="radio" name="correct_choice" value="{{ forloop.counter0 }}"
+                 {% if correct_choice_initial == forloop.counter0 %}checked{% endif %}
+                 class="w-4 h-4 flex-shrink-0" title="เลือกเป็นคำตอบที่ถูกต้อง">
+          {{ cform.choice_text }}
+          {% if cform.DELETE %}
+          <label class="flex items-center gap-1 text-xs text-red-500 whitespace-nowrap">
+            {{ cform.DELETE }} ลบ
+          </label>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="flex gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+      <a href="{% url 'training_quiz_manage' course.id %}" class="flex-1 py-2 text-center text-slate-600 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition">ยกเลิก</a>
+      <button type="submit" class="flex-1 py-2 text-center text-white font-bold bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition">บันทึกคำถาม</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  document.querySelectorAll('#question-form textarea').forEach(el => {
+    el.className = 'w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg p-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none transition';
+  });
+  document.querySelectorAll('.choice-form input[type="text"]').forEach(el => {
+    el.classList.add('flex-1', 'border', 'border-slate-200', 'dark:border-slate-600', 'dark:bg-slate-900', 'dark:text-white', 'rounded-lg', 'p-2', 'text-sm');
+  });
+
+  function addChoiceForm() {
+    const totalFormsInput = document.querySelector('#id_choices-TOTAL_FORMS');
+    const formIndex = parseInt(totalFormsInput.value, 10);
+    const container = document.getElementById('choice-forms');
+    const template = container.querySelector('.choice-form');
+    const newForm = template.cloneNode(true);
+
+    newForm.querySelectorAll('input[type="text"], input[type="hidden"], input[type="checkbox"]').forEach(input => {
+      if (input.name) input.name = input.name.replace(/choices-(\d+)-/, `choices-${formIndex}-`);
+      if (input.id) input.id = input.id.replace(/choices-(\d+)-/, `choices-${formIndex}-`);
+      if (input.type === 'text') input.value = '';
+      if (input.type === 'checkbox') input.checked = false;
+      if (input.type === 'hidden' && input.name && input.name.endsWith('-id')) input.value = '';
+    });
+    newForm.querySelectorAll('input[type="radio"]').forEach(radio => {
+      radio.value = formIndex;
+      radio.checked = false;
+    });
+
+    container.appendChild(newForm);
+    totalFormsInput.value = formIndex + 1;
+    lucide.createIcons();
+  }
+</script>
+{% endblock %}

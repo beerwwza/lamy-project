@@ -167,3 +167,62 @@ class ToolReadinessCheckAdmin(admin.ModelAdmin):
     list_display  = ['item', 'check_date', 'inspector', 'overall_status', 'created_at']
     list_filter   = ['overall_status', 'check_date']
     search_fields = ['item__code', 'item__name', 'inspector']
+
+# ===== Training / Knowledge Center Module =====
+
+@admin.register(TrainingSkill)
+class TrainingSkillAdmin(admin.ModelAdmin):
+    list_display = ['name', 'display_order']
+    ordering = ['display_order']
+
+@admin.register(EmployeeSkillLevel)
+class EmployeeSkillLevelAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'skill', 'level', 'updated_at']
+    list_filter = ['skill', 'level']
+    search_fields = ['employee__name']
+
+@admin.register(TrainingCourse)
+class TrainingCourseAdmin(admin.ModelAdmin):
+    list_display = ['name', 'skill', 'duration_days', 'cost_per_person', 'expiry_months', 'is_active']
+    list_filter = ['skill', 'is_active']
+    search_fields = ['name']
+
+@admin.register(TrainingRecord)
+class TrainingRecordAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'course', 'date', 'training_type', 'score', 'status']
+    list_filter = ['status', 'training_type', 'date']
+    search_fields = ['employee__name', 'course__name']
+
+@admin.register(TrainingExamScore)
+class TrainingExamScoreAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'attempt_no', 'score', 'exam_date']
+    list_filter = ['exam_date']
+    search_fields = ['employee__name']
+
+@admin.register(TrainingCourseMaterial)
+class TrainingCourseMaterialAdmin(admin.ModelAdmin):
+    list_display = ['course', 'material_type', 'title', 'display_order', 'uploaded_at']
+    list_filter = ['material_type', 'course']
+    search_fields = ['title', 'course__name']
+
+class TrainingQuizChoiceInline(admin.TabularInline):
+    model = TrainingQuizChoice
+    extra = 2
+
+@admin.register(TrainingQuizQuestion)
+class TrainingQuizQuestionAdmin(admin.ModelAdmin):
+    list_display = ['course', 'question_text', 'display_order', 'is_active']
+    list_filter = ['course', 'is_active']
+    inlines = [TrainingQuizChoiceInline]
+
+class TrainingCourseExamAnswerInline(admin.TabularInline):
+    model = TrainingCourseExamAnswer
+    extra = 0
+    readonly_fields = ['question', 'selected_choices', 'question_score', 'is_fully_correct']
+
+@admin.register(TrainingCourseExamAttempt)
+class TrainingCourseExamAttemptAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'course', 'attempt_no', 'score', 'passed', 'submitted_at']
+    list_filter = ['passed', 'course']
+    search_fields = ['employee__name', 'course__name']
+    inlines = [TrainingCourseExamAnswerInline]

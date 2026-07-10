@@ -1,0 +1,33 @@
+{% extends 'myapp/training/base.html' %}
+{% block title %}วิเคราะห์ช่องว่างทักษะ - Knowledge Center{% endblock %}
+{% block page_title %}วิเคราะห์ช่องว่างทักษะ (Skill Gap Analysis){% endblock %}
+
+{% block training_content %}
+<div class="space-y-4">
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    {% for row in gap_rows %}
+    <div class="rounded-xl p-5 text-white shadow-sm
+                {% if row.severity == 'critical' %}bg-red-500{% elif row.severity == 'warning' %}bg-amber-500{% else %}bg-emerald-500{% endif %}">
+      <h4 class="text-lg font-bold mb-3">{{ row.skill.name }}</h4>
+      <div class="grid grid-cols-3 gap-2 text-center text-xs mb-3">
+        <div>
+          <p class="text-xl font-bold">{{ row.critical }}</p>
+          <p class="opacity-80">วิกฤต</p>
+        </div>
+        <div>
+          <p class="text-xl font-bold">{{ row.warning }}</p>
+          <p class="opacity-80">เฝ้าระวัง</p>
+        </div>
+        <div>
+          <p class="text-xl font-bold">{{ row.good }}</p>
+          <p class="opacity-80">ผ่านแล้ว</p>
+        </div>
+      </div>
+      <p class="text-sm opacity-90 border-t border-white/30 pt-2">{{ row.recommendation }}</p>
+    </div>
+    {% empty %}
+    <div class="col-span-full text-center text-slate-400 p-8">ยังไม่มีทักษะในระบบ</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

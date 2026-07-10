@@ -1,0 +1,35 @@
+{% extends 'myapp/training/kiosk_base.html' %}
+{% block title %}เริ่มเรียน - {{ course.name }}{% endblock %}
+
+{% block kiosk_content %}
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-8 text-center">
+  <i data-lucide="book-open" class="w-10 h-10 text-indigo-500 mx-auto mb-3"></i>
+  <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100 mb-1">{{ course.name }}</h2>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">{{ course.description|default:"" }}</p>
+
+  <form method="get" onsubmit="return goToDetail(event)" class="max-w-sm mx-auto space-y-4">
+    <div class="text-left">
+      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">กรุณาเลือกชื่อของคุณ</label>
+      <select id="employee-select" required class="w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg p-3 text-sm">
+        <option value="">-- เลือกพนักงาน --</option>
+        {% for emp in employees %}
+        <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.department }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="w-full py-3 text-center text-white font-bold bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition text-base">
+      เริ่มเรียน
+    </button>
+  </form>
+</div>
+
+<script>
+  function goToDetail(e) {
+    e.preventDefault();
+    const empId = document.getElementById('employee-select').value;
+    if (!empId) return false;
+    window.location.href = `/training/learn/{{ course.id }}/${empId}/`;
+    return false;
+  }
+</script>
+{% endblock %}
