@@ -1,5 +1,5 @@
 {% extends 'myapp/training/base.html' %}
-{% block title %}โปรไฟล์ {{ employee.name }} - Knowledge Center{% endblock %}
+{% block title %}โปรไฟล์ {{ employee.full_name }} - Knowledge Center{% endblock %}
 {% block page_title %}โปรไฟล์รายบุคคล{% endblock %}
 {% block header_actions %}
 <a href="{% url 'training_profile_print' employee.id %}" target="_blank" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
@@ -13,11 +13,11 @@
   <!-- Header -->
   <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex items-center gap-4">
     <div class="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
-      {{ employee.name|first }}
+      {{ employee.full_name|first }}
     </div>
     <div>
-      <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">{{ employee.name }}</h2>
-      <p class="text-sm text-slate-500 dark:text-slate-400">{{ employee.employeeID }} &middot; {{ employee.department }} &middot; {{ employee.group }}</p>
+      <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">{{ employee.full_name }}</h2>
+      <p class="text-sm text-slate-500 dark:text-slate-400">{{ employee.employeeID }} &middot; {{ employee.get_department_display }} &middot; {{ employee.group }}</p>
       {% if best_exam_score is not None %}
       <p class="text-xs text-slate-400 mt-1">คะแนนสอบ Skill Bible สูงสุด: <span class="font-bold text-indigo-600 dark:text-indigo-400">{{ best_exam_score }}</span></p>
       {% endif %}

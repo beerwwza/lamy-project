@@ -7,6 +7,14 @@ from decimal import Decimal
 # 1. User & Employee Management Models
 # ==========================================
 
+# แผนก — ใช้ร่วมกันทั้งพนักงาน (employee) และเอกสารงานซ่อม (RepairDocument)
+DEPARTMENT_CHOICES = [
+    ('ลูกหีบ',              'ลูกหีบ (Mill)'),
+    ('หม้อน้ำ',             'หม้อน้ำ (Boiler)'),
+    ('ซ่อมบำรุงเครื่องกล', 'ซ่อมบำรุงเครื่องกล (Mechanical)'),
+    ('โรงกลึง',             'โรงกลึง (Lathe)'),
+]
+
 class Job(models.Model):
     fullname = models.CharField(max_length=255)
     tel = models.IntegerField(null=True,blank=True)
@@ -16,14 +24,23 @@ class Job(models.Model):
         return self.fullname
 
 class employee(models.Model):
-    name = models.CharField(max_length=255)
-    employeeID = models.CharField(max_length=10)
-    tell = models.CharField(max_length=12)
-    group = models.CharField(max_length=100)
-    department = models.TextField(null=True,blank=True)
+    first_name = models.CharField(max_length=150, default='', verbose_name="ชื่อ")
+    last_name = models.CharField(max_length=150, blank=True, default='', verbose_name="นามสกุล")
+    employeeID = models.CharField(max_length=10, verbose_name="รหัสพนักงาน")
+    tell = models.CharField(max_length=12, blank=True, verbose_name="เบอร์โทรศัพท์")
+    group = models.CharField(max_length=100, blank=True, verbose_name="กลุ่มงาน")
+    department = models.CharField(max_length=50, choices=DEPARTMENT_CHOICES, blank=True, default='', verbose_name="แผนก")
+    is_active = models.BooleanField(default=True, verbose_name="ยังทำงานอยู่")
+
+    class Meta:
+        ordering = ['first_name', 'last_name']
+
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}".strip()
 
     def __str__(self):
-        return self.name
+        return self.full_name
     
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -944,12 +961,7 @@ class CBMAcoustic(models.Model):
 class RepairDocument(models.Model):
     """เอกสารงานซ่อม — เชื่อมโยงกับเครื่องจักร, PO, Google Drive"""
 
-    DEPT_CHOICES = [
-        ('ลูกหีบ',              'ลูกหีบ (Mill)'),
-        ('หม้อน้ำ',             'หม้อน้ำ (Boiler)'),
-        ('ซ่อมบำรุงเครื่องกล', 'ซ่อมบำรุงเครื่องกล (Mechanical)'),
-        ('โรงกลึง',             'โรงกลึง (Lathe)'),
-    ]
+    DEPT_CHOICES = DEPARTMENT_CHOICES
     DOC_TYPE_CHOICES = [
         ('repair',     'รายงานการซ่อม'),
         ('inspection', 'รายงานการตรวจสอบ (Inspection)'),
@@ -1317,10 +1329,10 @@ class EmployeeSkillLevel(models.Model):
         verbose_name = "ระดับทักษะพนักงาน"
         verbose_name_plural = "ระดับทักษะพนักงาน"
         unique_together = ('employee', 'skill')
-        ordering = ['employee__name', 'skill__display_order']
+        ordering = ['employee__first_name', 'employee__last_name', 'skill__display_order']
 
     def __str__(self):
-        return f"{self.employee.name} - {self.skill.name}: L{self.level}"
+        return f"{self.employee.full_name} - {self.skill.name}: L{self.level}"
 
 
 class TrainingCourse(models.Model):
@@ -1370,11 +1382,13 @@ class TrainingRecord(models.Model):
         ordering = ['-date']
 
     def __str__(self):
-        return f"{self.employee.name} - {self.course.name} ({self.date})"
+        return f"{self.employee.full_name} - {self.course.name} ({self.date})"
 
 
 class TrainingExamScore(models.Model):
     employee = models.ForeignKey(employee, on_delete=models.CASCADE, related_name='exam_scores', verbose_name="พนักงาน")
+    course = models.ForeignKey(TrainingCourse, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='exam_scores', verbose_name="หลักสูตร")
     attempt_no = models.PositiveSmallIntegerField(default=1, verbose_name="ครั้งที่สอบ (0=Pre-test)")
     score = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="คะแนน")
     exam_date = models.DateField(verbose_name="วันที่สอบ")
@@ -1383,10 +1397,10 @@ class TrainingExamScore(models.Model):
     class Meta:
         verbose_name = "คะแนนสอบ Skill Bible"
         verbose_name_plural = "คะแนนสอบ Skill Bible"
-        ordering = ['employee__name', 'attempt_no']
+        ordering = ['employee__first_name', 'employee__last_name', 'attempt_no']
 
     def __str__(self):
-        return f"{self.employee.name} - รอบ {self.attempt_no}: {self.score}"
+        return f"{self.employee.full_name} - รอบ {self.attempt_no}: {self.score}"
 
 
 class TrainingCourseMaterial(models.Model):
@@ -1458,7 +1472,7 @@ class TrainingCourseExamAttempt(models.Model):
         ordering = ['-submitted_at']
 
     def __str__(self):
-        return f"{self.employee.name} - {self.course.name} (รอบ {self.attempt_no}): {self.score}%"
+        return f"{self.employee.full_name} - {self.course.name} (รอบ {self.attempt_no}): {self.score}%"
 
 
 class TrainingCourseExamAnswer(models.Model):
@@ -1475,3 +1489,20 @@ class TrainingCourseExamAnswer(models.Model):
 
     def __str__(self):
         return f"{self.attempt} - {self.question_id}"
+
+
+class CareerLadderStep(models.Model):
+    name = models.CharField(max_length=100, verbose_name="ชื่อขั้น")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+    position_duty = models.TextField(null=True, blank=True, verbose_name="ตำแหน่งหน้าที่")
+    scope = models.TextField(null=True, blank=True, verbose_name="ขอบเขตหน้าที่")
+    benefits = models.TextField(null=True, blank=True, verbose_name="ผลประโยชน์ที่ได้รับ")
+    notes = models.TextField(null=True, blank=True, verbose_name="หมายเหตุ/อื่นๆ")
+
+    class Meta:
+        verbose_name = "ขั้นบันไดอาชีพ"
+        verbose_name_plural = "ขั้นบันไดอาชีพ"
+        ordering = ['display_order', 'id']
+
+    def __str__(self):
+        return self.name

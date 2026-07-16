@@ -3,7 +3,34 @@
 {% block page_title %}เมทริกซ์ทักษะ (Skill Matrix){% endblock %}
 
 {% block training_content %}
-<meta name="csrf-token" content="{{ csrf_token }}">
+
+<!-- Filter bar -->
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 mb-4">
+  <form method="get" class="flex flex-col md:flex-row gap-3 items-start md:items-center">
+    <input type="text" name="q" value="{{ q }}" placeholder="ค้นหาชื่อ / รหัสพนักงาน"
+           class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200 flex-1 min-w-[180px]">
+    <select name="department" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
+      <option value="">แผนกทั้งหมด</option>
+      {% for value, label in department_choices %}
+      <option value="{{ value }}" {% if department_filter == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="group" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
+      <option value="">กลุ่มงานทั้งหมด</option>
+      {% for g in group_choices %}
+      <option value="{{ g }}" {% if group_filter == g %}selected{% endif %}>{{ g }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+      <i data-lucide="filter" class="w-4 h-4"></i> กรอง
+    </button>
+    {% if q or department_filter or group_filter %}
+    <a href="{% url 'training_matrix' %}" class="text-sm text-slate-400 hover:text-red-500">ล้างตัวกรอง</a>
+    {% endif %}
+  </form>
+</div>
+
+<p class="text-xs text-slate-400 mb-3">ระดับทักษะอัพเดตอัตโนมัติเมื่อพนักงานสอบผ่านหลักสูตรที่ผูกกับทักษะนั้น ไม่สามารถแก้ไขระดับด้วยตนเองได้</p>
 
 <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
   <div class="overflow-x-auto">
@@ -20,20 +47,15 @@
         {% for row in rows %}
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/50">
           <td class="p-3 font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap sticky left-0 bg-white dark:bg-slate-800">
-            {{ row.employee.name }}
-            <div class="text-xs text-slate-400 font-normal">{{ row.employee.department }}</div>
+            {{ row.employee.full_name }}
+            <div class="text-xs text-slate-400 font-normal">{{ row.employee.get_department_display }}</div>
           </td>
           {% for cell in row.cells %}
           <td class="p-3 text-center">
-            <button type="button"
-                    class="matrix-badge inline-flex items-center justify-center w-9 h-9 rounded-full text-white text-xs font-bold cursor-pointer transition-transform hover:scale-110
-                    {% if cell.level == 0 %}bg-red-500{% elif cell.level == 1 %}bg-amber-500{% elif cell.level == 2 %}bg-blue-500{% else %}bg-emerald-500{% endif %}"
-                    data-emp-id="{{ row.employee.id }}"
-                    data-skill-id="{{ cell.skill_id }}"
-                    data-level="{{ cell.level }}"
-                    onclick="openSkillModal(this)">
+            <span class="inline-flex items-center justify-center w-9 h-9 rounded-full text-white text-xs font-bold
+                    {% if cell.level == 0 %}bg-red-500{% elif cell.level == 1 %}bg-amber-500{% elif cell.level == 2 %}bg-blue-500{% else %}bg-emerald-500{% endif %}">
               L{{ cell.level }}
-            </button>
+            </span>
           </td>
           {% endfor %}
         </tr>
@@ -44,64 +66,4 @@
     </table>
   </div>
 </div>
-
-<!-- Edit Skill Level Modal -->
-<div id="skill-modal-overlay" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6 w-80">
-    <h3 class="font-bold text-slate-800 dark:text-slate-100 mb-4">ปรับระดับทักษะ</h3>
-    <select id="skill-modal-level" class="form-control w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 mb-4 dark:bg-slate-900 dark:text-slate-100">
-      {% for value, label in level_choices %}
-      <option value="{{ value }}">{{ label }}</option>
-      {% endfor %}
-    </select>
-    <div class="flex justify-end gap-2">
-      <button type="button" onclick="closeSkillModal()" class="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm">ยกเลิก</button>
-      <button type="button" onclick="saveSkillLevel()" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium">บันทึก</button>
-    </div>
-  </div>
-</div>
-
-<script>
-  let activeBadge = null;
-
-  function openSkillModal(badge) {
-    activeBadge = badge;
-    document.getElementById('skill-modal-level').value = badge.dataset.level;
-    document.getElementById('skill-modal-overlay').classList.remove('hidden');
-  }
-
-  function closeSkillModal() {
-    activeBadge = null;
-    document.getElementById('skill-modal-overlay').classList.add('hidden');
-  }
-
-  async function saveSkillLevel() {
-    if (!activeBadge) return;
-    const level = document.getElementById('skill-modal-level').value;
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-
-    const formData = new FormData();
-    formData.append('employee_id', activeBadge.dataset.empId);
-    formData.append('skill_id', activeBadge.dataset.skillId);
-    formData.append('level', level);
-
-    const response = await fetch("{% url 'training_matrix_update' %}", {
-      method: 'POST',
-      body: formData,
-      headers: { 'X-CSRFToken': csrfToken }
-    });
-    const result = await response.json();
-
-    if (result.success) {
-      const colors = { 0: 'bg-red-500', 1: 'bg-amber-500', 2: 'bg-blue-500', 3: 'bg-emerald-500' };
-      activeBadge.classList.remove('bg-red-500', 'bg-amber-500', 'bg-blue-500', 'bg-emerald-500');
-      activeBadge.classList.add(colors[result.level]);
-      activeBadge.dataset.level = result.level;
-      activeBadge.innerText = 'L' + result.level;
-      closeSkillModal();
-    } else {
-      alert(result.error || 'เกิดข้อผิดพลาด');
-    }
-  }
-</script>
 {% endblock %}

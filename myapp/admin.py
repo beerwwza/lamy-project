@@ -8,9 +8,19 @@ from .models import (
 from .models import MillReport
 
 admin.site.register(Job)
-admin.site.register(employee)
 admin.site.register(Profile)
 admin.site.register(LatheJob)
+
+@admin.register(employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ['employeeID', 'full_name', 'department', 'group', 'is_active']
+    list_filter = ['department', 'group', 'is_active']
+    search_fields = ['first_name', 'last_name', 'employeeID']
+
+@admin.register(CareerLadderStep)
+class CareerLadderStepAdmin(admin.ModelAdmin):
+    list_display = ['display_order', 'name']
+    ordering = ['display_order']
 
 @admin.register(BoilerOperationLog)
 class BoilerOperationLogAdmin(admin.ModelAdmin):
@@ -179,7 +189,7 @@ class TrainingSkillAdmin(admin.ModelAdmin):
 class EmployeeSkillLevelAdmin(admin.ModelAdmin):
     list_display = ['employee', 'skill', 'level', 'updated_at']
     list_filter = ['skill', 'level']
-    search_fields = ['employee__name']
+    search_fields = ['employee__first_name', 'employee__last_name', 'employee__employeeID']
 
 @admin.register(TrainingCourse)
 class TrainingCourseAdmin(admin.ModelAdmin):
@@ -191,13 +201,13 @@ class TrainingCourseAdmin(admin.ModelAdmin):
 class TrainingRecordAdmin(admin.ModelAdmin):
     list_display = ['employee', 'course', 'date', 'training_type', 'score', 'status']
     list_filter = ['status', 'training_type', 'date']
-    search_fields = ['employee__name', 'course__name']
+    search_fields = ['employee__first_name', 'employee__last_name', 'employee__employeeID', 'course__name']
 
 @admin.register(TrainingExamScore)
 class TrainingExamScoreAdmin(admin.ModelAdmin):
-    list_display = ['employee', 'attempt_no', 'score', 'exam_date']
-    list_filter = ['exam_date']
-    search_fields = ['employee__name']
+    list_display = ['employee', 'course', 'attempt_no', 'score', 'exam_date']
+    list_filter = ['exam_date', 'course']
+    search_fields = ['employee__first_name', 'employee__last_name', 'employee__employeeID']
 
 @admin.register(TrainingCourseMaterial)
 class TrainingCourseMaterialAdmin(admin.ModelAdmin):
@@ -224,5 +234,5 @@ class TrainingCourseExamAnswerInline(admin.TabularInline):
 class TrainingCourseExamAttemptAdmin(admin.ModelAdmin):
     list_display = ['employee', 'course', 'attempt_no', 'score', 'passed', 'submitted_at']
     list_filter = ['passed', 'course']
-    search_fields = ['employee__name', 'course__name']
+    search_fields = ['employee__first_name', 'employee__last_name', 'employee__employeeID', 'course__name']
     inlines = [TrainingCourseExamAnswerInline]

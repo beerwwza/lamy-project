@@ -1,0 +1,99 @@
+{% extends 'myapp/training/base.html' %}
+{% block title %}จัดการพนักงาน - Knowledge Center{% endblock %}
+{% block page_title %}จัดการพนักงาน{% endblock %}
+{% block header_actions %}
+<a href="{% url 'training_employee_add' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+  <i data-lucide="user-plus" class="w-4 h-4"></i> เพิ่มพนักงาน
+</a>
+{% endblock %}
+
+{% block training_content %}
+<div class="space-y-4">
+
+  <!-- Filter bar -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+    <form method="get" class="flex flex-col md:flex-row gap-3 items-start md:items-center">
+      <input type="text" name="q" value="{{ q }}" placeholder="ค้นหาชื่อ / รหัสพนักงาน"
+             class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200 flex-1 min-w-[180px]">
+      <select name="department" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
+        <option value="">แผนกทั้งหมด</option>
+        {% for value, label in department_choices %}
+        <option value="{{ value }}" {% if department_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="group" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
+        <option value="">กลุ่มงานทั้งหมด</option>
+        {% for g in group_choices %}
+        <option value="{{ g }}" {% if group_filter == g %}selected{% endif %}>{{ g }}</option>
+        {% endfor %}
+      </select>
+      <select name="status" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
+        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>ทำงาน</option>
+        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>ลาออก</option>
+        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>ทั้งหมด</option>
+      </select>
+      <button type="submit" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+        <i data-lucide="filter" class="w-4 h-4"></i> กรอง
+      </button>
+      {% if q or department_filter or group_filter or status_filter != 'active' %}
+      <a href="{% url 'training_employees' %}" class="text-sm text-slate-400 hover:text-red-500">ล้างตัวกรอง</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Employee table -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 dark:bg-slate-900">
+          <tr>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">รหัสพนักงาน</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">ชื่อ-นามสกุล</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">แผนก</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">กลุ่มงาน</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">เบอร์โทรศัพท์</th>
+            <th class="p-3 text-left font-semibold text-slate-600 dark:text-slate-300">สถานะ</th>
+            <th class="p-3 text-right font-semibold text-slate-600 dark:text-slate-300">การจัดการ</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+          {% for emp in employees %}
+          <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+            <td class="p-3 text-slate-500 dark:text-slate-400">{{ emp.employeeID }}</td>
+            <td class="p-3">
+              <a href="{% url 'training_profile' emp.id %}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ emp.full_name }}</a>
+            </td>
+            <td class="p-3 text-slate-700 dark:text-slate-300">{{ emp.get_department_display|default:"-" }}</td>
+            <td class="p-3 text-slate-700 dark:text-slate-300">{{ emp.group|default:"-" }}</td>
+            <td class="p-3 text-slate-500 dark:text-slate-400">{{ emp.tell|default:"-" }}</td>
+            <td class="p-3">
+              {% if emp.is_active %}
+              <span class="px-2 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">ทำงาน</span>
+              {% else %}
+              <span class="px-2 py-1 rounded-full text-xs font-bold bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">ลาออก</span>
+              {% endif %}
+            </td>
+            <td class="p-3 text-right whitespace-nowrap">
+              <a href="{% url 'training_employee_edit' emp.id %}" class="text-slate-400 hover:text-indigo-500 mr-2" title="แก้ไข"><i data-lucide="pencil" class="w-4 h-4 inline"></i></a>
+              {% if emp.is_active %}
+              <form method="post" action="{% url 'training_employee_delete' emp.id %}" class="inline" onsubmit="return confirm('ยืนยันว่าพนักงานนี้ลาออกแล้ว?');">
+                {% csrf_token %}
+                <button type="submit" class="text-slate-400 hover:text-red-500" title="ทำเครื่องหมายว่าลาออก"><i data-lucide="user-x" class="w-4 h-4 inline"></i></button>
+              </form>
+              {% else %}
+              <form method="post" action="{% url 'training_employee_reactivate' emp.id %}" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="text-slate-400 hover:text-emerald-500" title="กลับมาทำงาน"><i data-lucide="user-check" class="w-4 h-4 inline"></i></button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="p-8 text-center text-slate-400">ไม่พบข้อมูลพนักงาน</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <title>ใบรับรอง - {{ record.employee.name }}</title>
+  <title>ใบรับรอง - {{ record.employee.full_name }}</title>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -15,7 +15,7 @@
     <div class="absolute inset-2 border-2 border-amber-500 pointer-events-none"></div>
     <h1 class="text-4xl font-bold text-amber-500 mt-4">ใบประกาศนียบัตร</h1>
     <p class="text-slate-500 mt-3">ขอมอบประกาศนียบัตรฉบับนี้เพื่อแสดงว่า</p>
-    <h2 class="text-3xl font-bold text-slate-800 my-6 inline-block border-b-2 border-slate-200 pb-2 min-w-[50%]">{{ record.employee.name }}</h2>
+    <h2 class="text-3xl font-bold text-slate-800 my-6 inline-block border-b-2 border-slate-200 pb-2 min-w-[50%]">{{ record.employee.full_name }}</h2>
     <p class="text-slate-500">ได้ผ่านการฝึกอบรมและทดสอบความรู้ในหลักสูตร</p>
     <h3 class="text-2xl font-bold text-blue-600 my-4">{{ record.course.name }}</h3>
     <p class="text-slate-500">ด้วยคะแนนทดสอบ <strong>{{ record.score|default:"-" }}</strong> / 100</p>

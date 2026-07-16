@@ -11,7 +11,7 @@
   <h2 class="text-2xl font-bold text-red-600 dark:text-red-400 mb-1">ไม่ผ่านการทดสอบ</h2>
   {% endif %}
 
-  <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ employee.name }} &middot; {{ course.name }}</p>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ employee.full_name }} &middot; {{ course.name }}</p>
   <p class="text-4xl font-bold text-slate-800 dark:text-slate-100 my-4">{{ attempt.score }}%</p>
   <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">
     ตอบถูกต้องเต็ม {{ attempt.fully_correct_count }} จาก {{ attempt.total_questions }} ข้อ &middot; เกณฑ์ผ่าน {{ exam_pass_score }}%

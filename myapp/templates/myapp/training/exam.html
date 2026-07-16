@@ -1,21 +1,25 @@
 {% extends 'myapp/training/base.html' %}
 {% block title %}ผลสอบ Skill Bible - Knowledge Center{% endblock %}
 {% block page_title %}ผลสอบ Skill Bible{% endblock %}
-{% block header_actions %}
-<a href="{% url 'training_exam_export_csv' %}" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
-  <i data-lucide="download" class="w-4 h-4"></i> ส่งออก CSV
-</a>
-<label class="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-pointer">
-  <i data-lucide="upload" class="w-4 h-4"></i> นำเข้า CSV
-  <input type="file" id="exam-csv-input" accept=".csv" class="hidden" onchange="importExamCsv(event)">
-</label>
-<a href="{% url 'training_exam_edit' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
-  <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มคะแนนสอบ
-</a>
-{% endblock %}
-
 {% block training_content %}
-<meta name="csrf-token" content="{{ csrf_token }}">
+
+<!-- Filter bar -->
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 mb-4">
+  <form method="get" class="flex flex-col md:flex-row gap-3 items-start md:items-center">
+    <select name="course" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
+      <option value="">หลักสูตรทั้งหมด</option>
+      {% for c in courses %}
+      <option value="{{ c.id }}" {% if course_filter == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+      <i data-lucide="filter" class="w-4 h-4"></i> กรอง
+    </button>
+    {% if course_filter %}
+    <a href="{% url 'training_exam' %}" class="text-sm text-slate-400 hover:text-red-500">ล้างตัวกรอง</a>
+    {% endif %}
+  </form>
+</div>
 
 <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
   <div class="overflow-x-auto">
@@ -44,8 +48,8 @@
             <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 font-bold text-xs">{{ row.rank }}</span>
             {% endif %}
           </td>
-          <td class="p-3 font-medium text-slate-700 dark:text-slate-200">{{ row.employee.name }}</td>
-          <td class="p-3 text-slate-500 dark:text-slate-400">{{ row.employee.department }}</td>
+          <td class="p-3 font-medium text-slate-700 dark:text-slate-200">{{ row.employee.full_name }}</td>
+          <td class="p-3 text-slate-500 dark:text-slate-400">{{ row.employee.get_department_display }}</td>
           <td class="p-3 font-bold text-slate-700 dark:text-slate-200">{{ row.score }}</td>
           <td class="p-3 text-slate-500 dark:text-slate-400">{{ row.exam_date }}</td>
           <td class="p-3">
@@ -81,7 +85,7 @@
         <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
           {% for a in recent_course_attempts %}
           <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/50">
-            <td class="p-3 font-medium text-slate-700 dark:text-slate-200">{{ a.employee.name }}</td>
+            <td class="p-3 font-medium text-slate-700 dark:text-slate-200">{{ a.employee.full_name }}</td>
             <td class="p-3 text-slate-500 dark:text-slate-400">{{ a.course.name }}</td>
             <td class="p-3 font-bold text-slate-700 dark:text-slate-200">{{ a.score }}%</td>
             <td class="p-3 text-slate-500 dark:text-slate-400">{{ a.submitted_at|date:"d/m/Y H:i" }}</td>
@@ -101,27 +105,4 @@
     </div>
   </div>
 </div>
-
-<script>
-  async function importExamCsv(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const response = await fetch("{% url 'training_exam_import_csv' %}", {
-      method: 'POST',
-      body: formData,
-      headers: { 'X-CSRFToken': csrfToken }
-    });
-    const result = await response.json();
-    if (result.success) {
-      alert(`นำเข้าคะแนนสอบสำเร็จ ${result.count} รายการ`);
-      location.reload();
-    } else {
-      alert(result.error || 'เกิดข้อผิดพลาด');
-    }
-  }
-</script>
 {% endblock %}

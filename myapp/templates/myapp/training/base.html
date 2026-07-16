@@ -23,6 +23,13 @@
           </a>
         </li>
         <li>
+          <a href="{% url 'training_employees' %}"
+             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-indigo-600/20 hover:text-indigo-300 transition-colors text-sm
+             {% if 'employee' in request.resolver_match.url_name %}bg-indigo-600/30 text-indigo-300{% endif %}">
+            <i data-lucide="users" class="w-4 h-4 flex-shrink-0"></i> จัดการพนักงาน
+          </a>
+        </li>
+        <li>
           <a href="{% url 'training_exam' %}"
              class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-300 hover:bg-indigo-600/20 hover:text-indigo-300 transition-colors text-sm
              {% if 'exam' in request.resolver_match.url_name %}bg-indigo-600/30 text-indigo-300{% endif %}">

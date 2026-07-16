@@ -2,9 +2,6 @@
 {% block title %}ความคืบหน้าการฝึกอบรม - Knowledge Center{% endblock %}
 {% block page_title %}ความคืบหน้าการฝึกอบรม{% endblock %}
 {% block header_actions %}
-<a href="{% url 'training_record_bulk_add' %}" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
-  <i data-lucide="users" class="w-4 h-4"></i> มอบหมายแบบกลุ่ม
-</a>
 <a href="{% url 'training_record_add' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
   <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มประวัติ
 </a>
@@ -19,7 +16,7 @@
       <select name="employee" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
         <option value="">พนักงานทุกคน</option>
         {% for emp in employees %}
-        <option value="{{ emp.id }}" {% if employee_filter == emp.id|stringformat:"s" %}selected{% endif %}>{{ emp.name }}</option>
+        <option value="{{ emp.id }}" {% if employee_filter == emp.id|stringformat:"s" %}selected{% endif %}>{{ emp.full_name }}</option>
         {% endfor %}
       </select>
       <select name="status" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
@@ -63,7 +60,7 @@
           {% with record=row.record %}
           <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/50">
             <td class="p-3">
-              <a href="{% url 'training_profile' record.employee.id %}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ record.employee.name }}</a>
+              <a href="{% url 'training_profile' record.employee.id %}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">{{ record.employee.full_name }}</a>
             </td>
             <td class="p-3 text-slate-700 dark:text-slate-300">{{ record.course.name }}</td>
             <td class="p-3 text-slate-500 dark:text-slate-400">{{ record.date }}</td>
@@ -82,6 +79,7 @@
               {% endif %}
             </td>
             <td class="p-3 text-right whitespace-nowrap">
+              <a href="{% url 'training_profile' record.employee.id %}" class="text-slate-400 hover:text-indigo-500 mr-2" title="ดูประวัติ"><i data-lucide="history" class="w-4 h-4 inline"></i></a>
               {% if record.status == 'passed' %}
               <a href="{% url 'training_certificate' record.id %}" target="_blank" class="text-slate-400 hover:text-indigo-500 mr-2" title="ใบรับรอง"><i data-lucide="award" class="w-4 h-4 inline"></i></a>
               {% elif record.status == 'pending' %}

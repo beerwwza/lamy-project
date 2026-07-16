@@ -13,7 +13,7 @@
       <select id="employee-select" required class="w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg p-3 text-sm">
         <option value="">-- เลือกพนักงาน --</option>
         {% for emp in employees %}
-        <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.department }})</option>
+        <option value="{{ emp.id }}">{{ emp.full_name }} ({{ emp.get_department_display }})</option>
         {% endfor %}
       </select>
     </div>

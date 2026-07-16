@@ -1,6 +1,11 @@
 {% extends 'myapp/training/base.html' %}
 {% block title %}เส้นทางอาชีพ - Knowledge Center{% endblock %}
 {% block page_title %}เส้นทางอาชีพ (Career Ladder){% endblock %}
+{% block header_actions %}
+<a href="{% url 'training_career_step_add' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+  <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มขั้น
+</a>
+{% endblock %}
 
 {% block training_content %}
 <div class="max-w-2xl mx-auto space-y-6">
@@ -11,7 +16,7 @@
       <select onchange="location.href = '/training/career/' + this.value + '/'" class="w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg p-2 text-sm">
         <option value="">-- เลือกพนักงาน --</option>
         {% for emp in employees %}
-        <option value="{{ emp.id }}" {% if employee and employee.id == emp.id %}selected{% endif %}>{{ emp.name }} ({{ emp.department }})</option>
+        <option value="{{ emp.id }}" {% if employee and employee.id == emp.id %}selected{% endif %}>{{ emp.full_name }} ({{ emp.get_department_display }})</option>
         {% endfor %}
       </select>
     </form>
@@ -19,18 +24,52 @@
 
   <div class="flex flex-col gap-6">
     {% for step in steps %}
-    <div class="relative rounded-xl border-2 p-5 flex items-center justify-between
+    <div class="relative rounded-xl border-2
                 {% if step.is_current %}border-indigo-500 bg-indigo-50 dark:bg-indigo-900/10{% else %}border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800{% endif %}">
       {% if step.is_current %}
       <span class="absolute -top-3 right-4 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full">ตำแหน่งปัจจุบัน</span>
       {% endif %}
-      <span class="font-bold text-slate-700 dark:text-slate-200">{{ step.name }}</span>
-      <i data-lucide="{% if step.is_current %}map-pin{% else %}circle{% endif %}" class="w-5 h-5 {% if step.is_current %}text-indigo-600{% else %}text-slate-300{% endif %}"></i>
+      <div class="p-5 flex items-center justify-between {% if step.sections %}cursor-pointer{% endif %}" {% if step.sections %}onclick="toggleStepDetail({{ step.id }})"{% endif %}>
+        <span class="font-bold text-slate-700 dark:text-slate-200">{{ step.name }}</span>
+        <div class="flex items-center gap-3">
+          <a href="{% url 'training_career_step_edit' step.id %}" onclick="event.stopPropagation()" class="text-slate-400 hover:text-indigo-500" title="แก้ไข"><i data-lucide="pencil" class="w-4 h-4"></i></a>
+          <form method="post" action="{% url 'training_career_step_delete' step.id %}" onsubmit="return confirm('ยืนยันการลบขั้นนี้?');" onclick="event.stopPropagation()">
+            {% csrf_token %}
+            <button type="submit" class="text-slate-400 hover:text-red-500" title="ลบ"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+          </form>
+          <i data-lucide="{% if step.is_current %}map-pin{% else %}circle{% endif %}" class="w-5 h-5 {% if step.is_current %}text-indigo-600{% else %}text-slate-300{% endif %}"></i>
+          {% if step.sections %}
+          <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-transform" id="chevron-{{ step.id }}"></i>
+          {% endif %}
+        </div>
+      </div>
+      {% if step.sections %}
+      <div id="detail-{{ step.id }}" class="hidden px-5 pb-5 space-y-3 border-t border-slate-100 dark:border-slate-700 pt-3">
+        {% for sec in step.sections %}
+        <div>
+          <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-1">{{ sec.label }}</p>
+          <p class="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-line">{{ sec.content }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
     {% if not forloop.last %}
     <div class="flex justify-center -my-4"><i data-lucide="arrow-up" class="w-4 h-4 text-slate-300"></i></div>
     {% endif %}
+    {% empty %}
+    <div class="text-center text-slate-400 p-8">ยังไม่มีขั้นบันไดอาชีพ</div>
     {% endfor %}
   </div>
 </div>
+
+<script>
+  function toggleStepDetail(id) {
+    const detail = document.getElementById('detail-' + id);
+    const chevron = document.getElementById('chevron-' + id);
+    if (!detail) return;
+    detail.classList.toggle('hidden');
+    if (chevron) chevron.style.transform = detail.classList.contains('hidden') ? '' : 'rotate(180deg)';
+  }
+</script>
 {% endblock %}

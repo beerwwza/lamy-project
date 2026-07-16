@@ -5,30 +5,32 @@ from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, B
 from .models import MillReport, BoilerDailyKPI
 from .models import Equipment, EquipmentBOM, EquipmentLink, CBMVisualTest, CBMVibration, CBMThermoscan, CBMOilAnalysis, CBMAcoustic
 from .models import PMSchedule, PMPlan, PMPlanItem, WorkOrder
-from .models import TrainingSkill, EmployeeSkillLevel, TrainingCourse, TrainingRecord, TrainingExamScore
-from .models import TrainingCourseMaterial, TrainingQuizQuestion, TrainingQuizChoice
+from .models import TrainingSkill, EmployeeSkillLevel, TrainingCourse, TrainingRecord
+from .models import TrainingCourseMaterial, TrainingQuizQuestion, TrainingQuizChoice, CareerLadderStep
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
-        model = employee  # บอกว่าจะสร้างฟอร์มจาก Model ไหน
-        fields = ['name', 'employeeID', 'tell', 'group', 'department'] # เลือก field ที่จะให้กรอก
-        
-        # กำหนด Label ภาษาไทยที่จะไปโชว์หน้าเว็บ
+        model = employee
+        fields = ['first_name', 'last_name', 'employeeID', 'tell', 'group', 'department', 'is_active']
+
         labels = {
-            'name': 'ชื่อ-นามสกุล',
+            'first_name': 'ชื่อ',
+            'last_name': 'นามสกุล',
             'employeeID': 'รหัสพนักงาน',
             'tell': 'เบอร์โทรศัพท์',
-            'group': 'ฝ่าย',
+            'group': 'กลุ่มงาน',
             'department': 'แผนก',
+            'is_active': 'ยังทำงานอยู่ (ไม่ติ๊ก = ลาออก)',
         }
-        
-        # ใส่ Class ของ Bootstrap เพื่อให้ฟอร์มสวยเหมือนเดิม
+
         widgets = {
-            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'กรุณากรอกชื่อ'}),
+            'first_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'กรุณากรอกชื่อ'}),
+            'last_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'กรุณากรอกนามสกุล'}),
             'employeeID': forms.TextInput(attrs={'class': 'form-control'}),
             'tell': forms.TextInput(attrs={'class': 'form-control'}),
-            'group': forms.TextInput(attrs={'class': 'form-control'}),
-            'department': forms.TextInput(attrs={'class': 'form-control'}),
+            'group': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น ช่างเทคนิค L1'}),
+            'department': forms.Select(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 class BoilerOperationForm(forms.ModelForm):
     class Meta:
@@ -498,6 +500,10 @@ class EmployeeSkillLevelForm(forms.ModelForm):
             'level': forms.Select(attrs={'class': 'form-control'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['employee'].queryset = employee.objects.filter(is_active=True)
+
 
 class TrainingCourseForm(forms.ModelForm):
     class Meta:
@@ -528,45 +534,9 @@ class TrainingRecordForm(forms.ModelForm):
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
-
-class TrainingExamScoreForm(forms.ModelForm):
-    class Meta:
-        model = TrainingExamScore
-        fields = ['employee', 'attempt_no', 'score', 'exam_date', 'notes']
-        widgets = {
-            'employee': forms.Select(attrs={'class': 'form-control'}),
-            'attempt_no': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
-            'score': forms.NumberInput(attrs={'class': 'form-control', 'min': '0', 'max': '100'}),
-            'exam_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-        }
-
-
-class BulkTrainingAssignForm(forms.Form):
-    course = forms.ModelChoiceField(
-        queryset=TrainingCourse.objects.filter(is_active=True),
-        widget=forms.Select(attrs={'class': 'form-control'}),
-        label='หลักสูตร',
-    )
-    employees = forms.ModelMultipleChoiceField(
-        queryset=employee.objects.all().order_by('name'),
-        widget=forms.CheckboxSelectMultiple(),
-        label='พนักงาน',
-    )
-    date = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-        label='วันที่อบรม',
-    )
-    training_type = forms.ChoiceField(
-        choices=TrainingRecord.TYPE_CHOICES,
-        widget=forms.Select(attrs={'class': 'form-control'}),
-        label='ประเภทการอบรม',
-    )
-    status = forms.ChoiceField(
-        choices=TrainingRecord.STATUS_CHOICES,
-        widget=forms.Select(attrs={'class': 'form-control'}),
-        label='สถานะ',
-    )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['employee'].queryset = employee.objects.filter(is_active=True)
 
 
 class TrainingCourseMaterialForm(forms.ModelForm):
@@ -603,3 +573,17 @@ TrainingQuizChoiceFormSet = inlineformset_factory(
     TrainingQuizQuestion, TrainingQuizChoice,
     form=TrainingQuizChoiceForm, extra=4, can_delete=True,
 )
+
+
+class CareerLadderStepForm(forms.ModelForm):
+    class Meta:
+        model = CareerLadderStep
+        fields = ['name', 'display_order', 'position_duty', 'scope', 'benefits', 'notes']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น ช่างเทคนิค L1'}),
+            'display_order': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'position_duty': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'scope': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'benefits': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
