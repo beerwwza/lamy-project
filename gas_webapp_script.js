@@ -13,6 +13,10 @@
  *   action: 'upload'  — ไฟล์ ≤ 35 MB (base64 JSON เดิม)
  *   action: 'init'    — เริ่ม resumable session สำหรับไฟล์ > 35 MB
  *   action: 'chunk'   — ส่ง chunk ทีละก้อน (20 MB raw / ~26 MB base64)
+ *
+ * ทุกไฟล์ที่อัปโหลดจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer"
+ * เพื่อให้ embed/แชร์ลิงก์ดูได้โดยไม่ต้องล็อกอิน Google
+ * (แก้ไฟล์นี้แล้วต้อง deploy ใหม่ที่ script.google.com ถึงจะมีผลจริง)
  */
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -45,6 +49,7 @@ function handleSingleUpload(data) {
     var blob   = Utilities.newBlob(bytes, data.mimeType, data.filename);
     var folder = getOrCreateFolder(data.folderPath);
     var file   = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return jsonResponse({ fileId: file.getId() });
   } catch (err) {
     return jsonResponse({ error: err.message });
@@ -135,6 +140,8 @@ function handleChunk(data) {
     // 200/201 = อัปโหลดเสร็จสมบูรณ์
     if (code === 200 || code === 201) {
       var result = JSON.parse(response.getContentText());
+      DriveApp.getFileById(result.id)
+        .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       PropertiesService.getScriptProperties()
         .deleteProperty('upload_' + data.uploadId);
       return jsonResponse({ status: 'done', fileId: result.id });

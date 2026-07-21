@@ -416,7 +416,22 @@ Inventory
 ├── InventoryItem          (stock item: tools/spares/consumables/lubricants)
 ├── InventoryTransaction   (receive/issue/return/adjust; auto-updates item.stock)
 └── ToolReadinessCheck     (readiness checklist for tools before checkout)
+
+Training / Knowledge Center (คลังหลักสูตร)
+├── TrainingSkill
+├── EmployeeSkillLevel
+├── TrainingCourse
+│   └── TrainingCourseMaterial   (เอกสาร/วิดีโอ — เก็บที่ local disk ผ่าน `file`, media เสิร์ฟผ่าน nginx `/media/`)
+├── TrainingRecord
+├── TrainingExamScore
+├── TrainingQuizQuestion / TrainingQuizChoice
+└── TrainingCourseExamAttempt / TrainingCourseExamAnswer
+
+Documents
+└── RepairDocument         (เอกสารงานซ่อม — เชื่อมโยง Equipment/PO, ไฟล์เก็บบน Google Drive ผ่าน `drive_file_id`)
 ```
+
+Google Drive uploads (`RepairDocument` only) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
 Database migrations: **60 migration files** in `myapp/migrations/`.
 

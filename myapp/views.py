@@ -3713,6 +3713,7 @@ EXAM_PASS_SCORE = 60
 
 ALLOWED_DOCUMENT_EXTENSIONS = {'.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'}
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov'}
+TRAINING_MATERIAL_MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
 
 TRAINING_TARGET_TOTAL = 122
 TRAINING_TARGET_L1 = 85
@@ -4255,6 +4256,10 @@ def training_course_material_upload(request, course_id):
     allowed = ALLOWED_VIDEO_EXTENSIONS if material_type == 'video' else ALLOWED_DOCUMENT_EXTENSIONS
     if ext not in allowed:
         return JsonResponse({'success': False, 'error': f'นามสกุลไฟล์ {ext} ไม่ได้รับอนุญาตสำหรับประเภทนี้'})
+
+    if uploaded.size > TRAINING_MATERIAL_MAX_UPLOAD_BYTES:
+        max_mb = TRAINING_MATERIAL_MAX_UPLOAD_BYTES // (1024 * 1024)
+        return JsonResponse({'success': False, 'error': f'ไฟล์ใหญ่เกิน {max_mb} MB ({uploaded.size // (1024*1024)} MB)'})
 
     material = TrainingCourseMaterial.objects.create(
         course=course, material_type=material_type,
