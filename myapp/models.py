@@ -1027,6 +1027,7 @@ class InventoryItem(models.Model):
         ('spares',      'อะไหล่เครื่องจักร'),
         ('consumables', 'วัสดุสิ้นเปลือง'),
         ('lubricants',  'น้ำมัน/สารเคมี'),
+        ('steel',       'เหล็กรูปพรรณ'),
     ]
 
     DEPARTMENT_CHOICES = [
@@ -1050,6 +1051,7 @@ class InventoryItem(models.Model):
 
     location    = models.CharField(max_length=100, blank=True, verbose_name="ที่จัดเก็บ")
     unit_price  = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="ราคา/หน่วย")
+    image       = models.ImageField(upload_to='inventory_images/', blank=True, null=True, verbose_name="รูปภาพสินค้า")
 
     # เชื่อมอะไหล่เข้ากับ BOM ของเครื่องจักร (optional — ตาม requirement "เชื่อมบางส่วน")
     linked_bom  = models.ForeignKey('EquipmentBOM', null=True, blank=True, on_delete=models.SET_NULL,

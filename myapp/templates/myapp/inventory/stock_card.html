@@ -7,6 +7,10 @@
   class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors">
   แก้ไข
 </button>
+<button onclick="confirmDeleteItem({{ item.pk }}, '{{ item.name|escapejs }}')"
+  class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-colors">
+  <i data-lucide="trash-2" class="w-4 h-4"></i> ลบ
+</button>
 <a href="{% url 'inventory_list' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← รายการทั้งหมด</a>
 {% endblock %}
 
@@ -18,6 +22,13 @@
   <div class="space-y-4">
     <!-- Info card -->
     <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+      <div class="w-20 h-20 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-hidden flex items-center justify-center mb-3">
+        {% if item.image %}
+        <img src="{{ item.image.url }}" alt="{{ item.name }}" class="w-full h-full object-cover">
+        {% else %}
+        <i data-lucide="package" class="w-8 h-8 text-slate-300"></i>
+        {% endif %}
+      </div>
       <span class="text-xs px-2 py-0.5 rounded-md font-medium"
             style="background:{{ cat.color }}20; color:{{ cat.color }};">
         {{ cat.icon }} {{ cat.name }}
@@ -306,6 +317,11 @@
         <label class="text-xs font-medium text-slate-500 block mb-1">ที่จัดเก็บ</label>
         <input id="ei_loc" value="{{ item.location }}" placeholder="เช่น ชั้น A-3" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
       </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 block mb-1">รูปภาพสินค้า</label>
+        <input id="ei_image" type="file" accept="image/*"
+          class="w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+      </div>
       <p id="ei_err" class="text-red-500 text-xs hidden"></p>
       <div class="flex gap-2 pt-1">
         <button onclick="submitEditItem()"
@@ -340,8 +356,24 @@ function submitEditItem() {
       location: document.getElementById('ei_loc').value,
     })
   }).then(r => r.json()).then(data => {
-    if (data.success) location.reload();
-    else { err.textContent = data.error || 'เกิดข้อผิดพลาด'; err.classList.remove('hidden'); }
+    if (!data.success) { err.textContent = data.error || 'เกิดข้อผิดพลาด'; err.classList.remove('hidden'); return; }
+    const file = document.getElementById('ei_image').files[0];
+    if (!file) { location.reload(); return; }
+    const fd = new FormData();
+    fd.append('image', file);
+    fetch("{% url 'upload_inventory_item_image' item.pk %}", {
+      method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'}, body: fd,
+    }).then(() => location.reload());
+  });
+}
+function confirmDeleteItem(id, name) {
+  if (!confirm('ต้องการปิดใช้งานรายการ "' + name + '" ใช่หรือไม่? (ประวัติ transaction จะยังเก็บไว้)')) return;
+  fetch(`/api/inventory/item/${id}/delete/`, {
+    method: 'POST',
+    headers: {'X-CSRFToken': '{{ csrf_token }}'},
+  }).then(r => r.json()).then(data => {
+    if (data.success) window.location.href = "{% url 'inventory_list' %}";
+    else alert(data.error || 'เกิดข้อผิดพลาด');
   });
 }
 function toggleReceive() {

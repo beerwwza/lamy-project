@@ -413,7 +413,7 @@ Shop
 └── LatheJob
 
 Inventory
-├── InventoryItem          (stock item: tools/spares/consumables/lubricants)
+├── InventoryItem          (stock item: tools/spares/consumables/lubricants; soft-delete via is_active; optional image)
 ├── InventoryTransaction   (receive/issue/return/adjust; auto-updates item.stock)
 └── ToolReadinessCheck     (readiness checklist for tools before checkout)
 
@@ -433,7 +433,7 @@ Documents
 
 Google Drive uploads (`RepairDocument` only) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
-Database migrations: **60 migration files** in `myapp/migrations/`.
+Database migrations: **69 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -537,6 +537,8 @@ Database migrations: **60 migration files** in `myapp/migrations/`.
 | POST | `/api/inventory/checkout/` | JSON API: issue/return a transaction |
 | POST | `/api/inventory/receive/` | JSON API: receive stock with PO |
 | POST | `/api/inventory/add-item/` | JSON API: create new inventory item |
+| POST | `/api/inventory/item/<pk>/delete/` | JSON API: soft-delete item (sets `is_active=False`) |
+| POST | `/api/inventory/item/<pk>/upload-image/` | Multipart API: upload/replace item image |
 
 ### Admin
 

@@ -177,6 +177,7 @@
             <option value="spares">⚙️ อะไหล่เครื่องจักร</option>
             <option value="tools">🔧 เครื่องมือช่าง</option>
             <option value="lubricants">🛢️ น้ำมัน/สารเคมี</option>
+            <option value="steel">🏗️ เหล็กรูปพรรณ</option>
           </select>
         </div>
         <div>
@@ -215,6 +216,11 @@
           <input id="ai_loc" placeholder="เช่น ชั้น A-3" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
         </div>
       </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 block mb-1">รูปภาพสินค้า (ไม่บังคับ)</label>
+        <input id="ai_image" type="file" accept="image/*"
+          class="w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+      </div>
       <p id="ai_err" class="text-red-500 text-xs hidden"></p>
       <div class="flex gap-2 pt-1">
         <button onclick="submitAddItem()"
@@ -250,8 +256,14 @@ function submitAddItem() {
       location: document.getElementById('ai_loc').value,
     })
   }).then(r => r.json()).then(data => {
-    if (data.success) location.reload();
-    else { err.textContent = data.error || 'เกิดข้อผิดพลาด'; err.classList.remove('hidden'); }
+    if (!data.success) { err.textContent = data.error || 'เกิดข้อผิดพลาด'; err.classList.remove('hidden'); return; }
+    const file = document.getElementById('ai_image').files[0];
+    if (!file) { location.reload(); return; }
+    const fd = new FormData();
+    fd.append('image', file);
+    fetch(`/api/inventory/item/${data.item_id}/upload-image/`, {
+      method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}'}, body: fd,
+    }).then(() => location.reload());
   });
 }
 </script>

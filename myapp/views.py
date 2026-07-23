@@ -8,6 +8,7 @@ import urllib.request
 import base64
 from datetime import datetime, time, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db import transaction, connection
 from django.db.models import Sum, Avg, Count, Q, F, Max
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
@@ -3350,6 +3351,7 @@ CATEGORY_META = {
     'spares':      {'name': 'อะไหล่เครื่องจักร', 'icon': '⚙️', 'color': '#ea580c'},
     'consumables': {'name': 'วัสดุสิ้นเปลือง',   'icon': '📦', 'color': '#16a34a'},
     'lubricants':  {'name': 'น้ำมัน/สารเคมี',    'icon': '🛢️', 'color': '#b45309'},
+    'steel':       {'name': 'เหล็กรูปพรรณ',     'icon': '🏗️', 'color': '#7c3aed'},
 }
 DEPARTMENT_META = {
     'mill_a':      {'name': 'ลูกหีบ A',        'color': '#2563eb'},
@@ -3641,6 +3643,32 @@ def api_inventory_update_item(request, pk):
     item.unit_price = _to_decimal(data.get('unit_price', item.unit_price))
     item.save()
     return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def api_inventory_delete_item(request, pk):
+    """ปิดใช้งานรายการ (soft-delete) — คงประวัติ transaction ไว้เพราะ FK เป็น PROTECT"""
+    item = get_object_or_404(InventoryItem, pk=pk)
+    item.is_active = False
+    item.save(update_fields=['is_active', 'updated_at'])
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def upload_inventory_item_image(request, pk):
+    item = get_object_or_404(InventoryItem, pk=pk)
+    uploaded = request.FILES.get('image')
+    if not uploaded:
+        return JsonResponse({'error': 'ไม่มีรูปภาพถูกส่งมา'}, status=400)
+    ext = os.path.splitext(uploaded.name)[1].lower()
+    content_type = uploaded.content_type.split(';')[0].strip().lower()
+    if ext not in ALLOWED_IMAGE_EXTENSIONS or content_type not in ALLOWED_IMAGE_MIMETYPES:
+        return JsonResponse({'error': 'อนุญาตเฉพาะไฟล์รูปภาพ (jpg, png, gif, webp, bmp) เท่านั้น'}, status=400)
+    item.image = uploaded
+    item.save(update_fields=['image', 'updated_at'])
+    return JsonResponse({'success': True, 'image_url': item.image.url})
 
 
 # =====================================================================
@@ -4520,3 +4548,43 @@ def training_exam_result(request, course_id, employee_id, attempt_id):
         'exam_pass_score': EXAM_PASS_SCORE,
     }
     return render(request, 'myapp/training/exam_result.html', context)
+
+
+@login_required
+def equipment_change_code(request, eq_id):
+    equipment = get_object_or_404(Equipment, equipment_id=eq_id)
+
+    if request.method == 'POST':
+        new_id = (request.POST.get('new_equipment_id') or '').strip()
+
+        if not new_id:
+            messages.error(request, 'กรุณาระบุรหัสเครื่องจักรใหม่')
+        elif new_id == eq_id:
+            messages.error(request, 'รหัสใหม่ต้องไม่ซ้ำกับรหัสเดิม')
+        elif Equipment.objects.filter(equipment_id=new_id).exists():
+            messages.error(request, f'รหัสเครื่องจักร "{new_id}" ถูกใช้งานแล้ว')
+        else:
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute('PRAGMA defer_foreign_keys = 1')
+
+                Equipment.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                PMSchedule.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                EquipmentBOM.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                CBMVisualTest.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                CBMVibration.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                CBMThermoscan.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                CBMOilAnalysis.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                CBMAcoustic.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                PMPlan.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                WorkOrder.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                EquipmentLink.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                EquipmentLink.objects.filter(linked_equipment_id=eq_id).update(linked_equipment_id=new_id)
+                MaintenanceLog.objects.filter(equipment_fk_id=eq_id).update(equipment_fk_id=new_id)
+                RepairDocument.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+                InventoryTransaction.objects.filter(equipment_id=eq_id).update(equipment_id=new_id)
+
+            messages.success(request, f'เปลี่ยนรหัสเครื่องจักรจาก "{eq_id}" เป็น "{new_id}" เรียบร้อยแล้ว')
+            return redirect('equipment_form_edit', eq_id=new_id)
+
+    return render(request, 'myapp/equipment_change_code.html', {'equipment': equipment})

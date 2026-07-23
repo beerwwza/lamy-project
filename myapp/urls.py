@@ -68,6 +68,7 @@ urlpatterns = [
     path('equipment/upload_image/<path:eq_id>/', upload_equipment_image, name='upload_equipment_image'),
     path('equipment/<path:eq_id>/toggle_status/', equipment_toggle_status, name='equipment_toggle_status'),
     path('equipment/<path:eq_id>/inline-update/', equipment_inline_update, name='equipment_inline_update'),
+    path('equipment/<path:eq_id>/change-code/', views.equipment_change_code, name='equipment_change_code'),
     path('equipment/<path:eq_id>/', equipment_data, name='equipment_data_detail'),
 
     # Path สำหรับ Import Data
@@ -93,6 +94,8 @@ urlpatterns = [
     path('api/inventory/receive/',        api_inventory_receive,  name='api_inventory_receive'),
     path('api/inventory/add-item/',       api_inventory_add_item, name='api_inventory_add_item'),
     path('api/inventory/item/<int:pk>/edit/', api_inventory_update_item, name='api_inventory_update_item'),
+    path('api/inventory/item/<int:pk>/delete/', api_inventory_delete_item, name='api_inventory_delete_item'),
+    path('api/inventory/item/<int:pk>/upload-image/', upload_inventory_item_image, name='upload_inventory_item_image'),
 
     # ===== Training / Knowledge Center Module =====
     path('training/',                          training_overview,        name='training_overview'),
