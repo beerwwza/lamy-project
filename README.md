@@ -31,6 +31,7 @@ LAMY is a web-based industrial operations management system built for a large-sc
 - **Mill Production Reporting** — Daily production KPIs for Line A/B covering extraction rates, purity, bagasse moisture, and throughput.
 - **Equipment Registry** — Master inventory of all plant equipment with technical specifications, maintenance history, spare parts (BOM), criticality levels, and image storage.
 - **Lathe Job Tracking** — Machining job management with job requirements, quality control records, and status tracking.
+- **Tools Module** — Dedicated hand-tool tracking (`/tools/`) separate from general Inventory, with per-physical-unit status (so identical tools like 5 impact wrenches are tracked individually), borrow/return history with due dates, and an integrated tool-readiness checklist.
 
 The system is primarily operated by plant engineers and maintenance teams, with data used for production optimization and equipment health trend analysis.
 
@@ -370,6 +371,15 @@ Each equipment item can have multiple CBM records of 5 types:
 - Priority level: 1-CRITICAL / 2-IMPORTANT / 3-GENERAL
 - Image: local file or Google Drive file ID
 
+### Tools Module (เครื่องมือ)
+
+Standalone module at `/tools/`, separated from the general Inventory module (`InventoryItem` category `tools` is excluded from `/inventory/` views). Solves per-unit tracking for identical tools (e.g. 5 impact wrenches of the same SKU):
+
+- `ToolUnit` — one row per physical tool (unit code, status: available/checked_out/maintenance/lost/retired), FK to `InventoryItem` (the "tool type")
+- `ToolCheckout` — per-unit borrow/return history (borrower name as free text, optional due date, `return_date IS NULL` = still checked out; overdue = `due_date` in the past and not yet returned)
+- `ToolReadinessCheck` — the tool-readiness checklist now records against a specific `ToolUnit` (in addition to the legacy item-level `item` FK); the checkout flow shows a soft warning (not a hard block) if the unit's latest check is "not ready"
+- Checkout/return also writes an `InventoryTransaction` (linked via `tool_unit`) so the shared Inventory transaction ledger still reflects tool movement
+
 ---
 
 ## 9. Database Models
@@ -414,8 +424,12 @@ Shop
 
 Inventory
 ├── InventoryItem          (stock item: tools/spares/consumables/lubricants; soft-delete via is_active; optional image)
-├── InventoryTransaction   (receive/issue/return/adjust; auto-updates item.stock)
-└── ToolReadinessCheck     (readiness checklist for tools before checkout)
+├── InventoryTransaction   (receive/issue/return/adjust; auto-updates item.stock; optional tool_unit FK)
+└── ToolReadinessCheck     (readiness checklist for tools before checkout; optional tool_unit FK)
+
+Tools (แยกจาก Inventory ทั่วไป — /tools/)
+├── ToolUnit               (per-unit tracking for identical tools; FK to InventoryItem category='tools')
+└── ToolCheckout           (per-unit borrow/return history; borrower_name, due_date, return_date)
 
 Training / Knowledge Center (คลังหลักสูตร)
 ├── TrainingSkill
@@ -433,7 +447,7 @@ Documents
 
 Google Drive uploads (`RepairDocument` only) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
-Database migrations: **69 migration files** in `myapp/migrations/`.
+Database migrations: **71 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -539,6 +553,22 @@ Database migrations: **69 migration files** in `myapp/migrations/`.
 | POST | `/api/inventory/add-item/` | JSON API: create new inventory item |
 | POST | `/api/inventory/item/<pk>/delete/` | JSON API: soft-delete item (sets `is_active=False`) |
 | POST | `/api/inventory/item/<pk>/upload-image/` | Multipart API: upload/replace item image |
+
+### Tools (เครื่องมือ — แยกจาก Inventory ทั่วไป)
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/tools/` | Tools dashboard (unit status KPIs, overdue checkouts, recent activity) |
+| GET | `/tools/types/` | List of tool types with per-status unit counts |
+| GET | `/tools/types/<pk>/` | Tool type detail — unit grid, checkout/return/status actions |
+| GET | `/tools/unit/<pk>/` | Single unit detail — checkout history + readiness check history |
+| GET | `/tools/overdue/` | Checkouts past `due_date` and not yet returned |
+| GET/POST | `/tools/readiness/add/` | Record a readiness check against a specific tool unit |
+| POST | `/api/tools/checkout/` | JSON API: check out a unit (soft-warns if last readiness check was "not ready") |
+| POST | `/api/tools/return/` | JSON API: return a checked-out unit |
+| POST | `/api/tools/type/add/` | JSON API: create a new tool type (`InventoryItem` category `tools`) |
+| POST | `/api/tools/unit/add/` | JSON API: add a new physical unit to a tool type |
+| POST | `/api/tools/unit/<pk>/edit/` | JSON API: change unit status/location/condition note |
 
 ### Admin
 

@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models import Sum, Q
 from django.contrib.auth.models import User
 from decimal import Decimal
+from datetime import date
 
 # ==========================================
 # 1. User & Employee Management Models
@@ -1125,6 +1126,10 @@ class InventoryTransaction(models.Model):
     supplier      = models.CharField(max_length=200, blank=True, verbose_name="ผู้ขาย")
     note          = models.TextField(blank=True, verbose_name="หมายเหตุ")
 
+    # เชื่อมกับหน่วยเครื่องมือรายชิ้น (เฉพาะรายการหมวด 'tools' ที่เบิก/คืนผ่านโมดูลเครื่องมือ)
+    tool_unit     = models.ForeignKey('ToolUnit', null=True, blank=True, on_delete=models.SET_NULL,
+                                      related_name='transactions', verbose_name="หน่วยเครื่องมือ")
+
     # เชื่อมกับใบแจ้งซ่อม (ตาม requirement: เบิกอะไหล่แล้ว link ไป Maintenance Log ได้)
     maintenance_log = models.ForeignKey('MaintenanceLog', null=True, blank=True,
                                         on_delete=models.SET_NULL, related_name='inventory_txs',
@@ -1168,9 +1173,45 @@ class InventoryTransaction(models.Model):
                 eq.save(update_fields=['acc_cost'])
 
 
+class ToolUnit(models.Model):
+    """หน่วยเครื่องมือรายชิ้น — แก้ปัญหาเครื่องมือชนิดเดียวกันมีหลายชิ้น (เช่น ประแจกระแทก 5 ตัว)
+       โดยให้แต่ละชิ้นมีรหัสและสถานะของตัวเอง แยกจาก InventoryItem.stock ที่เป็นแค่ยอดรวม"""
+
+    STATUS_CHOICES = [
+        ('available',    'พร้อมใช้งาน'),
+        ('checked_out',  'ถูกเบิกออก'),
+        ('maintenance',  'ซ่อมบำรุง'),
+        ('lost',         'สูญหาย'),
+        ('retired',      'ปลดระวาง'),
+    ]
+
+    item        = models.ForeignKey(InventoryItem, on_delete=models.CASCADE,
+                                    limit_choices_to={'category': 'tools'},
+                                    related_name='tool_units', verbose_name="ชนิดเครื่องมือ")
+    unit_code   = models.CharField(max_length=30, unique=True, verbose_name="รหัสหน่วย")
+    status      = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available', verbose_name="สถานะ")
+    location    = models.CharField(max_length=100, blank=True, verbose_name="ตำแหน่งที่เก็บ")
+    condition_note = models.TextField(blank=True, verbose_name="หมายเหตุสภาพ")
+
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['item__code', 'unit_code']
+        verbose_name = "หน่วยเครื่องมือ (Tool Unit)"
+        verbose_name_plural = "หน่วยเครื่องมือ (Tool Units)"
+
+    def __str__(self):
+        return f"{self.unit_code} ({self.item.name})"
+
+    @property
+    def latest_readiness_check(self):
+        return self.readiness_checks.order_by('-check_date', '-created_at').first()
+
+
 class ToolReadinessCheck(models.Model):
     """เช็คลิสต์ตรวจสอบความพร้อมเครื่องมือช่าง (category='tools') ก่อนเบิกใช้งาน
-       เป็น log แบบ standalone — ไม่ผูกเป็นเงื่อนไขบังคับกับการเบิก (api_inventory_checkout)"""
+       เป็น log แบบ standalone — ไม่ผูกเป็นเงื่อนไขบังคับกับการเบิก (api_tools_checkout จะเตือนแต่ไม่บล็อก)"""
 
     STATUS_CHOICES = [
         ('ready',     'พร้อมใช้งาน'),
@@ -1180,6 +1221,8 @@ class ToolReadinessCheck(models.Model):
     item        = models.ForeignKey(InventoryItem, on_delete=models.PROTECT,
                                     limit_choices_to={'category': 'tools'},
                                     related_name='readiness_checks', verbose_name="เครื่องมือ")
+    tool_unit   = models.ForeignKey(ToolUnit, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='readiness_checks', verbose_name="หน่วยเครื่องมือ")
     check_date  = models.DateField(verbose_name="วันที่ตรวจสอบ")
     inspector   = models.CharField(max_length=100, verbose_name="ผู้ตรวจสอบ")
 
@@ -1203,6 +1246,38 @@ class ToolReadinessCheck(models.Model):
 
     def __str__(self):
         return f"{self.item.code} - {self.check_date} - {self.get_overall_status_display()}"
+
+
+class ToolCheckout(models.Model):
+    """ประวัติเบิก/คืนเครื่องมือรายชิ้น — return_date เป็น NULL หมายถึงยังไม่คืน (ยังอยู่นอกคลัง)
+       due_date ที่เลยกำหนดและยังไม่คืน = เกินกำหนด (overdue, คำนวณใน view)"""
+
+    tool_unit     = models.ForeignKey(ToolUnit, on_delete=models.CASCADE,
+                                      related_name='checkouts', verbose_name="หน่วยเครื่องมือ")
+    borrower_name = models.CharField(max_length=100, verbose_name="ผู้เบิก")
+    department    = models.CharField(max_length=20, choices=InventoryItem.DEPARTMENT_CHOICES,
+                                     null=True, blank=True, verbose_name="แผนก")
+    checkout_date = models.DateField(verbose_name="วันที่เบิก")
+    due_date      = models.DateField(null=True, blank=True, verbose_name="กำหนดคืน")
+    return_date   = models.DateField(null=True, blank=True, verbose_name="วันที่คืน")
+    note          = models.TextField(blank=True, verbose_name="หมายเหตุ")
+
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='tool_checkouts', verbose_name="ผู้บันทึก")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-checkout_date', '-created_at']
+        verbose_name = "การเบิก-คืนเครื่องมือ (Tool Checkout)"
+        verbose_name_plural = "การเบิก-คืนเครื่องมือ (Tool Checkouts)"
+
+    def __str__(self):
+        status = "คืนแล้ว" if self.return_date else "ยังไม่คืน"
+        return f"{self.tool_unit.unit_code} - {self.borrower_name} ({status})"
+
+    @property
+    def is_overdue(self):
+        return bool(self.due_date and not self.return_date and self.due_date < date.today())
 
 
 # ==========================================

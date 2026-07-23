@@ -97,6 +97,20 @@ urlpatterns = [
     path('api/inventory/item/<int:pk>/delete/', api_inventory_delete_item, name='api_inventory_delete_item'),
     path('api/inventory/item/<int:pk>/upload-image/', upload_inventory_item_image, name='upload_inventory_item_image'),
 
+    # ===== Tools Module (แยกจาก Inventory ทั่วไป) =====
+    path('tools/',                        tools_dashboard,        name='tools_dashboard'),
+    path('tools/types/',                  tools_type_list,        name='tools_type_list'),
+    path('tools/types/<int:pk>/',         tools_type_detail,      name='tools_type_detail'),
+    path('tools/unit/<int:pk>/',          tools_unit_detail,      name='tools_unit_detail'),
+    path('tools/overdue/',                tools_overdue_list,     name='tools_overdue_list'),
+    path('tools/readiness/add/',          tools_readiness_add,    name='tools_readiness_add'),
+
+    path('api/tools/checkout/',           api_tools_checkout,     name='api_tools_checkout'),
+    path('api/tools/return/',             api_tools_return,       name='api_tools_return'),
+    path('api/tools/type/add/',           api_tools_type_add,     name='api_tools_type_add'),
+    path('api/tools/unit/add/',           api_tools_unit_add,     name='api_tools_unit_add'),
+    path('api/tools/unit/<int:pk>/edit/', api_tools_unit_update,  name='api_tools_unit_update'),
+
     # ===== Training / Knowledge Center Module =====
     path('training/',                          training_overview,        name='training_overview'),
     path('training/employees/',                training_employees,           name='training_employees'),

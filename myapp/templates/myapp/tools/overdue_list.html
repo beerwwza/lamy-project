@@ -1,0 +1,36 @@
+{% extends 'myapp/tools/base.html' %}
+{% block page_title %}เกินกำหนดคืน{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'tools_dashboard' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← Dashboard</a>
+{% endblock %}
+
+{% block tools_content %}
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+  <div class="grid gap-4 px-5 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wider"
+       style="grid-template-columns: 130px 1fr 130px 130px 110px;">
+    <div>รหัสหน่วย</div>
+    <div>เครื่องมือ / ผู้เบิก</div>
+    <div>วันที่เบิก</div>
+    <div>กำหนดคืน</div>
+    <div class="text-center">เกินมา</div>
+  </div>
+
+  {% for co in checkouts %}
+  <a href="{% url 'tools_unit_detail' co.tool_unit.pk %}"
+     class="grid gap-4 px-5 py-3.5 border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors items-center no-underline"
+     style="grid-template-columns: 130px 1fr 130px 130px 110px;">
+    <span class="font-mono text-xs text-slate-500">{{ co.tool_unit.unit_code }}</span>
+    <div class="min-w-0">
+      <p class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ co.tool_unit.item.name }}</p>
+      <p class="text-xs text-slate-400">ผู้เบิก: {{ co.borrower_name }}</p>
+    </div>
+    <span class="text-sm text-slate-600 dark:text-slate-300">{{ co.checkout_date|date:"d/m/Y" }}</span>
+    <span class="text-sm text-red-500 font-medium">{{ co.due_date|date:"d/m/Y" }}</span>
+    <span class="text-center text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">{{ co.due_date|timesince:today }}</span>
+  </a>
+  {% empty %}
+  <div class="py-16 text-center text-green-600 text-sm">✅ ไม่มีรายการเกินกำหนดคืน</div>
+  {% endfor %}
+</div>
+{% endblock %}

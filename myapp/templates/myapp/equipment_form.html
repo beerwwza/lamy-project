@@ -273,25 +273,15 @@
                         <div class="col-12">
                             <label class="form-label small mb-1">เอกสารคู่มือ/วิธีใช้งาน (Manuals)</label>
 
-                            <div class="input-group mb-2">
-                                <input type="file" id="fileInput" class="form-control"
-                                    accept=".pdf,.doc,.docx,.xls,.xlsx">
-                                <button type="button" class="btn btn-outline-primary" id="uploadBtn"
-                                    onclick="uploadFile()">
-                                    <i class="fa-solid fa-upload me-1"></i> อัปโหลดไฟล์
-                                </button>
+                            <div class="alert alert-info small d-flex align-items-center gap-2 mb-2">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <span>จัดการคู่มือ/เอกสารแนบของเครื่องจักรนี้ได้ที่แท็บ "เอกสาร & คู่มือ" ในหน้ารายละเอียดเครื่องจักร</span>
+                                {% if equipment %}
+                                <a href="{% url 'equipment_data_detail' equipment.equipment_id %}?tab=manual" target="_blank" class="ms-auto text-nowrap">เปิดหน้าเอกสาร</a>
+                                {% endif %}
                             </div>
 
-                            <div id="uploadStatus" class="form-text mt-1 text-muted"></div>
-
-                            {% if equipment.attachment_file_id %}
-                            <div class="mt-2" id="existingAttachment">
-                                <span class="badge bg-success"><i class="fa-solid fa-check me-1"></i> มีไฟล์แนบแล้ว: {{
-                                    equipment.attachment_file_name }}</span>
-                            </div>
-                            {% endif %}
-
-                            <!-- Hidden inputs to send to Django backend -->
+                            <!-- Hidden inputs to preserve any legacy attachment value on save -->
                             <input type="hidden" name="attachment_file_id" id="attachment_file_id"
                                 value="{{ equipment.attachment_file_id|default:'' }}">
                             <input type="hidden" name="attachment_file_name" id="attachment_file_name"
@@ -314,69 +304,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // ส่วนการทำงานอัปโหลดไฟล์ (JavaScript)
-        function uploadFile() {
-            const fileInput = document.getElementById('fileInput');
-            const file = fileInput.files[0];
-            const statusEl = document.getElementById('uploadStatus');
-            const btn = document.getElementById('uploadBtn');
-            const submitBtn = document.getElementById('submitBtn');
-
-            if (!file) {
-                alert('กรุณาเลือกไฟล์ก่อนอัปโหลดครับ');
-                return;
-            }
-
-            statusEl.innerHTML = '<span class="text-primary"><i class="fa-solid fa-spinner fa-spin me-1"></i> กำลังอัปโหลดไปยัง Google Drive...</span>';
-            btn.disabled = true;
-            submitBtn.disabled = true; // Prevent saving form while uploading
-
-            const reader = new FileReader();
-
-            // เมื่ออ่านไฟล์เสร็จ ให้ทำคำสั่งด้านล่างนี้
-            reader.onload = function (e) {
-                const base64Data = e.target.result;
-
-                const payload = {
-                    fileName: file.name,
-                    mimeType: file.type,
-                    base64: base64Data
-                };
-
-                // 🔗 กำหนดจุดหมายปลายทาง
-                const url = 'https://script.google.com/macros/s/AKfycbzAgu32aoNAD_OaSnxy_gj3R0hzfyWmUfEVXWgy3Wsb5wclS07BqvUwQ_aEPt14c_8Nww/exec';
-
-                // ส่งข้อมูลไปยัง Apps Script
-                fetch(url, {
-                    method: 'POST',
-                    body: JSON.stringify(payload)
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        statusEl.innerHTML = '<span class="text-success"><i class="fa-solid fa-check-circle me-1"></i> อัปโหลดสำเร็จ!</span>';
-
-                        // Populate hidden fields for Django
-                        document.getElementById('attachment_file_id').value = data.fileId;
-                        document.getElementById('attachment_file_name').value = file.name;
-
-                        if (document.getElementById('existingAttachment')) {
-                            document.getElementById('existingAttachment').style.display = 'none';
-                        }
-                    })
-                    .catch(error => {
-                        statusEl.innerHTML = '<span class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i> เกิดข้อผิดพลาด: ' + error + '</span>';
-                    })
-                    .finally(() => {
-                        btn.disabled = false;
-                        submitBtn.disabled = false;
-                    });
-            };
-
-            // สั่งให้เริ่มอ่านไฟล์เป็น Base64
-            reader.readAsDataURL(file);
-        }
-    </script>
 </body>
 
 </html>

@@ -1,0 +1,92 @@
+{% extends 'myapp/tools/base.html' %}
+{% block page_title %}{{ unit.unit_code }}{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'tools_type_detail' unit.item.pk %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← {{ unit.item.name }}</a>
+<a href="{% url 'tools_readiness_add' %}?unit={{ unit.pk }}"
+  class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors no-underline">
+  ✅ บันทึกตรวจสอบความพร้อม
+</a>
+{% endblock %}
+
+{% block tools_content %}
+
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 mb-6 flex items-center justify-between">
+  <div>
+    <p class="font-mono text-sm text-slate-400">{{ unit.unit_code }}</p>
+    <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">{{ unit.item.name }}</h2>
+    {% if unit.location %}<p class="text-sm text-slate-500 mt-1">📍 {{ unit.location }}</p>{% endif %}
+  </div>
+  <div class="text-right">
+    {% if unit.status == 'available' %}
+    <span class="text-sm px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 font-medium">พร้อมใช้งาน</span>
+    {% elif unit.status == 'checked_out' %}
+    <span class="text-sm px-3 py-1 rounded-full bg-red-100 text-red-700 font-medium">ถูกเบิกออก</span>
+    {% elif unit.status == 'maintenance' %}
+    <span class="text-sm px-3 py-1 rounded-full bg-amber-100 text-amber-700 font-medium">ซ่อมบำรุง</span>
+    {% elif unit.status == 'lost' %}
+    <span class="text-sm px-3 py-1 rounded-full bg-slate-800 text-white font-medium">สูญหาย</span>
+    {% else %}
+    <span class="text-sm px-3 py-1 rounded-full bg-slate-200 text-slate-500 font-medium">ปลดระวาง</span>
+    {% endif %}
+    {% if active_checkout %}
+    <p class="text-xs text-slate-500 mt-2">ผู้เบิก: {{ active_checkout.borrower_name }}</p>
+    {% if active_checkout.due_date %}
+    <p class="text-xs {% if active_checkout.is_overdue %}text-red-500 font-semibold{% else %}text-slate-400{% endif %}">กำหนดคืน: {{ active_checkout.due_date|date:"d/m/Y" }}</p>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+  <!-- ประวัติเบิก-คืน -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+      <span class="font-semibold text-sm text-slate-700 dark:text-slate-200">📤 ประวัติเบิก-คืน</span>
+    </div>
+    {% for co in checkouts %}
+    <div class="px-5 py-3 border-b border-slate-50 dark:border-slate-800">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-medium text-slate-800 dark:text-slate-100">{{ co.borrower_name }}</p>
+        {% if co.return_date %}
+        <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">คืนแล้ว {{ co.return_date|date:"d/m/Y" }}</span>
+        {% elif co.is_overdue %}
+        <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">เกินกำหนด</span>
+        {% else %}
+        <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">ยังไม่คืน</span>
+        {% endif %}
+      </div>
+      <p class="text-xs text-slate-400 mt-0.5">เบิก {{ co.checkout_date|date:"d/m/Y" }}{% if co.due_date %} · กำหนดคืน {{ co.due_date|date:"d/m/Y" }}{% endif %}{% if co.department %} · {{ co.get_department_display }}{% endif %}</p>
+      {% if co.note %}<p class="text-xs text-slate-400 mt-0.5">{{ co.note }}</p>{% endif %}
+    </div>
+    {% empty %}
+    <div class="flex items-center justify-center py-10 text-slate-400 text-sm">ยังไม่มีประวัติเบิก-คืน</div>
+    {% endfor %}
+  </div>
+
+  <!-- ประวัติตรวจสอบความพร้อม -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+      <span class="font-semibold text-sm text-slate-700 dark:text-slate-200">✅ ประวัติตรวจสอบความพร้อม</span>
+    </div>
+    {% for c in readiness_checks %}
+    <div class="px-5 py-3 border-b border-slate-50 dark:border-slate-800">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-medium text-slate-800 dark:text-slate-100">{{ c.inspector }}</p>
+        {% if c.overall_status == 'ready' %}
+        <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">พร้อมใช้งาน</span>
+        {% else %}
+        <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">ไม่พร้อมใช้งาน</span>
+        {% endif %}
+      </div>
+      <p class="text-xs text-slate-400 mt-0.5">{{ c.check_date|date:"d/m/Y" }}</p>
+      {% if c.note %}<p class="text-xs text-slate-400 mt-0.5">{{ c.note }}</p>{% endif %}
+    </div>
+    {% empty %}
+    <div class="flex items-center justify-center py-10 text-slate-400 text-sm">ยังไม่มีประวัติตรวจสอบ</div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

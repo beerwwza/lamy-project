@@ -113,6 +113,12 @@ class EquipmentLinkAdmin(admin.ModelAdmin):
     list_filter = ('equipment',)
     search_fields = ('label', 'linked_equipment_id')
 
+@admin.register(RepairDocument)
+class RepairDocumentAdmin(admin.ModelAdmin):
+    list_display = ['title', 'equipment', 'doc_type', 'department', 'budget_year', 'uploaded_by', 'created_at']
+    list_filter = ['doc_type', 'department', 'budget_year']
+    search_fields = ['title', 'equipment__equipment_id', 'po_number']
+
 @admin.register(PMPlan)
 class PMPlanAdmin(admin.ModelAdmin):
     list_display = ('pm_code', 'title', 'equipment', 'interval_value', 'interval_unit', 'last_completed_date', 'is_active')
@@ -174,9 +180,21 @@ class InventoryTransactionAdmin(admin.ModelAdmin):
 
 @admin.register(ToolReadinessCheck)
 class ToolReadinessCheckAdmin(admin.ModelAdmin):
-    list_display  = ['item', 'check_date', 'inspector', 'overall_status', 'created_at']
+    list_display  = ['item', 'tool_unit', 'check_date', 'inspector', 'overall_status', 'created_at']
     list_filter   = ['overall_status', 'check_date']
-    search_fields = ['item__code', 'item__name', 'inspector']
+    search_fields = ['item__code', 'item__name', 'tool_unit__unit_code', 'inspector']
+
+@admin.register(ToolUnit)
+class ToolUnitAdmin(admin.ModelAdmin):
+    list_display  = ['unit_code', 'item', 'status', 'location', 'updated_at']
+    list_filter   = ['status', 'item']
+    search_fields = ['unit_code', 'item__code', 'item__name']
+
+@admin.register(ToolCheckout)
+class ToolCheckoutAdmin(admin.ModelAdmin):
+    list_display  = ['tool_unit', 'borrower_name', 'department', 'checkout_date', 'due_date', 'return_date']
+    list_filter   = ['department', 'return_date']
+    search_fields = ['tool_unit__unit_code', 'borrower_name']
 
 # ===== Training / Knowledge Center Module =====
 

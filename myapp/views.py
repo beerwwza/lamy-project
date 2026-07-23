@@ -130,6 +130,9 @@ def equipment_data(request, eq_id=None):
     }
     pm_completion_history = PMPlanCompletion.objects.filter(plan__equipment=equipment).select_related('plan')[:20]
 
+    manuals = RepairDocument.objects.filter(equipment=equipment).select_related('uploaded_by').order_by('-created_at')
+    form_document = RepairDocumentForm(initial={'equipment': equipment})
+
     work_orders = WorkOrder.objects.filter(equipment=equipment)
     completed_wos = [wo for wo in work_orders if wo.status == 'completed' and wo.completed_date]
     wo_avg_resolution_days = (
@@ -178,6 +181,8 @@ def equipment_data(request, eq_id=None):
         'pm_summary': pm_summary,
         'pm_completion_history': pm_completion_history,
         'wo_summary': wo_summary,
+        'manuals': manuals,
+        'form_document': form_document,
     }
     return render(request, 'myapp/equipment_data.html', context)
 
@@ -691,7 +696,9 @@ def pm_schedule_delete(request, pm_id):
 
 @login_required
 def equipment_list(request):
-    equipments = Equipment.objects.all().order_by('equipment_id')
+    equipments = Equipment.objects.annotate(
+        manual_count=Count('repair_documents', distinct=True)
+    ).order_by('equipment_id')
     processes = Equipment.objects.exclude(process__isnull=True).exclude(process__exact='').values_list('process', flat=True).distinct().order_by('process')
     context = {'equipments': equipments, 'processes': list(processes)}
     return render(request, 'myapp/equipment_list.html', context)
@@ -3175,6 +3182,9 @@ def doc_delete(request, doc_id):
         messages.success(request, f'ลบเอกสาร "{title}" เรียบร้อยแล้ว')
     else:
         messages.error(request, 'ไม่พบเอกสารที่ระบุ')
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if next_url and next_url.startswith('/'):
+        return redirect(next_url)
     return redirect('doc_repository')
 
 # ── LINE Bot helpers ──────────────────────────────────────────────────────────
@@ -3375,8 +3385,9 @@ def _to_decimal(value, default='0'):
 # =====================================================================
 @login_required
 def inventory_dashboard(request):
-    items = InventoryItem.objects.filter(is_active=True)
-    low_stock = items.exclude(category='tools').filter(stock__lte=F('min_stock'))
+    # หมวด 'tools' แยกไปอยู่โมดูลเครื่องมือ (/tools/) แล้ว — ไม่นับรวมในภาพรวม Inventory ทั่วไป
+    items = InventoryItem.objects.filter(is_active=True).exclude(category='tools')
+    low_stock = items.filter(stock__lte=F('min_stock'))
 
     # สรุปแยกแผนก
     dept_stats = []
@@ -3388,7 +3399,7 @@ def inventory_dashboard(request):
         dept_stats.append({
             'key': key, 'name': meta['name'], 'color': meta['color'],
             'total': di.count(),
-            'low': di.exclude(category='tools').filter(stock__lte=F('min_stock')).count(),
+            'low': di.filter(stock__lte=F('min_stock')).count(),
             'issued': issued,
             'value': sum(i.stock_value for i in di),
         })
@@ -3410,10 +3421,11 @@ def inventory_dashboard(request):
 # =====================================================================
 # 2) LIST — ตารางรายการ + filter หมวด/แผนก/สถานะ/ค้นหา + เบิก-คืน/รับเข้า
 #    (รวม inventory_checkout_page และ inventory_receive_page เดิมเข้าที่นี่)
+#    หมวด 'tools' แยกไปอยู่โมดูลเครื่องมือ (/tools/) แล้ว — ไม่แสดงในลิสต์นี้
 # =====================================================================
 @login_required
 def inventory_list(request):
-    items = InventoryItem.objects.filter(is_active=True)
+    items = InventoryItem.objects.filter(is_active=True).exclude(category='tools')
     cat    = request.GET.get('cat', '')
     dept   = request.GET.get('dept', '')
     status = request.GET.get('status', '')
@@ -3424,7 +3436,7 @@ def inventory_list(request):
     if dept:
         items = items.filter(department=dept)
     if status == 'low':
-        items = items.exclude(category='tools').filter(stock__lte=F('min_stock'))
+        items = items.filter(stock__lte=F('min_stock'))
     elif status == 'out':
         items = items.filter(stock__lte=0)
     if q:
@@ -3435,7 +3447,7 @@ def inventory_list(request):
         'category_meta': CATEGORY_META,
         'department_meta': DEPARTMENT_META,
         'f_cat': cat, 'f_dept': dept, 'f_status': status, 'f_q': q,
-        'category_choices': InventoryItem.CATEGORY_CHOICES,
+        'category_choices': [c for c in InventoryItem.CATEGORY_CHOICES if c[0] != 'tools'],
         'department_choices': InventoryItem.DEPARTMENT_CHOICES,
         'equipment_choices': Equipment.objects.all().order_by('equipment_id'),
         'process_choices': list(Equipment.objects.exclude(process__isnull=True).exclude(process__exact='').values_list('process', flat=True).distinct().order_by('process')),
@@ -3731,6 +3743,285 @@ def inventory_readiness_add(request):
         'today': timezone.now().date(),
     }
     return render(request, 'myapp/inventory/readiness_form.html', context)
+
+
+# =====================================================================
+# 10) TOOLS MODULE — เครื่องมือ แยกจาก Inventory ทั่วไป
+#     - ติดตามรายชิ้น (ToolUnit) แก้ปัญหาเครื่องมือชนิดเดียวกันมีหลายชิ้น
+#     - รวมหน้าตรวจสอบความพร้อม (ToolReadinessCheck) เข้ามาในโมดูลเดียวกัน
+#     - เบิก/คืน (ToolCheckout) เตือนถ้าล่าสุด "ไม่พร้อมใช้งาน" แต่ไม่บล็อก
+# =====================================================================
+@login_required
+def tools_dashboard(request):
+    tool_items = InventoryItem.objects.filter(category='tools', is_active=True)
+    units = ToolUnit.objects.filter(item__is_active=True)
+    today = timezone.now().date()
+    overdue_checkouts = (ToolCheckout.objects
+                         .filter(return_date__isnull=True, due_date__lt=today)
+                         .select_related('tool_unit', 'tool_unit__item')
+                         .order_by('due_date'))
+    context = {
+        'type_count': tool_items.count(),
+        'unit_count': units.count(),
+        'available_count': units.filter(status='available').count(),
+        'checked_out_count': units.filter(status='checked_out').count(),
+        'maintenance_count': units.filter(status='maintenance').count(),
+        'lost_count': units.filter(status='lost').count(),
+        'overdue_checkouts': overdue_checkouts[:8],
+        'overdue_count': overdue_checkouts.count(),
+        'recent_checkouts': ToolCheckout.objects.select_related('tool_unit', 'tool_unit__item')[:8],
+    }
+    return render(request, 'myapp/tools/dashboard.html', context)
+
+
+@login_required
+def tools_type_list(request):
+    q = request.GET.get('q', '')
+    items = InventoryItem.objects.filter(category='tools', is_active=True)
+    if q:
+        items = items.filter(Q(name__icontains=q) | Q(code__icontains=q))
+
+    type_rows = []
+    for item in items:
+        units = item.tool_units.all()
+        type_rows.append({
+            'item': item,
+            'total': units.count(),
+            'available': units.filter(status='available').count(),
+            'checked_out': units.filter(status='checked_out').count(),
+            'maintenance': units.filter(status='maintenance').count(),
+            'lost': units.filter(status='lost').count(),
+        })
+
+    context = {
+        'type_rows': type_rows,
+        'f_q': q,
+        'category_choices': InventoryItem.CATEGORY_CHOICES,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+    }
+    return render(request, 'myapp/tools/type_list.html', context)
+
+
+@login_required
+def tools_type_detail(request, pk):
+    item = get_object_or_404(InventoryItem, pk=pk, category='tools')
+    units = item.tool_units.order_by('unit_code')
+
+    unit_rows = []
+    for u in units:
+        latest = u.latest_readiness_check
+        unit_rows.append({
+            'unit': u,
+            'latest_readiness': latest,
+            'not_ready_alert': bool(latest and latest.overall_status == 'not_ready'),
+            'active_checkout': u.checkouts.filter(return_date__isnull=True).first() if u.status == 'checked_out' else None,
+        })
+
+    context = {
+        'item': item,
+        'unit_rows': unit_rows,
+        'status_choices': ToolUnit.STATUS_CHOICES,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+    }
+    return render(request, 'myapp/tools/type_detail.html', context)
+
+
+@login_required
+def tools_unit_detail(request, pk):
+    unit = get_object_or_404(ToolUnit, pk=pk)
+    context = {
+        'unit': unit,
+        'checkouts': unit.checkouts.all()[:30],
+        'readiness_checks': unit.readiness_checks.all()[:30],
+        'active_checkout': unit.checkouts.filter(return_date__isnull=True).first(),
+        'status_choices': ToolUnit.STATUS_CHOICES,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+    }
+    return render(request, 'myapp/tools/unit_detail.html', context)
+
+
+@login_required
+def tools_overdue_list(request):
+    today = timezone.now().date()
+    checkouts = (ToolCheckout.objects
+                 .filter(return_date__isnull=True, due_date__lt=today)
+                 .select_related('tool_unit', 'tool_unit__item')
+                 .order_by('due_date'))
+    context = {'checkouts': checkouts, 'today': today}
+    return render(request, 'myapp/tools/overdue_list.html', context)
+
+
+@login_required
+def tools_readiness_add(request):
+    tool_units = ToolUnit.objects.select_related('item').exclude(status='retired').order_by('item__code', 'unit_code')
+    preselect_unit = request.GET.get('unit')
+
+    if request.method == 'POST':
+        unit = get_object_or_404(ToolUnit, pk=request.POST.get('tool_unit'))
+        inspector = request.POST.get('inspector', '').strip()
+        check_date = request.POST.get('check_date') or timezone.now().date()
+
+        if not inspector:
+            return render(request, 'myapp/tools/readiness_form.html', {
+                'tool_units': tool_units,
+                'status_choices': ToolReadinessCheck.STATUS_CHOICES,
+                'today': timezone.now().date(),
+                'error': 'กรุณากรอกชื่อผู้ตรวจสอบ',
+            })
+
+        ToolReadinessCheck.objects.create(
+            item=unit.item,
+            tool_unit=unit,
+            check_date=check_date,
+            inspector=inspector,
+            condition_ok='condition_ok' in request.POST,
+            calibration_ok='calibration_ok' in request.POST,
+            completeness_ok='completeness_ok' in request.POST,
+            safety_ok='safety_ok' in request.POST,
+            overall_status=request.POST.get('overall_status', 'ready'),
+            note=request.POST.get('note', '').strip(),
+            created_by=request.user,
+        )
+        return redirect('tools_unit_detail', pk=unit.pk)
+
+    context = {
+        'tool_units': tool_units,
+        'status_choices': ToolReadinessCheck.STATUS_CHOICES,
+        'today': timezone.now().date(),
+        'preselect_unit': preselect_unit,
+    }
+    return render(request, 'myapp/tools/readiness_form.html', context)
+
+
+@login_required
+@require_POST
+def api_tools_checkout(request):
+    """เบิกเครื่องมือรายชิ้น — เตือนถ้าผลตรวจสอบความพร้อมล่าสุดคือ 'ไม่พร้อมใช้งาน' แต่ไม่บล็อก"""
+    data = json.loads(request.body or '{}')
+    unit = get_object_or_404(ToolUnit, pk=data.get('tool_unit_id'))
+    borrower = (data.get('borrower') or '').strip()
+
+    if not borrower:
+        return JsonResponse({'error': 'กรุณากรอกชื่อผู้เบิก'}, status=400)
+    if unit.status != 'available':
+        return JsonResponse({'error': f'หน่วยนี้ไม่พร้อมเบิก (สถานะปัจจุบัน: {unit.get_status_display()})'}, status=400)
+
+    checkout = ToolCheckout.objects.create(
+        tool_unit=unit,
+        borrower_name=borrower,
+        department=data.get('department') or unit.item.department,
+        checkout_date=data.get('checkout_date') or timezone.now().date(),
+        due_date=data.get('due_date') or None,
+        note=data.get('note', ''),
+        created_by=request.user,
+    )
+    unit.status = 'checked_out'
+    unit.save(update_fields=['status', 'updated_at'])
+
+    InventoryTransaction.objects.create(
+        item=unit.item, tool_unit=unit, tx_type='issue', quantity=Decimal('1'),
+        department=checkout.department or unit.item.department,
+        employee_name=borrower, note=data.get('note', ''),
+        created_by=request.user,
+    )
+
+    warning = None
+    latest = unit.latest_readiness_check
+    if latest and latest.overall_status == 'not_ready':
+        warning = f'คำเตือน: ผลตรวจสอบความพร้อมล่าสุด ({latest.check_date}) ระบุว่า "ไม่พร้อมใช้งาน" — ระบบยังบันทึกการเบิกให้ตามที่ร้องขอ'
+
+    return JsonResponse({'success': True, 'checkout_id': checkout.id, 'warning': warning})
+
+
+@login_required
+@require_POST
+def api_tools_return(request):
+    """คืนเครื่องมือรายชิ้น — ปิด ToolCheckout ที่ค้างอยู่ล่าสุดของหน่วยนั้น"""
+    data = json.loads(request.body or '{}')
+    unit = get_object_or_404(ToolUnit, pk=data.get('tool_unit_id'))
+    checkout = unit.checkouts.filter(return_date__isnull=True).order_by('-checkout_date').first()
+
+    if not checkout:
+        return JsonResponse({'error': 'หน่วยนี้ไม่มีรายการเบิกที่ค้างคืนอยู่'}, status=400)
+
+    checkout.return_date = data.get('return_date') or timezone.now().date()
+    note = data.get('note', '').strip()
+    if note:
+        checkout.note = (checkout.note + '\n' if checkout.note else '') + note
+    checkout.save(update_fields=['return_date', 'note'])
+
+    unit.status = 'available'
+    unit.save(update_fields=['status', 'updated_at'])
+
+    InventoryTransaction.objects.create(
+        item=unit.item, tool_unit=unit, tx_type='return', quantity=Decimal('1'),
+        department=checkout.department or unit.item.department,
+        employee_name=checkout.borrower_name, note=note,
+        created_by=request.user,
+    )
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def api_tools_type_add(request):
+    """เพิ่มชนิดเครื่องมือใหม่ (InventoryItem หมวด 'tools') จากโมดูลเครื่องมือโดยตรง"""
+    data = json.loads(request.body or '{}')
+    if not data.get('code') or not data.get('name'):
+        return JsonResponse({'error': 'กรุณากรอกรหัสและชื่อเครื่องมือ'}, status=400)
+    if InventoryItem.objects.filter(code=data['code']).exists():
+        return JsonResponse({'error': 'รหัสนี้มีอยู่แล้ว'}, status=400)
+
+    item = InventoryItem.objects.create(
+        code=data['code'], name=data['name'], category='tools',
+        department=data.get('department', 'maintenance'),
+        unit=data.get('unit', 'ชิ้น'),
+        location=data.get('location', ''),
+    )
+    return JsonResponse({'success': True, 'item_id': item.id})
+
+
+@login_required
+@require_POST
+def api_tools_unit_add(request):
+    """เพิ่มหน่วยเครื่องมือใหม่ (รายชิ้น) ให้กับชนิดเครื่องมือที่มีอยู่"""
+    data = json.loads(request.body or '{}')
+    item = get_object_or_404(InventoryItem, pk=data.get('item_id'), category='tools')
+    unit_code = (data.get('unit_code') or '').strip()
+    if not unit_code:
+        seq = item.tool_units.count() + 1
+        unit_code = f'{item.code}-{seq:03d}'
+    if ToolUnit.objects.filter(unit_code=unit_code).exists():
+        return JsonResponse({'error': 'รหัสหน่วยนี้มีอยู่แล้ว'}, status=400)
+
+    unit = ToolUnit.objects.create(
+        item=item, unit_code=unit_code,
+        location=data.get('location', '') or item.location,
+        condition_note=data.get('condition_note', ''),
+    )
+    return JsonResponse({'success': True, 'unit_id': unit.id, 'unit_code': unit.unit_code})
+
+
+@login_required
+@require_POST
+def api_tools_unit_update(request, pk):
+    """แก้ไขสถานะ/ตำแหน่ง/หมายเหตุของหน่วยเครื่องมือ (แจ้งซ่อม, สูญหาย, ปลดระวาง ฯลฯ)"""
+    unit = get_object_or_404(ToolUnit, pk=pk)
+    data = json.loads(request.body or '{}')
+
+    status = data.get('status')
+    if status:
+        if unit.status == 'checked_out' and status != 'checked_out':
+            return JsonResponse({'error': 'หน่วยนี้ถูกเบิกออกอยู่ กรุณาคืนก่อนเปลี่ยนสถานะ'}, status=400)
+        if status == 'checked_out':
+            return JsonResponse({'error': 'กรุณาใช้ปุ่มเบิกเพื่อเปลี่ยนเป็นสถานะนี้'}, status=400)
+        unit.status = status
+    if 'location' in data:
+        unit.location = data['location']
+    if 'condition_note' in data:
+        unit.condition_note = data['condition_note']
+    unit.save()
+    return JsonResponse({'success': True})
 
 
 # ==========================================
