@@ -1,0 +1,283 @@
+{% extends 'myapp/base.html' %}
+{% block title %}{{ manual.machine_name }} - คู่มือปฏิบัติงาน - Factory OS{% endblock title %}
+
+{% block content %}
+<style>
+    @media print {
+        #manual-sidebar, #manual-toolbar { display: none !important; }
+        body { background: #fff !important; }
+    }
+    @page { size: letter; margin: 0.85in; }
+</style>
+
+<div class="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 print:h-auto print:overflow-visible print:block">
+
+    <!-- ══════════════════════ SIDEBAR ══════════════════════ -->
+    <aside id="manual-sidebar" class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20">
+        <div class="h-16 flex items-center px-4 border-b border-slate-200 dark:border-slate-800">
+            <span class="font-bold text-xl text-indigo-600 dark:text-indigo-400">Factory OS</span>
+        </div>
+        <nav class="flex-1 overflow-y-auto py-4">
+            <ul class="space-y-1 px-2">
+                <li>
+                    <a href="/dashboard/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i><span>Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/equipment/list/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="server" class="w-5 h-5 flex-shrink-0"></i><span>Machine List</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/maintenance/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="clipboard-list" class="w-5 h-5 flex-shrink-0"></i><span>แจ้งซ่อมเครื่องจักร</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/docs/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="history" class="w-5 h-5 flex-shrink-0"></i><span>ประวัติงานซ่อม</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'training_overview' %}"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="graduation-cap" class="w-5 h-5 flex-shrink-0"></i><span>Knowledge Center</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'inventory_dashboard' %}"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="package" class="w-5 h-5 flex-shrink-0"></i><span>คลังสินค้า</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'tools_dashboard' %}"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="wrench" class="w-5 h-5 flex-shrink-0"></i><span>เครื่องมือ</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'manual_list' %}"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-medium transition-colors">
+                        <i data-lucide="file-text" class="w-5 h-5 flex-shrink-0"></i><span>Manual List</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <!-- ══════════════════════ MAIN ══════════════════════════ -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible print:block">
+
+        <!-- Toolbar -->
+        <header id="manual-toolbar"
+            class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80 flex-shrink-0">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="p-2 bg-green-100 dark:bg-green-900/50 rounded-lg text-green-600 dark:text-green-400 flex-shrink-0">
+                    <i data-lucide="book-open" class="w-5 h-5"></i>
+                </div>
+                <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight truncate">{{ manual.machine_name }}</h1>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <a href="{% url 'manual_list' %}"
+                    class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                    กลับไปที่รายการ
+                </a>
+                <a href="{% url 'manual_edit' manual.id %}"
+                    class="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>แก้ไข
+                </a>
+                <button onclick="window.print()"
+                    class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
+                    <i data-lucide="printer" class="w-4 h-4"></i>Export PDF
+                </button>
+            </div>
+        </header>
+
+        <!-- Scrollable document -->
+        <div class="flex-1 overflow-y-auto p-6 print:p-0 print:overflow-visible">
+            <div class="max-w-4xl mx-auto bg-white dark:bg-slate-800 print:bg-white rounded-xl border border-slate-200 dark:border-slate-700 print:border-0 shadow-sm print:shadow-none p-8">
+
+                <!-- Cover -->
+                <div class="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
+                    <span>{{ manual.doc_no|default:"—" }}{% if manual.revision %} — {{ manual.revision }}{% endif %}</span>
+                    <span>{{ manual.doc_date|date:"d/m/Y"|default:"" }}</span>
+                </div>
+                <h1 class="text-3xl font-bold text-slate-800 dark:text-slate-100 print:text-black mb-1">{{ manual.machine_name }}</h1>
+                <p class="text-slate-500 dark:text-slate-400 print:text-slate-600 mb-4">คู่มือการใช้งานและบำรุงรักษาเครื่องจักร (Machine Operation &amp; Maintenance Manual)</p>
+                <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-slate-700 dark:text-slate-200 print:text-black bg-slate-50 dark:bg-slate-900/40 print:bg-slate-50 rounded-lg px-4 py-3 mb-8">
+                    <div><strong>รุ่น/Model:</strong> {{ manual.model_number|default:"—" }}</div>
+                    <div><strong>แผนก:</strong> {{ manual.get_department_display }}</div>
+                    <div><strong>ผู้จัดทำ:</strong> {{ manual.prepared_by|default:"—" }}</div>
+                    <div><strong>วันที่จัดทำ:</strong> {{ manual.doc_date|date:"d/m/Y"|default:"—" }}</div>
+                </div>
+
+                <!-- 2. Safety -->
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 print:text-black border-b-2 border-indigo-500 pb-1.5 mt-8 mb-3">2. ข้อควรระวังด้านความปลอดภัย</h2>
+                <table class="w-full text-sm border-collapse mb-2">
+                    <thead>
+                        <tr class="bg-slate-100 dark:bg-slate-700 print:bg-slate-100 text-left">
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2 w-1/3">ขั้นตอนการปฏิบัติงาน</th>
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2 w-1/3">อันตรายที่อาจเกิดขึ้น</th>
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2 w-1/3">มาตรการป้องกันอันตราย</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in manual.safety_items.all %}
+                        <tr>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.task }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.hazard }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.measure }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="border border-slate-200 dark:border-slate-600 px-3 py-4 text-center text-slate-400">— ไม่มีข้อมูล —</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <!-- 3. Parts -->
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 print:text-black border-b-2 border-indigo-500 pb-1.5 mt-8 mb-3">3. รายชื่อชิ้นส่วนของเครื่องจักร</h2>
+                <div class="grid grid-cols-3 gap-3 mb-2">
+                    {% for row in manual.part_items.all %}
+                    <div class="border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2">
+                        <p class="text-sm font-semibold text-slate-800 dark:text-slate-100 print:text-black">{{ row.label_th|default:"—" }}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ row.label_en }}</p>
+                    </div>
+                    {% empty %}
+                    <p class="text-sm text-slate-400 col-span-3">— ไม่มีข้อมูล —</p>
+                    {% endfor %}
+                </div>
+
+                <!-- 4. Precheck -->
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 print:text-black border-b-2 border-indigo-500 pb-1.5 mt-8 mb-3">4. การตรวจสอบก่อนใช้งาน</h2>
+                <table class="w-full text-sm border-collapse mb-2">
+                    <thead>
+                        <tr class="bg-slate-100 dark:bg-slate-700 print:bg-slate-100 text-left">
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">จุดตรวจสอบ</th>
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">รายละเอียดการตรวจสอบ</th>
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">การแก้ไข</th>
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">หมายเหตุ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in manual.precheck_items.all %}
+                        <tr>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.point }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.detail }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.fix }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.note }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="border border-slate-200 dark:border-slate-600 px-3 py-4 text-center text-slate-400">— ไม่มีข้อมูล —</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <!-- 5. Operating Steps -->
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 print:text-black border-b-2 border-indigo-500 pb-1.5 mt-8 mb-3">5. ขั้นตอนการใช้งาน</h2>
+                <div class="space-y-3 mb-2">
+                    {% for row in manual.operating_steps.all %}
+                    <div class="border-l-4 border-indigo-400 pl-4 py-1">
+                        <p class="text-sm font-bold text-slate-800 dark:text-slate-100 print:text-black">{{ forloop.counter }}. {{ row.title }}</p>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 print:text-slate-700 whitespace-pre-wrap">{{ row.description }}</p>
+                    </div>
+                    {% empty %}
+                    <p class="text-sm text-slate-400">— ไม่มีข้อมูล —</p>
+                    {% endfor %}
+                </div>
+
+                <!-- 6. Maintenance -->
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 print:text-black border-b-2 border-indigo-500 pb-1.5 mt-8 mb-3">6. การบำรุงรักษา</h2>
+                <p class="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">6.1 การบำรุงรักษาประจำวัน</p>
+                <table class="w-full text-sm border-collapse mb-4">
+                    <thead>
+                        <tr class="bg-slate-100 dark:bg-slate-700 print:bg-slate-100 text-left">
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">จุดตรวจสอบ</th>
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">รายละเอียดการตรวจ</th>
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">การแก้ไข</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in manual.maintenance_daily_items.all %}
+                        <tr>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.point }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.detail }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.fix }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="border border-slate-200 dark:border-slate-600 px-3 py-4 text-center text-slate-400">— ไม่มีข้อมูล —</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <p class="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">6.2 การบำรุงรักษาตามคาบเวลา</p>
+                <table class="w-full text-sm border-collapse mb-2">
+                    <thead>
+                        <tr class="bg-slate-100 dark:bg-slate-700 print:bg-slate-100 text-left">
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">รายการ</th>
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">รอบเวลา</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in manual.maintenance_periodic_items.all %}
+                        <tr>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top">{{ row.item }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top">{{ row.interval }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="2" class="border border-slate-200 dark:border-slate-600 px-3 py-4 text-center text-slate-400">— ไม่มีข้อมูล —</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <!-- 7. Troubleshooting -->
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 print:text-black border-b-2 border-indigo-500 pb-1.5 mt-8 mb-3">7. การแก้ไขปัญหาเบื้องต้น</h2>
+                <table class="w-full text-sm border-collapse mb-2">
+                    <thead>
+                        <tr class="bg-slate-100 dark:bg-slate-700 print:bg-slate-100 text-left">
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">ปัญหา</th>
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">สาเหตุ</th>
+                            <th class="border border-slate-200 dark:border-slate-600 px-3 py-2">วิธีแก้ไข</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in manual.troubleshoot_items.all %}
+                        <tr>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.problem }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.cause }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 align-top whitespace-pre-wrap">{{ row.solution }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="border border-slate-200 dark:border-slate-600 px-3 py-4 text-center text-slate-400">— ไม่มีข้อมูล —</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <!-- 8. Specs -->
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 print:text-black border-b-2 border-indigo-500 pb-1.5 mt-8 mb-3">8. ข้อมูลจำเพาะ</h2>
+                <table class="w-full text-sm border-collapse mb-2">
+                    <tbody>
+                        {% for row in manual.spec_items.all %}
+                        <tr>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2 font-semibold w-2/5 bg-slate-50 dark:bg-slate-900/40 print:bg-slate-50">{{ row.label }}</td>
+                            <td class="border border-slate-200 dark:border-slate-600 px-3 py-2">{{ row.value }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="2" class="border border-slate-200 dark:border-slate-600 px-3 py-4 text-center text-slate-400">— ไม่มีข้อมูล —</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    lucide.createIcons();
+</script>
+{% endblock %}

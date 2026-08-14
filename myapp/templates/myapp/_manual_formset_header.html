@@ -1,0 +1,10 @@
+<div class="flex items-center justify-between mb-3">
+    <div>
+        <h3 class="text-base font-bold text-slate-800 dark:text-slate-100">{{ title }}</h3>
+        {% if subtitle %}<p class="text-xs text-slate-400 mt-0.5">{{ subtitle }}</p>{% endif %}
+    </div>
+    <button type="button" onclick="addFormsetRow('{{ prefix }}', '{{ container_id }}')"
+        class="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 flex-shrink-0">
+        <i data-lucide="plus" class="w-3.5 h-3.5"></i> เพิ่มแถว
+    </button>
+</div>

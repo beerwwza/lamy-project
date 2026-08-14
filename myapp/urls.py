@@ -151,5 +151,13 @@ urlpatterns = [
     path('training/learn/<int:course_id>/<int:employee_id>/exam/', training_exam_take,              name='training_exam_take'),
     path('training/learn/<int:course_id>/<int:employee_id>/exam/result/<int:attempt_id>/', training_exam_result, name='training_exam_result'),
 
+    # ===== Manual Library Module =====
+    path('manuals/',                        manual_list,   name='manual_list'),
+    path('manuals/add/',                    manual_add,    name='manual_add'),
+    path('manuals/<int:manual_id>/',        manual_detail, name='manual_detail'),
+    path('manuals/<int:manual_id>/edit/',   manual_edit,   name='manual_edit'),
+    path('manuals/<int:manual_id>/delete/', manual_delete, name='manual_delete'),
+    path('safety-manuals/add/',             safety_manual_add, name='safety_manual_add'),
+
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]

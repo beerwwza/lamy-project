@@ -254,3 +254,70 @@ class TrainingCourseExamAttemptAdmin(admin.ModelAdmin):
     list_filter = ['passed', 'course']
     search_fields = ['employee__first_name', 'employee__last_name', 'employee__employeeID', 'course__name']
     inlines = [TrainingCourseExamAnswerInline]
+
+
+# ==========================================
+# Manual Library Module (คู่มือปฏิบัติงานเครื่องจักร)
+# ==========================================
+
+class ManualSafetyItemInline(admin.TabularInline):
+    model = ManualSafetyItem
+    extra = 0
+
+class ManualPartItemInline(admin.TabularInline):
+    model = ManualPartItem
+    extra = 0
+
+class ManualPrecheckItemInline(admin.TabularInline):
+    model = ManualPrecheckItem
+    extra = 0
+
+class ManualOperatingStepInline(admin.TabularInline):
+    model = ManualOperatingStep
+    extra = 0
+
+class ManualMaintenanceDailyItemInline(admin.TabularInline):
+    model = ManualMaintenanceDailyItem
+    extra = 0
+
+class ManualMaintenancePeriodicItemInline(admin.TabularInline):
+    model = ManualMaintenancePeriodicItem
+    extra = 0
+
+class ManualTroubleshootItemInline(admin.TabularInline):
+    model = ManualTroubleshootItem
+    extra = 0
+
+class ManualSpecItemInline(admin.TabularInline):
+    model = ManualSpecItem
+    extra = 0
+
+@admin.register(Manual)
+class ManualAdmin(admin.ModelAdmin):
+    list_display = ['machine_name', 'department', 'doc_no', 'revision', 'prepared_by', 'created_by', 'updated_at']
+    list_filter = ['department']
+    search_fields = ['machine_name', 'doc_no', 'prepared_by']
+    inlines = [
+        ManualSafetyItemInline, ManualPartItemInline, ManualPrecheckItemInline,
+        ManualOperatingStepInline, ManualMaintenanceDailyItemInline, ManualMaintenancePeriodicItemInline,
+        ManualTroubleshootItemInline, ManualSpecItemInline,
+    ]
+
+
+# ==========================================
+# Safety Manual Module (คู่มือความปลอดภัย — เอกสารอิสระ)
+# ==========================================
+
+class SafetyManualSsopStepInline(admin.TabularInline):
+    model = SafetyManualSsopStep
+    extra = 0
+
+class SafetyManualJsaItemInline(admin.TabularInline):
+    model = SafetyManualJsaItem
+    extra = 0
+
+@admin.register(SafetyManual)
+class SafetyManualAdmin(admin.ModelAdmin):
+    list_display = ['id', 'job_name', 'prepared_by', 'created_by', 'updated_at']
+    search_fields = ['job_name', 'prepared_by']
+    inlines = [SafetyManualJsaItemInline, SafetyManualSsopStepInline]

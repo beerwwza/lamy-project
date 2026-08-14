@@ -7,6 +7,12 @@ from .models import Equipment, EquipmentBOM, EquipmentLink, CBMVisualTest, CBMVi
 from .models import PMSchedule, PMPlan, PMPlanItem, WorkOrder
 from .models import TrainingSkill, EmployeeSkillLevel, TrainingCourse, TrainingRecord
 from .models import TrainingCourseMaterial, TrainingQuizQuestion, TrainingQuizChoice, CareerLadderStep
+from .models import (
+    Manual, ManualSafetyItem, ManualPartItem, ManualPrecheckItem, ManualOperatingStep,
+    ManualMaintenanceDailyItem, ManualMaintenancePeriodicItem, ManualTroubleshootItem,
+    ManualSpecItem,
+)
+from .models import SafetyManual, SafetyManualSsopStep, SafetyManualJsaItem
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
@@ -587,3 +593,351 @@ class CareerLadderStepForm(forms.ModelForm):
             'benefits': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
+
+
+# ==========================================
+# Manual Library Module (คู่มือปฏิบัติงานเครื่องจักร)
+# ==========================================
+
+class ManualForm(forms.ModelForm):
+    class Meta:
+        model = Manual
+        fields = ['machine_name', 'model_number', 'department', 'prepared_by', 'doc_no', 'revision', 'doc_date']
+        widgets = {
+            'machine_name': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'เช่น เครื่องหีบอ้อยหมายเลข 1',
+            }),
+            'model_number': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'department': forms.Select(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'prepared_by': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'doc_no': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'revision': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'doc_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+        }
+        labels = {
+            'machine_name': 'ชื่อเครื่องจักร',
+            'model_number': 'รุ่น/Model',
+            'department':   'แผนก',
+            'prepared_by':  'ผู้จัดทำ',
+            'doc_no':       'เลขที่เอกสาร',
+            'revision':     'ฉบับแก้ไข (Rev.)',
+            'doc_date':     'วันที่จัดทำ',
+        }
+
+
+class ManualSafetyItemForm(forms.ModelForm):
+    class Meta:
+        model = ManualSafetyItem
+        fields = ['task', 'hazard', 'measure']
+        widgets = {
+            'task': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'ขั้นตอนการปฏิบัติงาน',
+            }),
+            'hazard': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'อันตรายที่อาจเกิดขึ้น',
+            }),
+            'measure': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'มาตรการป้องกันอันตราย',
+            }),
+        }
+
+ManualSafetyItemFormSet = inlineformset_factory(
+    Manual, ManualSafetyItem, form=ManualSafetyItemForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+class ManualPartItemForm(forms.ModelForm):
+    class Meta:
+        model = ManualPartItem
+        fields = ['label_th', 'label_en']
+        widgets = {
+            'label_th': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'ชื่อชิ้นส่วน (ไทย)',
+            }),
+            'label_en': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'Part name (English)',
+            }),
+        }
+
+ManualPartItemFormSet = inlineformset_factory(
+    Manual, ManualPartItem, form=ManualPartItemForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+class ManualPrecheckItemForm(forms.ModelForm):
+    class Meta:
+        model = ManualPrecheckItem
+        fields = ['point', 'detail', 'fix', 'note']
+        widgets = {
+            'point': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'จุดตรวจสอบ',
+            }),
+            'detail': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'รายละเอียดการตรวจสอบ',
+            }),
+            'fix': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'การแก้ไข',
+            }),
+            'note': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'หมายเหตุ',
+            }),
+        }
+
+ManualPrecheckItemFormSet = inlineformset_factory(
+    Manual, ManualPrecheckItem, form=ManualPrecheckItemForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+class ManualOperatingStepForm(forms.ModelForm):
+    class Meta:
+        model = ManualOperatingStep
+        fields = ['title', 'description']
+        widgets = {
+            'title': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'หัวข้อขั้นตอน',
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'รายละเอียดขั้นตอน',
+            }),
+        }
+
+ManualOperatingStepFormSet = inlineformset_factory(
+    Manual, ManualOperatingStep, form=ManualOperatingStepForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+class ManualMaintenanceDailyItemForm(forms.ModelForm):
+    class Meta:
+        model = ManualMaintenanceDailyItem
+        fields = ['point', 'detail', 'fix']
+        widgets = {
+            'point': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'จุดตรวจสอบ',
+            }),
+            'detail': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'รายละเอียดการตรวจ',
+            }),
+            'fix': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'การแก้ไข',
+            }),
+        }
+
+ManualMaintenanceDailyItemFormSet = inlineformset_factory(
+    Manual, ManualMaintenanceDailyItem, form=ManualMaintenanceDailyItemForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+class ManualMaintenancePeriodicItemForm(forms.ModelForm):
+    class Meta:
+        model = ManualMaintenancePeriodicItem
+        fields = ['item', 'interval']
+        widgets = {
+            'item': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'รายการ',
+            }),
+            'interval': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'รอบเวลา',
+            }),
+        }
+
+ManualMaintenancePeriodicItemFormSet = inlineformset_factory(
+    Manual, ManualMaintenancePeriodicItem, form=ManualMaintenancePeriodicItemForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+class ManualTroubleshootItemForm(forms.ModelForm):
+    class Meta:
+        model = ManualTroubleshootItem
+        fields = ['problem', 'cause', 'solution']
+        widgets = {
+            'problem': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'ปัญหา',
+            }),
+            'cause': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'สาเหตุ',
+            }),
+            'solution': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'วิธีแก้ไข',
+            }),
+        }
+
+ManualTroubleshootItemFormSet = inlineformset_factory(
+    Manual, ManualTroubleshootItem, form=ManualTroubleshootItemForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+class ManualSpecItemForm(forms.ModelForm):
+    class Meta:
+        model = ManualSpecItem
+        fields = ['label', 'value']
+        widgets = {
+            'label': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'รายการ',
+            }),
+            'value': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'ค่า',
+            }),
+        }
+
+ManualSpecItemFormSet = inlineformset_factory(
+    Manual, ManualSpecItem, form=ManualSpecItemForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+# ==========================================
+# Safety Manual Module (คู่มือความปลอดภัย — เอกสารอิสระ)
+# ==========================================
+
+class SafetyManualForm(forms.ModelForm):
+    class Meta:
+        model = SafetyManual
+        fields = ['job_name', 'prepared_by']
+        widgets = {
+            'job_name': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'เช่น งานถอดรื้อและยกซ่อมปั๊มออกจากแท่น',
+            }),
+            'prepared_by': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+        }
+        labels = {'job_name': 'ชื่องาน', 'prepared_by': 'ผู้จัดทำ'}
+
+
+class SafetyManualSsopStepForm(forms.ModelForm):
+    class Meta:
+        model = SafetyManualSsopStep
+        fields = ['step_title', 'action', 'image_illustration', 'image_tools']
+        widgets = {
+            'step_title': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'ขั้นตอน',
+            }),
+            'action': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'ขั้นตอนการปฏิบัติ',
+            }),
+            'image_illustration': forms.ClearableFileInput(attrs={
+                'class': 'w-full text-sm text-slate-600 dark:text-slate-300 '
+                         'file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 '
+                         'file:bg-indigo-50 file:text-indigo-600 dark:file:bg-indigo-900/40 dark:file:text-indigo-400',
+            }),
+            'image_tools': forms.ClearableFileInput(attrs={
+                'class': 'w-full text-sm text-slate-600 dark:text-slate-300 '
+                         'file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 '
+                         'file:bg-indigo-50 file:text-indigo-600 dark:file:bg-indigo-900/40 dark:file:text-indigo-400',
+            }),
+        }
+
+SafetyManualSsopStepFormSet = inlineformset_factory(
+    SafetyManual, SafetyManualSsopStep, form=SafetyManualSsopStepForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+class SafetyManualJsaItemForm(forms.ModelForm):
+    class Meta:
+        model = SafetyManualJsaItem
+        fields = ['image', 'step_title', 'hazard', 'prevention']
+        widgets = {
+            'image': forms.ClearableFileInput(attrs={
+                'class': 'w-full text-sm text-slate-600 dark:text-slate-300 '
+                         'file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 '
+                         'file:bg-indigo-50 file:text-indigo-600 dark:file:bg-indigo-900/40 dark:file:text-indigo-400',
+            }),
+            'step_title': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'ขั้นตอนการปฏิบัติงาน',
+            }),
+            'hazard': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'อันตรายที่อาจเกิดขึ้น',
+            }),
+            'prevention': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 2, 'placeholder': 'มาตรการป้องกันอันตราย',
+            }),
+        }
+
+SafetyManualJsaItemFormSet = inlineformset_factory(
+    SafetyManual, SafetyManualJsaItem, form=SafetyManualJsaItemForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)

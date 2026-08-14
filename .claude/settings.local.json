@@ -2,8 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(python manage.py check --deploy)",
-      "Bash(python manage.py check)"
+      "Bash(python manage.py check)",
+      "mcp__hostinger-mcp__VPS_getVirtualMachinesV1"
     ]
   },
-  "enabledMcpjsonServers": ["hostinger-mcp"]
+  "enabledMcpjsonServers": [
+    "hostinger-mcp"
+  ]
 }

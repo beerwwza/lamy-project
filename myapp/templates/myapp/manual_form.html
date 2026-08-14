@@ -1,0 +1,404 @@
+{% extends 'myapp/base.html' %}
+{% block title %}{% if is_edit %}แก้ไขคู่มือ{% else %}สร้างคู่มือใหม่{% endif %} - Factory OS{% endblock title %}
+
+{% block content %}
+<div class="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+
+    <!-- ══════════════════════ SIDEBAR ══════════════════════ -->
+    <aside class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 flex-shrink-0">
+        <div class="h-16 flex items-center px-4 border-b border-slate-200 dark:border-slate-800">
+            <span class="font-bold text-xl text-indigo-600 dark:text-indigo-400">Factory OS</span>
+        </div>
+        <nav class="flex-1 overflow-y-auto py-4">
+            <ul class="space-y-1 px-2">
+                <li>
+                    <a href="/dashboard/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i><span>Dashboard</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/equipment/list/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="server" class="w-5 h-5 flex-shrink-0"></i><span>Machine List</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/maintenance/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="clipboard-list" class="w-5 h-5 flex-shrink-0"></i><span>แจ้งซ่อมเครื่องจักร</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="/docs/"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="history" class="w-5 h-5 flex-shrink-0"></i><span>ประวัติงานซ่อม</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'training_overview' %}"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="graduation-cap" class="w-5 h-5 flex-shrink-0"></i><span>Knowledge Center</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'inventory_dashboard' %}"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="package" class="w-5 h-5 flex-shrink-0"></i><span>คลังสินค้า</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'tools_dashboard' %}"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                        <i data-lucide="wrench" class="w-5 h-5 flex-shrink-0"></i><span>เครื่องมือ</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'manual_list' %}"
+                        class="flex items-center gap-3 px-3 py-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-medium transition-colors">
+                        <i data-lucide="file-text" class="w-5 h-5 flex-shrink-0"></i><span>Manual List</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <!-- ══════════════════════ MAIN ══════════════════════════ -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
+
+        <form method="POST" id="manual-form" class="flex-1 flex flex-col min-h-0">
+            {% csrf_token %}
+
+            <!-- Toolbar -->
+            <header
+                class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80 flex-shrink-0">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+                        <i data-lucide="{% if is_edit %}pencil{% else %}file-plus{% endif %}" class="w-5 h-5"></i>
+                    </div>
+                    <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight truncate">
+                        {% if is_edit %}แก้ไขคู่มือ: {{ manual.machine_name }}{% else %}สร้างคู่มือใหม่{% endif %}
+                    </h1>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <a href="{% if is_edit %}{% url 'manual_detail' manual.id %}{% else %}{% url 'manual_list' %}{% endif %}"
+                        class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                        ยกเลิก
+                    </a>
+                    <button type="submit"
+                        class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
+                        <i data-lucide="save" class="w-4 h-4"></i>บันทึกคู่มือ
+                    </button>
+                </div>
+            </header>
+
+            <div class="flex-1 flex min-h-0">
+
+                <!-- Tab nav -->
+                <nav class="w-56 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto p-3 space-y-1">
+                    <button type="button" data-section="cover" onclick="showSection('cover')" class="tab-btn w-full text-left flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors">
+                        <i data-lucide="clipboard" class="w-4 h-4 flex-shrink-0"></i><span>1. ข้อมูลปก</span>
+                    </button>
+                    <button type="button" data-section="safety" onclick="showSection('safety')" class="tab-btn w-full text-left flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors">
+                        <i data-lucide="shield-alert" class="w-4 h-4 flex-shrink-0"></i><span>2. ความปลอดภัย</span>
+                    </button>
+                    <button type="button" data-section="parts" onclick="showSection('parts')" class="tab-btn w-full text-left flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors">
+                        <i data-lucide="cog" class="w-4 h-4 flex-shrink-0"></i><span>3. รายชื่อชิ้นส่วน</span>
+                    </button>
+                    <button type="button" data-section="precheck" onclick="showSection('precheck')" class="tab-btn w-full text-left flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors">
+                        <i data-lucide="list-checks" class="w-4 h-4 flex-shrink-0"></i><span>4. ตรวจสอบก่อนใช้งาน</span>
+                    </button>
+                    <button type="button" data-section="steps" onclick="showSection('steps')" class="tab-btn w-full text-left flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors">
+                        <i data-lucide="footprints" class="w-4 h-4 flex-shrink-0"></i><span>5. ขั้นตอนการใช้งาน</span>
+                    </button>
+                    <button type="button" data-section="maintenance" onclick="showSection('maintenance')" class="tab-btn w-full text-left flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors">
+                        <i data-lucide="wrench" class="w-4 h-4 flex-shrink-0"></i><span>6. การบำรุงรักษา</span>
+                    </button>
+                    <button type="button" data-section="troubleshoot" onclick="showSection('troubleshoot')" class="tab-btn w-full text-left flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 flex-shrink-0"></i><span>7. แก้ไขปัญหาเบื้องต้น</span>
+                    </button>
+                    <button type="button" data-section="specs" onclick="showSection('specs')" class="tab-btn w-full text-left flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm transition-colors">
+                        <i data-lucide="table-properties" class="w-4 h-4 flex-shrink-0"></i><span>8. ข้อมูลจำเพาะ</span>
+                    </button>
+                </nav>
+
+                <!-- Section panels -->
+                <div class="flex-1 overflow-y-auto p-6 space-y-4">
+
+                    {% if messages %}
+                    {% for message in messages %}
+                    <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+                {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+                {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+                {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+
+                    {% if form.errors %}
+                    <div class="px-4 py-3 rounded-lg text-sm font-medium bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">
+                        กรุณาตรวจสอบข้อมูลในแท็บ "1. ข้อมูลปก" — มีข้อมูลที่ยังไม่ถูกต้อง
+                    </div>
+                    {% endif %}
+
+                    <!-- ═══ 1. ข้อมูลปก ═══ -->
+                    <div id="section-cover" class="manual-section bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+                        <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4">1. ข้อมูลปก (Cover Information)</h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">ชื่อเครื่องจักร <span class="text-red-400">*</span></label>
+                                {{ form.machine_name }}
+                                {% if form.machine_name.errors %}<p class="text-xs text-red-500 mt-1">{{ form.machine_name.errors|join:", " }}</p>{% endif %}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">รุ่น/Model</label>
+                                {{ form.model_number }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">แผนก <span class="text-red-400">*</span></label>
+                                {{ form.department }}
+                                {% if form.department.errors %}<p class="text-xs text-red-500 mt-1">{{ form.department.errors|join:", " }}</p>{% endif %}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">ผู้จัดทำ</label>
+                                {{ form.prepared_by }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">เลขที่เอกสาร</label>
+                                {{ form.doc_no }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">ฉบับแก้ไข (Rev.)</label>
+                                {{ form.revision }}
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">วันที่จัดทำ</label>
+                                {{ form.doc_date }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ═══ 2. ความปลอดภัย ═══ -->
+                    <div id="section-safety" class="manual-section hidden bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+                        {% include 'myapp/_manual_formset_header.html' with title='2. ข้อควรระวังด้านความปลอดภัย (Safety Precautions)' subtitle='ระบุขั้นตอนการปฏิบัติงาน อันตรายที่อาจเกิดขึ้น และมาตรการป้องกัน' prefix='safety' container_id='rows-safety' %}
+                        {{ formsets.safety.management_form }}
+                        <div id="rows-safety" class="space-y-3">
+                            {% for f in formsets.safety %}
+                            <div class="safety-form formset-row grid grid-cols-1 md:grid-cols-3 gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg">
+                                {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">ขั้นตอนการปฏิบัติงาน</label>{{ f.task }}</div>
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">อันตรายที่อาจเกิดขึ้น</label>{{ f.hazard }}</div>
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">มาตรการป้องกันอันตราย</label>{{ f.measure }}</div>
+                                {% if f.DELETE %}
+                                <label class="md:col-span-3 flex items-center gap-1.5 text-xs text-red-500" onchange="this.closest('.formset-row').classList.toggle('opacity-40', this.querySelector('input').checked)">
+                                    {{ f.DELETE }} ลบแถวนี้
+                                </label>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- ═══ 3. รายชื่อชิ้นส่วน ═══ -->
+                    <div id="section-parts" class="manual-section hidden bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+                        {% include 'myapp/_manual_formset_header.html' with title='3. รายชื่อชิ้นส่วนของเครื่องจักร (Part Names)' subtitle='ระบุชื่อส่วนต่างๆ ของเครื่องจักรทั้งภาษาไทยและอังกฤษ' prefix='parts' container_id='rows-parts' %}
+                        {{ formsets.parts.management_form }}
+                        <div id="rows-parts" class="space-y-3">
+                            {% for f in formsets.parts %}
+                            <div class="parts-form formset-row grid grid-cols-1 md:grid-cols-2 gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg">
+                                {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">ชื่อชิ้นส่วน (ไทย)</label>{{ f.label_th }}</div>
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Part name (English)</label>{{ f.label_en }}</div>
+                                {% if f.DELETE %}
+                                <label class="md:col-span-2 flex items-center gap-1.5 text-xs text-red-500" onchange="this.closest('.formset-row').classList.toggle('opacity-40', this.querySelector('input').checked)">
+                                    {{ f.DELETE }} ลบแถวนี้
+                                </label>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- ═══ 4. ตรวจสอบก่อนใช้งาน ═══ -->
+                    <div id="section-precheck" class="manual-section hidden bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+                        {% include 'myapp/_manual_formset_header.html' with title='4. การตรวจสอบก่อนใช้งาน (Pre-Use Checklist)' subtitle='จุดตรวจสอบ / รายละเอียด / การแก้ไข / หมายเหตุ' prefix='precheck' container_id='rows-precheck' %}
+                        {{ formsets.precheck.management_form }}
+                        <div id="rows-precheck" class="space-y-3">
+                            {% for f in formsets.precheck %}
+                            <div class="precheck-form formset-row grid grid-cols-1 md:grid-cols-4 gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg">
+                                {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">จุดตรวจสอบ</label>{{ f.point }}</div>
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">รายละเอียดการตรวจสอบ</label>{{ f.detail }}</div>
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">การแก้ไข</label>{{ f.fix }}</div>
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">หมายเหตุ</label>{{ f.note }}</div>
+                                {% if f.DELETE %}
+                                <label class="md:col-span-4 flex items-center gap-1.5 text-xs text-red-500" onchange="this.closest('.formset-row').classList.toggle('opacity-40', this.querySelector('input').checked)">
+                                    {{ f.DELETE }} ลบแถวนี้
+                                </label>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- ═══ 5. ขั้นตอนการใช้งาน ═══ -->
+                    <div id="section-steps" class="manual-section hidden bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+                        {% include 'myapp/_manual_formset_header.html' with title='5. ขั้นตอนการใช้งาน (Operating Steps)' subtitle='เรียงลำดับขั้นตอนตามลำดับที่เพิ่ม' prefix='steps' container_id='rows-steps' %}
+                        {{ formsets.steps.management_form }}
+                        <div id="rows-steps" class="space-y-3">
+                            {% for f in formsets.steps %}
+                            <div class="steps-form formset-row p-3 border border-slate-200 dark:border-slate-700 rounded-lg space-y-2">
+                                {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">หัวข้อขั้นตอน</label>{{ f.title }}</div>
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">รายละเอียดขั้นตอน</label>{{ f.description }}</div>
+                                {% if f.DELETE %}
+                                <label class="flex items-center gap-1.5 text-xs text-red-500" onchange="this.closest('.formset-row').classList.toggle('opacity-40', this.querySelector('input').checked)">
+                                    {{ f.DELETE }} ลบแถวนี้
+                                </label>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- ═══ 6. การบำรุงรักษา ═══ -->
+                    <div id="section-maintenance" class="manual-section hidden space-y-4">
+                        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+                            {% include 'myapp/_manual_formset_header.html' with title='6.1 การบำรุงรักษาประจำวัน (Daily Checks)' subtitle='' prefix='maint_daily' container_id='rows-maint_daily' %}
+                            {{ formsets.maint_daily.management_form }}
+                            <div id="rows-maint_daily" class="space-y-3">
+                                {% for f in formsets.maint_daily %}
+                                <div class="maint_daily-form formset-row grid grid-cols-1 md:grid-cols-3 gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg">
+                                    {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                                    <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">จุดตรวจสอบ</label>{{ f.point }}</div>
+                                    <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">รายละเอียดการตรวจ</label>{{ f.detail }}</div>
+                                    <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">การแก้ไข</label>{{ f.fix }}</div>
+                                    {% if f.DELETE %}
+                                    <label class="md:col-span-3 flex items-center gap-1.5 text-xs text-red-500" onchange="this.closest('.formset-row').classList.toggle('opacity-40', this.querySelector('input').checked)">
+                                        {{ f.DELETE }} ลบแถวนี้
+                                    </label>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+                            {% include 'myapp/_manual_formset_header.html' with title='6.2 การบำรุงรักษาตามคาบเวลา (Periodic Maintenance)' subtitle='' prefix='maint_periodic' container_id='rows-maint_periodic' %}
+                            {{ formsets.maint_periodic.management_form }}
+                            <div id="rows-maint_periodic" class="space-y-3">
+                                {% for f in formsets.maint_periodic %}
+                                <div class="maint_periodic-form formset-row grid grid-cols-1 md:grid-cols-2 gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg">
+                                    {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                                    <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">รายการ</label>{{ f.item }}</div>
+                                    <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">รอบเวลา</label>{{ f.interval }}</div>
+                                    {% if f.DELETE %}
+                                    <label class="md:col-span-2 flex items-center gap-1.5 text-xs text-red-500" onchange="this.closest('.formset-row').classList.toggle('opacity-40', this.querySelector('input').checked)">
+                                        {{ f.DELETE }} ลบแถวนี้
+                                    </label>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ═══ 7. แก้ไขปัญหาเบื้องต้น ═══ -->
+                    <div id="section-troubleshoot" class="manual-section hidden bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+                        {% include 'myapp/_manual_formset_header.html' with title='7. การแก้ไขปัญหาเบื้องต้น (Troubleshooting)' subtitle='ปัญหา / สาเหตุ / วิธีแก้ไข' prefix='troubleshoot' container_id='rows-troubleshoot' %}
+                        {{ formsets.troubleshoot.management_form }}
+                        <div id="rows-troubleshoot" class="space-y-3">
+                            {% for f in formsets.troubleshoot %}
+                            <div class="troubleshoot-form formset-row grid grid-cols-1 md:grid-cols-3 gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg">
+                                {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">ปัญหา</label>{{ f.problem }}</div>
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">สาเหตุ</label>{{ f.cause }}</div>
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">วิธีแก้ไข</label>{{ f.solution }}</div>
+                                {% if f.DELETE %}
+                                <label class="md:col-span-3 flex items-center gap-1.5 text-xs text-red-500" onchange="this.closest('.formset-row').classList.toggle('opacity-40', this.querySelector('input').checked)">
+                                    {{ f.DELETE }} ลบแถวนี้
+                                </label>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- ═══ 8. ข้อมูลจำเพาะ ═══ -->
+                    <div id="section-specs" class="manual-section hidden bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+                        {% include 'myapp/_manual_formset_header.html' with title='8. ข้อมูลจำเพาะ (Specifications)' subtitle='รายการ / ค่า' prefix='specs' container_id='rows-specs' %}
+                        {{ formsets.specs.management_form }}
+                        <div id="rows-specs" class="space-y-3">
+                            {% for f in formsets.specs %}
+                            <div class="specs-form formset-row grid grid-cols-1 md:grid-cols-2 gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg">
+                                {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">รายการ</label>{{ f.label }}</div>
+                                <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">ค่า</label>{{ f.value }}</div>
+                                {% if f.DELETE %}
+                                <label class="md:col-span-2 flex items-center gap-1.5 text-xs text-red-500" onchange="this.closest('.formset-row').classList.toggle('opacity-40', this.querySelector('input').checked)">
+                                    {{ f.DELETE }} ลบแถวนี้
+                                </label>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                </div><!-- end section panels -->
+            </div><!-- end flex body -->
+        </form>
+    </main>
+</div>
+
+<script>
+    function showSection(key) {
+        document.querySelectorAll('.manual-section').forEach(function (el) { el.classList.add('hidden'); });
+        var panel = document.getElementById('section-' + key);
+        if (panel) panel.classList.remove('hidden');
+
+        document.querySelectorAll('.tab-btn').forEach(function (btn) {
+            if (btn.dataset.section === key) {
+                btn.classList.add('bg-indigo-50', 'dark:bg-indigo-900/40', 'text-indigo-600', 'dark:text-indigo-400', 'font-medium');
+                btn.classList.remove('text-slate-600', 'dark:text-slate-400');
+            } else {
+                btn.classList.remove('bg-indigo-50', 'dark:bg-indigo-900/40', 'text-indigo-600', 'dark:text-indigo-400', 'font-medium');
+                btn.classList.add('text-slate-600', 'dark:text-slate-400');
+            }
+        });
+    }
+
+    function addFormsetRow(prefix, containerId) {
+        var totalFormsInput = document.querySelector('#id_' + prefix + '-TOTAL_FORMS');
+        var formIndex = parseInt(totalFormsInput.value, 10);
+        var container = document.getElementById(containerId);
+        var template = container.querySelector('.' + prefix + '-form');
+        var newForm = template.cloneNode(true);
+        var re = new RegExp(prefix + '-(\\d+)-');
+
+        newForm.querySelectorAll('input, textarea, select').forEach(function (input) {
+            if (input.name) input.name = input.name.replace(re, prefix + '-' + formIndex + '-');
+            if (input.id) input.id = input.id.replace(re, prefix + '-' + formIndex + '-');
+            if (input.type === 'checkbox') {
+                input.checked = false;
+            } else if (input.type === 'hidden' && input.name && input.name.endsWith('-id')) {
+                input.value = '';
+            } else if (input.tagName === 'SELECT') {
+                input.selectedIndex = 0;
+            } else {
+                input.value = '';
+            }
+        });
+        newForm.classList.remove('opacity-40');
+
+        container.appendChild(newForm);
+        totalFormsInput.value = formIndex + 1;
+        lucide.createIcons();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        showSection('cover');
+        lucide.createIcons();
+    });
+</script>
+{% endblock %}

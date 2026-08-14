@@ -1583,3 +1583,228 @@ class CareerLadderStep(models.Model):
 
     def __str__(self):
         return self.name
+
+
+# ==========================================
+# N. Manual Library Module (คู่มือปฏิบัติงานเครื่องจักร)
+# ==========================================
+
+class Manual(models.Model):
+    """คู่มือปฏิบัติงานเครื่องจักร — ไม่ผูกกับ Equipment โดยตรง (กรอกชื่อเครื่องจักรอิสระ)"""
+
+    machine_name = models.CharField(max_length=255, verbose_name="ชื่อเครื่องจักร")
+    model_number = models.CharField(max_length=100, blank=True, default='', verbose_name="รุ่น/Model")
+    department   = models.CharField(max_length=50, choices=DEPARTMENT_CHOICES, verbose_name="แผนก")
+    prepared_by  = models.CharField(max_length=150, blank=True, default='', verbose_name="ผู้จัดทำ")
+    doc_no       = models.CharField(max_length=100, blank=True, default='', verbose_name="เลขที่เอกสาร")
+    revision     = models.CharField(max_length=20, blank=True, default='', verbose_name="ฉบับแก้ไข (Rev.)")
+    doc_date     = models.DateField(null=True, blank=True, verbose_name="วันที่จัดทำ")
+
+    created_by = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='manuals', verbose_name="ผู้สร้าง"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "คู่มือปฏิบัติงานเครื่องจักร"
+        verbose_name_plural = "คู่มือปฏิบัติงานเครื่องจักร"
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.machine_name or f"Manual #{self.pk}"
+
+
+class ManualSafetyItem(models.Model):
+    """ข้อควรระวังด้านความปลอดภัย"""
+    manual = models.ForeignKey(Manual, on_delete=models.CASCADE, related_name='safety_items', verbose_name="คู่มือ")
+    task    = models.TextField(blank=True, null=True, verbose_name="ขั้นตอนการปฏิบัติงาน")
+    hazard  = models.TextField(blank=True, null=True, verbose_name="อันตรายที่อาจเกิดขึ้น")
+    measure = models.TextField(blank=True, null=True, verbose_name="มาตรการป้องกันอันตราย")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+
+    class Meta:
+        verbose_name = "ข้อควรระวังด้านความปลอดภัย"
+        verbose_name_plural = "ข้อควรระวังด้านความปลอดภัย"
+        ordering = ['manual', 'display_order']
+
+    def __str__(self):
+        return (self.task or '')[:50]
+
+
+class ManualPartItem(models.Model):
+    """รายชื่อชิ้นส่วนของเครื่องจักร"""
+    manual = models.ForeignKey(Manual, on_delete=models.CASCADE, related_name='part_items', verbose_name="คู่มือ")
+    label_th = models.CharField(max_length=200, blank=True, null=True, verbose_name="ชื่อชิ้นส่วน (ไทย)")
+    label_en = models.CharField(max_length=200, blank=True, null=True, verbose_name="ชื่อชิ้นส่วน (English)")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+
+    class Meta:
+        verbose_name = "ชื่อชิ้นส่วน"
+        verbose_name_plural = "ชื่อชิ้นส่วน"
+        ordering = ['manual', 'display_order']
+
+    def __str__(self):
+        return (self.label_th or self.label_en or '')[:50]
+
+
+class ManualPrecheckItem(models.Model):
+    """รายการตรวจสอบก่อนใช้งาน"""
+    manual = models.ForeignKey(Manual, on_delete=models.CASCADE, related_name='precheck_items', verbose_name="คู่มือ")
+    point  = models.TextField(blank=True, null=True, verbose_name="จุดตรวจสอบ")
+    detail = models.TextField(blank=True, null=True, verbose_name="รายละเอียดการตรวจสอบ")
+    fix    = models.TextField(blank=True, null=True, verbose_name="การแก้ไข")
+    note   = models.TextField(blank=True, null=True, verbose_name="หมายเหตุ")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+
+    class Meta:
+        verbose_name = "รายการตรวจสอบก่อนใช้งาน"
+        verbose_name_plural = "รายการตรวจสอบก่อนใช้งาน"
+        ordering = ['manual', 'display_order']
+
+    def __str__(self):
+        return (self.point or '')[:50]
+
+
+class ManualOperatingStep(models.Model):
+    """ขั้นตอนการใช้งานเครื่องจักร"""
+    manual = models.ForeignKey(Manual, on_delete=models.CASCADE, related_name='operating_steps', verbose_name="คู่มือ")
+    title       = models.CharField(max_length=255, blank=True, null=True, verbose_name="หัวข้อขั้นตอน")
+    description = models.TextField(blank=True, null=True, verbose_name="รายละเอียดขั้นตอน")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+
+    class Meta:
+        verbose_name = "ขั้นตอนการใช้งาน"
+        verbose_name_plural = "ขั้นตอนการใช้งาน"
+        ordering = ['manual', 'display_order']
+
+    def __str__(self):
+        return (self.title or '')[:50]
+
+
+class ManualMaintenanceDailyItem(models.Model):
+    """การบำรุงรักษาประจำวัน"""
+    manual = models.ForeignKey(Manual, on_delete=models.CASCADE, related_name='maintenance_daily_items', verbose_name="คู่มือ")
+    point  = models.TextField(blank=True, null=True, verbose_name="จุดตรวจสอบ")
+    detail = models.TextField(blank=True, null=True, verbose_name="รายละเอียดการตรวจ")
+    fix    = models.TextField(blank=True, null=True, verbose_name="การแก้ไข")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+
+    class Meta:
+        verbose_name = "การบำรุงรักษาประจำวัน"
+        verbose_name_plural = "การบำรุงรักษาประจำวัน"
+        ordering = ['manual', 'display_order']
+
+    def __str__(self):
+        return (self.point or '')[:50]
+
+
+class ManualMaintenancePeriodicItem(models.Model):
+    """การบำรุงรักษาตามคาบเวลา"""
+    manual = models.ForeignKey(Manual, on_delete=models.CASCADE, related_name='maintenance_periodic_items', verbose_name="คู่มือ")
+    item     = models.CharField(max_length=255, blank=True, null=True, verbose_name="รายการ")
+    interval = models.CharField(max_length=100, blank=True, null=True, verbose_name="รอบเวลา")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+
+    class Meta:
+        verbose_name = "การบำรุงรักษาตามคาบเวลา"
+        verbose_name_plural = "การบำรุงรักษาตามคาบเวลา"
+        ordering = ['manual', 'display_order']
+
+    def __str__(self):
+        return (self.item or '')[:50]
+
+
+class ManualTroubleshootItem(models.Model):
+    """การแก้ไขปัญหาเบื้องต้น"""
+    manual = models.ForeignKey(Manual, on_delete=models.CASCADE, related_name='troubleshoot_items', verbose_name="คู่มือ")
+    problem  = models.TextField(blank=True, null=True, verbose_name="ปัญหา")
+    cause    = models.TextField(blank=True, null=True, verbose_name="สาเหตุ")
+    solution = models.TextField(blank=True, null=True, verbose_name="วิธีแก้ไข")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+
+    class Meta:
+        verbose_name = "การแก้ไขปัญหาเบื้องต้น"
+        verbose_name_plural = "การแก้ไขปัญหาเบื้องต้น"
+        ordering = ['manual', 'display_order']
+
+    def __str__(self):
+        return (self.problem or '')[:50]
+
+
+class ManualSpecItem(models.Model):
+    """ข้อมูลจำเพาะของเครื่องจักร"""
+    manual = models.ForeignKey(Manual, on_delete=models.CASCADE, related_name='spec_items', verbose_name="คู่มือ")
+    label = models.CharField(max_length=255, blank=True, null=True, verbose_name="รายการ")
+    value = models.CharField(max_length=255, blank=True, null=True, verbose_name="ค่า")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+
+    class Meta:
+        verbose_name = "ข้อมูลจำเพาะ"
+        verbose_name_plural = "ข้อมูลจำเพาะ"
+        ordering = ['manual', 'display_order']
+
+    def __str__(self):
+        return (self.label or '')[:50]
+
+
+# ==========================================
+# Safety Manual Module (คู่มือความปลอดภัย — JSA & SSOP, เอกสารอิสระ ไม่ผูกกับ Manual)
+# ==========================================
+
+class SafetyManual(models.Model):
+    """คู่มือความปลอดภัย (JSA & SSOP) — เอกสารอิสระ ไม่ผูกกับ Manual"""
+    job_name    = models.CharField(max_length=255, verbose_name="ชื่องาน")
+    prepared_by = models.CharField(max_length=150, blank=True, default='', verbose_name="ผู้จัดทำ")
+
+    created_by = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='safety_manuals', verbose_name="ผู้สร้าง"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "คู่มือความปลอดภัย"
+        verbose_name_plural = "คู่มือความปลอดภัย"
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.job_name or f"คู่มือความปลอดภัย #{self.pk}"
+
+
+class SafetyManualSsopStep(models.Model):
+    """SSOP — วิธีปฏิบัติงานมาตรฐาน (Standard Safe Operating Procedure)"""
+    safety_manual = models.ForeignKey(SafetyManual, on_delete=models.CASCADE, related_name='ssop_steps', verbose_name="คู่มือความปลอดภัย")
+    step_title = models.CharField(max_length=255, blank=True, null=True, verbose_name="ขั้นตอน")
+    action     = models.TextField(blank=True, null=True, verbose_name="ขั้นตอนการปฏิบัติ")
+    image_illustration = models.ImageField(upload_to='safety_manual_ssop/', blank=True, null=True, verbose_name="รูปภาพประกอบ")
+    image_tools = models.ImageField(upload_to='safety_manual_ssop/', blank=True, null=True, verbose_name="รูปภาพอุปกรณ์/เครื่องมือที่ต้องใช้")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+
+    class Meta:
+        verbose_name = "ขั้นตอน SSOP"
+        verbose_name_plural = "ขั้นตอน SSOP"
+        ordering = ['safety_manual', 'display_order']
+
+    def __str__(self):
+        return (self.step_title or '')[:50]
+
+
+class SafetyManualJsaItem(models.Model):
+    """JSA — การวิเคราะห์งานเพื่อความปลอดภัย (Job Safety Analysis)"""
+    safety_manual = models.ForeignKey(SafetyManual, on_delete=models.CASCADE, related_name='jsa_items', verbose_name="คู่มือความปลอดภัย")
+    image      = models.ImageField(upload_to='safety_manual_jsa/', blank=True, null=True, verbose_name="รูปภาพ")
+    step_title = models.CharField(max_length=255, blank=True, null=True, verbose_name="ขั้นตอนการปฏิบัติงาน")
+    hazard     = models.TextField(blank=True, null=True, verbose_name="อันตรายที่อาจเกิดขึ้น")
+    prevention = models.TextField(blank=True, null=True, verbose_name="มาตรการป้องกันอันตราย")
+    display_order = models.PositiveIntegerField(default=0, verbose_name="ลำดับ")
+
+    class Meta:
+        verbose_name = "รายการ JSA"
+        verbose_name_plural = "รายการ JSA"
+        ordering = ['safety_manual', 'display_order']
+
+    def __str__(self):
+        return (self.step_title or '')[:50]
