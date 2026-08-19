@@ -44,7 +44,6 @@ from .forms import (
     ManualOperatingStepFormSet, ManualMaintenanceDailyItemFormSet, ManualMaintenancePeriodicItemFormSet,
     ManualTroubleshootItemFormSet, ManualSpecItemFormSet,
 )
-from .forms import SafetyManualForm, SafetyManualSsopStepFormSet, SafetyManualJsaItemFormSet
 from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 import calendar
@@ -4905,44 +4904,8 @@ MANUAL_FORMSET_CONFIG = [
 
 @login_required
 def manual_list(request):
-    from django.db.models import Q
-    from datetime import date
-
-    dept_filter  = request.GET.get('department', '')
-    search_query = request.GET.get('q', '').strip()
-
     manuals = Manual.objects.all().order_by('-updated_at')
-    if dept_filter:
-        manuals = manuals.filter(department=dept_filter)
-    if search_query:
-        manuals = manuals.filter(
-            Q(machine_name__icontains=search_query) |
-            Q(doc_no__icontains=search_query) |
-            Q(prepared_by__icontains=search_query)
-        )
-
-    today = date.today()
-    all_manuals    = Manual.objects.all()
-    total_manuals  = all_manuals.count()
-    monthly_manuals = all_manuals.filter(
-        created_at__year=today.year, created_at__month=today.month
-    ).count()
-
-    dept_counts = {}
-    for dept, _ in DEPARTMENT_CHOICES:
-        dept_counts[dept] = all_manuals.filter(department=dept).count()
-
-    context = {
-        'manuals':         manuals,
-        'total_manuals':   total_manuals,
-        'monthly_manuals': monthly_manuals,
-        'dept_filter':     dept_filter,
-        'search_query':    search_query,
-        'dept_counts':     dept_counts,
-        'dept_choices':    DEPARTMENT_CHOICES,
-        'manual_count':    manuals.count(),
-    }
-    return render(request, 'myapp/manual_list.html', context)
+    return render(request, 'myapp/manual_list.html', {'manuals': manuals})
 
 
 @login_required
@@ -5008,34 +4971,3 @@ def manual_delete(request, manual_id):
         messages.success(request, f'ลบคู่มือ "{name}" เรียบร้อยแล้ว')
     return redirect('manual_list')
 
-
-# ==========================================
-# Safety Manual Module (คู่มือความปลอดภัย — เอกสารอิสระ)
-# ==========================================
-
-@login_required
-def safety_manual_add(request):
-    safety_manual = SafetyManual()
-    if request.method == 'POST':
-        form = SafetyManualForm(request.POST, request.FILES)
-        ssop_formset = SafetyManualSsopStepFormSet(request.POST, request.FILES, prefix='ssop', instance=safety_manual)
-        jsa_formset = SafetyManualJsaItemFormSet(request.POST, request.FILES, prefix='jsa', instance=safety_manual)
-        if form.is_valid() and ssop_formset.is_valid() and jsa_formset.is_valid():
-            with transaction.atomic():
-                safety_manual = form.save(commit=False)
-                safety_manual.created_by = request.user
-                safety_manual.save()
-                ssop_formset.instance = safety_manual
-                ssop_formset.save()
-                jsa_formset.instance = safety_manual
-                jsa_formset.save()
-            messages.success(request, 'สร้างคู่มือความปลอดภัยเรียบร้อยแล้ว')
-            return redirect('manual_list')
-    else:
-        form = SafetyManualForm()
-        ssop_formset = SafetyManualSsopStepFormSet(prefix='ssop', instance=safety_manual)
-        jsa_formset = SafetyManualJsaItemFormSet(prefix='jsa', instance=safety_manual)
-
-    return render(request, 'myapp/safety_manual_form.html', {
-        'form': form, 'ssop_formset': ssop_formset, 'jsa_formset': jsa_formset,
-    })

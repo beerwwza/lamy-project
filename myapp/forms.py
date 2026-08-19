@@ -12,7 +12,6 @@ from .models import (
     ManualMaintenanceDailyItem, ManualMaintenancePeriodicItem, ManualTroubleshootItem,
     ManualSpecItem,
 )
-from .models import SafetyManual, SafetyManualSsopStep, SafetyManualJsaItem
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
@@ -854,90 +853,3 @@ ManualSpecItemFormSet = inlineformset_factory(
     extra=1, can_delete=True, max_num=100, validate_max=True,
 )
 
-
-# ==========================================
-# Safety Manual Module (คู่มือความปลอดภัย — เอกสารอิสระ)
-# ==========================================
-
-class SafetyManualForm(forms.ModelForm):
-    class Meta:
-        model = SafetyManual
-        fields = ['job_name', 'prepared_by']
-        widgets = {
-            'job_name': forms.TextInput(attrs={
-                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
-                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
-                'placeholder': 'เช่น งานถอดรื้อและยกซ่อมปั๊มออกจากแท่น',
-            }),
-            'prepared_by': forms.TextInput(attrs={
-                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
-                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
-            }),
-        }
-        labels = {'job_name': 'ชื่องาน', 'prepared_by': 'ผู้จัดทำ'}
-
-
-class SafetyManualSsopStepForm(forms.ModelForm):
-    class Meta:
-        model = SafetyManualSsopStep
-        fields = ['step_title', 'action', 'image_illustration', 'image_tools']
-        widgets = {
-            'step_title': forms.TextInput(attrs={
-                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
-                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
-                'placeholder': 'ขั้นตอน',
-            }),
-            'action': forms.Textarea(attrs={
-                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
-                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
-                'rows': 2, 'placeholder': 'ขั้นตอนการปฏิบัติ',
-            }),
-            'image_illustration': forms.ClearableFileInput(attrs={
-                'class': 'w-full text-sm text-slate-600 dark:text-slate-300 '
-                         'file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 '
-                         'file:bg-indigo-50 file:text-indigo-600 dark:file:bg-indigo-900/40 dark:file:text-indigo-400',
-            }),
-            'image_tools': forms.ClearableFileInput(attrs={
-                'class': 'w-full text-sm text-slate-600 dark:text-slate-300 '
-                         'file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 '
-                         'file:bg-indigo-50 file:text-indigo-600 dark:file:bg-indigo-900/40 dark:file:text-indigo-400',
-            }),
-        }
-
-SafetyManualSsopStepFormSet = inlineformset_factory(
-    SafetyManual, SafetyManualSsopStep, form=SafetyManualSsopStepForm,
-    extra=1, can_delete=True, max_num=100, validate_max=True,
-)
-
-
-class SafetyManualJsaItemForm(forms.ModelForm):
-    class Meta:
-        model = SafetyManualJsaItem
-        fields = ['image', 'step_title', 'hazard', 'prevention']
-        widgets = {
-            'image': forms.ClearableFileInput(attrs={
-                'class': 'w-full text-sm text-slate-600 dark:text-slate-300 '
-                         'file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 '
-                         'file:bg-indigo-50 file:text-indigo-600 dark:file:bg-indigo-900/40 dark:file:text-indigo-400',
-            }),
-            'step_title': forms.TextInput(attrs={
-                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
-                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
-                'placeholder': 'ขั้นตอนการปฏิบัติงาน',
-            }),
-            'hazard': forms.Textarea(attrs={
-                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
-                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
-                'rows': 2, 'placeholder': 'อันตรายที่อาจเกิดขึ้น',
-            }),
-            'prevention': forms.Textarea(attrs={
-                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
-                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
-                'rows': 2, 'placeholder': 'มาตรการป้องกันอันตราย',
-            }),
-        }
-
-SafetyManualJsaItemFormSet = inlineformset_factory(
-    SafetyManual, SafetyManualJsaItem, form=SafetyManualJsaItemForm,
-    extra=1, can_delete=True, max_num=100, validate_max=True,
-)

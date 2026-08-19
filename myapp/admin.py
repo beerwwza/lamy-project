@@ -302,22 +302,3 @@ class ManualAdmin(admin.ModelAdmin):
         ManualOperatingStepInline, ManualMaintenanceDailyItemInline, ManualMaintenancePeriodicItemInline,
         ManualTroubleshootItemInline, ManualSpecItemInline,
     ]
-
-
-# ==========================================
-# Safety Manual Module (คู่มือความปลอดภัย — เอกสารอิสระ)
-# ==========================================
-
-class SafetyManualSsopStepInline(admin.TabularInline):
-    model = SafetyManualSsopStep
-    extra = 0
-
-class SafetyManualJsaItemInline(admin.TabularInline):
-    model = SafetyManualJsaItem
-    extra = 0
-
-@admin.register(SafetyManual)
-class SafetyManualAdmin(admin.ModelAdmin):
-    list_display = ['id', 'job_name', 'prepared_by', 'created_by', 'updated_at']
-    search_fields = ['job_name', 'prepared_by']
-    inlines = [SafetyManualJsaItemInline, SafetyManualSsopStepInline]

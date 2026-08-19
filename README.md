@@ -32,7 +32,7 @@ LAMY is a web-based industrial operations management system built for a large-sc
 - **Equipment Registry** — Master inventory of all plant equipment with technical specifications, maintenance history, spare parts (BOM), criticality levels, and image storage.
 - **Lathe Job Tracking** — Machining job management with job requirements, quality control records, and status tracking.
 - **Tools Module** — Dedicated hand-tool tracking (`/tools/`) separate from general Inventory, with per-physical-unit status (so identical tools like 5 impact wrenches are tracked individually), borrow/return history with due dates, and an integrated tool-readiness checklist.
-- **Manual Library** (`/manuals/`) — Structured machine operation & maintenance manuals (cover info, safety precautions, part names, pre-use checklist, operating steps, daily/periodic maintenance, troubleshooting, specifications), built via a multi-section form with dynamic add/remove rows. **Safety Manuals** (`/safety-manuals/add/`) are a separate, standalone JSA & SSOP (Job Safety Analysis / Standard Safe Operating Procedure) document type, not tied to a specific machine manual.
+- **Manual Library** (`/manuals/`) — Structured machine operation & maintenance manuals (cover info, safety precautions, part names, pre-use checklist, operating steps, daily/periodic maintenance, troubleshooting, specifications), built via a multi-section form with dynamic add/remove rows.
 
 The system is primarily operated by plant engineers and maintenance teams, with data used for production optimization and equipment health trend analysis.
 
@@ -179,7 +179,7 @@ lamy-project/
 │   ├── urls.py                     # App URL routing
 │   ├── forms.py                    # Django ModelForms (all modules)
 │   ├── admin.py                    # Django Admin configuration
-│   ├── migrations/                 # 74 database migration files
+│   ├── migrations/                 # 81 database migration files
 │   └── templates/
 │       └── myapp/
 │           ├── base.html           # Master layout with navigation
@@ -381,12 +381,11 @@ Standalone module at `/tools/`, separated from the general Inventory module (`In
 - `ToolReadinessCheck` — the tool-readiness checklist now records against a specific `ToolUnit` (in addition to the legacy item-level `item` FK); the checkout flow shows a soft warning (not a hard block) if the unit's latest check is "not ready"
 - Checkout/return also writes an `InventoryTransaction` (linked via `tool_unit`) so the shared Inventory transaction ledger still reflects tool movement
 
-### Manual & Safety Manual Library
+### Manual Library
 
 Standalone module at `/manuals/`, not linked to `Equipment` (machine name is free text) or to `RepairDocument`/`doc_repository` (which is a separate uploaded-file library). Categorized by department (`DEPARTMENT_CHOICES`).
 
-- `Manual` — cover info (machine name, model, department, prepared by, doc no., revision, date) with 8 repeating child sections, each its own model + inline formset: `ManualSafetyItem`, `ManualPartItem`, `ManualPrecheckItem`, `ManualOperatingStep`, `ManualMaintenanceDailyItem`, `ManualMaintenancePeriodicItem`, `ManualTroubleshootItem`, `ManualSpecItem` (all `on_delete=CASCADE` from `Manual`). Editor page (`manual_form.html`) uses a tabbed single-page form with vanilla-JS dynamic add/remove rows (formset `cloneNode` + prefix renumbering — no React). Preview/print page (`manual_detail.html`) supports Export to PDF via `window.print()`.
-- `SafetyManual` — **independent** JSA & SSOP document, not tied to a specific `Manual`. Cover is `job_name` + `prepared_by`. JSA and SSOP are kept as two clearly separate sections/tables (not merged per-row), shown JSA first: `SafetyManualJsaItem` (phase, step title, hazard, prevention — the hazard analysis) and `SafetyManualSsopStep` (phase, step title, action, tools — the standard operating procedure), each its own model + inline formset under `SafetyManual`. Create-only for now (`safety_manual_add`) — no dedicated list/edit page yet.
+- `Manual` — cover info (machine name, model, department, prepared by, doc no., revision, date) with 8 repeating child sections, each its own model + inline formset: `ManualSafetyItem`, `ManualPartItem`, `ManualPrecheckItem`, `ManualOperatingStep`, `ManualMaintenanceDailyItem`, `ManualMaintenancePeriodicItem`, `ManualTroubleshootItem`, `ManualSpecItem` (all `on_delete=CASCADE` from `Manual`). Editor page (`manual_form.html`) uses a tabbed single-page form with vanilla-JS dynamic add/remove rows (formset `cloneNode` + prefix renumbering — no React). Preview/print page (`manual_detail.html`) supports Export to PDF via `window.print()`. List page (`manual_list.html`) is a plain table of all manuals with a single "สร้างคู่มือใหม่" create button.
 
 ---
 
@@ -463,15 +462,11 @@ Manuals (คู่มือปฏิบัติงานเครื่อง�
     ├── ManualTroubleshootItem
     └── ManualSpecItem
 
-Safety Manuals (คู่มือความปลอดภัย — /safety-manuals/add/, เอกสารอิสระ ไม่ผูกกับ Manual, แยก JSA/SSOP ชัดเจน)
-└── SafetyManual              (job_name, prepared_by)
-    ├── SafetyManualJsaItem   (JSA — การวิเคราะห์งานเพื่อความปลอดภัย)
-    └── SafetyManualSsopStep  (SSOP — วิธีปฏิบัติงานมาตรฐาน)
 ```
 
 Google Drive uploads (`RepairDocument` only) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
-Database migrations: **74 migration files** in `myapp/migrations/`.
+Database migrations: **81 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -594,16 +589,15 @@ Database migrations: **74 migration files** in `myapp/migrations/`.
 | POST | `/api/tools/unit/add/` | JSON API: add a new physical unit to a tool type |
 | POST | `/api/tools/unit/<pk>/edit/` | JSON API: change unit status/location/condition note |
 
-### Manual & Safety Manual Library
+### Manual Library
 
 | Method | URL | Description |
 |---|---|---|
-| GET | `/manuals/` | Manual list (search, filter by department) |
+| GET | `/manuals/` | Manual list |
 | GET/POST | `/manuals/add/` | Create a new manual (tabbed form, 8 sections) |
 | GET | `/manuals/<manual_id>/` | Manual preview / print view (Export PDF) |
 | GET/POST | `/manuals/<manual_id>/edit/` | Edit an existing manual |
 | POST | `/manuals/<manual_id>/delete/` | Delete a manual (cascades to all child sections) |
-| GET/POST | `/safety-manuals/add/` | Create a new safety manual (JSA & SSOP, independent document) |
 
 ### Admin
 

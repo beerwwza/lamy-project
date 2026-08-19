@@ -1,0 +1,190 @@
+[
+{
+  "model": "myapp.safetymanual",
+  "pk": 2,
+  "fields": {
+    "job_name": "งานเชื่อม",
+    "prepared_by": "นาวิน",
+    "department": null,
+    "purpose": null,
+    "manual_date": null,
+    "created_by": 2,
+    "created_at": "2026-08-13T03:08:10.109Z",
+    "updated_at": "2026-08-13T03:08:10.109Z"
+  }
+},
+{
+  "model": "myapp.safetymanualssopstep",
+  "pk": 2,
+  "fields": {
+    "safety_manual": 2,
+    "phase": null,
+    "step_title": "test",
+    "action": "test",
+    "image_illustration": "safety_manual_ssop/messageImage_1783998813327.jpg",
+    "image_illustration_2": "",
+    "image_illustration_3": "",
+    "image_illustration_4": "",
+    "image_tools": "safety_manual_ssop/2.png",
+    "display_order": 0,
+    "equipment_items": []
+  }
+},
+{
+  "model": "myapp.safetymanualjsaitem",
+  "pk": 2,
+  "fields": {
+    "safety_manual": 2,
+    "phase": null,
+    "step_title": "test",
+    "display_order": 0
+  }
+},
+{
+  "model": "myapp.safetymanualjsaitem",
+  "pk": 3,
+  "fields": {
+    "safety_manual": 2,
+    "phase": null,
+    "step_title": "test",
+    "display_order": 0
+  }
+},
+{
+  "model": "myapp.safetymanualjsahazard",
+  "pk": 1,
+  "fields": {
+    "jsa_item": 2,
+    "hazard": "test",
+    "prevention": "test",
+    "display_order": 0
+  }
+},
+{
+  "model": "myapp.safetymanualjsahazard",
+  "pk": 2,
+  "fields": {
+    "jsa_item": 3,
+    "hazard": "test",
+    "prevention": "test",
+    "display_order": 0
+  }
+},
+{
+  "model": "myapp.safetymanualjsaimage",
+  "pk": 1,
+  "fields": {
+    "jsa_item": 2,
+    "image": "safety_manual_jsa/ssop.png",
+    "display_order": 0
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 1,
+  "fields": {
+    "name": "หมวกนิรภัย",
+    "icon": "hard-hat",
+    "display_order": 10
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 2,
+  "fields": {
+    "name": "ถุงมือผ้า/ถุงมือหนัง",
+    "icon": "hand",
+    "display_order": 20
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 3,
+  "fields": {
+    "name": "รองเท้าเซฟตี้",
+    "icon": "footprints",
+    "display_order": 30
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 4,
+  "fields": {
+    "name": "แว่นตานิรภัย",
+    "icon": "glasses",
+    "display_order": 40
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 5,
+  "fields": {
+    "name": "ชุดประแจ",
+    "icon": "wrench",
+    "display_order": 50
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 6,
+  "fields": {
+    "name": "สลิง/โซ่ยก",
+    "icon": "link",
+    "display_order": 60
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 7,
+  "fields": {
+    "name": "บันได",
+    "icon": "package",
+    "display_order": 70
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 8,
+  "fields": {
+    "name": "ใบอนุญาตทำงาน (Work Permit)",
+    "icon": "clipboard-check",
+    "display_order": 80
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 9,
+  "fields": {
+    "name": "กุญแจล็อค (Lock-out Tag-out)",
+    "icon": "lock",
+    "display_order": 90
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 10,
+  "fields": {
+    "name": "เข็มขัดนิรภัย",
+    "icon": "shield",
+    "display_order": 100
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 11,
+  "fields": {
+    "name": "หน้ากากกันฝุ่น",
+    "icon": "package",
+    "display_order": 110
+  }
+},
+{
+  "model": "myapp.safetymanualequipmentoption",
+  "pk": 12,
+  "fields": {
+    "name": "ที่อุดหู",
+    "icon": "ear-off",
+    "display_order": 120
+  }
+}
+]

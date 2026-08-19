@@ -3,7 +3,9 @@
     "allow": [
       "Bash(python manage.py check --deploy)",
       "Bash(python manage.py check)",
-      "mcp__hostinger-mcp__VPS_getVirtualMachinesV1"
+      "mcp__hostinger-mcp__VPS_getVirtualMachinesV1",
+      "Bash(git status *)",
+      "Bash(git add *)"
     ]
   },
   "enabledMcpjsonServers": [

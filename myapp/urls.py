@@ -157,7 +157,6 @@ urlpatterns = [
     path('manuals/<int:manual_id>/',        manual_detail, name='manual_detail'),
     path('manuals/<int:manual_id>/edit/',   manual_edit,   name='manual_edit'),
     path('manuals/<int:manual_id>/delete/', manual_delete, name='manual_delete'),
-    path('safety-manuals/add/',             safety_manual_add, name='safety_manual_add'),
 
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]
