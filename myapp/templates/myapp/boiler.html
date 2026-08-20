@@ -1,8 +1,8 @@
 {% extends 'myapp/base.html' %}
 
-{% block title %} Boiler KPI Dashboard | Factory OS {% endblock title %}
+{% block title %} Boiler KPI Dashboard | Tools Center {% endblock title %}
 
-{% block content %}
+{% block layout %}
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
 <div id="boiler-section" class="flex h-screen overflow-hidden bg-slate-100 dark:bg-slate-950">
@@ -647,4 +647,4 @@
     }).render();
 </script>
 
-{% endblock content %}
+{% endblock layout %}

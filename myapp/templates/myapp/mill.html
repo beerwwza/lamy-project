@@ -1,8 +1,8 @@
 {% extends 'myapp/base.html' %}
 
-{% block title %} Mill Room | Factory OS {% endblock title %}
+{% block title %} Mill Room | Tools Center {% endblock title %}
 
-{% block content %}
+{% block layout %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <div
     class="flex h-screen overflow-hidden bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-[#f1f5f9] transition-colors duration-300 font-sans">
@@ -14,7 +14,7 @@
             <div class="bg-indigo-600 p-2 rounded-xl text-white shadow-md shadow-indigo-600/20">
                 <i data-lucide="factory" class="w-6 h-6"></i>
             </div>
-            <span class="font-bold text-lg tracking-tight text-slate-800 dark:text-slate-100">Factory OS</span>
+            <span class="font-bold text-lg tracking-tight text-slate-800 dark:text-slate-100">Tools Center</span>
         </div>
 
         <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -752,4 +752,4 @@
         lucide.createIcons();
     }
 </script>
-{% endblock content %}
+{% endblock layout %}

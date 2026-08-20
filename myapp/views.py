@@ -11,6 +11,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.db import transaction, connection
 from django.db.models import Sum, Avg, Count, Q, F, Max
 from django.core.cache import cache
+from django.core.paginator import Paginator
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, JsonResponse, Http404
 from functools import wraps
@@ -701,11 +702,51 @@ def pm_schedule_delete(request, pm_id):
 
 @login_required
 def equipment_list(request):
+    search_query    = request.GET.get('q', '').strip()
+    process_filter  = request.GET.get('process', '')
+    location_filter = request.GET.get('location', '')
+    status_filter   = request.GET.get('status', '')  # '', 'active', 'inactive'
+
     equipments = Equipment.objects.annotate(
         manual_count=Count('repair_documents', distinct=True)
     ).order_by('equipment_id')
+
+    if process_filter:
+        equipments = equipments.filter(process=process_filter)
+    if location_filter:
+        equipments = equipments.filter(location=location_filter)
+    if status_filter == 'active':
+        equipments = equipments.filter(is_active=True)
+    elif status_filter == 'inactive':
+        equipments = equipments.filter(is_active=False)
+    if search_query:
+        equipments = equipments.filter(
+            Q(equipment_id__icontains=search_query) |
+            Q(name__icontains=search_query) |
+            Q(manufacturer__icontains=search_query) |
+            Q(serial_no__icontains=search_query)
+        )
+
+    paginator = Paginator(equipments, 20)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    querystring = request.GET.copy()
+    querystring.pop('page', None)
+    querystring = querystring.urlencode()
+
     processes = Equipment.objects.exclude(process__isnull=True).exclude(process__exact='').values_list('process', flat=True).distinct().order_by('process')
-    context = {'equipments': equipments, 'processes': list(processes)}
+    locations = Equipment.objects.exclude(location__isnull=True).exclude(location__exact='').values_list('location', flat=True).distinct().order_by('location')
+
+    context = {
+        'page_obj': page_obj,
+        'processes': list(processes),
+        'locations': list(locations),
+        'search_query': search_query,
+        'process_filter': process_filter,
+        'location_filter': location_filter,
+        'status_filter': status_filter,
+        'querystring': querystring,
+    }
     return render(request, 'myapp/equipment_list.html', context)
 
 #def Home(request):

@@ -1,75 +1,14 @@
 {% extends 'myapp/base.html' %}
-{% block title %}{{ manual.machine_name }} - คู่มือปฏิบัติงาน - Factory OS{% endblock title %}
+{% block title %}{{ manual.machine_name }} - คู่มือปฏิบัติงาน - Tools Center{% endblock title %}
 
 {% block content %}
 <style>
     @media print {
-        #manual-sidebar, #manual-toolbar { display: none !important; }
+        aside, #manual-toolbar { display: none !important; }
         body { background: #fff !important; }
     }
     @page { size: letter; margin: 0.85in; }
 </style>
-
-<div class="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 print:h-auto print:overflow-visible print:block">
-
-    <!-- ══════════════════════ SIDEBAR ══════════════════════ -->
-    <aside id="manual-sidebar" class="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20">
-        <div class="h-16 flex items-center px-4 border-b border-slate-200 dark:border-slate-800">
-            <span class="font-bold text-xl text-indigo-600 dark:text-indigo-400">Factory OS</span>
-        </div>
-        <nav class="flex-1 overflow-y-auto py-4">
-            <ul class="space-y-1 px-2">
-                <li>
-                    <a href="/dashboard/"
-                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                        <i data-lucide="layout-dashboard" class="w-5 h-5 flex-shrink-0"></i><span>Dashboard</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/equipment/list/"
-                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                        <i data-lucide="server" class="w-5 h-5 flex-shrink-0"></i><span>Machine List</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/maintenance/"
-                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                        <i data-lucide="clipboard-list" class="w-5 h-5 flex-shrink-0"></i><span>แจ้งซ่อมเครื่องจักร</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="/docs/"
-                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                        <i data-lucide="history" class="w-5 h-5 flex-shrink-0"></i><span>ประวัติงานซ่อม</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{% url 'training_overview' %}"
-                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                        <i data-lucide="graduation-cap" class="w-5 h-5 flex-shrink-0"></i><span>Knowledge Center</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{% url 'inventory_dashboard' %}"
-                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                        <i data-lucide="package" class="w-5 h-5 flex-shrink-0"></i><span>คลังสินค้า</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{% url 'tools_dashboard' %}"
-                        class="flex items-center gap-3 px-3 py-3 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                        <i data-lucide="wrench" class="w-5 h-5 flex-shrink-0"></i><span>เครื่องมือ</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{% url 'manual_list' %}"
-                        class="flex items-center gap-3 px-3 py-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-medium transition-colors">
-                        <i data-lucide="file-text" class="w-5 h-5 flex-shrink-0"></i><span>Manual List</span>
-                    </a>
-                </li>
-            </ul>
-        </nav>
-    </aside>
 
     <!-- ══════════════════════ MAIN ══════════════════════════ -->
     <main class="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible print:block">
@@ -275,7 +214,6 @@
             </div>
         </div>
     </main>
-</div>
 
 <script>
     lucide.createIcons();

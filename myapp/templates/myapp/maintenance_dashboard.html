@@ -3,7 +3,7 @@
 
 {% block title %} Dashboard การซ่อมเครื่องจักรหน้าหีบ 2568/69 {% endblock title %}
 
-{% block content %}
+{% block layout %}
 <!-- ประกาศ URL และ CSRF Token ให้ JS ใช้งาน -->
 <meta name="csrf-token" content="{{ csrf_token }}">
 {{ logs_json|json_script:"logs-data" }}
@@ -1246,4 +1246,4 @@
     root.render(<Dashboard />);
 </script>
 {% endverbatim %}
-{% endblock content %}
+{% endblock layout %}
