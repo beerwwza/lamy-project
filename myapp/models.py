@@ -697,7 +697,9 @@ class Equipment(models.Model):
     serial_no = models.CharField(max_length=100, blank=True, null=True, verbose_name="หมายเลขเครื่อง")
     capacity = models.CharField(max_length=100, blank=True, null=True, verbose_name="ความจุ/อัตราไหล")
     head_size = models.CharField(max_length=100, blank=True, null=True, verbose_name="ระยะส่ง/ขนาด")
-    rpm = models.CharField(max_length=50, blank=True, null=True, verbose_name="ความเร็วรอบ")
+    power_kw = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, verbose_name="Power (kW)")
+    rpm_input = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, verbose_name="ความเร็วรอบเข้า (RPM)")
+    rpm = models.CharField(max_length=50, blank=True, null=True, verbose_name="ความเร็วรอบออก (RPM)")
     
     # Drive & Electrical
     motor = models.CharField(max_length=255, blank=True, null=True, verbose_name="มอเตอร์ขับเคลื่อน")
@@ -883,10 +885,21 @@ class CBMVibration(models.Model):
     inspection_date = models.DateField(verbose_name="วันที่ตรวจสอบ")
     inspector = models.CharField(max_length=100, verbose_name="ผู้ตรวจสอบ")
     
-    measurement_point = models.CharField(max_length=150, verbose_name="จุดที่วัด")
-    velocity = models.FloatField(blank=True, null=True, verbose_name="Velocity (mm/s)")
-    acceleration = models.FloatField(blank=True, null=True, verbose_name="Acceleration (g)")
-    bearing_temp = models.FloatField(blank=True, null=True, verbose_name="Bearing Temp (°C)")
+    measurement_point = models.CharField(max_length=150, verbose_name="หมายเหตุ (Note)")
+    amp = models.FloatField(blank=True, null=True, verbose_name="Amp")
+    de_ge = models.FloatField(blank=True, null=True, verbose_name="DE (gE)")
+    de_v = models.FloatField(blank=True, null=True, verbose_name="DE (V)")
+    de_h = models.FloatField(blank=True, null=True, verbose_name="DE (H)")
+    de_a = models.FloatField(blank=True, null=True, verbose_name="DE (A)")
+    de_m = models.FloatField(blank=True, null=True, verbose_name="DE (M)")
+    nde_ge = models.FloatField(blank=True, null=True, verbose_name="NDE (gE)")
+    nde_v = models.FloatField(blank=True, null=True, verbose_name="NDE (V)")
+    nde_h = models.FloatField(blank=True, null=True, verbose_name="NDE (H)")
+    nde_a = models.FloatField(blank=True, null=True, verbose_name="NDE (A)")
+    nde_m = models.FloatField(blank=True, null=True, verbose_name="NDE (M)")
+    temp_de = models.FloatField(blank=True, null=True, verbose_name="Temp.(DE)")
+    temp_frame = models.FloatField(blank=True, null=True, verbose_name="Temp.(FRAME)")
+    temp_nde = models.FloatField(blank=True, null=True, verbose_name="Temp.(NDE)")
     
     STATUS_CHOICES = [
         ('normal', 'Normal (อยู่ในเกณฑ์มาตรฐาน ISO)'),

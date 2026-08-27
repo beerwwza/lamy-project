@@ -60,7 +60,7 @@
             </div>
         </div>
 
-        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)]">
+        <div class="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)]">
             <table class="w-full text-sm text-left">
                 <thead class="bg-slate-50 text-slate-500 uppercase text-xs">
                     <tr>
@@ -70,10 +70,21 @@
                         <th class="px-4 py-3">สภาพโดยรวม</th>
                         <th class="px-4 py-3">รายละเอียด/ข้อเสนอแนะ</th>
                         {% elif cbm_type == 'vibration' %}
-                        <th class="px-4 py-3">จุดที่วัด</th>
-                        <th class="px-4 py-3">Velocity (mm/s)</th>
-                        <th class="px-4 py-3">Acceleration (g)</th>
-                        <th class="px-4 py-3">Bearing Temp (°C)</th>
+                        <th class="px-4 py-3">หมายเหตุ (Note)</th>
+                        <th class="px-4 py-3">Amp</th>
+                        <th class="px-4 py-3">DE (gE)</th>
+                        <th class="px-4 py-3">DE (V)</th>
+                        <th class="px-4 py-3">DE (H)</th>
+                        <th class="px-4 py-3">DE (A)</th>
+                        <th class="px-4 py-3">DE (M)</th>
+                        <th class="px-4 py-3">NDE (gE)</th>
+                        <th class="px-4 py-3">NDE (V)</th>
+                        <th class="px-4 py-3">NDE (H)</th>
+                        <th class="px-4 py-3">NDE (A)</th>
+                        <th class="px-4 py-3">NDE (M)</th>
+                        <th class="px-4 py-3">Temp.(DE)</th>
+                        <th class="px-4 py-3">Temp.(FRAME)</th>
+                        <th class="px-4 py-3">Temp.(NDE)</th>
                         <th class="px-4 py-3">สถานะ</th>
                         {% elif cbm_type == 'thermoscan' %}
                         <th class="px-4 py-3">จุดที่ถ่าย</th>
@@ -115,10 +126,21 @@
                         <td class="px-4 py-3 text-slate-500">{{ r.remark|default:"-" }}</td>
 
                         {% elif cbm_type == 'vibration' %}
-                        <td class="px-4 py-3">{{ r.measurement_point }}</td>
-                        <td class="px-4 py-3">{{ r.velocity|default:"-" }}</td>
-                        <td class="px-4 py-3">{{ r.acceleration|default:"-" }}</td>
-                        <td class="px-4 py-3">{{ r.bearing_temp|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.measurement_point|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.amp|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.de_ge|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.de_v|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.de_h|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.de_a|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.de_m|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.nde_ge|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.nde_v|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.nde_h|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.nde_a|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.nde_m|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.temp_de|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.temp_frame|default:"-" }}</td>
+                        <td class="px-4 py-3">{{ r.temp_nde|default:"-" }}</td>
                         <td class="px-4 py-3">
                             {% if r.status == 'normal' %}
                             <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-md font-bold">Normal</span>
@@ -179,7 +201,7 @@
         options: { responsive: true, maintainAspectRatio: false }
     });
     {% else %}
-    const palette = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444'];
+    const palette = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#0EA5E9', '#A855F7', '#EC4899', '#84CC16', '#F97316', '#14B8A6', '#6366F1', '#D946EF', '#EAB308', '#64748B'];
     new Chart(document.getElementById('trendChart'), {
         type: 'line',
         data: {

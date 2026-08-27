@@ -512,7 +512,12 @@ def equipment_cbm(request, eq_id=None):
 CBM_TYPE_CONFIG = {
     'visual':     {'model': CBMVisualTest, 'date_field': 'inspection_date', 'label': 'Visual Test', 'numeric_fields': []},
     'vibration':  {'model': CBMVibration, 'date_field': 'inspection_date', 'label': 'Vibration',
-                   'numeric_fields': [('velocity', 'Velocity (mm/s)'), ('acceleration', 'Acceleration (g)'), ('bearing_temp', 'Bearing Temp (°C)')]},
+                   'numeric_fields': [
+                       ('amp', 'Amp'),
+                       ('de_ge', 'DE (gE)'), ('de_v', 'DE (V)'), ('de_h', 'DE (H)'), ('de_a', 'DE (A)'), ('de_m', 'DE (M)'),
+                       ('nde_ge', 'NDE (gE)'), ('nde_v', 'NDE (V)'), ('nde_h', 'NDE (H)'), ('nde_a', 'NDE (A)'), ('nde_m', 'NDE (M)'),
+                       ('temp_de', 'Temp.(DE)'), ('temp_frame', 'Temp.(FRAME)'), ('temp_nde', 'Temp.(NDE)'),
+                   ]},
     'thermoscan': {'model': CBMThermoscan, 'date_field': 'inspection_date', 'label': 'Thermoscan',
                    'numeric_fields': [('max_temp', 'Max Temp (°C)'), ('ambient_temp', 'Ambient (°C)'), ('delta_t', 'Delta T (°C)')]},
     'oil':        {'model': CBMOilAnalysis, 'date_field': 'collection_date', 'label': 'Oil Analysis',
@@ -587,7 +592,7 @@ def upload_equipment_image(request, eq_id):
 EQUIPMENT_INLINE_FIELDS = {
     'name': 'str', 'location': 'str', 'process': 'str', 'belongs_to': 'str',
     'model': 'str', 'manufacturer': 'str', 'serial_no': 'str', 'capacity': 'str',
-    'head_size': 'str', 'rpm': 'str', 'motor': 'str', 'panel': 'str',
+    'head_size': 'str', 'power_kw': 'decimal', 'rpm_input': 'decimal', 'rpm': 'str', 'motor': 'str', 'panel': 'str',
     'starter': 'str', 'breaker': 'str', 'drive_type': 'str',
     'installation_date': 'date', 'warranty_exp': 'date',
     'purchase_price': 'decimal', 'replacement_cost': 'decimal',

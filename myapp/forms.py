@@ -283,18 +283,33 @@ class CBMVisualTestForm(forms.ModelForm):
             'image_file_id': forms.HiddenInput(),
         }
 
+_TW_VIBRATION = ('w-full p-2 border border-slate-300 rounded-lg text-sm '
+                  'focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 '
+                  'dark:bg-slate-800 dark:border-slate-700 dark:text-white')
+
+
 class CBMVibrationForm(forms.ModelForm):
     class Meta:
         model = CBMVibration
-        exclude = ('equipment',)
+        exclude = ('equipment', 'status')
         widgets = {
-            'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'inspector': forms.TextInput(attrs={'class': 'form-control'}),
-            'measurement_point': forms.TextInput(attrs={'class': 'form-control'}),
-            'velocity': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'acceleration': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'bearing_temp': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
-            'status': forms.Select(attrs={'class': 'form-select'}),
+            'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': _TW_VIBRATION}),
+            'inspector': forms.TextInput(attrs={'class': _TW_VIBRATION}),
+            'measurement_point': forms.TextInput(attrs={'class': _TW_VIBRATION}),
+            'amp': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'de_ge': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'de_v': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'de_h': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'de_a': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'de_m': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'nde_ge': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'nde_v': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'nde_h': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'nde_a': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'nde_m': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'temp_de': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'temp_frame': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'temp_nde': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
         }
 
 class CBMThermoscanForm(forms.ModelForm):
