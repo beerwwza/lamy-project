@@ -13,6 +13,7 @@ from .models import (
     ManualSpecItem,
 )
 from .models import MachineTask, MachineTaskVibration
+from .models import ProcessCategory
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
@@ -226,12 +227,39 @@ class KPIMetricForm(forms.ModelForm):
             })
 
 class EquipmentForm(forms.ModelForm):
+    LEGACY_KEEP_VALUE = '__keep_current_process__'
+
     class Meta:
         model = Equipment
         exclude = ['motor', 'panel', 'starter', 'breaker', 'drive_type', 'updated_by']
 
     def __init__(self, *args, **kwargs):
         super(EquipmentForm, self).__init__(*args, **kwargs)
+
+        active_names = list(
+            ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)
+        )
+        process_choices = [('', '-- เลือกกระบวนการ --')] + [(name, name) for name in active_names]
+
+        self._legacy_process_value = None
+        if self.instance and self.instance.pk:
+            current = self.instance.process
+            if not current or current not in active_names:
+                self._legacy_process_value = current or ''
+                legacy_label = (
+                    f'{current} (ค่าเดิม — ไม่อยู่ในรายการปัจจุบัน)'
+                    if current else '(ว่าง / ไม่ระบุ — ค่าเดิม)'
+                )
+                process_choices.append((self.LEGACY_KEEP_VALUE, legacy_label))
+
+        self.fields['process'] = forms.ChoiceField(
+            choices=process_choices,
+            required=True,
+            label=self.fields['process'].label,
+        )
+        if self._legacy_process_value is not None:
+            self.initial['process'] = self.LEGACY_KEEP_VALUE
+
         for fname in ['mtbf', 'mttr', 'acc_cost']:
             if fname in self.fields:
                 self.fields[fname].required = False
@@ -241,6 +269,12 @@ class EquipmentForm(forms.ModelForm):
                     'class': 'form-control',
                     'placeholder': '-'
                 })
+
+    def clean_process(self):
+        value = self.cleaned_data.get('process')
+        if value == self.LEGACY_KEEP_VALUE:
+            return self._legacy_process_value
+        return value
 
 class EquipmentBOMForm(forms.ModelForm):
     class Meta:

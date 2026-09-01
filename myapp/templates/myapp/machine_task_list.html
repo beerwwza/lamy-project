@@ -182,11 +182,29 @@
                                         class="grid grid-cols-2 md:grid-cols-3 gap-3">
                                         {% csrf_token %}
                                         <div>
-                                            <label class="block text-xs font-semibold text-slate-500 mb-1">เครื่องจักร</label>
-                                            <select name="equipment"
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">กระบวนการ</label>
+                                            <select id="task-edit-process-{{ task.id }}"
+                                                onchange="loadEquipmentOptions('task-edit-process-{{ task.id }}','task-edit-equipment-{{ task.id }}','{{ task.equipment_id }}')"
                                                 class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
-                                                {% for eq in equipments %}
-                                                <option value="{{ eq.equipment_id }}" {% if eq.equipment_id == task.equipment_id %}selected{% endif %}>{{ eq.equipment_id }} - {{ eq.name }}</option>
+                                                <option value="">-- เลือกกระบวนการ --</option>
+                                                {% for proc in process_choices %}
+                                                <option value="{{ proc }}" {% if proc == task.effective_process %}selected{% endif %}>{{ proc }}</option>
+                                                {% endfor %}
+                                                <option value="__other__" {% if task.effective_process == '__other__' %}selected{% endif %}>อื่นๆ/ไม่ระบุ</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">เครื่องจักร</label>
+                                            <select name="equipment" id="task-edit-equipment-{{ task.id }}"
+                                                class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                                                {% for eq in task.scoped_equipment %}
+                                                <option value="{{ eq.equipment_id }}"
+                                                    data-power="{{ eq.power_kw|default:'' }}"
+                                                    data-rpm-in="{{ eq.rpm_input|default:'' }}"
+                                                    data-rpm-out="{{ eq.rpm|default:'' }}"
+                                                    {% if eq.equipment_id == task.equipment_id %}selected{% endif %}>
+                                                    {{ eq.equipment_id }} - {{ eq.name }}
+                                                </option>
                                                 {% endfor %}
                                             </select>
                                         </div>
@@ -267,19 +285,22 @@
                 <input type="hidden" name="status" value="wait">
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">เครื่องจักร <span class="text-red-400">*</span></label>
-                    <select name="equipment" id="task-equipment" required onchange="updateEquipmentRef()"
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">กระบวนการ <span class="text-red-400">*</span></label>
+                    <select id="task-process" required onchange="loadEquipmentOptions('task-process','task-equipment')"
                         class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
-                        <option value="">-- เลือกเครื่องจักร --</option>
-                        {% for eq in equipments %}
-                        <option value="{{ eq.equipment_id }}"
-                            data-name="{{ eq.name }}"
-                            data-power="{{ eq.power_kw|default:'' }}"
-                            data-rpm-in="{{ eq.rpm_input|default:'' }}"
-                            data-rpm-out="{{ eq.rpm|default:'' }}">
-                            {{ eq.equipment_id }} - {{ eq.name }}
-                        </option>
+                        <option value="">-- เลือกกระบวนการ --</option>
+                        {% for proc in process_choices %}
+                        <option value="{{ proc }}">{{ proc }}</option>
                         {% endfor %}
+                        <option value="__other__">อื่นๆ/ไม่ระบุ</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">เครื่องจักร <span class="text-red-400">*</span></label>
+                    <select name="equipment" id="task-equipment" required disabled onchange="updateEquipmentRef()"
+                        class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                        <option value="">-- เลือกกระบวนการก่อน --</option>
                     </select>
                 </div>
 
@@ -329,6 +350,8 @@
     </datalist>
 
 <script>
+    const EQUIPMENT_BY_PROCESS_URL = "{% url 'api_equipment_by_process' %}";
+
     lucide.createIcons();
 
     function openAddModal() {
@@ -341,6 +364,15 @@
         const modal = document.getElementById('addTaskModal');
         modal.classList.add('hidden');
         modal.classList.remove('flex');
+        document.getElementById('task-process').value = '';
+        const eqSelect = document.getElementById('task-equipment');
+        eqSelect.textContent = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = '-- เลือกกระบวนการก่อน --';
+        eqSelect.appendChild(placeholder);
+        eqSelect.disabled = true;
+        document.getElementById('equipmentRefBox').classList.add('hidden');
     }
     document.getElementById('addTaskModal').addEventListener('click', function (e) {
         if (e.target === this) closeAddModal();
@@ -362,6 +394,57 @@
 
     function toggleTaskEdit(taskId) {
         document.getElementById(`task-edit-${taskId}`).classList.toggle('hidden');
+    }
+
+    function loadEquipmentOptions(processSelectId, equipmentSelectId, preserveEquipmentId) {
+        const process = document.getElementById(processSelectId).value;
+        const equipmentSelect = document.getElementById(equipmentSelectId);
+
+        equipmentSelect.textContent = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = process ? 'กำลังโหลด...' : '-- เลือกกระบวนการก่อน --';
+        equipmentSelect.appendChild(placeholder);
+        equipmentSelect.disabled = true;
+
+        if (!process) {
+            equipmentSelect.disabled = false;
+            if (equipmentSelectId === 'task-equipment') updateEquipmentRef();
+            return;
+        }
+
+        fetch(`${EQUIPMENT_BY_PROCESS_URL}?process=${encodeURIComponent(process)}`)
+            .then(r => r.json())
+            .then(data => {
+                equipmentSelect.textContent = '';
+                const empty = document.createElement('option');
+                empty.value = '';
+                empty.textContent = '-- เลือกเครื่องจักร --';
+                equipmentSelect.appendChild(empty);
+
+                (data.equipment || []).forEach(eq => {
+                    const opt = document.createElement('option');
+                    opt.value = eq.equipment_id;
+                    opt.textContent = `${eq.equipment_id} - ${eq.name}`;
+                    opt.dataset.power = eq.power_kw || '';
+                    opt.dataset.rpmIn = eq.rpm_input || '';
+                    opt.dataset.rpmOut = eq.rpm || '';
+                    if (preserveEquipmentId && eq.equipment_id === preserveEquipmentId) {
+                        opt.selected = true;
+                    }
+                    equipmentSelect.appendChild(opt);
+                });
+                equipmentSelect.disabled = false;
+                if (equipmentSelectId === 'task-equipment') updateEquipmentRef();
+            })
+            .catch(() => {
+                equipmentSelect.textContent = '';
+                const err = document.createElement('option');
+                err.value = '';
+                err.textContent = 'โหลดรายการเครื่องจักรไม่สำเร็จ กรุณาลองใหม่';
+                equipmentSelect.appendChild(err);
+                equipmentSelect.disabled = false;
+            });
     }
 </script>
 {% endblock %}

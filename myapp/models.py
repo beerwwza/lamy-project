@@ -1843,3 +1843,16 @@ class MachineTaskVibration(models.Model):
     def __str__(self):
         return f"{self.task.title} - {self.get_phase_display()}"
 
+
+class ProcessCategory(models.Model):
+    name = models.CharField(max_length=255, unique=True, blank=False, verbose_name="ชื่อกระบวนการ")
+    is_active = models.BooleanField(default=True, verbose_name="ใช้งานอยู่")
+
+    class Meta:
+        verbose_name = "กระบวนการ (Process Category)"
+        verbose_name_plural = "กระบวนการ (Process Category)"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+

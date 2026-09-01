@@ -590,6 +590,8 @@ def upload_equipment_image(request, eq_id):
         return JsonResponse({'status': 'error', 'message': 'ไม่พบเครื่องจักร'})
     return JsonResponse({'status': 'error', 'message': 'ไม่มีรูปภาพถูกส่งมา'})
 
+PROCESS_OTHER_BUCKET = '__other__'
+
 EQUIPMENT_INLINE_FIELDS = {
     'name': 'str', 'location': 'str', 'process': 'str', 'belongs_to': 'str',
     'model': 'str', 'manufacturer': 'str', 'serial_no': 'str', 'capacity': 'str',
@@ -641,6 +643,35 @@ def equipment_toggle_status(request, eq_id):
     else:
         messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
     return redirect('equipment_list')
+
+
+@login_required
+def api_equipment_by_process(request):
+    process = request.GET.get('process', '').strip()
+    if not process:
+        return JsonResponse({'error': 'ต้องระบุ process'}, status=400)
+
+    active_names = list(ProcessCategory.objects.filter(is_active=True).values_list('name', flat=True))
+    qs = Equipment.objects.filter(is_active=True)
+    if process == PROCESS_OTHER_BUCKET:
+        qs = qs.filter(Q(process__isnull=True) | Q(process__exact='') | ~Q(process__in=active_names))
+    else:
+        if process not in active_names:
+            return JsonResponse({'error': 'ไม่พบกระบวนการที่ระบุ'}, status=400)
+        qs = qs.filter(process=process)
+
+    rows = qs.order_by('equipment_id').values('equipment_id', 'name', 'power_kw', 'rpm_input', 'rpm')
+    equipment = [
+        {
+            'equipment_id': r['equipment_id'],
+            'name': r['name'],
+            'power_kw': str(r['power_kw']) if r['power_kw'] is not None else '',
+            'rpm_input': str(r['rpm_input']) if r['rpm_input'] is not None else '',
+            'rpm': r['rpm'] or '',
+        }
+        for r in rows
+    ]
+    return JsonResponse({'equipment': equipment})
 
 
 # ─── PM Schedule Views ────────────────────────────────────────────────────────
@@ -717,7 +748,15 @@ def equipment_list(request):
         manual_count=Count('repair_documents', distinct=True)
     ).order_by('equipment_id')
 
-    if process_filter:
+    active_process_names = list(
+        ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)
+    )
+
+    if process_filter == PROCESS_OTHER_BUCKET:
+        equipments = equipments.filter(
+            Q(process__isnull=True) | Q(process__exact='') | ~Q(process__in=active_process_names)
+        )
+    elif process_filter:
         equipments = equipments.filter(process=process_filter)
     if location_filter:
         equipments = equipments.filter(location=location_filter)
@@ -740,12 +779,11 @@ def equipment_list(request):
     querystring.pop('page', None)
     querystring = querystring.urlencode()
 
-    processes = Equipment.objects.exclude(process__isnull=True).exclude(process__exact='').values_list('process', flat=True).distinct().order_by('process')
     locations = Equipment.objects.exclude(location__isnull=True).exclude(location__exact='').values_list('location', flat=True).distinct().order_by('location')
 
     context = {
         'page_obj': page_obj,
-        'processes': list(processes),
+        'processes': active_process_names,
         'locations': list(locations),
         'search_query': search_query,
         'process_filter': process_filter,
@@ -3502,7 +3540,7 @@ def inventory_list(request):
         'category_choices': [c for c in InventoryItem.CATEGORY_CHOICES if c[0] != 'tools'],
         'department_choices': InventoryItem.DEPARTMENT_CHOICES,
         'equipment_choices': Equipment.objects.all().order_by('equipment_id'),
-        'process_choices': list(Equipment.objects.exclude(process__isnull=True).exclude(process__exact='').values_list('process', flat=True).distinct().order_by('process')),
+        'process_choices': list(ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)),
     }
     return render(request, 'myapp/inventory/list.html', context)
 
@@ -3521,7 +3559,7 @@ def inventory_stock_card(request, pk):
         'category_choices': InventoryItem.CATEGORY_CHOICES,
         'department_choices': InventoryItem.DEPARTMENT_CHOICES,
         'equipment_choices': Equipment.objects.all().order_by('equipment_id'),
-        'process_choices': list(Equipment.objects.exclude(process__isnull=True).exclude(process__exact='').values_list('process', flat=True).distinct().order_by('process')),
+        'process_choices': list(ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)),
     }
     return render(request, 'myapp/inventory/stock_card.html', context)
 
@@ -5048,11 +5086,38 @@ def machine_task_list(request):
         tasks = tasks.filter(title__icontains=title_filter)
     if status_filter:
         tasks = tasks.filter(status=status_filter)
+    tasks = list(tasks)
+
+    active_names = list(
+        ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)
+    )
+    active_set = set(active_names)
+
+    equipment_rows = Equipment.objects.filter(is_active=True).order_by('equipment_id').values(
+        'equipment_id', 'name', 'process', 'power_kw', 'rpm_input', 'rpm'
+    )
+    equipment_by_process = {}
+    for row in equipment_rows:
+        key = row['process'] if row['process'] in active_set else PROCESS_OTHER_BUCKET
+        equipment_by_process.setdefault(key, []).append(row)
+
+    for task in tasks:
+        eq = task.equipment
+        proc = eq.process if eq else None
+        task.effective_process = proc if proc in active_set else PROCESS_OTHER_BUCKET
+        scoped = list(equipment_by_process.get(task.effective_process, []))
+        if eq and not any(r['equipment_id'] == eq.equipment_id for r in scoped):
+            # เครื่องจักรปัจจุบันของ task ต้องเลือกได้เสมอ แม้ is_active=False หรือ process ไม่ตรง bucket
+            scoped.insert(0, {
+                'equipment_id': eq.equipment_id, 'name': eq.name,
+                'power_kw': eq.power_kw, 'rpm_input': eq.rpm_input, 'rpm': eq.rpm,
+            })
+        task.scoped_equipment = scoped
 
     return render(request, 'myapp/machine_task_list.html', {
         'tasks': tasks,
         'form': MachineTaskForm(),
-        'equipments': Equipment.objects.filter(is_active=True).order_by('equipment_id'),
+        'process_choices': active_names,
         'status_choices': MachineTask.STATUS_CHOICES,
         'title_filter': title_filter,
         'status_filter': status_filter,

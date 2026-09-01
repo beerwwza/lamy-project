@@ -317,3 +317,13 @@ class MachineTaskVibrationAdmin(admin.ModelAdmin):
     list_display = ['task', 'phase', 'inspection_date', 'status']
     list_filter = ['phase', 'status']
     search_fields = ['task__title', 'task__equipment__equipment_id']
+
+
+# ===== Process Category (Master Data) =====
+
+@admin.register(ProcessCategory)
+class ProcessCategoryAdmin(admin.ModelAdmin):
+    list_display = ['name', 'is_active']
+    list_filter = ['is_active']
+    search_fields = ['name']
+    ordering = ['name']

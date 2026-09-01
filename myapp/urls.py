@@ -67,6 +67,7 @@ urlpatterns = [
     path('equipment/cbm-summary/<str:cbm_type>/<path:eq_id>/', cbm_summary, name='cbm_summary'),
     path('equipment/upload_image/<path:eq_id>/', upload_equipment_image, name='upload_equipment_image'),
     path('equipment/<path:eq_id>/toggle_status/', equipment_toggle_status, name='equipment_toggle_status'),
+    path('api/equipment/by-process/', api_equipment_by_process, name='api_equipment_by_process'),
     path('equipment/<path:eq_id>/inline-update/', equipment_inline_update, name='equipment_inline_update'),
     path('equipment/<path:eq_id>/change-code/', views.equipment_change_code, name='equipment_change_code'),
     path('equipment/<path:eq_id>/', equipment_data, name='equipment_data_detail'),

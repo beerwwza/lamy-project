@@ -52,6 +52,7 @@
                         {% for proc in processes %}
                         <option value="{{ proc }}" {% if process_filter == proc %}selected{% endif %}>{{ proc }}</option>
                         {% endfor %}
+                        <option value="__other__" {% if process_filter == '__other__' %}selected{% endif %}>อื่นๆ/ไม่ระบุ</option>
                     </select>
                     <select name="location" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-200">
                         <option value="">ทั้งหมด (All Locations)</option>
