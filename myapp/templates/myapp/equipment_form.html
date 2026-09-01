@@ -66,6 +66,8 @@
                     <!-- Preserve is_active state (checkbox not rendered in form) -->
                     {% if equipment %}
                     <input type="hidden" name="is_active" value="{{ equipment.is_active|yesno:'True,False' }}">
+                    {% else %}
+                    <input type="hidden" name="is_active" value="True">
                     {% endif %}
 
                     <!-- Section 0: Equipment Image (Google Drive) -->

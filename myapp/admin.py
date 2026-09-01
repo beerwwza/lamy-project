@@ -302,3 +302,18 @@ class ManualAdmin(admin.ModelAdmin):
         ManualOperatingStepInline, ManualMaintenanceDailyItemInline, ManualMaintenancePeriodicItemInline,
         ManualTroubleshootItemInline, ManualSpecItemInline,
     ]
+
+
+# ===== Task Manager Module =====
+
+@admin.register(MachineTask)
+class MachineTaskAdmin(admin.ModelAdmin):
+    list_display = ['title', 'equipment', 'status', 'assignee', 'created_at']
+    list_filter = ['status']
+    search_fields = ['title', 'equipment__equipment_id', 'equipment__name', 'assignee']
+
+@admin.register(MachineTaskVibration)
+class MachineTaskVibrationAdmin(admin.ModelAdmin):
+    list_display = ['task', 'phase', 'inspection_date', 'status']
+    list_filter = ['phase', 'status']
+    search_fields = ['task__title', 'task__equipment__equipment_id']

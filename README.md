@@ -33,6 +33,7 @@ LAMY is a web-based industrial operations management system built for a large-sc
 - **Lathe Job Tracking** — Machining job management with job requirements, quality control records, and status tracking.
 - **Tools Module** — Dedicated hand-tool tracking (`/tools/`) separate from general Inventory, with per-physical-unit status (so identical tools like 5 impact wrenches are tracked individually), borrow/return history with due dates, and an integrated tool-readiness checklist.
 - **Manual Library** (`/manuals/`) — Structured machine operation & maintenance manuals (cover info, safety precautions, part names, pre-use checklist, operating steps, daily/periodic maintenance, troubleshooting, specifications), built via a multi-section form with dynamic add/remove rows.
+- **Task Manager** (`/tasks/`) — Machine readiness / trial-run task tracking: pick equipment from the registry, track a task through Todo → Doing → Done, and record a full vibration measurement set (Amp, DE/NDE, Temp) for both the no-load and loaded run phases, compared side by side. Each phase reading is also written into `CBMVibration` so it shows in the equipment's normal CBM history.
 
 The system is primarily operated by plant engineers and maintenance teams, with data used for production optimization and equipment health trend analysis.
 
@@ -387,6 +388,13 @@ Standalone module at `/manuals/`, not linked to `Equipment` (machine name is fre
 
 - `Manual` — cover info (machine name, model, department, prepared by, doc no., revision, date) with 8 repeating child sections, each its own model + inline formset: `ManualSafetyItem`, `ManualPartItem`, `ManualPrecheckItem`, `ManualOperatingStep`, `ManualMaintenanceDailyItem`, `ManualMaintenancePeriodicItem`, `ManualTroubleshootItem`, `ManualSpecItem` (all `on_delete=CASCADE` from `Manual`). Editor page (`manual_form.html`) uses a tabbed single-page form with vanilla-JS dynamic add/remove rows (formset `cloneNode` + prefix renumbering — no React). Preview/print page (`manual_detail.html`) supports Export to PDF via `window.print()`. List page (`manual_list.html`) is a plain table of all manuals with a single "สร้างคู่มือใหม่" create button.
 
+### Task Manager
+
+Standalone module at `/tasks/`, linked to `Equipment` via FK. Lets an operator pick a machine from the registry and track a readiness/trial-run task through a staged workflow instead of one big form:
+
+- `MachineTask` — equipment, title, assignee, status (`todo`/`doing`/`done`), note. Created via a modal on the list page (`machine_task_list.html`), which shows each equipment's `power_kw`/`rpm_input`/`rpm` as reference info on selection (plain `<option data-*>` attributes + vanilla JS, no extra endpoint).
+- `MachineTaskVibration` — child of `MachineTask`, one row per `phase` (`no_load`/`loaded`, enforced unique together), duplicating all 14 `CBMVibration` measurement fields (Amp, DE/NDE gE/V/H/A/M, Temp DE/FRAME/NDE). Submitting a phase's form on the task detail page (`machine_task_detail.html`) also creates a real `CBMVibration` row for that equipment (tagged `[Task Manager] <phase> - <title>` in `measurement_point`, no schema change to `CBMVibration`) and auto-advances the task status (`todo`→`doing` on the no-load reading, →`done` on the loaded reading). The detail page renders both phases as a 14-row comparison table (no-load vs loaded side by side) rather than as extra columns on the main list.
+
 ---
 
 ## 9. Database Models
@@ -462,11 +470,15 @@ Manuals (คู่มือปฏิบัติงานเครื่อง�
     ├── ManualTroubleshootItem
     └── ManualSpecItem
 
+Task Manager (งานเตรียมความพร้อม/ทดลองเดินเครื่อง — /tasks/, ผูก Equipment)
+└── MachineTask            (title, assignee, status: todo/doing/done, note)
+    └── MachineTaskVibration   (phase: no_load/loaded; 14 measurement fields mirroring CBMVibration; unique per task+phase)
+
 ```
 
 Google Drive uploads (`RepairDocument` only) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
-Database migrations: **81 migration files** in `myapp/migrations/`.
+Database migrations: **82 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -598,6 +610,17 @@ Database migrations: **81 migration files** in `myapp/migrations/`.
 | GET | `/manuals/<manual_id>/` | Manual preview / print view (Export PDF) |
 | GET/POST | `/manuals/<manual_id>/edit/` | Edit an existing manual |
 | POST | `/manuals/<manual_id>/delete/` | Delete a manual (cascades to all child sections) |
+
+### Task Manager
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/tasks/` | Task list (filter by `?equipment=` / `?status=`), add-task modal |
+| POST | `/tasks/add/` | Create a new task (status starts at `todo`) |
+| POST | `/tasks/edit/<task_id>/` | Edit task title/assignee/status/note/equipment |
+| POST | `/tasks/delete/<task_id>/` | Delete a task (cascades to its vibration readings) |
+| GET | `/tasks/<task_id>/` | Task detail: equipment reference info, comparison table, phase entry forms |
+| POST | `/tasks/<task_id>/vibration/<phase>/` | Save a `no_load`/`loaded` vibration reading; also writes a `CBMVibration` row and advances task status |
 
 ### Admin
 

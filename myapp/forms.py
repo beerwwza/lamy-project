@@ -12,6 +12,7 @@ from .models import (
     ManualMaintenanceDailyItem, ManualMaintenancePeriodicItem, ManualTroubleshootItem,
     ManualSpecItem,
 )
+from .models import MachineTask, MachineTaskVibration
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
@@ -867,4 +868,101 @@ ManualSpecItemFormSet = inlineformset_factory(
     Manual, ManualSpecItem, form=ManualSpecItemForm,
     extra=1, can_delete=True, max_num=100, validate_max=True,
 )
+
+
+# ===== Task Manager Module =====
+
+class MachineTaskForm(forms.ModelForm):
+    class Meta:
+        model = MachineTask
+        fields = ['equipment', 'title', 'assignee', 'status', 'note',
+                  'start_test_date', 'actual_current',
+                  'rotation_direction_ok', 'control_local_ok', 'control_dcs_ok', 'control_remote_ok',
+                  'participant_motor', 'participant_electrical', 'participant_control',
+                  'participant_maintenance', 'participant_user']
+        widgets = {
+            'equipment': forms.Select(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'title': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'เช่น เตรียมความพร้อมก่อนสตาร์ทฤดูหีบ',
+            }),
+            'assignee': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'ชื่อผู้รับผิดชอบ',
+            }),
+            'status': forms.Select(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'note': forms.Textarea(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'rows': 3, 'placeholder': 'บันทึกปัญหาที่พบ (ถ้ามี)',
+            }),
+            'start_test_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+            }),
+            'actual_current': forms.NumberInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'step': '0.01', 'placeholder': 'A',
+            }),
+            'participant_motor': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'ชื่อผู้ร่วมทดสอบ',
+            }),
+            'participant_electrical': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'ชื่อผู้ร่วมทดสอบ',
+            }),
+            'participant_control': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'ชื่อผู้ร่วมทดสอบ',
+            }),
+            'participant_maintenance': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'ชื่อผู้ร่วมทดสอบ',
+            }),
+            'participant_user': forms.TextInput(attrs={
+                'class': 'w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+                         'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white',
+                'placeholder': 'ชื่อผู้ร่วมทดสอบ',
+            }),
+        }
+
+
+class MachineTaskVibrationForm(forms.ModelForm):
+    class Meta:
+        model = MachineTaskVibration
+        exclude = ('task', 'phase')
+        widgets = {
+            'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': _TW_VIBRATION}),
+            'inspector': forms.TextInput(attrs={'class': _TW_VIBRATION}),
+            'amp': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'de_ge': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'de_v': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'de_h': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'de_a': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'de_m': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'nde_ge': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'nde_v': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'nde_h': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'nde_a': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'nde_m': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'temp_de': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'temp_frame': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'temp_nde': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
+            'status': forms.Select(attrs={'class': _TW_VIBRATION}),
+        }
 

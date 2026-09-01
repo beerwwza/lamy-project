@@ -158,5 +158,13 @@ urlpatterns = [
     path('manuals/<int:manual_id>/edit/',   manual_edit,   name='manual_edit'),
     path('manuals/<int:manual_id>/delete/', manual_delete, name='manual_delete'),
 
+    # ===== Task Manager Module =====
+    path('tasks/',                                     machine_task_list,            name='machine_task_list'),
+    path('tasks/add/',                                 machine_task_add,             name='machine_task_add'),
+    path('tasks/edit/<int:task_id>/',                  machine_task_edit,            name='machine_task_edit'),
+    path('tasks/delete/<int:task_id>/',                machine_task_delete,          name='machine_task_delete'),
+    path('tasks/<int:task_id>/',                       machine_task_detail,          name='machine_task_detail'),
+    path('tasks/<int:task_id>/vibration/<str:phase>/', machine_task_vibration_save,  name='machine_task_vibration_save'),
+
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]

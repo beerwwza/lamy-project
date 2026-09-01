@@ -34,6 +34,7 @@ from .models import Equipment, EquipmentBOM, EquipmentLink, CBMVisualTest, CBMVi
 from .models import PMSchedule
 from .forms import EquipmentForm, EquipmentBOMForm, EquipmentLinkForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm, RepairDocumentForm
 from .forms import PMScheduleForm, PMPlanForm, PMPlanItemForm, WorkOrderForm, WorkOrderStatusForm
+from .forms import MachineTaskForm, MachineTaskVibrationForm
 from .models import TrainingSkill, EmployeeSkillLevel, TrainingCourse, TrainingRecord, TrainingExamScore
 from .models import (TrainingCourseMaterial, TrainingQuizQuestion, TrainingQuizChoice,
                       TrainingCourseExamAttempt, TrainingCourseExamAnswer)
@@ -5016,4 +5017,155 @@ def manual_delete(request, manual_id):
         manual.delete()
         messages.success(request, f'ลบคู่มือ "{name}" เรียบร้อยแล้ว')
     return redirect('manual_list')
+
+
+# ===== Task Manager Module =====
+
+MACHINE_TASK_VIBRATION_FIELDS = [
+    ('amp', 'Amp'),
+    ('de_ge', 'DE (gE)'),
+    ('de_v', 'DE (V)'),
+    ('de_h', 'DE (H)'),
+    ('de_a', 'DE (A)'),
+    ('de_m', 'DE (M)'),
+    ('nde_ge', 'NDE (gE)'),
+    ('nde_v', 'NDE (V)'),
+    ('nde_h', 'NDE (H)'),
+    ('nde_a', 'NDE (A)'),
+    ('nde_m', 'NDE (M)'),
+    ('temp_de', 'Temp.(DE)'),
+    ('temp_frame', 'Temp.(FRAME)'),
+    ('temp_nde', 'Temp.(NDE)'),
+]
+
+
+@login_required
+def machine_task_list(request):
+    tasks = MachineTask.objects.select_related('equipment').all()
+    title_filter = request.GET.get('title') or ''
+    status_filter = request.GET.get('status') or ''
+    if title_filter:
+        tasks = tasks.filter(title__icontains=title_filter)
+    if status_filter:
+        tasks = tasks.filter(status=status_filter)
+
+    return render(request, 'myapp/machine_task_list.html', {
+        'tasks': tasks,
+        'form': MachineTaskForm(),
+        'equipments': Equipment.objects.filter(is_active=True).order_by('equipment_id'),
+        'status_choices': MachineTask.STATUS_CHOICES,
+        'title_filter': title_filter,
+        'status_filter': status_filter,
+        'title_history': MachineTask.objects.exclude(title='').values_list('title', flat=True).distinct().order_by('title'),
+    })
+
+
+@login_required
+def machine_task_add(request):
+    if request.method == 'POST':
+        form = MachineTaskForm(request.POST)
+        if form.is_valid():
+            task = form.save(commit=False)
+            task.updated_by = request.user.username
+            task.save()
+            messages.success(request, f'เพิ่มงาน "{task.title}" เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'เพิ่มงานไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+    return redirect('machine_task_list')
+
+
+@login_required
+def machine_task_edit(request, task_id):
+    task = get_object_or_404(MachineTask, id=task_id)
+    if request.method == 'POST':
+        form = MachineTaskForm(request.POST, instance=task)
+        if form.is_valid():
+            task = form.save(commit=False)
+            task.updated_by = request.user.username
+            task.save()
+            messages.success(request, f'อัปเดตงาน "{task.title}" เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'อัปเดตงานไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+    return redirect('machine_task_list')
+
+
+@login_required
+def machine_task_delete(request, task_id):
+    task = get_object_or_404(MachineTask, id=task_id)
+    if request.method == 'POST':
+        title = task.title
+        task.delete()
+        messages.success(request, f'ลบงาน "{title}" เรียบร้อยแล้ว')
+    return redirect('machine_task_list')
+
+
+@login_required
+def machine_task_detail(request, task_id):
+    task = get_object_or_404(MachineTask.objects.select_related('equipment'), id=task_id)
+    readings = {r.phase: r for r in task.vibration_readings.all()}
+    no_load = readings.get('no_load')
+    loaded = readings.get('loaded')
+
+    comparison_rows = [
+        {
+            'label': label,
+            'no_load': getattr(no_load, field, None) if no_load else None,
+            'loaded': getattr(loaded, field, None) if loaded else None,
+        }
+        for field, label in MACHINE_TASK_VIBRATION_FIELDS
+    ]
+
+    return render(request, 'myapp/machine_task_detail.html', {
+        'task': task,
+        'no_load': no_load,
+        'loaded': loaded,
+        'no_load_form': MachineTaskVibrationForm(instance=no_load),
+        'loaded_form': MachineTaskVibrationForm(instance=loaded),
+        'comparison_rows': comparison_rows,
+        'edit_form': MachineTaskForm(instance=task),
+    })
+
+
+@login_required
+def machine_task_vibration_save(request, task_id, phase):
+    task = get_object_or_404(MachineTask, id=task_id)
+    if phase not in dict(MachineTaskVibration.PHASE_CHOICES):
+        raise Http404('ไม่พบช่วงการทดสอบที่ระบุ')
+
+    if request.method == 'POST':
+        instance = MachineTaskVibration.objects.filter(task=task, phase=phase).first()
+        form = MachineTaskVibrationForm(request.POST, instance=instance)
+        if form.is_valid():
+            reading = form.save(commit=False)
+            reading.task = task
+            reading.phase = phase
+            reading.save()
+
+            phase_label = reading.get_phase_display()
+            CBMVibration.objects.create(
+                equipment=task.equipment,
+                inspection_date=reading.inspection_date,
+                inspector=reading.inspector,
+                measurement_point=f'[Task Manager] {phase_label} - {task.title}'[:150],
+                amp=reading.amp, de_ge=reading.de_ge, de_v=reading.de_v, de_h=reading.de_h,
+                de_a=reading.de_a, de_m=reading.de_m, nde_ge=reading.nde_ge, nde_v=reading.nde_v,
+                nde_h=reading.nde_h, nde_a=reading.nde_a, nde_m=reading.nde_m,
+                temp_de=reading.temp_de, temp_frame=reading.temp_frame, temp_nde=reading.temp_nde,
+                status=reading.status,
+            )
+
+            if phase == 'no_load' and task.status in ('wait', 'todo'):
+                task.status = 'doing'
+                task.updated_by = request.user.username
+                task.save(update_fields=['status', 'updated_by', 'updated_at'])
+            elif phase == 'loaded':
+                task.status = 'done'
+                task.updated_by = request.user.username
+                task.save(update_fields=['status', 'updated_by', 'updated_at'])
+
+            messages.success(request, f'บันทึกข้อมูล {phase_label} เรียบร้อยแล้ว')
+        else:
+            messages.error(request, 'บันทึกข้อมูลไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+
+    return redirect('machine_task_detail', task_id=task.id)
 

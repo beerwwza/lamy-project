@@ -1761,3 +1761,85 @@ class ManualSpecItem(models.Model):
     def __str__(self):
         return (self.label or '')[:50]
 
+
+class MachineTask(models.Model):
+    STATUS_CHOICES = [
+        ('wait', 'Wait'),
+        ('todo', 'Alignment'),
+        ('doing', 'Ready'),
+        ('done', 'Finish'),
+    ]
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='machine_tasks', verbose_name="เครื่องจักร")
+    title = models.CharField(max_length=255, verbose_name="ชื่องาน")
+    assignee = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้รับผิดชอบ")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='wait', verbose_name="สถานะ")
+    note = models.TextField(blank=True, null=True, verbose_name="หมายเหตุ/ปัญหา")
+
+    start_test_date = models.DateField(null=True, blank=True, verbose_name="วันที่จะเริ่มทดสอบ")
+    actual_current = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name="กระแสใช้งานจริง (A)")
+
+    rotation_direction_ok = models.BooleanField(default=False, verbose_name="ทิศทางการหมุนถูกต้อง")
+    control_local_ok = models.BooleanField(default=False, verbose_name="Local")
+    control_dcs_ok = models.BooleanField(default=False, verbose_name="DCS")
+    control_remote_ok = models.BooleanField(default=False, verbose_name="Remote")
+
+    participant_motor = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้ร่วมทดสอบ - มอเตอร์")
+    participant_electrical = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้ร่วมทดสอบ - ไฟฟ้า")
+    participant_control = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้ร่วมทดสอบ - คอนโทรล")
+    participant_maintenance = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้ร่วมทดสอบ - ซ่อมบำรุง")
+    participant_user = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้ร่วมทดสอบ - ผู้ใช้งาน")
+
+    updated_by = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้แก้ไขล่าสุด")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "งานเตรียมความพร้อมเครื่องจักร"
+        verbose_name_plural = "งานเตรียมความพร้อมเครื่องจักร"
+
+    def __str__(self):
+        return f"{self.title} - {self.equipment.equipment_id}"
+
+
+class MachineTaskVibration(models.Model):
+    PHASE_CHOICES = [
+        ('no_load', 'เดินเครื่องตัวเปล่า'),
+        ('loaded', 'เดินเครื่องจริง'),
+    ]
+    STATUS_CHOICES = [
+        ('normal', 'Normal (อยู่ในเกณฑ์มาตรฐาน ISO)'),
+        ('warning', 'Warning (เฝ้าระวัง/เริ่มมีปัญหา)'),
+        ('alarm', 'Alarm (อันตราย/ต้องวางแผนซ่อม)'),
+    ]
+    task = models.ForeignKey(MachineTask, on_delete=models.CASCADE, related_name='vibration_readings', verbose_name="งาน")
+    phase = models.CharField(max_length=10, choices=PHASE_CHOICES, verbose_name="ช่วงการทดสอบ")
+    inspection_date = models.DateField(verbose_name="วันที่ตรวจสอบ")
+    inspector = models.CharField(max_length=100, verbose_name="ผู้ตรวจสอบ")
+    amp = models.FloatField(blank=True, null=True, verbose_name="Amp")
+    de_ge = models.FloatField(blank=True, null=True, verbose_name="DE (gE)")
+    de_v = models.FloatField(blank=True, null=True, verbose_name="DE (V)")
+    de_h = models.FloatField(blank=True, null=True, verbose_name="DE (H)")
+    de_a = models.FloatField(blank=True, null=True, verbose_name="DE (A)")
+    de_m = models.FloatField(blank=True, null=True, verbose_name="DE (M)")
+    nde_ge = models.FloatField(blank=True, null=True, verbose_name="NDE (gE)")
+    nde_v = models.FloatField(blank=True, null=True, verbose_name="NDE (V)")
+    nde_h = models.FloatField(blank=True, null=True, verbose_name="NDE (H)")
+    nde_a = models.FloatField(blank=True, null=True, verbose_name="NDE (A)")
+    nde_m = models.FloatField(blank=True, null=True, verbose_name="NDE (M)")
+    temp_de = models.FloatField(blank=True, null=True, verbose_name="Temp.(DE)")
+    temp_frame = models.FloatField(blank=True, null=True, verbose_name="Temp.(FRAME)")
+    temp_nde = models.FloatField(blank=True, null=True, verbose_name="Temp.(NDE)")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='normal', verbose_name="สถานะการประเมิน")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('task', 'phase')
+        ordering = ['phase']
+        verbose_name = "ข้อมูล Vibration งานเตรียมความพร้อม"
+        verbose_name_plural = "ข้อมูล Vibration งานเตรียมความพร้อม"
+
+    def __str__(self):
+        return f"{self.task.title} - {self.get_phase_display()}"
+

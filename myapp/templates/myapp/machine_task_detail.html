@@ -1,0 +1,280 @@
+{% extends 'myapp/base.html' %}
+{% block title %}{{ task.title }} - Task Manager{% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header
+        class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="flex items-center gap-3">
+            <a href="{% url 'machine_task_list' %}"
+                class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <div class="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg text-indigo-600 dark:text-indigo-400">
+                <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">{{ task.title }}</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ task.equipment.equipment_id }} - {{ task.equipment.name }}</p>
+            </div>
+        </div>
+        <span
+            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border
+        {% if task.status == 'done' %}bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800
+        {% elif task.status == 'doing' %}bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800
+        {% elif task.status == 'todo' %}bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800
+        {% else %}bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600{% endif %}">
+            {{ task.get_status_display }}
+        </span>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-5">
+
+        <!-- Django Messages -->
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+        {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+        {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+        {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+            <i data-lucide="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% else %}info{% endif %}"
+                class="w-4 h-4 flex-shrink-0"></i>
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Equipment reference card -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+            <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 pb-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                <i data-lucide="server" class="w-4 h-4 text-indigo-500"></i>ข้อมูลเครื่องจักร
+            </h4>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 text-sm">
+                <div>
+                    <p class="text-xs text-slate-400 mb-0.5">รหัสเครื่องจักร</p>
+                    <p class="font-semibold text-slate-800 dark:text-slate-100">{{ task.equipment.equipment_id }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 mb-0.5">ชื่อเครื่องจักร</p>
+                    <p class="font-semibold text-slate-800 dark:text-slate-100">{{ task.equipment.name }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 mb-0.5">Power (kW)</p>
+                    <p class="font-semibold text-slate-800 dark:text-slate-100">{{ task.equipment.power_kw|default:"—" }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 mb-0.5">ความเร็วรอบเข้า (RPM)</p>
+                    <p class="font-semibold text-slate-800 dark:text-slate-100">{{ task.equipment.rpm_input|default:"—" }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 mb-0.5">ความเร็วรอบออก (RPM)</p>
+                    <p class="font-semibold text-slate-800 dark:text-slate-100">{{ task.equipment.rpm|default:"—" }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task info / edit + Test info -->
+        <form method="POST" action="{% url 'machine_task_edit' task.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="equipment" value="{{ task.equipment_id }}">
+
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 mb-5">
+                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 pb-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                    <i data-lucide="clipboard-list" class="w-4 h-4 text-indigo-500"></i>รายละเอียดงาน
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">ชื่องาน</label>
+                        <input type="text" name="title" value="{{ task.title }}" required
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">ผู้รับผิดชอบ</label>
+                        <input type="text" name="assignee" value="{{ task.assignee|default:'' }}"
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">สถานะ</label>
+                        <select name="status"
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                            <option value="wait" {% if task.status == 'wait' %}selected{% endif %}>Wait</option>
+                            <option value="todo" {% if task.status == 'todo' %}selected{% endif %}>Alignment</option>
+                            <option value="doing" {% if task.status == 'doing' %}selected{% endif %}>Ready</option>
+                            <option value="done" {% if task.status == 'done' %}selected{% endif %}>Finish</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">หมายเหตุ/ปัญหา</label>
+                        <input type="text" name="note" value="{{ task.note|default:'' }}"
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 mb-5">
+                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 pb-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                    <i data-lucide="clipboard-check" class="w-4 h-4 text-indigo-500"></i>ข้อมูลการทดสอบ
+                </h4>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">วันที่จะเริ่มทดสอบ</label>
+                        <input type="date" name="start_test_date" value="{{ task.start_test_date|date:'Y-m-d' }}"
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">กระแสใช้งานจริง (A)</label>
+                        <input type="number" step="0.01" name="actual_current" value="{{ task.actual_current|default:'' }}"
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                    </div>
+                </div>
+
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">ทิศทาง / โหมดควบคุม</p>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                        <input type="checkbox" name="rotation_direction_ok" {% if task.rotation_direction_ok %}checked{% endif %}
+                            class="rounded text-indigo-600 focus:ring-indigo-500"> ทิศทางการหมุน
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                        <input type="checkbox" name="control_local_ok" {% if task.control_local_ok %}checked{% endif %}
+                            class="rounded text-indigo-600 focus:ring-indigo-500"> Local
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                        <input type="checkbox" name="control_dcs_ok" {% if task.control_dcs_ok %}checked{% endif %}
+                            class="rounded text-indigo-600 focus:ring-indigo-500"> DCS
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                        <input type="checkbox" name="control_remote_ok" {% if task.control_remote_ok %}checked{% endif %}
+                            class="rounded text-indigo-600 focus:ring-indigo-500"> Remote
+                    </label>
+                </div>
+
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">ผู้ร่วมทดสอบ</p>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">มอเตอร์</label>
+                        <input type="text" name="participant_motor" value="{{ task.participant_motor|default:'' }}"
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">ไฟฟ้า</label>
+                        <input type="text" name="participant_electrical" value="{{ task.participant_electrical|default:'' }}"
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">คอนโทรล</label>
+                        <input type="text" name="participant_control" value="{{ task.participant_control|default:'' }}"
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">ซ่อมบำรุง</label>
+                        <input type="text" name="participant_maintenance" value="{{ task.participant_maintenance|default:'' }}"
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">ผู้ใช้งาน</label>
+                        <input type="text" name="participant_user" value="{{ task.participant_user|default:'' }}"
+                            class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                    </div>
+                </div>
+
+                <div class="flex justify-end">
+                    <button type="submit"
+                        class="px-4 py-1.5 text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg">บันทึก</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Comparison table -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                <i data-lucide="activity" class="w-4 h-4 text-emerald-500"></i>
+                <span class="font-semibold text-slate-800 dark:text-slate-100 text-sm">เปรียบเทียบ Vibration: เดินเครื่องตัวเปล่า vs เดินเครื่องจริง</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+                        <tr class="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold tracking-wide">
+                            <th class="px-4 py-3 text-left">พารามิเตอร์</th>
+                            <th class="px-4 py-3 text-center">เดินเครื่องตัวเปล่า</th>
+                            <th class="px-4 py-3 text-center">เดินเครื่องจริง</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                        <tr class="bg-slate-50/50 dark:bg-slate-800/40">
+                            <td class="px-4 py-2 font-medium text-slate-500">วันที่ตรวจสอบ</td>
+                            <td class="px-4 py-2 text-center">{{ no_load.inspection_date|date:"d/m/Y"|default:"—" }}</td>
+                            <td class="px-4 py-2 text-center">{{ loaded.inspection_date|date:"d/m/Y"|default:"—" }}</td>
+                        </tr>
+                        <tr class="bg-slate-50/50 dark:bg-slate-800/40">
+                            <td class="px-4 py-2 font-medium text-slate-500">ผู้ตรวจสอบ</td>
+                            <td class="px-4 py-2 text-center">{{ no_load.inspector|default:"—" }}</td>
+                            <td class="px-4 py-2 text-center">{{ loaded.inspector|default:"—" }}</td>
+                        </tr>
+                        {% for row in comparison_rows %}
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                            <td class="px-4 py-2 text-slate-600 dark:text-slate-300">{{ row.label }}</td>
+                            <td class="px-4 py-2 text-center">{{ row.no_load|default:"—" }}</td>
+                            <td class="px-4 py-2 text-center">{{ row.loaded|default:"—" }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="bg-slate-50/50 dark:bg-slate-800/40">
+                            <td class="px-4 py-2 font-medium text-slate-500">สถานะการประเมิน</td>
+                            <td class="px-4 py-2 text-center">{{ no_load.get_status_display|default:"—" }}</td>
+                            <td class="px-4 py-2 text-center">{{ loaded.get_status_display|default:"—" }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Phase entry forms -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+            <!-- No-load phase form -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 pb-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                    <i data-lucide="power-off" class="w-4 h-4 text-slate-500"></i>เดินเครื่องตัวเปล่า
+                    {% if no_load %}<span class="text-xs font-normal text-emerald-600">(บันทึกแล้ว — แก้ไขเพื่ออัปเดต)</span>{% endif %}
+                </h4>
+                <form method="POST" action="{% url 'machine_task_vibration_save' task.id 'no_load' %}" class="space-y-4">
+                    {% csrf_token %}
+                    {% include 'myapp/_machine_task_vibration_fields.html' with form=no_load_form %}
+                    <div class="flex justify-end">
+                        <button type="submit"
+                            class="bg-slate-700 hover:bg-slate-800 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                            <i data-lucide="save" class="w-4 h-4"></i> บันทึกเดินเครื่องตัวเปล่า
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Loaded phase form -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 pb-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                    <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i>เดินเครื่องจริง
+                    {% if loaded %}<span class="text-xs font-normal text-emerald-600">(บันทึกแล้ว — แก้ไขเพื่ออัปเดต)</span>{% endif %}
+                </h4>
+                <form method="POST" action="{% url 'machine_task_vibration_save' task.id 'loaded' %}" class="space-y-4">
+                    {% csrf_token %}
+                    {% include 'myapp/_machine_task_vibration_fields.html' with form=loaded_form %}
+                    <div class="flex justify-end">
+                        <button type="submit"
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
+                            <i data-lucide="save" class="w-4 h-4"></i> บันทึกเดินเครื่องจริง
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+
+    </div>
+</main>
+
+<script>
+    lucide.createIcons();
+</script>
+{% endblock %}

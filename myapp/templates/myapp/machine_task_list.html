@@ -1,0 +1,367 @@
+{% extends 'myapp/base.html' %}
+{% block title %}Task Manager - Tools Center{% endblock title %}
+
+{% block content %}
+    <!-- ══════════════════════ MAIN ══════════════════════════ -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+        <!-- Header -->
+        <header
+            class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg text-indigo-600 dark:text-indigo-400">
+                    <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">Task Manager</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">งานเตรียมความพร้อม / ทดลองเดินเครื่องจักร</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openAddModal()"
+                    class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
+                    <i data-lucide="plus" class="w-4 h-4"></i>เพิ่มงานใหม่
+                </button>
+            </div>
+        </header>
+
+        <!-- Scrollable body -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-5">
+
+            <!-- Django Messages -->
+            {% if messages %}
+            {% for message in messages %}
+            <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+        {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+        {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+        {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+                <i data-lucide="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% else %}info{% endif %}"
+                    class="w-4 h-4 flex-shrink-0"></i>
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            <!-- Filter bar -->
+            <form method="GET"
+                class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 flex flex-wrap items-end gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">ชื่องาน</label>
+                    <input type="text" name="title" value="{{ title_filter }}" placeholder="ค้นหาชื่องาน..."
+                        class="border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">สถานะ</label>
+                    <select name="status"
+                        class="border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                        <option value="">ทั้งหมด</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit"
+                    class="px-4 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                    กรอง
+                </button>
+                {% if title_filter or status_filter %}
+                <a href="{% url 'machine_task_list' %}"
+                    class="px-4 py-1.5 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-200">ล้างตัวกรอง</a>
+                {% endif %}
+            </form>
+
+            <!-- ── Task Table ────────────────────────────────── -->
+            <div
+                class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+
+                <div
+                    class="px-5 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="list-checks" class="w-4 h-4 text-slate-500"></i>
+                        <span class="font-semibold text-slate-800 dark:text-slate-100 text-sm">รายการงาน</span>
+                        <span
+                            class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-medium">{{ tasks|length }} รายการ</span>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
+                            <tr
+                                class="text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold tracking-wide">
+                                <th class="px-4 py-3 text-left">เครื่องจักร</th>
+                                <th class="px-4 py-3 text-left">ชื่องาน</th>
+                                <th class="px-4 py-3 text-left">สถานะ</th>
+                                <th class="px-4 py-3 text-left">ผู้รับผิดชอบ</th>
+                                <th class="px-4 py-3 text-left">หมายเหตุ/ปัญหา</th>
+                                <th class="px-4 py-3 text-left">วันที่เริ่มทดสอบ</th>
+                                <th class="px-4 py-3 text-left">กระแสใช้งานจริง (A)</th>
+                                <th class="px-4 py-3 text-left">ทิศทาง/โหมดควบคุม</th>
+                                <th class="px-4 py-3 text-left">สร้างเมื่อ</th>
+                                <th class="px-4 py-3 text-left">แก้ไขล่าสุดโดย</th>
+                                <th class="px-4 py-3 text-left">วันที่แก้ไข</th>
+                                <th class="px-4 py-3 text-center">การจัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                            {% for task in tasks %}
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                                <td class="px-4 py-3">
+                                    <p class="font-semibold text-slate-800 dark:text-slate-100 text-xs">{{ task.equipment.equipment_id }}</p>
+                                    <p class="text-xs text-slate-400">{{ task.equipment.name }}</p>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <a href="{% url 'machine_task_detail' task.id %}"
+                                        class="text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium text-xs">
+                                        {{ task.title }}
+                                    </a>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span
+                                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border
+                    {% if task.status == 'done' %}bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800
+                    {% elif task.status == 'doing' %}bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800
+                    {% elif task.status == 'todo' %}bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800
+                    {% else %}bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600{% endif %}">
+                                        {{ task.get_status_display }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-xs text-slate-600 dark:text-slate-300">{{ task.assignee|default:"—" }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 max-w-[220px] block truncate" title="{{ task.note }}">{{ task.note|default:"—" }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ task.start_test_date|date:"d/m/Y"|default:"—" }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ task.actual_current|default:"—" }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex flex-wrap gap-1">
+                                        <span class="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded {% if task.rotation_direction_ok %}bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400{% else %}bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500{% endif %}">ทิศทาง{% if task.rotation_direction_ok %}✓{% else %}✗{% endif %}</span>
+                                        <span class="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded {% if task.control_local_ok %}bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400{% else %}bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500{% endif %}">Local{% if task.control_local_ok %}✓{% else %}✗{% endif %}</span>
+                                        <span class="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded {% if task.control_dcs_ok %}bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400{% else %}bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500{% endif %}">DCS{% if task.control_dcs_ok %}✓{% else %}✗{% endif %}</span>
+                                        <span class="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded {% if task.control_remote_ok %}bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400{% else %}bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500{% endif %}">Remote{% if task.control_remote_ok %}✓{% else %}✗{% endif %}</span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ task.created_at|date:"d/m/Y H:i" }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-xs text-slate-600 dark:text-slate-300">{{ task.updated_by|default:"—" }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ task.updated_at|date:"d/m/Y H:i" }}</span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <a href="{% url 'machine_task_detail' task.id %}"
+                                            class="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-colors" title="เปิดงาน / กรอก Vibration">
+                                            <i data-lucide="eye" class="w-4 h-4"></i>
+                                        </a>
+                                        <button type="button" onclick="toggleTaskEdit({{ task.id }})"
+                                            class="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-700 transition-colors" title="แก้ไข">
+                                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                                        </button>
+                                        <form method="POST" action="{% url 'machine_task_delete' task.id %}"
+                                            onsubmit="return confirm('ยืนยันการลบงาน &quot;{{ task.title }}&quot; ?');">
+                                            {% csrf_token %}
+                                            <button type="submit"
+                                                class="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-slate-700 transition-colors" title="ลบ">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr id="task-edit-{{ task.id }}" class="hidden bg-slate-50 dark:bg-slate-800/60">
+                                <td colspan="12" class="px-4 py-4">
+                                    <form method="POST" action="{% url 'machine_task_edit' task.id %}"
+                                        class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                        {% csrf_token %}
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">เครื่องจักร</label>
+                                            <select name="equipment"
+                                                class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                                                {% for eq in equipments %}
+                                                <option value="{{ eq.equipment_id }}" {% if eq.equipment_id == task.equipment_id %}selected{% endif %}>{{ eq.equipment_id }} - {{ eq.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">ชื่องาน</label>
+                                            <input type="text" name="title" value="{{ task.title }}" required
+                                                class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">สถานะ</label>
+                                            <select name="status"
+                                                class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                                                {% for value, label in status_choices %}
+                                                <option value="{{ value }}" {% if task.status == value %}selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">ผู้รับผิดชอบ</label>
+                                            <input type="text" name="assignee" value="{{ task.assignee|default:'' }}"
+                                                class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                                        </div>
+                                        <div class="col-span-2 md:col-span-2">
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">หมายเหตุ/ปัญหา</label>
+                                            <input type="text" name="note" value="{{ task.note|default:'' }}"
+                                                class="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg px-3 py-1.5 text-sm">
+                                        </div>
+                                        <div class="col-span-2 md:col-span-3 flex justify-end gap-2">
+                                            <button type="button" onclick="toggleTaskEdit({{ task.id }})"
+                                                class="px-4 py-1.5 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-white dark:hover:bg-slate-700">ยกเลิก</button>
+                                            <button type="submit"
+                                                class="px-4 py-1.5 text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg">บันทึก</button>
+                                        </div>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="12" class="px-4 py-16 text-center">
+                                    <i data-lucide="inbox" class="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3"></i>
+                                    <p class="text-sm text-slate-500 dark:text-slate-400 font-medium">ยังไม่มีงานในระบบ</p>
+                                    <p class="text-xs text-slate-400 mt-1">กด "เพิ่มงานใหม่" เพื่อเริ่มต้น</p>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div><!-- end scrollable body -->
+    </main>
+
+    <!-- ══════════════════════ ADD MODAL ═══════════════════════════ -->
+    <div id="addTaskModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4"
+        style="background:rgba(15,23,42,0.5);backdrop-filter:blur(4px);">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                        <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-slate-800 dark:text-slate-100 text-base">เพิ่มงานใหม่</h2>
+                        <p class="text-xs text-slate-400">เลือกเครื่องจักรและตั้งชื่องาน สถานะเริ่มต้นคือ Wait</p>
+                    </div>
+                </div>
+                <button onclick="closeAddModal()"
+                    class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form method="POST" action="{% url 'machine_task_add' %}" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="wait">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">เครื่องจักร <span class="text-red-400">*</span></label>
+                    <select name="equipment" id="task-equipment" required onchange="updateEquipmentRef()"
+                        class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                        <option value="">-- เลือกเครื่องจักร --</option>
+                        {% for eq in equipments %}
+                        <option value="{{ eq.equipment_id }}"
+                            data-name="{{ eq.name }}"
+                            data-power="{{ eq.power_kw|default:'' }}"
+                            data-rpm-in="{{ eq.rpm_input|default:'' }}"
+                            data-rpm-out="{{ eq.rpm|default:'' }}">
+                            {{ eq.equipment_id }} - {{ eq.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="equipmentRefBox" class="hidden text-xs bg-slate-50 dark:bg-slate-700/50 rounded-lg px-3 py-2 grid grid-cols-3 gap-2 text-slate-600 dark:text-slate-300">
+                    <div>Power: <span id="refPower" class="font-semibold">—</span> kW</div>
+                    <div>RPM เข้า: <span id="refRpmIn" class="font-semibold">—</span></div>
+                    <div>RPM ออก: <span id="refRpmOut" class="font-semibold">—</span></div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">ชื่องาน <span class="text-red-400">*</span></label>
+                    <input type="text" name="title" required placeholder="เช่น เตรียมความพร้อมก่อนสตาร์ทฤดูหีบ 2569"
+                        list="task-title-datalist" autocomplete="off"
+                        class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">ผู้รับผิดชอบ</label>
+                    <input type="text" name="assignee" placeholder="ชื่อผู้รับผิดชอบ"
+                        class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">หมายเหตุ/ปัญหา</label>
+                    <textarea name="note" rows="3" placeholder="บันทึกปัญหาที่พบ (ถ้ามี)"
+                        class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="closeAddModal()"
+                        class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                        ยกเลิก
+                    </button>
+                    <button type="submit"
+                        class="flex items-center gap-2 px-5 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm transition-colors">
+                        <i data-lucide="plus" class="w-4 h-4"></i>บันทึก
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <datalist id="task-title-datalist">
+        {% for t in title_history %}
+        <option value="{{ t }}">
+        {% endfor %}
+    </datalist>
+
+<script>
+    lucide.createIcons();
+
+    function openAddModal() {
+        const modal = document.getElementById('addTaskModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        lucide.createIcons();
+    }
+    function closeAddModal() {
+        const modal = document.getElementById('addTaskModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+    document.getElementById('addTaskModal').addEventListener('click', function (e) {
+        if (e.target === this) closeAddModal();
+    });
+
+    function updateEquipmentRef() {
+        const select = document.getElementById('task-equipment');
+        const opt = select.options[select.selectedIndex];
+        const box = document.getElementById('equipmentRefBox');
+        if (!opt || !opt.value) {
+            box.classList.add('hidden');
+            return;
+        }
+        document.getElementById('refPower').textContent = opt.dataset.power || '—';
+        document.getElementById('refRpmIn').textContent = opt.dataset.rpmIn || '—';
+        document.getElementById('refRpmOut').textContent = opt.dataset.rpmOut || '—';
+        box.classList.remove('hidden');
+    }
+
+    function toggleTaskEdit(taskId) {
+        document.getElementById(`task-edit-${taskId}`).classList.toggle('hidden');
+    }
+</script>
+{% endblock %}

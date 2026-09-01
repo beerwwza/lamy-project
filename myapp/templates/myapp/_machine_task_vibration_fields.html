@@ -1,0 +1,90 @@
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">วันที่ตรวจสอบ</label>
+        {{ form.inspection_date }}
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-slate-500 mb-1">ผู้ตรวจสอบ</label>
+        {{ form.inspector }}
+    </div>
+</div>
+
+<div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1">Amp</label>
+    {{ form.amp }}
+</div>
+
+<div>
+    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">DE (Drive End)</p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">DE (gE)</label>
+            {{ form.de_ge }}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">DE (V)</label>
+            {{ form.de_v }}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">DE (H)</label>
+            {{ form.de_h }}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">DE (A)</label>
+            {{ form.de_a }}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">DE (M)</label>
+            {{ form.de_m }}
+        </div>
+    </div>
+</div>
+
+<div>
+    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">NDE (Non-Drive End)</p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">NDE (gE)</label>
+            {{ form.nde_ge }}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">NDE (V)</label>
+            {{ form.nde_v }}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">NDE (H)</label>
+            {{ form.nde_h }}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">NDE (A)</label>
+            {{ form.nde_a }}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">NDE (M)</label>
+            {{ form.nde_m }}
+        </div>
+    </div>
+</div>
+
+<div>
+    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Temp</p>
+    <div class="grid grid-cols-3 gap-3">
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Temp.(DE)</label>
+            {{ form.temp_de }}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Temp.(FRAME)</label>
+            {{ form.temp_frame }}
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Temp.(NDE)</label>
+            {{ form.temp_nde }}
+        </div>
+    </div>
+</div>
+
+<div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1">สถานะการประเมิน</label>
+    {{ form.status }}
+</div>
