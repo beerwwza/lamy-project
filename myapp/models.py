@@ -1464,6 +1464,7 @@ class TrainingRecord(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name="สถานะ")
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="อนุมัติโดย")
     notes = models.TextField(null=True, blank=True, verbose_name="หมายเหตุ")
+    video_completed_at = models.DateTimeField(null=True, blank=True, verbose_name="วันที่ดูวีดีโอครบ (พร้อมสอบ)")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

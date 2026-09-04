@@ -9,11 +9,20 @@
 
   <form method="get" onsubmit="return goToDetail(event)" class="max-w-sm mx-auto space-y-4">
     <div class="text-left">
+      <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">แผนก</label>
+      <select id="department-select" onchange="filterByDepartment()" class="w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg p-3 text-sm">
+        <option value="">-- ทุกแผนก --</option>
+        {% for value, label in department_choices %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="text-left">
       <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">กรุณาเลือกชื่อของคุณ</label>
       <select id="employee-select" required class="w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white rounded-lg p-3 text-sm">
         <option value="">-- เลือกพนักงาน --</option>
         {% for emp in employees %}
-        <option value="{{ emp.id }}">{{ emp.full_name }} ({{ emp.get_department_display }})</option>
+        <option value="{{ emp.id }}" data-department="{{ emp.department }}">{{ emp.full_name }} ({{ emp.get_department_display }})</option>
         {% endfor %}
       </select>
     </div>
@@ -24,6 +33,16 @@
 </div>
 
 <script>
+  function filterByDepartment() {
+    const dept = document.getElementById('department-select').value;
+    const select = document.getElementById('employee-select');
+    select.value = '';
+    Array.from(select.options).forEach(opt => {
+      if (!opt.value) { opt.hidden = false; return; }
+      opt.hidden = dept !== '' && opt.dataset.department !== dept;
+    });
+  }
+
   function goToDetail(e) {
     e.preventDefault();
     const empId = document.getElementById('employee-select').value;

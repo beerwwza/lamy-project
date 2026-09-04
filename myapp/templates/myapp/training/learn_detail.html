@@ -54,7 +54,7 @@
   <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl p-6 w-full max-w-sm text-center">
     <i data-lucide="clipboard-check" class="w-10 h-10 text-indigo-500 mx-auto mb-3"></i>
     <h3 class="font-bold text-slate-800 dark:text-slate-100 mb-2">ดูวิดีโอครบแล้ว</h3>
-    <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">พร้อมทำแบบทดสอบหรือยัง?</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">พร้อมทำแบบทดสอบหรือยัง? (หากสอบไม่ผ่าน ต้องดูวิดีโอให้ครบอีกครั้งก่อนสอบใหม่)</p>
     <div class="flex gap-3">
       <button type="button" onclick="document.getElementById('exam-popup-overlay').classList.add('hidden')"
               class="flex-1 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-bold">
@@ -71,12 +71,29 @@
   (function () {
     const videos = document.querySelectorAll('#video-list video');
     if (!videos.length) return;
+
+    videos.forEach(v => {
+      let lastValidTime = 0;
+      v.addEventListener('timeupdate', () => {
+        if (!v.seeking) lastValidTime = v.currentTime;
+      });
+      v.addEventListener('seeking', () => {
+        if (Math.abs(v.currentTime - lastValidTime) > 0.5) {
+          v.currentTime = lastValidTime;
+        }
+      });
+    });
+
     const ended = new Set();
     videos.forEach((v, i) => {
       v.addEventListener('ended', () => {
         ended.add(i);
         if (ended.size === videos.length) {
           document.getElementById('exam-popup-overlay').classList.remove('hidden');
+          fetch("{% url 'training_mark_video_watched' course.id employee.id %}", {
+            method: 'POST',
+            headers: {'X-CSRFToken': '{{ csrf_token }}'},
+          });
         }
       });
     });

@@ -149,6 +149,7 @@ urlpatterns = [
 
     path('training/learn/<int:course_id>/',                       training_learn,                   name='training_learn'),
     path('training/learn/<int:course_id>/<int:employee_id>/',     training_learn_detail,            name='training_learn_detail'),
+    path('training/learn/<int:course_id>/<int:employee_id>/mark-watched/', training_mark_video_watched, name='training_mark_video_watched'),
     path('training/learn/<int:course_id>/<int:employee_id>/exam/', training_exam_take,              name='training_exam_take'),
     path('training/learn/<int:course_id>/<int:employee_id>/exam/result/<int:attempt_id>/', training_exam_result, name='training_exam_result'),
 

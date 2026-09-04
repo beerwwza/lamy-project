@@ -5,19 +5,19 @@
 <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 mb-4">
   <p class="text-xs text-slate-400 mb-1">ผู้เข้าสอบ: <span class="font-bold text-slate-700 dark:text-slate-200">{{ employee.full_name }}</span></p>
   <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">แบบทดสอบ: {{ course.name }}</h2>
-  <p class="text-xs text-slate-400 mt-1">เลือกคำตอบที่ถูกต้องเพียง 1 ข้อในแต่ละคำถาม ({{ questions|length }} ข้อ)</p>
+  <p class="text-xs text-slate-400 mt-1">เลือกคำตอบที่ถูกต้องเพียง 1 ข้อในแต่ละคำถาม ({{ exam_rows|length }} ข้อ)</p>
 </div>
 
 <form method="post" class="space-y-4">
   {% csrf_token %}
-  {% for q in questions %}
-  <input type="hidden" name="question_ids" value="{{ q.id }}">
+  {% for row in exam_rows %}
+  <input type="hidden" name="question_ids" value="{{ row.question.id }}">
   <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
-    <p class="font-medium text-slate-800 dark:text-slate-100 mb-3">{{ forloop.counter }}. {{ q.question_text }}</p>
+    <p class="font-medium text-slate-800 dark:text-slate-100 mb-3">{{ forloop.counter }}. {{ row.question.question_text }}</p>
     <div class="space-y-2">
-      {% for c in q.choices.all %}
+      {% for c in row.choices %}
       <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
-        <input type="radio" name="q_{{ q.id }}" value="{{ c.id }}" required>
+        <input type="radio" name="q_{{ row.question.id }}" value="{{ c.id }}" required>
         {{ c.choice_text }}
       </label>
       {% endfor %}
@@ -29,7 +29,7 @@
   </div>
   {% endfor %}
 
-  {% if questions %}
+  {% if exam_rows %}
   <button type="submit" class="w-full py-3 text-center text-white font-bold bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition text-base">
     ส่งคำตอบ
   </button>

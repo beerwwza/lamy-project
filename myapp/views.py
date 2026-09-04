@@ -4118,7 +4118,7 @@ def api_tools_unit_update(request, pk):
 # Training / Knowledge Center Module Views
 # ==========================================
 
-EXAM_PASS_SCORE = 60
+EXAM_PASS_SCORE = 80
 
 ALLOWED_DOCUMENT_EXTENSIONS = {'.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'}
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov'}
@@ -4841,6 +4841,7 @@ def training_learn(request, course_id):
     context = {
         'course': course,
         'employees': employee.objects.filter(is_active=True),
+        'department_choices': DEPARTMENT_CHOICES,
     }
     return render(request, 'myapp/training/learn_picker.html', context)
 
@@ -4858,6 +4859,20 @@ def training_learn_detail(request, course_id, employee_id):
         'has_quiz': course.quiz_questions.filter(is_active=True).exists(),
     }
     return render(request, 'myapp/training/learn_detail.html', context)
+
+
+@login_required
+@require_POST
+def training_mark_video_watched(request, course_id, employee_id):
+    course = get_object_or_404(TrainingCourse, id=course_id)
+    emp = get_object_or_404(employee, id=employee_id)
+    record, _ = TrainingRecord.objects.get_or_create(
+        employee=emp, course=course, training_type='online',
+        defaults={'date': timezone.now().date()},
+    )
+    record.video_completed_at = timezone.now()
+    record.save(update_fields=['video_completed_at'])
+    return JsonResponse({'ok': True})
 
 
 @login_required
@@ -4909,11 +4924,31 @@ def training_exam_take(request, course_id, employee_id):
 
         return redirect('training_exam_result', course_id=course.id, employee_id=emp.id, attempt_id=attempt.id)
 
+    record = TrainingRecord.objects.filter(employee=emp, course=course, training_type='online').first()
+    last_attempt = TrainingCourseExamAttempt.objects.filter(
+        employee=emp, course=course
+    ).order_by('-submitted_at').first()
+
+    video_ready = bool(
+        record and record.video_completed_at and (
+            last_attempt is None or record.video_completed_at > last_attempt.submitted_at
+        )
+    )
+    if not video_ready:
+        messages.error(request, 'กรุณาดูวิดีโอการเรียนให้ครบก่อนทำแบบทดสอบ')
+        return redirect('training_learn_detail', course_id=course.id, employee_id=emp.id)
+
     all_active_questions = list(course.quiz_questions.filter(is_active=True).prefetch_related('choices'))
     sample_size = min(EXAM_QUESTION_SAMPLE_SIZE, len(all_active_questions))
     questions = random.sample(all_active_questions, sample_size) if sample_size else []
 
-    context = {'course': course, 'employee': emp, 'questions': questions}
+    exam_rows = []
+    for q in questions:
+        choices = list(q.choices.all())
+        random.shuffle(choices)
+        exam_rows.append({'question': q, 'choices': choices})
+
+    context = {'course': course, 'employee': emp, 'exam_rows': exam_rows}
     return render(request, 'myapp/training/exam_take.html', context)
 
 

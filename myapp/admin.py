@@ -217,7 +217,7 @@ class TrainingCourseAdmin(admin.ModelAdmin):
 
 @admin.register(TrainingRecord)
 class TrainingRecordAdmin(admin.ModelAdmin):
-    list_display = ['employee', 'course', 'date', 'training_type', 'score', 'status']
+    list_display = ['employee', 'course', 'date', 'training_type', 'score', 'status', 'video_completed_at']
     list_filter = ['status', 'training_type', 'date']
     search_fields = ['employee__first_name', 'employee__last_name', 'employee__employeeID', 'course__name']
 
