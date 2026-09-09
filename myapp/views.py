@@ -51,6 +51,26 @@ from django.utils import timezone
 import calendar
 
 
+def staff_required(view_func):
+    """ระดับเพิ่ม/แก้ไขข้อมูล — ต้อง is_staff (หรือ is_superuser)"""
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied
+        return view_func(request, *args, **kwargs)
+    return _wrapped
+
+
+def superuser_required(view_func):
+    """ระดับลบข้อมูล/จัดการระบบ — ต้อง is_superuser"""
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not request.user.is_superuser:
+            raise PermissionDenied
+        return view_func(request, *args, **kwargs)
+    return _wrapped
+
+
 def _add_interval(base_date, value, unit):
     """คำนวณวันที่ถัดไปจากวันที่ตั้งต้น + จำนวนหน่วยความถี่ (ไม่ใช้ python-dateutil)"""
     if unit == 'day':
@@ -194,6 +214,7 @@ def equipment_data(request, eq_id=None):
     return render(request, 'myapp/equipment_data.html', context)
 
 @login_required
+@staff_required
 @csrf_exempt
 def equipment_form(request, eq_id=None):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first() if eq_id else None
@@ -242,6 +263,7 @@ def equipment_bom(request):
     return render(request, 'myapp/equipment_BOM.html', context)
 
 @login_required
+@staff_required
 def bom_add(request, eq_id):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first()
     if not equipment:
@@ -261,6 +283,7 @@ def bom_add(request, eq_id):
     return redirect('equipment_data_detail', eq_id=eq_id)
 
 @login_required
+@superuser_required
 def bom_delete(request, bom_id):
     bom = EquipmentBOM.objects.filter(id=bom_id).first()
     if bom:
@@ -274,6 +297,7 @@ def bom_delete(request, bom_id):
         return redirect('equipment_list')
 
 @login_required
+@staff_required
 def bom_edit(request, bom_id):
     bom = EquipmentBOM.objects.filter(id=bom_id).first()
     if not bom:
@@ -291,6 +315,7 @@ def bom_edit(request, bom_id):
     return redirect('equipment_data_detail', eq_id=eq_id)
 
 @login_required
+@staff_required
 def equipment_link_add(request, eq_id):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first()
     if not equipment:
@@ -309,6 +334,7 @@ def equipment_link_add(request, eq_id):
 
 
 @login_required
+@superuser_required
 def equipment_link_delete(request, link_id):
     link = EquipmentLink.objects.filter(id=link_id).first()
     if link:
@@ -323,6 +349,7 @@ def equipment_link_delete(request, link_id):
 
 # --- PM Plan Views ---
 @login_required
+@staff_required
 def pm_plan_add(request, eq_id):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first()
     if not equipment:
@@ -341,6 +368,7 @@ def pm_plan_add(request, eq_id):
 
 
 @login_required
+@staff_required
 def pm_plan_edit(request, plan_id):
     plan = PMPlan.objects.filter(id=plan_id).first()
     if not plan:
@@ -358,6 +386,7 @@ def pm_plan_edit(request, plan_id):
 
 
 @login_required
+@superuser_required
 def pm_plan_delete(request, plan_id):
     plan = PMPlan.objects.filter(id=plan_id).first()
     if plan:
@@ -371,6 +400,7 @@ def pm_plan_delete(request, plan_id):
 
 
 @login_required
+@staff_required
 @require_POST
 def pm_plan_complete(request, plan_id):
     plan = PMPlan.objects.filter(id=plan_id).first()
@@ -387,6 +417,7 @@ def pm_plan_complete(request, plan_id):
 
 
 @login_required
+@staff_required
 def pm_plan_item_add(request, plan_id):
     plan = PMPlan.objects.filter(id=plan_id).first()
     if not plan:
@@ -406,6 +437,7 @@ def pm_plan_item_add(request, plan_id):
 
 
 @login_required
+@superuser_required
 def pm_plan_item_delete(request, item_id):
     item = PMPlanItem.objects.filter(id=item_id).first()
     if item:
@@ -420,6 +452,7 @@ def pm_plan_item_delete(request, item_id):
 
 # --- Work Order Views ---
 @login_required
+@staff_required
 def work_order_add(request, eq_id):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first()
     if not equipment:
@@ -444,6 +477,7 @@ def work_order_add(request, eq_id):
 
 
 @login_required
+@staff_required
 def work_order_edit(request, wo_id):
     wo = WorkOrder.objects.filter(id=wo_id).first()
     if not wo:
@@ -464,6 +498,7 @@ def work_order_edit(request, wo_id):
 
 
 @login_required
+@superuser_required
 def work_order_delete(request, wo_id):
     wo = WorkOrder.objects.filter(id=wo_id).first()
     if wo:
@@ -477,6 +512,7 @@ def work_order_delete(request, wo_id):
 
 
 @login_required
+@staff_required
 def equipment_cbm(request, eq_id=None):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first()
     if not equipment:
@@ -575,6 +611,7 @@ ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
 ALLOWED_IMAGE_MIMETYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'}
 
 @login_required
+@staff_required
 def upload_equipment_image(request, eq_id):
     if request.method == 'POST' and request.FILES.get('image'):
         uploaded = request.FILES['image']
@@ -603,6 +640,7 @@ EQUIPMENT_INLINE_FIELDS = {
 }
 
 @login_required
+@staff_required
 @require_POST
 def equipment_inline_update(request, eq_id):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first()
@@ -633,6 +671,8 @@ def equipment_inline_update(request, eq_id):
     return JsonResponse({'status': 'success', 'message': 'บันทึกข้อมูลเรียบร้อยแล้ว'})
 
 @login_required
+@staff_required
+@require_POST
 def equipment_toggle_status(request, eq_id):
     equipment = Equipment.objects.filter(equipment_id=eq_id).first()
     if equipment:
@@ -677,6 +717,7 @@ def api_equipment_by_process(request):
 # ─── PM Schedule Views ────────────────────────────────────────────────────────
 
 @login_required
+@staff_required
 def pm_schedule_add(request, eq_id):
     equipment = get_object_or_404(Equipment, equipment_id=eq_id)
     if request.method == 'POST':
@@ -697,6 +738,7 @@ def pm_schedule_add(request, eq_id):
 
 
 @login_required
+@staff_required
 def pm_schedule_edit(request, pm_id):
     pm = get_object_or_404(PMSchedule, id=pm_id)
     if request.method == 'POST':
@@ -713,6 +755,7 @@ def pm_schedule_edit(request, pm_id):
 
 
 @login_required
+@staff_required
 def pm_schedule_complete(request, pm_id):
     from datetime import date
     if request.method != 'POST':
@@ -726,6 +769,7 @@ def pm_schedule_complete(request, pm_id):
 
 
 @login_required
+@superuser_required
 def pm_schedule_delete(request, pm_id):
     if request.method != 'POST':
         return redirect('equipment_list')
@@ -845,6 +889,7 @@ def register(request):
             # สร้าง User หลัก (เก็บ Username, Email, Password, ชื่อ)
             new_user = User.objects.create_user(username=username, email=email, password=password)
             new_user.first_name = first_name
+            new_user.is_active = False  # รออนุมัติจาก Superuser ผ่าน Django Admin
             new_user.save()
 
             # สร้าง Profile เพื่อเก็บข้อมูลเพิ่มเติม (รหัสพนักงาน, เบอร์, ฝ่าย, แผนก)
@@ -874,11 +919,12 @@ def user_login(request):
         password = data.get('password')
 
         user = authenticate(request, username=username, password=password)
-        print(user, "username")
 
         if user is not None:
             login(request, user)
             return redirect('dashboard')
+        elif User.objects.filter(username=username, is_active=False).exists():
+            messages.error(request, 'บัญชีของคุณยังไม่ได้รับการอนุมัติ กรุณาติดต่อผู้ดูแลระบบ')
         else:
             messages.error(request, 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!!')
     return render(request, 'myapp/login.html')
@@ -1417,6 +1463,7 @@ def operation_dashboard(request):
 
 # --- Import Data Logic (Fixed: NOT NULL constraint failed) ---
 @login_required
+@staff_required
 def import_data(request):
     if request.method == 'POST' and request.FILES.get('file_upload'):
         file = request.FILES['file_upload']
@@ -1653,6 +1700,7 @@ def save_timeseries_log(model_class, form, date_field, time_field):
     return instance
 
 @login_required
+@staff_required
 def boiler_operation_add(request):
     if request.method == 'POST':
         form = BoilerOperationForm(request.POST)
@@ -1741,6 +1789,7 @@ def boiler_operation_add(request):
     })
 
 @login_required
+@staff_required
 def yoshimine_operation_add(request):
     if request.method == 'POST':
         form = YoshimineForm(request.POST)
@@ -1850,6 +1899,7 @@ def yoshimine_operation_add(request):
     })
 
 @login_required
+@staff_required
 def banpong1_operation_add(request):
     if request.method == 'POST':
         form = Banpong1Form(request.POST)
@@ -1968,6 +2018,7 @@ def banpong1_operation_add(request):
     })
 
 @login_required
+@staff_required
 def chengchen_operation_add(request):
     if request.method == 'POST':
         form = ChengchenForm(request.POST)
@@ -2046,6 +2097,7 @@ def chengchen_operation_add(request):
     })
 
 @login_required
+@staff_required
 def takuma_operation_add(request):
     if request.method == 'POST':
         form = TakumaForm(request.POST)
@@ -2124,6 +2176,7 @@ def takuma_operation_add(request):
     })
 
 @login_required
+@staff_required
 def banpong2_operation_add(request):
     if request.method == 'POST':
         form = Banpong2Form(request.POST)
@@ -2302,7 +2355,8 @@ def boiler_export_csv(request):
     return response
 
 @login_required
-def boiler_kpi_form(request):    
+@staff_required
+def boiler_kpi_form(request):
     if request.method == 'POST':
         form = BoilerDailyKPIForm(request.POST)
         if form.is_valid():
@@ -2378,6 +2432,7 @@ def maintenance_dashboard(request):
     return render(request, 'myapp/maintenance_dashboard.html', context)
 
 @login_required
+@staff_required
 def maintenance_log_add(request):
     equipment_choices = Equipment.objects.filter(is_active=True).order_by('equipment_id')
     prefill_eq = request.GET.get('equipment', '')
@@ -2403,6 +2458,7 @@ def maintenance_log_add(request):
     })
 
 @login_required
+@staff_required
 def maintenance_log_edit(request, log_id):
     log = get_object_or_404(MaintenanceLog, id=log_id)
     equipment_choices = Equipment.objects.filter(is_active=True).order_by('equipment_id')
@@ -2425,6 +2481,7 @@ def maintenance_log_edit(request, log_id):
     })
 
 @login_required
+@staff_required
 def maintenance_kpi_metric_add(request):
     if request.method == 'POST':
         form = KPIMetricForm(request.POST)
@@ -2436,6 +2493,7 @@ def maintenance_kpi_metric_add(request):
     return render(request, 'myapp/maintenance_kpi_metric_form.html', {'form': form})
 
 @login_required
+@staff_required
 def maintenance_import_csv(request):
     if request.method == 'POST' and request.FILES.get('file'):
         csv_file = request.FILES['file']
@@ -2698,6 +2756,7 @@ def mill_history_api(request):
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 @login_required
+@staff_required
 def mill_report(request):
     if request.method == 'POST':
         form = MillReportForm(request.POST)
@@ -2714,6 +2773,7 @@ def mill_report(request):
 
 # 3. View สำหรับ Import Data
 @login_required
+@staff_required
 def mill_import(request):
     if request.method == 'POST' and request.FILES.get('file'):
         line_selected = request.POST.get('line', 'A')
@@ -2905,6 +2965,8 @@ def lathe_api(request):
         return JsonResponse(jobs_list, safe=False)
     
     elif request.method == 'POST':
+        if not request.user.is_staff:
+            raise PermissionDenied
         try:
             if request.content_type.startswith('multipart/form-data'):
                 data_str = request.POST.get('data')
@@ -3191,6 +3253,7 @@ MAX_UPLOAD_BYTES     = 100 * 1024 * 1024  # 100 MB
 GAS_SIZE_LIMIT_BYTES =  35 * 1024 * 1024  # 35 MB — เกินนี้ใช้ chunk upload
 
 @login_required
+@staff_required
 def doc_register(request):
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
@@ -3264,6 +3327,7 @@ def doc_register(request):
 
 # ─── View 3: ลบเอกสาร (optional) ────────────────────────────────────────────
 @login_required
+@superuser_required
 def doc_delete(request, doc_id):
     doc = RepairDocument.objects.filter(id=doc_id).first()
     if doc:
@@ -3632,6 +3696,7 @@ def inventory_tx_list(request):
 #    คืน JSON ให้ JS อัปเดตหน้าได้แบบ real-time
 # =====================================================================
 @login_required
+@staff_required
 @require_POST
 def api_inventory_checkout(request):
     """เบิกออก / คืน เครื่องมือช่าง"""
@@ -3662,6 +3727,7 @@ def api_inventory_checkout(request):
 
 
 @login_required
+@staff_required
 @require_POST
 def api_inventory_receive(request):
     """รับสินค้าเข้าคลัง (พร้อม PO)"""
@@ -3690,6 +3756,7 @@ def api_inventory_receive(request):
 
 
 @login_required
+@staff_required
 @require_POST
 def api_inventory_add_item(request):
     """เพิ่มรายการใหม่เข้าคลัง + เปิดยอดตั้งต้น (ถ้ามี)"""
@@ -3722,6 +3789,7 @@ def api_inventory_add_item(request):
 
 
 @login_required
+@staff_required
 @require_POST
 def api_inventory_update_item(request, pk):
     """แก้ไขข้อมูลรายการที่มีอยู่แล้ว (ไม่รวม stock — เปลี่ยนได้ผ่าน transaction เท่านั้น)"""
@@ -3748,6 +3816,7 @@ def api_inventory_update_item(request, pk):
 
 
 @login_required
+@superuser_required
 @require_POST
 def api_inventory_delete_item(request, pk):
     """ปิดใช้งานรายการ (soft-delete) — คงประวัติ transaction ไว้เพราะ FK เป็น PROTECT"""
@@ -3758,6 +3827,7 @@ def api_inventory_delete_item(request, pk):
 
 
 @login_required
+@staff_required
 @require_POST
 def upload_inventory_item_image(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)
@@ -3797,6 +3867,7 @@ def inventory_readiness_list(request):
 
 
 @login_required
+@staff_required
 def inventory_readiness_add(request):
     tool_items = InventoryItem.objects.filter(category='tools', is_active=True)
 
@@ -3942,6 +4013,7 @@ def tools_overdue_list(request):
 
 
 @login_required
+@staff_required
 def tools_readiness_add(request):
     tool_units = ToolUnit.objects.select_related('item').exclude(status='retired').order_by('item__code', 'unit_code')
     preselect_unit = request.GET.get('unit')
@@ -3984,6 +4056,7 @@ def tools_readiness_add(request):
 
 
 @login_required
+@staff_required
 @require_POST
 def api_tools_checkout(request):
     """เบิกเครื่องมือรายชิ้น — เตือนถ้าผลตรวจสอบความพร้อมล่าสุดคือ 'ไม่พร้อมใช้งาน' แต่ไม่บล็อก"""
@@ -4024,6 +4097,7 @@ def api_tools_checkout(request):
 
 
 @login_required
+@staff_required
 @require_POST
 def api_tools_return(request):
     """คืนเครื่องมือรายชิ้น — ปิด ToolCheckout ที่ค้างอยู่ล่าสุดของหน่วยนั้น"""
@@ -4053,6 +4127,7 @@ def api_tools_return(request):
 
 
 @login_required
+@staff_required
 @require_POST
 def api_tools_type_add(request):
     """เพิ่มชนิดเครื่องมือใหม่ (InventoryItem หมวด 'tools') จากโมดูลเครื่องมือโดยตรง"""
@@ -4072,6 +4147,7 @@ def api_tools_type_add(request):
 
 
 @login_required
+@staff_required
 @require_POST
 def api_tools_unit_add(request):
     """เพิ่มหน่วยเครื่องมือใหม่ (รายชิ้น) ให้กับชนิดเครื่องมือที่มีอยู่"""
@@ -4093,6 +4169,7 @@ def api_tools_unit_add(request):
 
 
 @login_required
+@staff_required
 @require_POST
 def api_tools_unit_update(request, pk):
     """แก้ไขสถานะ/ตำแหน่ง/หมายเหตุของหน่วยเครื่องมือ (แจ้งซ่อม, สูญหาย, ปลดระวาง ฯลฯ)"""
@@ -4145,15 +4222,6 @@ def get_expiring_certs_count(days_ahead=30):
     return count
 
 
-def training_admin_required(view_func):
-    @wraps(view_func)
-    def _wrapped(request, *args, **kwargs):
-        if not request.user.is_staff:
-            raise PermissionDenied
-        return view_func(request, *args, **kwargs)
-    return _wrapped
-
-
 @login_required
 def training_employees(request):
     q = request.GET.get('q', '')
@@ -4186,6 +4254,7 @@ def training_employees(request):
 
 
 @login_required
+@staff_required
 def training_employee_add(request):
     if request.method == 'POST':
         form = EmployeeForm(request.POST)
@@ -4198,6 +4267,7 @@ def training_employee_add(request):
 
 
 @login_required
+@staff_required
 def training_employee_edit(request, employee_id):
     emp = get_object_or_404(employee, id=employee_id)
     if request.method == 'POST':
@@ -4211,6 +4281,7 @@ def training_employee_edit(request, employee_id):
 
 
 @login_required
+@superuser_required
 @require_POST
 def training_employee_delete(request, employee_id):
     emp = get_object_or_404(employee, id=employee_id)
@@ -4220,6 +4291,7 @@ def training_employee_delete(request, employee_id):
 
 
 @login_required
+@staff_required
 @require_POST
 def training_employee_reactivate(request, employee_id):
     emp = get_object_or_404(employee, id=employee_id)
@@ -4316,6 +4388,7 @@ def training_exam(request):
 
 
 @login_required
+@superuser_required
 @require_POST
 def training_exam_delete(request, score_id):
     score = get_object_or_404(TrainingExamScore, id=score_id)
@@ -4390,6 +4463,7 @@ def training_progress(request):
 
 
 @login_required
+@staff_required
 def training_record_add(request):
     if request.method == 'POST':
         form = TrainingRecordForm(request.POST)
@@ -4404,6 +4478,7 @@ def training_record_add(request):
 
 
 @login_required
+@superuser_required
 @require_POST
 def training_record_delete(request, record_id):
     record = get_object_or_404(TrainingRecord, id=record_id)
@@ -4412,6 +4487,7 @@ def training_record_delete(request, record_id):
 
 
 @login_required
+@staff_required
 @require_POST
 def training_record_approve(request, record_id):
     record = get_object_or_404(TrainingRecord, id=record_id)
@@ -4435,7 +4511,7 @@ def training_courses(request):
 
 
 @login_required
-@training_admin_required
+@staff_required
 def training_course_add(request):
     if request.method == 'POST':
         form = TrainingCourseForm(request.POST)
@@ -4448,7 +4524,7 @@ def training_course_add(request):
 
 
 @login_required
-@training_admin_required
+@superuser_required
 @require_POST
 def training_course_delete(request, course_id):
     course = get_object_or_404(TrainingCourse, id=course_id)
@@ -4553,6 +4629,7 @@ def training_career(request, employee_id=None):
 
 
 @login_required
+@staff_required
 def training_career_step_add(request):
     if request.method == 'POST':
         form = CareerLadderStepForm(request.POST)
@@ -4565,6 +4642,7 @@ def training_career_step_add(request):
 
 
 @login_required
+@staff_required
 def training_career_step_edit(request, step_id):
     step = get_object_or_404(CareerLadderStep, id=step_id)
     if request.method == 'POST':
@@ -4578,6 +4656,7 @@ def training_career_step_edit(request, step_id):
 
 
 @login_required
+@superuser_required
 @require_POST
 def training_career_step_delete(request, step_id):
     step = get_object_or_404(CareerLadderStep, id=step_id)
@@ -4627,7 +4706,7 @@ def training_gap(request):
 # ----- คลังหลักสูตร: เอกสาร/วิดีโอการเรียน -----
 
 @login_required
-@training_admin_required
+@staff_required
 def training_course_edit(request, course_id):
     course = get_object_or_404(TrainingCourse, id=course_id)
     if request.method == 'POST':
@@ -4650,7 +4729,7 @@ def training_course_edit(request, course_id):
 
 
 @login_required
-@training_admin_required
+@staff_required
 @require_POST
 def training_course_material_upload(request, course_id):
     course = get_object_or_404(TrainingCourse, id=course_id)
@@ -4687,7 +4766,7 @@ def training_course_material_upload(request, course_id):
 
 
 @login_required
-@training_admin_required
+@superuser_required
 @require_POST
 def training_course_material_delete(request, material_id):
     material = get_object_or_404(TrainingCourseMaterial, id=material_id)
@@ -4699,7 +4778,7 @@ def training_course_material_delete(request, material_id):
 # ----- คลังหลักสูตร: คลังคำถามแบบทดสอบ -----
 
 @login_required
-@training_admin_required
+@staff_required
 def training_quiz_manage(request, course_id):
     course = get_object_or_404(TrainingCourse, id=course_id)
     questions = course.quiz_questions.prefetch_related('choices').all()
@@ -4732,7 +4811,7 @@ def _finalize_choices(formset, correct_index):
 
 
 @login_required
-@training_admin_required
+@staff_required
 def training_quiz_question_add(request, course_id):
     course = get_object_or_404(TrainingCourse, id=course_id)
     question = TrainingQuizQuestion(course=course)
@@ -4768,7 +4847,7 @@ def training_quiz_question_add(request, course_id):
 
 
 @login_required
-@training_admin_required
+@staff_required
 def training_quiz_question_edit(request, question_id):
     question = get_object_or_404(TrainingQuizQuestion, id=question_id)
     course = question.course
@@ -4802,7 +4881,7 @@ def training_quiz_question_edit(request, question_id):
 
 
 @login_required
-@training_admin_required
+@superuser_required
 @require_POST
 def training_quiz_question_delete(request, question_id):
     question = get_object_or_404(TrainingQuizQuestion, id=question_id)
@@ -4967,6 +5046,7 @@ def training_exam_result(request, course_id, employee_id, attempt_id):
 
 
 @login_required
+@staff_required
 def equipment_change_code(request, eq_id):
     equipment = get_object_or_404(Equipment, equipment_id=eq_id)
 
@@ -5029,6 +5109,7 @@ def manual_list(request):
 
 
 @login_required
+@staff_required
 def manual_add(request):
     manual = Manual()
     if request.method == 'POST':
@@ -5054,6 +5135,7 @@ def manual_add(request):
 
 
 @login_required
+@staff_required
 def manual_edit(request, manual_id):
     manual = get_object_or_404(Manual, id=manual_id)
     if request.method == 'POST':
@@ -5083,6 +5165,7 @@ def manual_detail(request, manual_id):
 
 
 @login_required
+@superuser_required
 def manual_delete(request, manual_id):
     manual = get_object_or_404(Manual, id=manual_id)
     if request.method == 'POST':
@@ -5161,6 +5244,7 @@ def machine_task_list(request):
 
 
 @login_required
+@staff_required
 def machine_task_add(request):
     if request.method == 'POST':
         form = MachineTaskForm(request.POST)
@@ -5175,6 +5259,7 @@ def machine_task_add(request):
 
 
 @login_required
+@staff_required
 def machine_task_edit(request, task_id):
     task = get_object_or_404(MachineTask, id=task_id)
     if request.method == 'POST':
@@ -5190,6 +5275,7 @@ def machine_task_edit(request, task_id):
 
 
 @login_required
+@superuser_required
 def machine_task_delete(request, task_id):
     task = get_object_or_404(MachineTask, id=task_id)
     if request.method == 'POST':
@@ -5227,6 +5313,7 @@ def machine_task_detail(request, task_id):
 
 
 @login_required
+@staff_required
 def machine_task_vibration_save(request, task_id, phase):
     task = get_object_or_404(MachineTask, id=task_id)
     if phase not in dict(MachineTaskVibration.PHASE_CHOICES):

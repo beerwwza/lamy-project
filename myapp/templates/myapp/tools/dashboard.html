@@ -7,10 +7,12 @@
   ⏰ เกินกำหนดคืน {{ overdue_count }} รายการ
 </a>
 {% endif %}
+{% if user.is_staff or user.is_superuser %}
 <a href="{% url 'tools_readiness_add' %}"
   class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors no-underline">
   ✅ ตรวจสอบความพร้อม
 </a>
+{% endif %}
 {% endblock %}
 
 {% block tools_content %}

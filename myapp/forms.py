@@ -228,6 +228,9 @@ class KPIMetricForm(forms.ModelForm):
 
 class EquipmentForm(forms.ModelForm):
     LEGACY_KEEP_VALUE = '__keep_current_process__'
+    # กระบวนการ (process) ยังไม่นิ่ง จึงเปิดให้พิมพ์เป็นข้อความอิสระแทน Dropdown ไปก่อน
+    # เมื่อรายชื่อกระบวนการนิ่งแล้วในอนาคต ให้เปลี่ยนกลับเป็น True เพื่อใช้ระบบ Dropdown (ProcessCategory) ที่เก็บไว้ด้านล่างนี้
+    USE_PROCESS_DROPDOWN = False
 
     class Meta:
         model = Equipment
@@ -236,29 +239,30 @@ class EquipmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(EquipmentForm, self).__init__(*args, **kwargs)
 
-        active_names = list(
-            ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)
-        )
-        process_choices = [('', '-- เลือกกระบวนการ --')] + [(name, name) for name in active_names]
-
         self._legacy_process_value = None
-        if self.instance and self.instance.pk:
-            current = self.instance.process
-            if not current or current not in active_names:
-                self._legacy_process_value = current or ''
-                legacy_label = (
-                    f'{current} (ค่าเดิม — ไม่อยู่ในรายการปัจจุบัน)'
-                    if current else '(ว่าง / ไม่ระบุ — ค่าเดิม)'
-                )
-                process_choices.append((self.LEGACY_KEEP_VALUE, legacy_label))
+        if self.USE_PROCESS_DROPDOWN:
+            active_names = list(
+                ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)
+            )
+            process_choices = [('', '-- เลือกกระบวนการ --')] + [(name, name) for name in active_names]
 
-        self.fields['process'] = forms.ChoiceField(
-            choices=process_choices,
-            required=True,
-            label=self.fields['process'].label,
-        )
-        if self._legacy_process_value is not None:
-            self.initial['process'] = self.LEGACY_KEEP_VALUE
+            if self.instance and self.instance.pk:
+                current = self.instance.process
+                if not current or current not in active_names:
+                    self._legacy_process_value = current or ''
+                    legacy_label = (
+                        f'{current} (ค่าเดิม — ไม่อยู่ในรายการปัจจุบัน)'
+                        if current else '(ว่าง / ไม่ระบุ — ค่าเดิม)'
+                    )
+                    process_choices.append((self.LEGACY_KEEP_VALUE, legacy_label))
+
+            self.fields['process'] = forms.ChoiceField(
+                choices=process_choices,
+                required=True,
+                label=self.fields['process'].label,
+            )
+            if self._legacy_process_value is not None:
+                self.initial['process'] = self.LEGACY_KEEP_VALUE
 
         for fname in ['mtbf', 'mttr', 'acc_cost']:
             if fname in self.fields:
@@ -272,7 +276,7 @@ class EquipmentForm(forms.ModelForm):
 
     def clean_process(self):
         value = self.cleaned_data.get('process')
-        if value == self.LEGACY_KEEP_VALUE:
+        if self.USE_PROCESS_DROPDOWN and value == self.LEGACY_KEEP_VALUE:
             return self._legacy_process_value
         return value
 

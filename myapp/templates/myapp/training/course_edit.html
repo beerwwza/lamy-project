@@ -65,10 +65,12 @@
           <a href="{{ m.file.url }}" target="_blank" class="flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
             <i data-lucide="file-text" class="w-4 h-4"></i> {{ m.title }}
           </a>
+          {% if user.is_superuser %}
           <form method="post" action="{% url 'training_course_material_delete' m.id %}" onsubmit="return confirm('ยืนยันการลบไฟล์นี้?');">
             {% csrf_token %}
             <button type="submit" class="text-slate-300 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button>
           </form>
+          {% endif %}
         </div>
         {% endfor %}
         {% for m in videos %}

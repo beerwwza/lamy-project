@@ -2,9 +2,11 @@
 {% block title %}เส้นทางอาชีพ - Knowledge Center{% endblock %}
 {% block page_title %}เส้นทางอาชีพ (Career Ladder){% endblock %}
 {% block header_actions %}
+{% if user.is_staff or user.is_superuser %}
 <a href="{% url 'training_career_step_add' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
   <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มขั้น
 </a>
+{% endif %}
 {% endblock %}
 
 {% block training_content %}
@@ -32,11 +34,15 @@
       <div class="p-5 flex items-center justify-between {% if step.sections %}cursor-pointer{% endif %}" {% if step.sections %}onclick="toggleStepDetail({{ step.id }})"{% endif %}>
         <span class="font-bold text-slate-700 dark:text-slate-200">{{ step.name }}</span>
         <div class="flex items-center gap-3">
+          {% if user.is_staff or user.is_superuser %}
           <a href="{% url 'training_career_step_edit' step.id %}" onclick="event.stopPropagation()" class="text-slate-400 hover:text-indigo-500" title="แก้ไข"><i data-lucide="pencil" class="w-4 h-4"></i></a>
+          {% endif %}
+          {% if user.is_superuser %}
           <form method="post" action="{% url 'training_career_step_delete' step.id %}" onsubmit="return confirm('ยืนยันการลบขั้นนี้?');" onclick="event.stopPropagation()">
             {% csrf_token %}
             <button type="submit" class="text-slate-400 hover:text-red-500" title="ลบ"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
           </form>
+          {% endif %}
           <i data-lucide="{% if step.is_current %}map-pin{% else %}circle{% endif %}" class="w-5 h-5 {% if step.is_current %}text-indigo-600{% else %}text-slate-300{% endif %}"></i>
           {% if step.sections %}
           <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-transform" id="chevron-{{ step.id }}"></i>

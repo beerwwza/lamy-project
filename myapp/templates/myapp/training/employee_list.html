@@ -2,9 +2,11 @@
 {% block title %}จัดการพนักงาน - Knowledge Center{% endblock %}
 {% block page_title %}จัดการพนักงาน{% endblock %}
 {% block header_actions %}
+{% if user.is_staff or user.is_superuser %}
 <a href="{% url 'training_employee_add' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
   <i data-lucide="user-plus" class="w-4 h-4"></i> เพิ่มพนักงาน
 </a>
+{% endif %}
 {% endblock %}
 
 {% block training_content %}
@@ -74,17 +76,23 @@
               {% endif %}
             </td>
             <td class="p-3 text-right whitespace-nowrap">
+              {% if user.is_staff or user.is_superuser %}
               <a href="{% url 'training_employee_edit' emp.id %}" class="text-slate-400 hover:text-indigo-500 mr-2" title="แก้ไข"><i data-lucide="pencil" class="w-4 h-4 inline"></i></a>
+              {% endif %}
               {% if emp.is_active %}
+              {% if user.is_superuser %}
               <form method="post" action="{% url 'training_employee_delete' emp.id %}" class="inline" onsubmit="return confirm('ยืนยันว่าพนักงานนี้ลาออกแล้ว?');">
                 {% csrf_token %}
                 <button type="submit" class="text-slate-400 hover:text-red-500" title="ทำเครื่องหมายว่าลาออก"><i data-lucide="user-x" class="w-4 h-4 inline"></i></button>
               </form>
+              {% endif %}
               {% else %}
+              {% if user.is_staff or user.is_superuser %}
               <form method="post" action="{% url 'training_employee_reactivate' emp.id %}" class="inline">
                 {% csrf_token %}
                 <button type="submit" class="text-slate-400 hover:text-emerald-500" title="กลับมาทำงาน"><i data-lucide="user-check" class="w-4 h-4 inline"></i></button>
               </form>
+              {% endif %}
               {% endif %}
             </td>
           </tr>

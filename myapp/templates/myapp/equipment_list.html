@@ -18,10 +18,12 @@
             </div>
             
             <div class="flex items-center gap-4">
+                {% if user.is_staff or user.is_superuser %}
                 <a href="{% url 'equipment_form' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     <span>เพิ่มเครื่องจักรใหม่</span>
                 </a>
+                {% endif %}
             </div>
         </header>
 
@@ -111,7 +113,11 @@
                                     {% endif %}
                                 </td>
                                 <td class="px-6 py-4">
+                                    {% if user.is_staff or user.is_superuser %}
                                     <a href="{% url 'equipment_form_edit' eq.equipment_id %}" class="text-slate-600 dark:text-slate-400 hover:text-indigo-500 transition-colors">{{ eq.equipment_id }}</a>
+                                    {% else %}
+                                    <span class="text-slate-600 dark:text-slate-400">{{ eq.equipment_id }}</span>
+                                    {% endif %}
                                 </td>
                                 <td class="px-6 py-4">
                                     <a href="{% url 'equipment_data_detail' eq.equipment_id %}" class="font-medium text-slate-800 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">{{ eq.name|default:"-" }}</a>

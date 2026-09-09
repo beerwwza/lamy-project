@@ -1,0 +1,15 @@
+{% extends 'myapp/base.html' %}
+{% block title %}ไม่มีสิทธิ์เข้าถึง | Smart Factory{% endblock title %}
+{% block content %}
+<div class="flex flex-col items-center justify-center py-24 text-center">
+  <i data-lucide="shield-alert" class="w-16 h-16 text-red-500 mb-4"></i>
+  <h1 class="text-2xl font-bold text-slate-800 dark:text-white mb-2">ไม่มีสิทธิ์เข้าถึงหน้านี้</h1>
+  <p class="text-slate-500 dark:text-slate-400 mb-6">
+    บัญชีของคุณไม่มีสิทธิ์ทำรายการนี้ กรุณาติดต่อผู้ดูแลระบบหากคิดว่าเป็นข้อผิดพลาด
+  </p>
+  <a href="{% url 'dashboard' %}" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
+    กลับหน้าหลัก
+  </a>
+</div>
+<script>lucide.createIcons();</script>
+{% endblock content %}

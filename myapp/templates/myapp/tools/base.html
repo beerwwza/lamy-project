@@ -24,6 +24,7 @@
       <i data-lucide="clock" class="w-4 h-4 flex-shrink-0"></i> เกินกำหนดคืน
     </a>
   </li>
+  {% if user.is_staff or user.is_superuser %}
   <li>
     <a href="{% url 'tools_readiness_add' %}"
        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400 transition-colors text-sm
@@ -31,6 +32,7 @@
       <i data-lucide="check-circle" class="w-4 h-4 flex-shrink-0"></i> ตรวจสอบความพร้อม
     </a>
   </li>
+  {% endif %}
 </ul>
 <div class="my-3 mx-4 border-t border-slate-200 dark:border-slate-800"></div>
 {% endblock sidebar_section %}

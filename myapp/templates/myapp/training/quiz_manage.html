@@ -21,10 +21,12 @@
       </div>
       <div class="flex gap-2 flex-shrink-0">
         <a href="{% url 'training_quiz_question_edit' q.id %}" class="text-slate-400 hover:text-indigo-500" title="แก้ไข"><i data-lucide="pencil" class="w-4 h-4"></i></a>
+        {% if user.is_superuser %}
         <form method="post" action="{% url 'training_quiz_question_delete' q.id %}" onsubmit="return confirm('ยืนยันการลบคำถามนี้?');">
           {% csrf_token %}
           <button type="submit" class="text-slate-400 hover:text-red-500" title="ลบ"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
         </form>
+        {% endif %}
       </div>
     </div>
     <ul class="space-y-1">
