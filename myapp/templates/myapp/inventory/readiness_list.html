@@ -3,10 +3,12 @@
 {% block page_title %}ตรวจสอบความพร้อมเครื่องมือ{% endblock %}
 
 {% block header_actions %}
+{% if user.is_staff or user.is_superuser %}
 <a href="{% url 'inventory_readiness_add' %}"
   class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors">
   + บันทึกการตรวจสอบ
 </a>
+{% endif %}
 {% endblock %}
 
 {% block inv_content %}

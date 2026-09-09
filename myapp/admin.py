@@ -1,5 +1,11 @@
 from django.contrib import admin
 from .models import *
+
+# จำกัด Django Admin (/admin/) ให้ Superuser เท่านั้น — is_staff เฉยๆ เข้าไม่ได้
+def _superuser_only_has_permission(self, request):
+    return request.user.is_active and request.user.is_superuser
+
+admin.site.has_permission = _superuser_only_has_permission.__get__(admin.site)
 from .models import (
     Job, employee, Profile,
     BoilerOperationLog, YoshimineLog, Banpong1Log, ChengchenLog, TakumaLog, Banpong2Log,

@@ -180,10 +180,12 @@
                     </div>
                 </div>
 
+                {% if user.is_staff or user.is_superuser %}
                 <div class="flex justify-end">
                     <button type="submit"
                         class="px-4 py-1.5 text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg">บันทึก</button>
                 </div>
+                {% endif %}
             </div>
         </form>
 
@@ -242,12 +244,14 @@
                 <form method="POST" action="{% url 'machine_task_vibration_save' task.id 'no_load' %}" class="space-y-4">
                     {% csrf_token %}
                     {% include 'myapp/_machine_task_vibration_fields.html' with form=no_load_form %}
+                    {% if user.is_staff or user.is_superuser %}
                     <div class="flex justify-end">
                         <button type="submit"
                             class="bg-slate-700 hover:bg-slate-800 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
                             <i data-lucide="save" class="w-4 h-4"></i> บันทึกเดินเครื่องตัวเปล่า
                         </button>
                     </div>
+                    {% endif %}
                 </form>
             </div>
 
@@ -260,12 +264,14 @@
                 <form method="POST" action="{% url 'machine_task_vibration_save' task.id 'loaded' %}" class="space-y-4">
                     {% csrf_token %}
                     {% include 'myapp/_machine_task_vibration_fields.html' with form=loaded_form %}
+                    {% if user.is_staff or user.is_superuser %}
                     <div class="flex justify-end">
                         <button type="submit"
                             class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2">
                             <i data-lucide="save" class="w-4 h-4"></i> บันทึกเดินเครื่องจริง
                         </button>
                     </div>
+                    {% endif %}
                 </form>
             </div>
 

@@ -76,6 +76,16 @@
             <form method="POST" action="{% url 'login' %}" class="space-y-6">
                 {% csrf_token %}
 
+                {% if messages %}
+                <div class="space-y-2">
+                    {% for message in messages %}
+                    <div class="p-3 rounded-lg text-sm bg-red-100 border border-red-200 text-red-700 flex items-center gap-2">
+                        <i data-lucide="alert-circle" class="w-4 h-4"></i> {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
                 <div class="space-y-2 group">
                     <label
                         class="block text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors group-focus-within:text-blue-600">

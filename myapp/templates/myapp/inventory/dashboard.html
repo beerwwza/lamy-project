@@ -8,10 +8,12 @@
   ⚠️ Stock ต่ำ {{ low_stock_count }} รายการ
 </span>
 {% endif %}
+{% if user.is_staff or user.is_superuser %}
 <button onclick="document.getElementById('addItemModal').classList.remove('hidden')"
   class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors">
   + เพิ่มรายการ
 </button>
+{% endif %}
 {% endblock %}
 
 {% block inv_content %}

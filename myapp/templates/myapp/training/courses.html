@@ -23,7 +23,7 @@
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
     {% for course in courses %}
     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 relative">
-      {% if request.user.is_staff %}
+      {% if request.user.is_superuser %}
       <form method="post" action="{% url 'training_course_delete' course.id %}" onsubmit="return confirm('ยืนยันการลบหลักสูตรนี้?');" class="absolute top-3 right-3">
         {% csrf_token %}
         <button type="submit" class="text-slate-300 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button>

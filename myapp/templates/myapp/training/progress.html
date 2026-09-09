@@ -2,9 +2,11 @@
 {% block title %}ความคืบหน้าการฝึกอบรม - Knowledge Center{% endblock %}
 {% block page_title %}ความคืบหน้าการฝึกอบรม{% endblock %}
 {% block header_actions %}
+{% if user.is_staff or user.is_superuser %}
 <a href="{% url 'training_record_add' %}" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
   <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มประวัติ
 </a>
+{% endif %}
 {% endblock %}
 
 {% block training_content %}
@@ -83,15 +85,19 @@
               {% if record.status == 'passed' %}
               <a href="{% url 'training_certificate' record.id %}" target="_blank" class="text-slate-400 hover:text-indigo-500 mr-2" title="ใบรับรอง"><i data-lucide="award" class="w-4 h-4 inline"></i></a>
               {% elif record.status == 'pending' %}
+              {% if user.is_staff or user.is_superuser %}
               <form method="post" action="{% url 'training_record_approve' record.id %}" class="inline">
                 {% csrf_token %}
                 <button type="submit" class="text-slate-400 hover:text-emerald-500 mr-2" title="อนุมัติ"><i data-lucide="check" class="w-4 h-4 inline"></i></button>
               </form>
               {% endif %}
+              {% endif %}
+              {% if user.is_superuser %}
               <form method="post" action="{% url 'training_record_delete' record.id %}" class="inline" onsubmit="return confirm('ยืนยันการลบ?');">
                 {% csrf_token %}
                 <button type="submit" class="text-slate-400 hover:text-red-500" title="ลบ"><i data-lucide="trash-2" class="w-4 h-4 inline"></i></button>
               </form>
+              {% endif %}
             </td>
           </tr>
           {% endwith %}
