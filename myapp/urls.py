@@ -5,7 +5,7 @@ from myapp import views
 
 urlpatterns = [
     #path('', Home, name='home'), #localhost:8000
-    #path('register/', register, name='register'),
+    path('register/', register, name='register'),
     path('', user_login, name='login'),
     path('logout/', user_logout, name='logout'),
     #path('table-employee/', table_employee, name='table-employee'),
