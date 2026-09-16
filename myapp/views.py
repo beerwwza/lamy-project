@@ -49,6 +49,8 @@ from .forms import (
 from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 import calendar
+from .models import Vehicle, VehicleBooking, VEHICLE_TYPE_CHOICES, VEHICLE_DIVISION_CHOICES
+from .forms import VehicleForm, VehicleBookingForm
 
 
 def staff_required(view_func):
@@ -5355,4 +5357,292 @@ def machine_task_vibration_save(request, task_id, phase):
             messages.error(request, 'บันทึกข้อมูลไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
 
     return redirect('machine_task_detail', task_id=task.id)
+
+
+# ==========================================
+# 8. Vehicle Service Booking Views (ระบบจองรถบริการ)
+# ==========================================
+
+@login_required
+def vehicle_list(request):
+    vehicles = Vehicle.objects.all().order_by('vehicle_type', 'code')
+    return render(request, 'myapp/vehicle/vehicle_list.html', {'vehicles': vehicles})
+
+
+@login_required
+def vehicle_add(request):
+    if request.method == 'POST':
+        form = VehicleForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'เพิ่มรถบริการเรียบร้อยแล้ว')
+            return redirect('vehicle_list')
+    else:
+        form = VehicleForm()
+    return render(request, 'myapp/vehicle/vehicle_form.html', {'form': form, 'is_edit': False})
+
+
+@login_required
+def vehicle_edit(request, pk):
+    vehicle = get_object_or_404(Vehicle, pk=pk)
+    if request.method == 'POST':
+        form = VehicleForm(request.POST, instance=vehicle)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'แก้ไขข้อมูลรถบริการเรียบร้อยแล้ว')
+            return redirect('vehicle_list')
+    else:
+        form = VehicleForm(instance=vehicle)
+    return render(request, 'myapp/vehicle/vehicle_form.html', {'form': form, 'is_edit': True, 'vehicle': vehicle})
+
+
+@login_required
+@require_POST
+def vehicle_delete(request, pk):
+    vehicle = get_object_or_404(Vehicle, pk=pk)
+    code = vehicle.code
+    vehicle.delete()
+    messages.success(request, f'ลบรถ {code} เรียบร้อยแล้ว')
+    return redirect('vehicle_list')
+
+
+@login_required
+@require_POST
+def vehicle_toggle_active(request, pk):
+    vehicle = get_object_or_404(Vehicle, pk=pk)
+    vehicle.is_active = not vehicle.is_active
+    vehicle.save(update_fields=['is_active', 'updated_at'])
+    status_text = "เปิดใช้งาน" if vehicle.is_active else "ปิดใช้งาน (เลิกใช้)"
+    messages.success(request, f'เปลี่ยนสถานะการใช้งานรถ {vehicle.code} เป็น {status_text} แล้ว')
+    return redirect('vehicle_list')
+
+
+@login_required
+@require_POST
+def vehicle_toggle_readiness(request, pk):
+    vehicle = get_object_or_404(Vehicle, pk=pk)
+    if vehicle.readiness_status == 'ready':
+        messages.info(request, 'กรุณาระบุเหตุผลที่ไม่พร้อมทำงานในหน้าแก้ไข')
+        return redirect('vehicle_edit', pk=pk)
+    vehicle.readiness_status = 'ready'
+    vehicle.not_ready_reason = ''
+    vehicle.save(update_fields=['readiness_status', 'not_ready_reason', 'updated_at'])
+    messages.success(request, f'เปลี่ยนสถานะรถ {vehicle.code} เป็นพร้อมทำงานแล้ว')
+    return redirect('vehicle_status_dashboard')
+
+
+@login_required
+def vehicle_booking_add(request):
+    next_url = request.POST.get('next') or request.GET.get('next') or ''
+    if request.method == 'POST':
+        form = VehicleBookingForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'บันทึกการจองรถบริการเรียบร้อยแล้ว')
+            return redirect(next_url or 'vehicle_status_dashboard')
+    else:
+        form = VehicleBookingForm(initial={'date_needed': timezone.now().date()})
+    return render(request, 'myapp/vehicle/booking_form.html', {'form': form, 'is_edit': False, 'next_url': next_url})
+
+
+@login_required
+def vehicle_booking_edit(request, pk):
+    booking = get_object_or_404(VehicleBooking, pk=pk)
+    next_url = request.POST.get('next') or request.GET.get('next') or ''
+    if request.method == 'POST':
+        form = VehicleBookingForm(request.POST, instance=booking)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'แก้ไขการจองรถบริการเรียบร้อยแล้ว')
+            return redirect(next_url or 'vehicle_status_dashboard')
+    else:
+        form = VehicleBookingForm(instance=booking)
+    return render(request, 'myapp/vehicle/booking_form.html',
+                  {'form': form, 'is_edit': True, 'booking': booking, 'next_url': next_url})
+
+
+@login_required
+@require_POST
+def vehicle_booking_delete(request, pk):
+    booking = get_object_or_404(VehicleBooking, pk=pk)
+    booking.delete()
+    messages.success(request, 'ลบรายการจองเรียบร้อยแล้ว')
+    next_url = request.POST.get('next') or ''
+    return redirect(next_url or 'vehicle_status_dashboard')
+
+
+@login_required
+def vehicle_status_dashboard(request):
+    w = _vehicle_booking_window_and_filters(request)
+    bookings = w['bookings']
+    today = w['today']
+    week_offset = w['week_offset']
+    window_start = w['window_start']
+    window_end = w['window_end']
+    division_filter = w['division_filter']
+    department_filter = w['department_filter']
+    vtype_filter = w['vtype_filter']
+    vehicle_filter = w['vehicle_filter']
+    selected_vehicle = w['selected_vehicle']
+
+    vehicle_rows = []
+    for vtype_code, vtype_label in VEHICLE_TYPE_CHOICES:
+        type_vehicles = Vehicle.objects.filter(vehicle_type=vtype_code).order_by('code')
+        if type_vehicles.count() == 0:
+            continue
+        active_qs = type_vehicles.filter(is_active=True)
+        not_ready_list = list(active_qs.filter(readiness_status='not_ready').values('code', 'not_ready_reason'))
+        vehicle_rows.append({
+            'vehicle_type': vtype_code,
+            'vehicle_type_label': vtype_label,
+            'capacity': active_qs.count(),
+            'ready_count': active_qs.filter(readiness_status='ready').count(),
+            'not_ready_count': len(not_ready_list),
+            'not_ready_list': not_ready_list,
+            'inactive_count': type_vehicles.filter(is_active=False).count(),
+            'has_not_ready': len(not_ready_list) > 0,
+            'vehicles': list(type_vehicles),
+        })
+
+    booking_rows = []
+    for b in bookings:
+        booking_rows.append({
+            'obj': b,
+            'is_today': b.date_needed == today,
+            'is_past': b.date_needed < today,
+        })
+
+    current_path = request.path
+    query_params = request.GET.copy()
+
+    def _week_link(offset):
+        params = query_params.copy()
+        params['week'] = offset
+        return f"{current_path}?{params.urlencode()}"
+
+    clear_vehicle_params = query_params.copy()
+    clear_vehicle_params.pop('vehicle', None)
+    clear_vehicle_link = f"{current_path}?{clear_vehicle_params.urlencode()}" if clear_vehicle_params else current_path
+
+    context = {
+        'vehicle_rows': vehicle_rows,
+        'booking_rows': booking_rows,
+        'window_start': window_start,
+        'window_end': window_end,
+        'week_offset': week_offset,
+        'is_current_window': week_offset == 0,
+        'prev_week_link': _week_link(week_offset - 1),
+        'next_week_link': _week_link(week_offset + 1),
+        'current_week_link': _week_link(0),
+        'division_choices': VEHICLE_DIVISION_CHOICES,
+        'vehicle_type_choices': VEHICLE_TYPE_CHOICES,
+        'division_filter': division_filter,
+        'department_filter': department_filter,
+        'vtype_filter': vtype_filter,
+        'vehicle_filter': vehicle_filter,
+        'selected_vehicle': selected_vehicle,
+        'clear_vehicle_link': clear_vehicle_link,
+        'today': today,
+        'next_url': request.get_full_path(),
+    }
+    return render(request, 'myapp/vehicle/status_dashboard.html', context)
+
+
+def _vehicle_booking_window_and_filters(request):
+    """แยก logic คำนวณช่วงสัปดาห์ + filter ให้ dashboard และ export ใช้ร่วมกัน"""
+    today = timezone.now().date()
+    monday_this_week = today - timedelta(days=today.weekday())
+    try:
+        week_offset = int(request.GET.get('week', 0) or 0)
+    except ValueError:
+        week_offset = 0
+    window_start = monday_this_week + timedelta(weeks=week_offset)
+    window_end = window_start + timedelta(weeks=1) - timedelta(days=1)
+
+    division_filter = request.GET.get('division', '')
+    department_filter = request.GET.get('department', '').strip()
+    vtype_filter = request.GET.get('vehicle_type', '')
+
+    vehicle_filter_raw = request.GET.get('vehicle', '')
+    try:
+        vehicle_filter = int(vehicle_filter_raw) if vehicle_filter_raw else None
+    except ValueError:
+        vehicle_filter = None
+    selected_vehicle = Vehicle.objects.filter(pk=vehicle_filter).first() if vehicle_filter else None
+
+    bookings = VehicleBooking.objects.filter(date_needed__gte=window_start, date_needed__lte=window_end)
+    if division_filter:
+        bookings = bookings.filter(division=division_filter)
+    if department_filter:
+        bookings = bookings.filter(department__icontains=department_filter)
+    if vtype_filter:
+        bookings = bookings.filter(vehicle_type=vtype_filter)
+    if selected_vehicle:
+        bookings = bookings.filter(vehicle=selected_vehicle)
+    bookings = bookings.select_related('vehicle').order_by('date_needed', 'start_time')
+
+    return {
+        'bookings': bookings,
+        'today': today,
+        'week_offset': week_offset,
+        'window_start': window_start,
+        'window_end': window_end,
+        'division_filter': division_filter,
+        'department_filter': department_filter,
+        'vtype_filter': vtype_filter,
+        'vehicle_filter': vehicle_filter,
+        'selected_vehicle': selected_vehicle,
+    }
+
+
+@login_required
+def vehicle_booking_export_excel(request):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    w = _vehicle_booking_window_and_filters(request)
+    bookings, window_start, window_end = w['bookings'], w['window_start'], w['window_end']
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'รายการจองรถบริการ'
+
+    headers = ['วันที่', 'เวลาเริ่ม', 'เวลาเสร็จ', 'ประเภทการจอง', 'ฝ่าย', 'แผนก',
+               'ชื่อผู้ขอใช้', 'ประเภทเครื่องจักร', 'รถคันที่ใช้งาน', 'ลักษณะงาน', 'สถานที่', 'เบอร์ติดต่อ', 'หมายเหตุ']
+    ws.append(headers)
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='4F46E5', end_color='4F46E5', fill_type='solid')
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+
+    for b in bookings:
+        ws.append([
+            b.date_needed.strftime('%d/%m/%Y'),
+            b.start_time.strftime('%H:%M'),
+            b.end_time.strftime('%H:%M'),
+            b.get_booking_type_display(),
+            b.division,
+            b.department,
+            b.requester_name,
+            b.vehicle_type,
+            b.vehicle.code if b.vehicle else '-',
+            b.job_description,
+            b.location,
+            b.contact_number,
+            b.notes or '',
+        ])
+
+    for col_cells in ws.columns:
+        length = max((len(str(c.value)) if c.value else 0) for c in col_cells)
+        ws.column_dimensions[col_cells[0].column_letter].width = min(max(length + 2, 10), 40)
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f'vehicle_bookings_{window_start}_{window_end}.xlsx'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
 

@@ -5,7 +5,7 @@ from myapp import views
 
 urlpatterns = [
     #path('', Home, name='home'), #localhost:8000
-    #path('register/', register, name='register'),
+    path('register/', register, name='register'),
     path('', user_login, name='login'),
     path('logout/', user_logout, name='logout'),
     #path('table-employee/', table_employee, name='table-employee'),
@@ -167,6 +167,19 @@ urlpatterns = [
     path('tasks/delete/<int:task_id>/',                machine_task_delete,          name='machine_task_delete'),
     path('tasks/<int:task_id>/',                       machine_task_detail,          name='machine_task_detail'),
     path('tasks/<int:task_id>/vibration/<str:phase>/', machine_task_vibration_save,  name='machine_task_vibration_save'),
+
+    # ===== Vehicle Service Booking Module (ระบบจองรถบริการ) =====
+    path('vehicles/',                            vehicle_status_dashboard,  name='vehicle_status_dashboard'),
+    path('vehicles/list/',                        vehicle_list,              name='vehicle_list'),
+    path('vehicles/add/',                         vehicle_add,               name='vehicle_add'),
+    path('vehicles/<int:pk>/edit/',                vehicle_edit,              name='vehicle_edit'),
+    path('vehicles/<int:pk>/delete/',              vehicle_delete,            name='vehicle_delete'),
+    path('vehicles/<int:pk>/toggle-active/',       vehicle_toggle_active,     name='vehicle_toggle_active'),
+    path('vehicles/<int:pk>/toggle-ready/',        vehicle_toggle_readiness,  name='vehicle_toggle_readiness'),
+    path('vehicles/booking/add/',                  vehicle_booking_add,       name='vehicle_booking_add'),
+    path('vehicles/booking/<int:pk>/edit/',        vehicle_booking_edit,      name='vehicle_booking_edit'),
+    path('vehicles/booking/<int:pk>/delete/',      vehicle_booking_delete,    name='vehicle_booking_delete'),
+    path('vehicles/export/',                       vehicle_booking_export_excel, name='vehicle_booking_export_excel'),
 
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]

@@ -1,0 +1,76 @@
+{% extends 'myapp/base.html' %}
+{% block title %}{% if is_edit %}แก้ไขรถบริการ{% else %}เพิ่มรถบริการ{% endif %}{% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+    <header class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80">
+        <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">
+            {% if is_edit %}แก้ไขรถบริการ {{ vehicle.code }}{% else %}เพิ่มรถบริการ{% endif %}
+        </h1>
+        <a href="{% url 'vehicle_list' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← กลับรายการรถ</a>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6">
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl">
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">รหัส/ทะเบียนรถ</label>
+                    {{ form.code }}
+                    {% if form.code.errors %}<p class="text-red-500 text-xs mt-1">{{ form.code.errors }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">ประเภทเครื่องจักร</label>
+                    {{ form.vehicle_type }}
+                    {% if form.vehicle_type.errors %}<p class="text-red-500 text-xs mt-1">{{ form.vehicle_type.errors }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">สถานะความพร้อม</label>
+                    {{ form.readiness_status }}
+                    {% if form.readiness_status.errors %}<p class="text-red-500 text-xs mt-1">{{ form.readiness_status.errors }}</p>{% endif %}
+                </div>
+
+                <div id="not-ready-reason-wrapper">
+                    <label class="text-xs font-medium text-slate-500 block mb-1">เหตุผลที่ไม่พร้อมทำงาน</label>
+                    {{ form.not_ready_reason }}
+                    {% if form.not_ready_reason.errors %}<p class="text-red-500 text-xs mt-1">{{ form.not_ready_reason.errors }}</p>{% endif %}
+                </div>
+
+                <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    {{ form.is_active }} สถานะใช้งาน (ยังไม่เลิกใช้)
+                </label>
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">หมายเหตุ</label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}<p class="text-red-500 text-xs mt-1">{{ form.notes.errors }}</p>{% endif %}
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">
+                        บันทึก
+                    </button>
+                    <a href="{% url 'vehicle_list' %}" class="flex-1 text-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium py-2 rounded-lg text-sm transition-colors">
+                        ยกเลิก
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+
+<script>
+    if (window.lucide) { lucide.createIcons(); }
+    (function () {
+        var select = document.getElementById('id_readiness_status');
+        var wrapper = document.getElementById('not-ready-reason-wrapper');
+        if (!select || !wrapper) return;
+        function update() { wrapper.hidden = select.value !== 'not_ready'; }
+        select.addEventListener('change', update);
+        update();
+    })();
+</script>
+{% endblock %}

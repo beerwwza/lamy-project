@@ -13,6 +13,7 @@ from .models import (
     ManualSpecItem,
 )
 from .models import MachineTask, MachineTaskVibration
+from .models import Vehicle, VehicleBooking
 from .models import ProcessCategory
 
 class EmployeeForm(forms.ModelForm):
@@ -1003,4 +1004,91 @@ class MachineTaskVibrationForm(forms.ModelForm):
             'temp_nde': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
             'status': forms.Select(attrs={'class': _TW_VIBRATION}),
         }
+
+
+# ==========================================
+# 8. Vehicle Service Booking Forms (ระบบจองรถบริการ)
+# ==========================================
+
+_TW_VEHICLE = ('w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+               'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white')
+
+
+class VehicleForm(forms.ModelForm):
+    class Meta:
+        model = Vehicle
+        fields = ['code', 'vehicle_type', 'readiness_status', 'not_ready_reason', 'is_active', 'notes']
+        widgets = {
+            'code': forms.TextInput(attrs={'class': _TW_VEHICLE, 'placeholder': 'เช่น CR-25-01'}),
+            'vehicle_type': forms.Select(attrs={'class': _TW_VEHICLE}),
+            'readiness_status': forms.Select(attrs={'class': _TW_VEHICLE, 'id': 'id_readiness_status'}),
+            'not_ready_reason': forms.TextInput(attrs={'class': _TW_VEHICLE, 'placeholder': 'เช่น รถเสีย, ซ่อมบำรุง'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'rounded border-slate-300 text-indigo-600 focus:ring-indigo-500'}),
+            'notes': forms.Textarea(attrs={'class': _TW_VEHICLE, 'rows': 2}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('readiness_status') == 'not_ready' and not (cleaned_data.get('not_ready_reason') or '').strip():
+            self.add_error('not_ready_reason', 'กรุณาระบุเหตุผลที่ไม่พร้อมทำงาน')
+        return cleaned_data
+
+
+class VehicleBookingForm(forms.ModelForm):
+    class Meta:
+        model = VehicleBooking
+        fields = ['booking_type', 'division', 'department', 'requester_name',
+                  'date_needed', 'start_time', 'end_time', 'vehicle_type', 'vehicle',
+                  'job_description', 'location', 'contact_number', 'notes']
+        widgets = {
+            'booking_type': forms.Select(attrs={'class': _TW_VEHICLE}),
+            'division': forms.Select(attrs={'class': _TW_VEHICLE}),
+            'department': forms.TextInput(attrs={'class': _TW_VEHICLE, 'placeholder': 'เช่น แผนกลูกหีบ'}),
+            'requester_name': forms.TextInput(attrs={'class': _TW_VEHICLE, 'placeholder': 'ชื่อ-นามสกุลผู้ขอใช้'}),
+            'date_needed': forms.DateInput(attrs={'type': 'date', 'class': _TW_VEHICLE}),
+            'start_time': forms.TimeInput(attrs={'type': 'time', 'class': _TW_VEHICLE}),
+            'end_time': forms.TimeInput(attrs={'type': 'time', 'class': _TW_VEHICLE}),
+            'vehicle_type': forms.Select(attrs={'class': _TW_VEHICLE}),
+            'vehicle': forms.Select(attrs={'class': _TW_VEHICLE}),
+            'job_description': forms.TextInput(attrs={'class': _TW_VEHICLE, 'maxlength': 100, 'id': 'id_job_description', 'placeholder': 'ลักษณะงาน (ไม่เกิน 100 ตัวอักษร)'}),
+            'location': forms.TextInput(attrs={'class': _TW_VEHICLE}),
+            'contact_number': forms.TextInput(attrs={'class': _TW_VEHICLE}),
+            'notes': forms.Textarea(attrs={'class': _TW_VEHICLE, 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['vehicle'].queryset = Vehicle.objects.order_by('vehicle_type', 'code')
+        self.fields['vehicle'].empty_label = '-- ไม่ระบุคันรถ (ตามประเภทเท่านั้น) --'
+        self.fields['vehicle'].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start = cleaned_data.get('start_time')
+        end = cleaned_data.get('end_time')
+        date_needed = cleaned_data.get('date_needed')
+        vtype = cleaned_data.get('vehicle_type')
+        vehicle = cleaned_data.get('vehicle')
+
+        if start and end and start >= end:
+            self.add_error('end_time', 'เวลาเสร็จต้องอยู่หลังเวลาเริ่ม')
+            return cleaned_data
+
+        if vehicle and vtype and vehicle.vehicle_type != vtype:
+            self.add_error('vehicle', 'ประเภทของรถที่เลือกไม่ตรงกับประเภทเครื่องจักรที่ระบุ')
+            return cleaned_data
+
+        if date_needed and start and end and vtype:
+            capacity = Vehicle.objects.filter(vehicle_type=vtype, is_active=True).count()
+            overlapping = VehicleBooking.objects.filter(
+                vehicle_type=vtype,
+                date_needed=date_needed,
+                start_time__lt=end,
+                end_time__gt=start,
+            )
+            if self.instance.pk:
+                overlapping = overlapping.exclude(pk=self.instance.pk)
+            if overlapping.count() >= capacity:
+                self.add_error(None, 'รถประเภทนี้เต็มจำนวนในช่วงเวลาที่เลือก กรุณาเลือกเวลาอื่นหรือประเภทรถอื่น')
+        return cleaned_data
 

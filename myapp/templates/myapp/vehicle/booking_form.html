@@ -1,0 +1,134 @@
+{% extends 'myapp/base.html' %}
+{% block title %}{% if is_edit %}แก้ไขการจองรถบริการ{% else %}เพิ่มการจองรถบริการ{% endif %}{% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+    <header class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg text-indigo-600 dark:text-indigo-400">
+                <i data-lucide="truck" class="w-5 h-5"></i>
+            </div>
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">
+                {% if is_edit %}แก้ไขการจองรถบริการ{% else %}เพิ่มการจองรถบริการ{% endif %}
+            </h1>
+        </div>
+        <a href="{{ next_url|default:'/vehicles/' }}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← กลับหน้าสถานะ</a>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6">
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 max-w-3xl">
+            {% if form.non_field_errors %}
+            <div class="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm font-medium dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ next_url }}">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">ประเภทการจอง</label>
+                        {{ form.booking_type }}
+                        {% if form.booking_type.errors %}<p class="text-red-500 text-xs mt-1">{{ form.booking_type.errors }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">ประเภทเครื่องจักร</label>
+                        {{ form.vehicle_type }}
+                        {% if form.vehicle_type.errors %}<p class="text-red-500 text-xs mt-1">{{ form.vehicle_type.errors }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">รถคันที่ใช้งาน (ถ้าทราบ)</label>
+                    {{ form.vehicle }}
+                    {% if form.vehicle.errors %}<p class="text-red-500 text-xs mt-1">{{ form.vehicle.errors }}</p>{% endif %}
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">ฝ่าย</label>
+                        {{ form.division }}
+                        {% if form.division.errors %}<p class="text-red-500 text-xs mt-1">{{ form.division.errors }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">แผนก</label>
+                        {{ form.department }}
+                        {% if form.department.errors %}<p class="text-red-500 text-xs mt-1">{{ form.department.errors }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">ชื่อผู้ขอใช้</label>
+                        {{ form.requester_name }}
+                        {% if form.requester_name.errors %}<p class="text-red-500 text-xs mt-1">{{ form.requester_name.errors }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">เบอร์ติดต่อ</label>
+                        {{ form.contact_number }}
+                        {% if form.contact_number.errors %}<p class="text-red-500 text-xs mt-1">{{ form.contact_number.errors }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">วันที่ต้องการใช้งาน</label>
+                        {{ form.date_needed }}
+                        {% if form.date_needed.errors %}<p class="text-red-500 text-xs mt-1">{{ form.date_needed.errors }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">เวลาเริ่ม</label>
+                        {{ form.start_time }}
+                        {% if form.start_time.errors %}<p class="text-red-500 text-xs mt-1">{{ form.start_time.errors }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">เวลาเสร็จ</label>
+                        {{ form.end_time }}
+                        {% if form.end_time.errors %}<p class="text-red-500 text-xs mt-1">{{ form.end_time.errors }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">ลักษณะงาน <span id="job-desc-count" class="text-slate-400">(0/100)</span></label>
+                    {{ form.job_description }}
+                    {% if form.job_description.errors %}<p class="text-red-500 text-xs mt-1">{{ form.job_description.errors }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">สถานที่</label>
+                    {{ form.location }}
+                    {% if form.location.errors %}<p class="text-red-500 text-xs mt-1">{{ form.location.errors }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">หมายเหตุ</label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}<p class="text-red-500 text-xs mt-1">{{ form.notes.errors }}</p>{% endif %}
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">
+                        บันทึก
+                    </button>
+                    <a href="{{ next_url|default:'/vehicles/' }}" class="flex-1 text-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium py-2 rounded-lg text-sm transition-colors">
+                        ยกเลิก
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+
+<script>
+    if (window.lucide) { lucide.createIcons(); }
+    (function () {
+        var input = document.getElementById('id_job_description');
+        var counter = document.getElementById('job-desc-count');
+        if (!input || !counter) return;
+        function update() { counter.textContent = '(' + input.value.length + '/100)'; }
+        input.addEventListener('input', update);
+        update();
+    })();
+</script>
+{% endblock %}

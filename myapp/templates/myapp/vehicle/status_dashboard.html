@@ -1,0 +1,226 @@
+{% extends 'myapp/base.html' %}
+{% block title %}จองรถบริการ{% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg text-indigo-600 dark:text-indigo-400">
+                <i data-lucide="truck" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">จองรถบริการ</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400">สถานะความพร้อมของรถและรายการจองของทุกฝ่าย/แผนก</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{% url 'vehicle_list' %}"
+                class="flex items-center gap-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 px-4 py-2 rounded-lg font-medium text-sm">
+                <i data-lucide="settings" class="w-4 h-4"></i>จัดการรถ
+            </a>
+            <a href="{% url 'vehicle_booking_add' %}?next={{ next_url|urlencode }}"
+                class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
+                <i data-lucide="plus" class="w-4 h-4"></i>เพิ่มการจอง
+            </a>
+        </div>
+    </header>
+
+    <!-- Scrollable body -->
+    <div class="flex-1 overflow-y-auto p-6 space-y-5">
+
+        <!-- Django Messages -->
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+            {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+            {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+            {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+            <i data-lucide="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% else %}info{% endif %}"
+                class="w-4 h-4 flex-shrink-0"></i>
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- สถานะความพร้อมของรถ -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {% for row in vehicle_rows %}
+            <div class="bg-white dark:bg-slate-900 rounded-xl border {% if row.has_not_ready %}border-amber-200 dark:border-amber-800{% else %}border-slate-200 dark:border-slate-800{% endif %} p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ row.vehicle_type_label }}</p>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium">{{ row.capacity }} คัน</span>
+                </div>
+                <div class="flex items-center gap-3 text-xs mb-2">
+                    <span class="flex items-center gap-1 text-emerald-600"><i data-lucide="check-circle" class="w-3.5 h-3.5"></i>{{ row.ready_count }} พร้อม</span>
+                    {% if row.not_ready_count > 0 %}
+                    <span class="flex items-center gap-1 text-red-600"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>{{ row.not_ready_count }} ไม่พร้อม</span>
+                    {% endif %}
+                    {% if row.inactive_count > 0 %}
+                    <span class="text-slate-400">({{ row.inactive_count }} ปิดใช้งาน)</span>
+                    {% endif %}
+                </div>
+                <div class="border-t border-slate-100 dark:border-slate-800 pt-2 mt-2 flex flex-wrap gap-1.5">
+                    {% for v in row.vehicles %}
+                    <a href="?week={{ week_offset }}&vehicle={{ v.id }}"
+                        title="{% if v.readiness_status == 'not_ready' %}{{ v.not_ready_reason|default:'ไม่ระบุเหตุผล' }}{% elif not v.is_active %}ปิดใช้งาน{% else %}พร้อมทำงาน{% endif %}"
+                        class="text-xs px-2 py-0.5 rounded-full font-medium border transition-colors
+                        {% if selected_vehicle.id == v.id %}ring-2 ring-indigo-500{% endif %}
+                        {% if not v.is_active %}bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700
+                        {% elif v.readiness_status == 'not_ready' %}bg-red-50 text-red-700 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800
+                        {% else %}bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800{% endif %}">
+                        {{ v.code }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-span-full text-center py-8 text-slate-400 text-sm">
+                ยังไม่มีรถบริการลงทะเบียนในระบบ — <a href="{% url 'vehicle_add' %}" class="text-indigo-500 hover:underline">เพิ่มรถบริการ</a>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- รายการจอง -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="calendar" class="w-4 h-4 text-slate-500"></i>
+                    <span class="font-semibold text-slate-800 dark:text-slate-100 text-sm">รายการจองรถบริการ</span>
+                    <span class="text-xs bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-medium">{{ booking_rows|length }} รายการ</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm">
+                    <a href="{{ prev_week_link }}" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i>ก่อนหน้า
+                    </a>
+                    <span class="text-xs text-slate-500 dark:text-slate-400 px-1">
+                        {{ window_start|date:"d/m/Y" }} – {{ window_end|date:"d/m/Y" }}
+                        {% if is_current_window %}<span class="text-indigo-500 font-medium">(สัปดาห์นี้)</span>{% endif %}
+                    </span>
+                    <a href="{{ next_week_link }}" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                        ถัดไป<i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </a>
+                    {% if not is_current_window %}
+                    <a href="{{ current_week_link }}" class="text-xs text-indigo-500 hover:underline">กลับสัปดาห์นี้</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if selected_vehicle %}
+            <div class="px-5 py-2.5 border-b border-indigo-100 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-between gap-3">
+                <span class="text-sm text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                    <i data-lucide="filter" class="w-4 h-4"></i>
+                    กำลังกรองเฉพาะรถคัน <span class="font-semibold">{{ selected_vehicle.code }}</span> ({{ selected_vehicle.get_vehicle_type_display }})
+                </span>
+                <a href="{{ clear_vehicle_link }}" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>ล้างตัวกรองนี้
+                </a>
+            </div>
+            {% endif %}
+
+            <!-- Filter bar -->
+            <form method="get" class="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-end gap-3 bg-slate-50/50 dark:bg-slate-800/30">
+                <input type="hidden" name="week" value="{{ week_offset }}">
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">ฝ่าย</label>
+                    <select name="division" class="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 dark:text-slate-100">
+                        <option value="">ทั้งหมด</option>
+                        {% for val, label in division_choices %}
+                        <option value="{{ val }}" {% if division_filter == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">แผนก</label>
+                    <input type="text" name="department" value="{{ department_filter }}" placeholder="ค้นหาแผนก"
+                        class="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 dark:text-slate-100">
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">ประเภทเครื่องจักร</label>
+                    <select name="vehicle_type" class="border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 dark:text-slate-100">
+                        <option value="">ทั้งหมด</option>
+                        {% for val, label in vehicle_type_choices %}
+                        <option value="{{ val }}" {% if vtype_filter == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium">กรอง</button>
+                <a href="?week={{ week_offset }}" class="px-4 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm">ล้างตัวกรอง</a>
+                <a href="{% url 'vehicle_booking_export_excel' %}?week={{ week_offset }}&division={{ division_filter|urlencode }}&department={{ department_filter|urlencode }}&vehicle_type={{ vtype_filter|urlencode }}"
+                    class="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-sm font-medium">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>ส่งออก Excel
+                </a>
+            </form>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                            <th class="px-5 py-2.5 font-medium">วันที่ / เวลา</th>
+                            <th class="px-5 py-2.5 font-medium">ฝ่าย / แผนก</th>
+                            <th class="px-5 py-2.5 font-medium">ประเภทเครื่องจักร</th>
+                            <th class="px-5 py-2.5 font-medium">รถคัน</th>
+                            <th class="px-5 py-2.5 font-medium">ลักษณะงาน</th>
+                            <th class="px-5 py-2.5 font-medium">ผู้ขอใช้ / เบอร์ติดต่อ</th>
+                            <th class="px-5 py-2.5 font-medium">สถานที่</th>
+                            <th class="px-5 py-2.5 font-medium">ประเภทการจอง</th>
+                            <th class="px-5 py-2.5 font-medium text-right">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in booking_rows %}
+                        <tr class="border-b border-slate-50 dark:border-slate-800 {% if row.is_past %}opacity-60{% elif row.is_today %}bg-indigo-50/40 dark:bg-indigo-900/10{% endif %}">
+                            <td class="px-5 py-3 whitespace-nowrap">
+                                <p class="font-medium text-slate-800 dark:text-slate-100">{{ row.obj.date_needed|date:"d/m/Y" }}</p>
+                                <p class="text-xs text-slate-400">{{ row.obj.start_time|time:"H:i" }} - {{ row.obj.end_time|time:"H:i" }}</p>
+                            </td>
+                            <td class="px-5 py-3">
+                                <p class="text-slate-700 dark:text-slate-200">{{ row.obj.division }}</p>
+                                <p class="text-xs text-slate-400">{{ row.obj.department }}</p>
+                            </td>
+                            <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.obj.vehicle_type }}</td>
+                            <td class="px-5 py-3">
+                                {% if row.obj.vehicle %}
+                                <a href="?week={{ week_offset }}&vehicle={{ row.obj.vehicle.id }}" class="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 hover:text-indigo-700">{{ row.obj.vehicle.code }}</a>
+                                {% else %}
+                                <span class="text-xs text-slate-400">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3 text-slate-700 dark:text-slate-200 max-w-[220px] truncate" title="{{ row.obj.job_description }}">{{ row.obj.job_description }}</td>
+                            <td class="px-5 py-3">
+                                <p class="text-slate-700 dark:text-slate-200">{{ row.obj.requester_name }}</p>
+                                <p class="text-xs text-slate-400">{{ row.obj.contact_number }}</p>
+                            </td>
+                            <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.obj.location }}</td>
+                            <td class="px-5 py-3">
+                                <span class="text-xs px-2 py-0.5 rounded-full {% if row.obj.booking_type == 'urgent' %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                                    {{ row.obj.get_booking_type_display }}
+                                </span>
+                            </td>
+                            <td class="px-5 py-3 text-right whitespace-nowrap">
+                                <a href="{% url 'vehicle_booking_edit' row.obj.pk %}?next={{ next_url|urlencode }}" class="text-indigo-500 hover:underline text-xs mr-2">แก้ไข</a>
+                                <form method="post" action="{% url 'vehicle_booking_delete' row.obj.pk %}" class="inline"
+                                    onsubmit="return confirm('ยืนยันการลบรายการจองนี้?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ next_url }}">
+                                    <button type="submit" class="text-red-500 hover:underline text-xs">ลบ</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center py-10 text-slate-400 text-sm">ไม่พบรายการจองในช่วงที่เลือก</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    if (window.lucide) { lucide.createIcons(); }
+</script>
+{% endblock %}
