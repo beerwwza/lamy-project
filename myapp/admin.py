@@ -332,4 +332,19 @@ class ProcessCategoryAdmin(admin.ModelAdmin):
     list_display = ['name', 'is_active']
     list_filter = ['is_active']
     search_fields = ['name']
-    ordering = ['name']
+
+
+# ===== Vehicle Service Booking Module =====
+
+@admin.register(Vehicle)
+class VehicleAdmin(admin.ModelAdmin):
+    list_display = ['code', 'vehicle_type', 'readiness_status', 'not_ready_reason', 'is_active']
+    list_filter = ['vehicle_type', 'readiness_status', 'is_active']
+    search_fields = ['code']
+
+@admin.register(VehicleBooking)
+class VehicleBookingAdmin(admin.ModelAdmin):
+    list_display = ['date_needed', 'start_time', 'end_time', 'vehicle_type', 'division', 'department', 'requester_name', 'booking_type']
+    list_filter = ['division', 'vehicle_type', 'booking_type', 'date_needed']
+    search_fields = ['requester_name', 'department', 'location', 'job_description']
+    ordering = ['-date_needed', 'start_time']

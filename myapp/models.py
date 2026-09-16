@@ -1857,3 +1857,89 @@ class ProcessCategory(models.Model):
     def __str__(self):
         return self.name
 
+
+# ==========================================
+# 8. Vehicle Service Booking Module (ระบบจองรถบริการ)
+# ==========================================
+
+VEHICLE_TYPE_CHOICES = [
+    ('รถเครน 25 ตัน', 'รถเครน 25 ตัน'),
+    ('รถเครน 35 ตัน', 'รถเครน 35 ตัน'),
+    ('รถเครน 45 ตัน', 'รถเครน 45 ตัน'),
+    ('รถเครน >45 ตัน', 'รถเครน >45 ตัน'),
+    ('รถเฮี๊ยบ', 'รถเฮี๊ยบ'),
+    ('รถตัก', 'รถตัก'),
+    ('รถน้ำ', 'รถน้ำ'),
+    ('รถสิบล้อ(ดั๊มพ์+มีฝาท้าย)', 'รถสิบล้อ(ดั๊มพ์+มีฝาท้าย)'),
+    ('รถสิบล้อ(ดั๊มพ์+ไม่มีฝาท้าย)', 'รถสิบล้อ(ดั๊มพ์+ไม่มีฝาท้าย)'),
+    ('รถแบ็คโฮ', 'รถแบ็คโฮ'),
+    ('รถไถ', 'รถไถ'),
+    ('โฟล์คลิฟ', 'โฟล์คลิฟ'),
+    ('รถห่างปลา', 'รถห่างปลา'),
+]
+
+VEHICLE_DIVISION_CHOICES = [
+    ('ผลิต', 'ผลิต'),
+    ('วิศวกรรมจักรกล', 'วิศวกรรมจักรกล'),
+    ('วิศวกรรมไฟฟ้า', 'วิศวกรรมไฟฟ้า'),
+]
+
+VEHICLE_READINESS_CHOICES = [
+    ('ready', 'พร้อมทำงาน'),
+    ('not_ready', 'ไม่พร้อมทำงาน'),
+]
+
+BOOKING_TYPE_CHOICES = [
+    ('planned', 'จองรถในแผนงานประจำสัปดาห์'),
+    ('urgent', 'จองรถนอกแผน (งานด่วน)'),
+]
+
+
+class Vehicle(models.Model):
+    code = models.CharField(max_length=50, unique=True, verbose_name="รหัส/ทะเบียนรถ")
+    vehicle_type = models.CharField(max_length=50, choices=VEHICLE_TYPE_CHOICES, verbose_name="ประเภทเครื่องจักร")
+    readiness_status = models.CharField(max_length=10, choices=VEHICLE_READINESS_CHOICES,
+                                         default='ready', verbose_name="สถานะความพร้อม")
+    not_ready_reason = models.CharField(max_length=255, blank=True, null=True,
+                                         verbose_name="เหตุผลที่ไม่พร้อมทำงาน")
+    is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน")
+    notes = models.TextField(blank=True, null=True, verbose_name="หมายเหตุ")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "รถบริการ"
+        verbose_name_plural = "ทะเบียนรถบริการ"
+        ordering = ['vehicle_type', 'code']
+
+    def __str__(self):
+        return f"{self.code} ({self.get_vehicle_type_display()})"
+
+
+class VehicleBooking(models.Model):
+    booking_type = models.CharField(max_length=10, choices=BOOKING_TYPE_CHOICES,
+                                     default='planned', verbose_name="ประเภทการจอง")
+    division = models.CharField(max_length=20, choices=VEHICLE_DIVISION_CHOICES, verbose_name="ฝ่าย")
+    department = models.CharField(max_length=100, verbose_name="แผนก")
+    requester_name = models.CharField(max_length=100, verbose_name="ชื่อผู้ขอใช้")
+    date_needed = models.DateField(verbose_name="วันที่ต้องการใช้งาน")
+    start_time = models.TimeField(verbose_name="เวลาเริ่ม")
+    end_time = models.TimeField(verbose_name="เวลาเสร็จ")
+    vehicle_type = models.CharField(max_length=50, choices=VEHICLE_TYPE_CHOICES, verbose_name="ประเภทเครื่องจักร")
+    vehicle = models.ForeignKey('Vehicle', on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name='bookings', verbose_name="รถคันที่ใช้งาน (ถ้าระบุ)")
+    job_description = models.CharField(max_length=100, verbose_name="ลักษณะงาน")
+    location = models.CharField(max_length=255, verbose_name="สถานที่")
+    contact_number = models.CharField(max_length=20, verbose_name="เบอร์ติดต่อ")
+    notes = models.TextField(blank=True, null=True, verbose_name="หมายเหตุ")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "การจองรถบริการ"
+        verbose_name_plural = "รายการจองรถบริการ"
+        ordering = ['date_needed', 'start_time']
+
+    def __str__(self):
+        return f"{self.vehicle_type} - {self.date_needed} {self.start_time}-{self.end_time} ({self.requester_name})"
+
