@@ -2,7 +2,7 @@ from django.db import models
 from django.db.models import Sum, Q
 from django.contrib.auth.models import User
 from decimal import Decimal
-from datetime import date
+from datetime import date, timedelta
 
 # ==========================================
 # 1. User & Employee Management Models
@@ -1117,17 +1117,22 @@ class InventoryTransaction(models.Model):
        ทุกครั้งที่ save() จะอัปเดต stock ของ InventoryItem อัตโนมัติ"""
 
     TX_TYPES = [
-        ('receive', 'รับเข้า'),
-        ('issue',   'เบิกออก'),
-        ('return',  'คืน'),
-        ('adjust',  'ปรับยอด'),
+        ('receive',     'รับเข้า'),
+        ('issue',       'เบิกออก'),
+        ('return',      'คืน'),
+        ('adjust',      'ปรับยอด'),
+        ('loan_out',    'ยืมออก (ข้ามแผนก)'),
+        ('loan_return', 'คืนของยืม (ข้ามแผนก)'),
     ]
 
     item          = models.ForeignKey(InventoryItem, on_delete=models.PROTECT,
                                       related_name='transactions', verbose_name="รายการ")
-    tx_type       = models.CharField(max_length=10, choices=TX_TYPES, verbose_name="ประเภท")
+    tx_type       = models.CharField(max_length=12, choices=TX_TYPES, verbose_name="ประเภท")
     quantity      = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="จำนวน")
     department    = models.CharField(max_length=20, choices=InventoryItem.DEPARTMENT_CHOICES, verbose_name="แผนก")
+    to_department = models.CharField(max_length=20, choices=InventoryItem.DEPARTMENT_CHOICES, null=True, blank=True,
+                                     verbose_name="แผนกผู้ยืม")
+    due_date      = models.DateField(null=True, blank=True, verbose_name="กำหนดคืน (กรณียืมข้ามแผนก)")
     work_group    = models.CharField(max_length=100, blank=True, verbose_name="กลุ่มงาน")
 
     # เชื่อมกับเครื่องจักรที่เบิกไปใช้ (Machine List) — เพื่อเก็บประวัติ/งบซ่อมของเครื่องจักรนั้น
@@ -1163,9 +1168,9 @@ class InventoryTransaction(models.Model):
     def _delta(self):
         """ผลต่อ stock ของ transaction นี้ (+ เพิ่ม / - ลด)"""
         q = Decimal(self.quantity)
-        if self.tx_type in ('receive', 'return'):
+        if self.tx_type in ('receive', 'return', 'loan_return'):
             return q
-        if self.tx_type == 'issue':
+        if self.tx_type in ('issue', 'loan_out'):
             return -q
         if self.tx_type == 'adjust':
             return q  # ปรับยอด: ส่งค่าบวก/ลบเข้ามาได้
@@ -1203,8 +1208,15 @@ class ToolUnit(models.Model):
                                     related_name='tool_units', verbose_name="ชนิดเครื่องมือ")
     unit_code   = models.CharField(max_length=30, unique=True, verbose_name="รหัสหน่วย")
     status      = models.CharField(max_length=20, choices=STATUS_CHOICES, default='available', verbose_name="สถานะ")
+    # แผนกเจ้าของจริงรายชิ้น — แยกจาก item.department ซึ่งเป็นเพียงค่า default ตอนสร้างหน่วยใหม่
+    # (ตาม requirement: เครื่องมือชนิดเดียวกันอาจถูกครอบครองคนละแผนกได้ ไม่ต้องสร้างรหัสชนิดซ้ำ)
+    department  = models.CharField(max_length=20, choices=InventoryItem.DEPARTMENT_CHOICES, default='maintenance',
+                                   verbose_name="แผนกเจ้าของ")
     location    = models.CharField(max_length=100, blank=True, verbose_name="ตำแหน่งที่เก็บ")
     condition_note = models.TextField(blank=True, verbose_name="หมายเหตุสภาพ")
+
+    next_maintenance_due = models.DateField(null=True, blank=True, verbose_name="กำหนดบำรุงรักษาครั้งถัดไป")
+    maintenance_interval_days = models.PositiveIntegerField(null=True, blank=True, verbose_name="ความถี่บำรุงรักษา (วัน)")
 
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
@@ -1220,6 +1232,18 @@ class ToolUnit(models.Model):
     @property
     def latest_readiness_check(self):
         return self.readiness_checks.order_by('-check_date', '-created_at').first()
+
+    @property
+    def maintenance_status(self):
+        """สถานะกำหนดบำรุงรักษา: unscheduled / overdue / due_soon (≤7 วัน) / ok"""
+        if not self.next_maintenance_due:
+            return 'unscheduled'
+        today = date.today()
+        if self.next_maintenance_due < today:
+            return 'overdue'
+        if self.next_maintenance_due <= today + timedelta(days=7):
+            return 'due_soon'
+        return 'ok'
 
 
 class ToolReadinessCheck(models.Model):
@@ -1242,7 +1266,7 @@ class ToolReadinessCheck(models.Model):
     condition_ok     = models.BooleanField(default=True, verbose_name="สภาพเครื่องมือ (ไม่ชำรุด)")
     calibration_ok   = models.BooleanField(default=True, verbose_name="สอบเทียบ/ปรับตั้งถูกต้อง")
     completeness_ok  = models.BooleanField(default=True, verbose_name="อุปกรณ์/อะไหล่ประกอบครบชุด")
-    safety_ok        = models.BooleanField(default=True, verbose_name="ปลอดภัยต่อการใช้งาน")
+    safety_ok        = models.BooleanField(default=True, verbose_name="ทำความสะอาดเรียบร้อย")
 
     overall_status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='ready',
                                       verbose_name="สรุปผล")
@@ -1291,6 +1315,43 @@ class ToolCheckout(models.Model):
     @property
     def is_overdue(self):
         return bool(self.due_date and not self.return_date and self.due_date < date.today())
+
+
+class ToolMaintenanceLog(models.Model):
+    """บันทึกซ่อมบำรุงเครื่องมือรายชิ้น — รวมประวัติซ่อมและกำหนดการ PM ไว้ในโมเดลเดียว
+       เมื่อระบุ next_due_date จะ sync เข้า ToolUnit.next_maintenance_due ให้อัตโนมัติ"""
+
+    MAINTENANCE_TYPE_CHOICES = [
+        ('repair', 'ซ่อม'),
+        ('pm',     'บำรุงรักษาเชิงป้องกัน (PM)'),
+    ]
+
+    tool_unit         = models.ForeignKey(ToolUnit, on_delete=models.CASCADE,
+                                          related_name='maintenance_logs', verbose_name="หน่วยเครื่องมือ")
+    maintenance_type  = models.CharField(max_length=10, choices=MAINTENANCE_TYPE_CHOICES, default='repair', verbose_name="ประเภท")
+    date              = models.DateField(verbose_name="วันที่ดำเนินการ")
+    technician        = models.CharField(max_length=100, verbose_name="ผู้ดำเนินการ")
+    description       = models.TextField(blank=True, verbose_name="รายละเอียด")
+    cost              = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="ค่าใช้จ่าย")
+    next_due_date     = models.DateField(null=True, blank=True, verbose_name="กำหนดครั้งถัดไป")
+
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='tool_maintenance_logs', verbose_name="ผู้บันทึก")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+        verbose_name = "บันทึกซ่อมบำรุงเครื่องมือ (Tool Maintenance Log)"
+        verbose_name_plural = "บันทึกซ่อมบำรุงเครื่องมือ (Tool Maintenance Logs)"
+
+    def __str__(self):
+        return f"{self.tool_unit.unit_code} - {self.get_maintenance_type_display()} ({self.date})"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.next_due_date:
+            self.tool_unit.next_maintenance_due = self.next_due_date
+            self.tool_unit.save(update_fields=['next_maintenance_due', 'updated_at'])
 
 
 # ==========================================

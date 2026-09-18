@@ -7,6 +7,11 @@
   ⏰ เกินกำหนดคืน {{ overdue_count }} รายการ
 </a>
 {% endif %}
+{% if maintenance_due_count > 0 %}
+<a href="{% url 'tools_maintenance_list' %}" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium no-underline">
+  🛠️ ครบกำหนดบำรุงรักษา {{ maintenance_due_count }} รายการ
+</a>
+{% endif %}
 {% if user.is_staff or user.is_superuser %}
 <a href="{% url 'tools_readiness_add' %}"
   class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors no-underline">
@@ -46,7 +51,7 @@
   </div>
 </div>
 
-<!-- Middle Row: เกินกำหนด + เบิกล่าสุด -->
+<!-- Middle Row: เกินกำหนดคืน / ครบกำหนดบำรุงรักษา -->
 <div class="grid grid-cols-2 gap-4">
 
   <!-- เกินกำหนดคืน -->
@@ -69,29 +74,94 @@
     {% endfor %}
   </div>
 
-  <!-- การเบิก-คืนล่าสุด -->
+  <!-- ครบกำหนดบำรุงรักษา -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+      <span class="font-semibold text-sm text-slate-700 dark:text-slate-200">🛠️ ครบกำหนดบำรุงรักษา</span>
+      <a href="{% url 'tools_maintenance_list' %}" class="text-xs text-indigo-500 hover:underline">ดูทั้งหมด →</a>
+    </div>
+    {% for u in maintenance_due %}
+    <a href="{% url 'tools_unit_detail' u.pk %}"
+       class="flex items-center justify-between px-5 py-3 border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors no-underline">
+      <div class="min-w-0">
+        <p class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ u.unit_code }} — {{ u.item.name }}</p>
+        <p class="text-xs text-slate-400">{{ u.get_department_display }}</p>
+      </div>
+      <span class="text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ml-3 {% if u.maintenance_status == 'overdue' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+        {{ u.next_maintenance_due|date:"d/m/Y" }}
+      </span>
+    </a>
+    {% empty %}
+    <div class="flex items-center justify-center py-10 text-green-600 text-sm">✅ ไม่มีรายการครบกำหนด</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- เบิก-คืนรายวัน -->
+<div class="grid grid-cols-2 gap-4 mt-4">
+  <!-- เบิกวันนี้ -->
   <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
     <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
-      <span class="font-semibold text-sm text-slate-700 dark:text-slate-200">🕐 การเบิก-คืนล่าสุด</span>
+      <span class="font-semibold text-sm text-slate-700 dark:text-slate-200">📅 เบิกวันนี้ ({{ today_checkouts_count }})</span>
     </div>
-    {% for co in recent_checkouts %}
+    {% for co in today_checkouts %}
     <div class="flex items-center justify-between px-5 py-3 border-b border-slate-50 dark:border-slate-800">
-      <div class="flex items-center gap-3 min-w-0">
-        {% if co.return_date %}
-        <span class="text-xs px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 font-medium flex-shrink-0">คืนแล้ว</span>
-        {% else %}
-        <span class="text-xs px-2 py-0.5 rounded-md bg-red-100 text-red-700 font-medium flex-shrink-0">ยังไม่คืน</span>
-        {% endif %}
-        <div class="min-w-0">
-          <p class="text-sm text-slate-700 dark:text-slate-200 truncate">{{ co.tool_unit.unit_code }} — {{ co.borrower_name }}</p>
-          <p class="text-xs text-slate-400">{{ co.checkout_date|date:"d/m/Y" }}</p>
-        </div>
+      <div class="min-w-0">
+        <p class="text-sm text-slate-700 dark:text-slate-200 truncate">{{ co.tool_unit.unit_code }} — {{ co.borrower_name }}</p>
+        <p class="text-xs text-slate-400">{{ co.get_department_display }}</p>
+      </div>
+      {% if co.department and co.department != co.tool_unit.department %}
+      <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium flex-shrink-0 ml-3">ข้ามแผนก</span>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="flex items-center justify-center py-10 text-slate-400 text-sm">ยังไม่มีการเบิกวันนี้</div>
+    {% endfor %}
+  </div>
+
+  <!-- ครบกำหนดคืนวันนี้ -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+      <span class="font-semibold text-sm text-slate-700 dark:text-slate-200">⏳ ครบกำหนดคืนวันนี้ ({{ due_today_count }})</span>
+    </div>
+    {% for co in due_today %}
+    <div class="flex items-center justify-between px-5 py-3 border-b border-slate-50 dark:border-slate-800">
+      <div class="min-w-0">
+        <p class="text-sm text-slate-700 dark:text-slate-200 truncate">{{ co.tool_unit.unit_code }} — {{ co.borrower_name }}</p>
+        <p class="text-xs text-slate-400">{{ co.get_department_display }}</p>
       </div>
     </div>
     {% empty %}
-    <div class="flex items-center justify-center py-10 text-slate-400 text-sm">ยังไม่มีรายการเบิก-คืน</div>
+    <div class="flex items-center justify-center py-10 text-slate-400 text-sm">ไม่มีรายการครบกำหนดคืนวันนี้</div>
     {% endfor %}
   </div>
+</div>
+
+<!-- การเบิก-คืนล่าสุด -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden mt-4">
+  <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+    <span class="font-semibold text-sm text-slate-700 dark:text-slate-200">🕐 การเบิก-คืนล่าสุด</span>
+  </div>
+  {% for co in recent_checkouts %}
+  <div class="flex items-center justify-between px-5 py-3 border-b border-slate-50 dark:border-slate-800">
+    <div class="flex items-center gap-3 min-w-0">
+      {% if co.return_date %}
+      <span class="text-xs px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 font-medium flex-shrink-0">คืนแล้ว</span>
+      {% else %}
+      <span class="text-xs px-2 py-0.5 rounded-md bg-red-100 text-red-700 font-medium flex-shrink-0">ยังไม่คืน</span>
+      {% endif %}
+      <div class="min-w-0">
+        <p class="text-sm text-slate-700 dark:text-slate-200 truncate">{{ co.tool_unit.unit_code }} — {{ co.borrower_name }}</p>
+        <p class="text-xs text-slate-400">{{ co.checkout_date|date:"d/m/Y" }}</p>
+      </div>
+      {% if co.department and co.department != co.tool_unit.department %}
+      <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium flex-shrink-0">ข้ามแผนก</span>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div class="flex items-center justify-center py-10 text-slate-400 text-sm">ยังไม่มีรายการเบิก-คืน</div>
+  {% endfor %}
 </div>
 
 {% endblock %}

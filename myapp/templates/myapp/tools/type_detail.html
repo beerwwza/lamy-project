@@ -16,7 +16,7 @@
 <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 mb-6">
   <p class="text-xs text-slate-400">{{ item.code }}</p>
   <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">{{ item.name }}</h2>
-  <p class="text-sm text-slate-500 mt-1">{{ item.get_department_display }} {% if item.location %}· {{ item.location }}{% endif %}</p>
+  <p class="text-sm text-slate-500 mt-1">แผนกเริ่มต้นสำหรับหน่วยใหม่: {{ item.get_department_display }} {% if item.location %}· {{ item.location }}{% endif %}</p>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -38,23 +38,29 @@
       {% endif %}
     </div>
 
-    {% if unit.location %}<p class="text-xs text-slate-400 mb-1">📍 {{ unit.location }}</p>{% endif %}
+    <p class="text-xs text-slate-400 mb-1">🏷️ {{ unit.get_department_display }}{% if unit.location %} · 📍 {{ unit.location }}{% endif %}</p>
 
     {% if row.active_checkout %}
     <p class="text-xs text-slate-500">ผู้เบิก: <span class="font-medium text-slate-700 dark:text-slate-200">{{ row.active_checkout.borrower_name }}</span></p>
     {% if row.active_checkout.due_date %}
     <p class="text-xs {% if row.active_checkout.is_overdue %}text-red-500 font-semibold{% else %}text-slate-400{% endif %}">กำหนดคืน: {{ row.active_checkout.due_date|date:"d/m/Y" }}{% if row.active_checkout.is_overdue %} (เกินกำหนด){% endif %}</p>
     {% endif %}
+    {% if row.cross_dept %}
+    <p class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium inline-block mt-1">ข้ามแผนก: ยืมโดย {{ row.active_checkout.get_department_display }}</p>
+    {% endif %}
     {% endif %}
 
     {% if row.not_ready_alert %}
     <p class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mt-2">⚠️ ผลตรวจสอบล่าสุด: ไม่พร้อมใช้งาน ({{ row.latest_readiness.check_date|date:"d/m/Y" }})</p>
     {% endif %}
+    {% if row.maintenance_alert %}
+    <p class="text-xs {% if unit.maintenance_status == 'overdue' %}text-red-600 bg-red-50 border-red-200{% else %}text-amber-600 bg-amber-50 border-amber-200{% endif %} border rounded-lg px-2 py-1 mt-2">🛠️ กำหนดบำรุงรักษา: {{ unit.next_maintenance_due|date:"d/m/Y" }}</p>
+    {% endif %}
 
     <div class="flex flex-wrap items-center gap-1.5 mt-3">
       {% if user.is_staff or user.is_superuser %}
       {% if unit.status == 'available' %}
-      <button type="button" onclick="openCheckoutModal({{ unit.pk }}, '{{ unit.unit_code|escapejs }}')"
+      <button type="button" onclick="openCheckoutModal({{ unit.pk }}, '{{ unit.unit_code|escapejs }}', '{{ unit.department }}')"
         class="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-medium transition-colors">เบิก</button>
       <button type="button" onclick="setUnitStatus({{ unit.pk }}, 'maintenance')"
         class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-700 text-xs font-medium transition-colors">แจ้งซ่อม</button>
@@ -71,6 +77,8 @@
       {% endif %}
       <a href="{% url 'tools_readiness_add' %}?unit={{ unit.pk }}"
         class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-700 text-xs font-medium transition-colors no-underline">ตรวจสอบ</a>
+      <a href="{% url 'tools_maintenance_add' %}?unit={{ unit.pk }}"
+        class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-700 text-xs font-medium transition-colors no-underline">บำรุงรักษา</a>
       {% endif %}
     </div>
   </div>
@@ -92,6 +100,14 @@
         <label class="text-xs font-medium text-slate-500 block mb-1">รหัสหน่วย (ไม่ระบุ = สร้างอัตโนมัติ)</label>
         <input id="au_code" placeholder="เช่น {{ item.code }}-004"
           class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 block mb-1">แผนกเจ้าของ</label>
+        <select id="au_dept" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          {% for val, label in department_choices %}
+          <option value="{{ val }}" {% if val == item.department %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div>
         <label class="text-xs font-medium text-slate-500 block mb-1">ตำแหน่งที่เก็บ</label>
@@ -119,10 +135,10 @@
           class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
       </div>
       <div>
-        <label class="text-xs text-slate-500 block mb-1">แผนก</label>
+        <label class="text-xs text-slate-500 block mb-1">แผนกผู้เบิก</label>
         <select id="co_dept" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
           {% for val, label in department_choices %}
-          <option value="{{ val }}" {% if val == item.department %}selected{% endif %}>{{ label }}</option>
+          <option value="{{ val }}">{{ label }}</option>
           {% endfor %}
         </select>
       </div>
@@ -155,6 +171,7 @@ function submitAddUnit() {
     body: JSON.stringify({
       item_id: {{ item.pk }},
       unit_code: document.getElementById('au_code').value.trim(),
+      department: document.getElementById('au_dept').value,
       location: document.getElementById('au_location').value.trim(),
     })
   }).then(r => r.json()).then(data => {
@@ -163,10 +180,11 @@ function submitAddUnit() {
   });
 }
 
-function openCheckoutModal(unitId, unitCode) {
+function openCheckoutModal(unitId, unitCode, unitDept) {
   document.getElementById('co_unit_id').value = unitId;
   document.getElementById('co_unit_code').textContent = unitCode;
   document.getElementById('co_borrower').value = '';
+  if (unitDept) document.getElementById('co_dept').value = unitDept;
   document.getElementById('co_due').value = '';
   document.getElementById('co_note').value = '';
   document.getElementById('co_err').textContent = '';

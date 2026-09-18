@@ -1,0 +1,76 @@
+{% extends 'myapp/tools/base.html' %}
+{% block page_title %}{{ dept_meta.name }}{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'tools_dept_summary' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← สรุปแผนก</a>
+{% endblock %}
+
+{% block tools_content %}
+<div class="grid grid-cols-5 gap-4">
+  <!-- เครื่องมือที่แผนกนี้ครอบครอง -->
+  <div class="col-span-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">🔧 เครื่องมือที่แผนกนี้ครอบครอง ({{ units.count }})</span>
+    </div>
+    {% for unit in units %}
+    <a href="{% url 'tools_unit_detail' unit.pk %}"
+       class="flex items-center justify-between px-5 py-3 border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors no-underline">
+      <div class="min-w-0">
+        <p class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ unit.unit_code }} — {{ unit.item.name }}</p>
+        <p class="text-xs font-mono text-slate-400">{{ unit.item.code }}</p>
+      </div>
+      {% if unit.status == 'available' %}
+      <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium flex-shrink-0 ml-3">พร้อมใช้งาน</span>
+      {% elif unit.status == 'checked_out' %}
+      <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium flex-shrink-0 ml-3">ถูกเบิกออก</span>
+      {% elif unit.status == 'maintenance' %}
+      <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium flex-shrink-0 ml-3">ซ่อมบำรุง</span>
+      {% elif unit.status == 'lost' %}
+      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-white font-medium flex-shrink-0 ml-3">สูญหาย</span>
+      {% else %}
+      <span class="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-500 font-medium flex-shrink-0 ml-3">ปลดระวาง</span>
+      {% endif %}
+    </a>
+    {% empty %}
+    <div class="py-12 text-center text-slate-400 text-sm">ไม่มีเครื่องมือในแผนกนี้</div>
+    {% endfor %}
+  </div>
+
+  <!-- ยืมข้ามแผนก -->
+  <div class="col-span-2 space-y-4">
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+        <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">📤 ยืมออกให้แผนกอื่น ({{ borrowed_out.count }})</span>
+      </div>
+      {% for co in borrowed_out %}
+      <a href="{% url 'tools_unit_detail' co.tool_unit.pk %}"
+         class="flex items-center justify-between px-5 py-3 border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors no-underline">
+        <div class="min-w-0">
+          <p class="text-sm text-slate-700 dark:text-slate-200 truncate">{{ co.tool_unit.unit_code }}</p>
+          <p class="text-xs text-slate-400">ยืมโดย {{ co.get_department_display }}</p>
+        </div>
+      </a>
+      {% empty %}
+      <div class="py-8 text-center text-slate-400 text-sm">ไม่มีรายการยืมออก</div>
+      {% endfor %}
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+        <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">📥 ยืมมาจากแผนกอื่น ({{ borrowed_in.count }})</span>
+      </div>
+      {% for co in borrowed_in %}
+      <a href="{% url 'tools_unit_detail' co.tool_unit.pk %}"
+         class="flex items-center justify-between px-5 py-3 border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors no-underline">
+        <div class="min-w-0">
+          <p class="text-sm text-slate-700 dark:text-slate-200 truncate">{{ co.tool_unit.unit_code }}</p>
+          <p class="text-xs text-slate-400">เจ้าของ {{ co.tool_unit.get_department_display }}</p>
+        </div>
+      </a>
+      {% empty %}
+      <div class="py-8 text-center text-slate-400 text-sm">ไม่มีรายการยืมมา</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

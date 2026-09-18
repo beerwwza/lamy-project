@@ -3574,6 +3574,12 @@ def inventory_dashboard(request):
     return render(request, 'myapp/inventory/dashboard.html', context)
 
 
+@login_required
+def inventory_help(request):
+    """คู่มือการใช้งานระบบ Inventory — รับเข้า / เบิก-คืน / ยืมข้ามแผนก"""
+    return render(request, 'myapp/inventory/help.html')
+
+
 # =====================================================================
 # 2) LIST — ตารางรายการ + filter หมวด/แผนก/สถานะ/ค้นหา + เบิก-คืน/รับเข้า
 #    (รวม inventory_checkout_page และ inventory_receive_page เดิมเข้าที่นี่)
@@ -3694,6 +3700,51 @@ def inventory_tx_list(request):
 
 
 # =====================================================================
+# 5b) LOANS — ยอดค้างคืนข้ามแผนก (loan_out/loan_return) + filter
+# =====================================================================
+@login_required
+def inventory_loans_list(request):
+    dept    = request.GET.get('dept', '')
+    to_dept = request.GET.get('to_dept', '')
+
+    loan_txs = InventoryTransaction.objects.filter(tx_type__in=['loan_out', 'loan_return'])
+    if dept:
+        loan_txs = loan_txs.filter(department=dept)
+    if to_dept:
+        loan_txs = loan_txs.filter(to_department=to_dept)
+
+    groups = (loan_txs
+              .values('item_id', 'item__code', 'item__name', 'item__unit', 'department', 'to_department')
+              .annotate(
+                  loaned=Sum('quantity', filter=Q(tx_type='loan_out')),
+                  returned=Sum('quantity', filter=Q(tx_type='loan_return')),
+                  latest_due=Max('due_date', filter=Q(tx_type='loan_out')),
+              ))
+
+    today = timezone.now().date()
+    rows = []
+    for g in groups:
+        outstanding = (g['loaned'] or Decimal(0)) - (g['returned'] or Decimal(0))
+        if outstanding <= 0:
+            continue
+        rows.append({
+            'item_id': g['item_id'], 'item_code': g['item__code'], 'item_name': g['item__name'],
+            'unit': g['item__unit'], 'department': g['department'], 'to_department': g['to_department'],
+            'outstanding': outstanding, 'due_date': g['latest_due'],
+            'is_overdue': bool(g['latest_due'] and g['latest_due'] < today),
+        })
+    rows.sort(key=lambda r: (not r['is_overdue'], r['due_date'] is None, r['due_date'] or today))
+
+    context = {
+        'rows': rows,
+        'department_meta': DEPARTMENT_META,
+        'department_choices': InventoryItem.DEPARTMENT_CHOICES,
+        'f_dept': dept, 'f_to_dept': to_dept,
+    }
+    return render(request, 'myapp/inventory/loans_list.html', context)
+
+
+# =====================================================================
 # 6) API — เบิก-คืน / รับเข้า / เพิ่มรายการ  (เรียกด้วย fetch + CSRF)
 #    คืน JSON ให้ JS อัปเดตหน้าได้แบบ real-time
 # =====================================================================
@@ -3755,6 +3806,55 @@ def api_inventory_receive(request):
         item.unit_price = _to_decimal(price)
         item.save(update_fields=['unit_price'])
     return JsonResponse({'success': True, 'new_stock': float(item.stock)})
+
+
+def _inventory_outstanding_loan(item, to_department):
+    """ยอดค้างคืนของ item ที่แผนก to_department ยืมไป (Σloan_out − Σloan_return)"""
+    agg = InventoryTransaction.objects.filter(item=item, to_department=to_department).aggregate(
+        loaned=Sum('quantity', filter=Q(tx_type='loan_out')),
+        returned=Sum('quantity', filter=Q(tx_type='loan_return')),
+    )
+    return (agg['loaned'] or Decimal(0)) - (agg['returned'] or Decimal(0))
+
+
+@login_required
+@staff_required
+@require_POST
+def api_inventory_loan(request):
+    """ยืมออกข้ามแผนก / คืนของยืม — แยกจาก issue/return ปกติ เพราะเป็นการยืมที่คาดว่าจะได้คืน
+       department ของ transaction คือแผนกเจ้าของ (item.department), to_department คือแผนกผู้ยืม"""
+    data = json.loads(request.body or '{}')
+    item = get_object_or_404(InventoryItem, pk=data.get('item_id'))
+    tx_type = data.get('type', 'loan_out')  # 'loan_out' หรือ 'loan_return'
+    qty = _to_decimal(data.get('quantity', 1))
+    to_department = data.get('to_department', '')
+
+    if tx_type not in ('loan_out', 'loan_return'):
+        return JsonResponse({'error': 'ประเภทรายการไม่ถูกต้อง'}, status=400)
+    if not to_department:
+        return JsonResponse({'error': 'กรุณาระบุแผนกผู้ยืม'}, status=400)
+    if to_department == item.department:
+        return JsonResponse({'error': 'แผนกผู้ยืมต้องไม่ใช่แผนกเจ้าของรายการนี้'}, status=400)
+    if not data.get('employee'):
+        return JsonResponse({'error': 'กรุณากรอกชื่อพนักงาน'}, status=400)
+    if tx_type == 'loan_out' and item.stock < qty:
+        return JsonResponse({'error': 'Stock ไม่เพียงพอ'}, status=400)
+    if tx_type == 'loan_return':
+        outstanding = _inventory_outstanding_loan(item, to_department)
+        if qty > outstanding:
+            return JsonResponse({'error': f'คืนได้ไม่เกินยอดที่ยืมไป ({outstanding} {item.unit})'}, status=400)
+
+    tx = InventoryTransaction.objects.create(
+        item=item, tx_type=tx_type, quantity=qty,
+        department=item.department,
+        to_department=to_department,
+        due_date=data.get('due_date') or None if tx_type == 'loan_out' else None,
+        work_group=data.get('work_group', ''),
+        employee_name=data.get('employee', ''),
+        note=data.get('note', ''),
+        created_by=request.user,
+    )
+    return JsonResponse({'success': True, 'new_stock': float(item.stock), 'tx_id': tx.id})
 
 
 @login_required
@@ -3923,6 +4023,16 @@ def tools_dashboard(request):
                          .filter(return_date__isnull=True, due_date__lt=today)
                          .select_related('tool_unit', 'tool_unit__item')
                          .order_by('due_date'))
+    maintenance_due = (units
+                        .filter(next_maintenance_due__isnull=False,
+                                next_maintenance_due__lte=today + timedelta(days=7))
+                        .select_related('item')
+                        .order_by('next_maintenance_due'))
+    today_checkouts = (ToolCheckout.objects.filter(checkout_date=today)
+                       .select_related('tool_unit', 'tool_unit__item'))
+    due_today = (ToolCheckout.objects
+                .filter(return_date__isnull=True, due_date=today)
+                .select_related('tool_unit', 'tool_unit__item'))
     context = {
         'type_count': tool_items.count(),
         'unit_count': units.count(),
@@ -3933,8 +4043,20 @@ def tools_dashboard(request):
         'overdue_checkouts': overdue_checkouts[:8],
         'overdue_count': overdue_checkouts.count(),
         'recent_checkouts': ToolCheckout.objects.select_related('tool_unit', 'tool_unit__item')[:8],
+        'maintenance_due': maintenance_due[:8],
+        'maintenance_due_count': maintenance_due.count(),
+        'today_checkouts': today_checkouts[:8],
+        'today_checkouts_count': today_checkouts.count(),
+        'due_today': due_today[:8],
+        'due_today_count': due_today.count(),
     }
     return render(request, 'myapp/tools/dashboard.html', context)
+
+
+@login_required
+def tools_help(request):
+    """คู่มือการใช้งานระบบเครื่องมือ — เบิก-คืนรายวัน / ยืมข้ามแผนก / บันทึกซ่อมบำรุง"""
+    return render(request, 'myapp/tools/help.html')
 
 
 @login_required
@@ -3973,11 +4095,14 @@ def tools_type_detail(request, pk):
     unit_rows = []
     for u in units:
         latest = u.latest_readiness_check
+        active_checkout = u.checkouts.filter(return_date__isnull=True).first() if u.status == 'checked_out' else None
         unit_rows.append({
             'unit': u,
             'latest_readiness': latest,
             'not_ready_alert': bool(latest and latest.overall_status == 'not_ready'),
-            'active_checkout': u.checkouts.filter(return_date__isnull=True).first() if u.status == 'checked_out' else None,
+            'active_checkout': active_checkout,
+            'cross_dept': bool(active_checkout and active_checkout.department and active_checkout.department != u.department),
+            'maintenance_alert': u.maintenance_status in ('overdue', 'due_soon'),
         })
 
     context = {
@@ -3992,11 +4117,14 @@ def tools_type_detail(request, pk):
 @login_required
 def tools_unit_detail(request, pk):
     unit = get_object_or_404(ToolUnit, pk=pk)
+    active_checkout = unit.checkouts.filter(return_date__isnull=True).first()
     context = {
         'unit': unit,
         'checkouts': unit.checkouts.all()[:30],
         'readiness_checks': unit.readiness_checks.all()[:30],
-        'active_checkout': unit.checkouts.filter(return_date__isnull=True).first(),
+        'maintenance_logs': unit.maintenance_logs.all()[:30],
+        'active_checkout': active_checkout,
+        'cross_dept': bool(active_checkout and active_checkout.department and active_checkout.department != unit.department),
         'status_choices': ToolUnit.STATUS_CHOICES,
         'department_choices': InventoryItem.DEPARTMENT_CHOICES,
     }
@@ -4012,6 +4140,42 @@ def tools_overdue_list(request):
                  .order_by('due_date'))
     context = {'checkouts': checkouts, 'today': today}
     return render(request, 'myapp/tools/overdue_list.html', context)
+
+
+@login_required
+def tools_dept_summary(request):
+    cards = []
+    for key, meta in DEPARTMENT_META.items():
+        units = ToolUnit.objects.filter(department=key, item__is_active=True)
+        cards.append({
+            'key': key, 'name': meta['name'], 'color': meta['color'],
+            'total': units.count(),
+            'available': units.filter(status='available').count(),
+            'checked_out': units.filter(status='checked_out').count(),
+            'maintenance': units.filter(status='maintenance').count(),
+        })
+    return render(request, 'myapp/tools/dept_summary.html', {'cards': cards})
+
+
+@login_required
+def tools_dept_detail(request, key):
+    meta = DEPARTMENT_META.get(key)
+    units = ToolUnit.objects.filter(department=key, item__is_active=True).select_related('item')
+    borrowed_out = (ToolCheckout.objects
+                    .filter(tool_unit__department=key, return_date__isnull=True)
+                    .exclude(department=key)
+                    .select_related('tool_unit', 'tool_unit__item'))
+    borrowed_in = (ToolCheckout.objects
+                   .filter(department=key, return_date__isnull=True)
+                   .exclude(tool_unit__department=key)
+                   .select_related('tool_unit', 'tool_unit__item'))
+    context = {
+        'dept_key': key, 'dept_meta': meta,
+        'units': units,
+        'borrowed_out': borrowed_out,
+        'borrowed_in': borrowed_in,
+    }
+    return render(request, 'myapp/tools/dept_detail.html', context)
 
 
 @login_required
@@ -4074,7 +4238,7 @@ def api_tools_checkout(request):
     checkout = ToolCheckout.objects.create(
         tool_unit=unit,
         borrower_name=borrower,
-        department=data.get('department') or unit.item.department,
+        department=data.get('department') or unit.department,
         checkout_date=data.get('checkout_date') or timezone.now().date(),
         due_date=data.get('due_date') or None,
         note=data.get('note', ''),
@@ -4085,7 +4249,7 @@ def api_tools_checkout(request):
 
     InventoryTransaction.objects.create(
         item=unit.item, tool_unit=unit, tx_type='issue', quantity=Decimal('1'),
-        department=checkout.department or unit.item.department,
+        department=checkout.department or unit.department,
         employee_name=borrower, note=data.get('note', ''),
         created_by=request.user,
     )
@@ -4121,7 +4285,7 @@ def api_tools_return(request):
 
     InventoryTransaction.objects.create(
         item=unit.item, tool_unit=unit, tx_type='return', quantity=Decimal('1'),
-        department=checkout.department or unit.item.department,
+        department=checkout.department or unit.department,
         employee_name=checkout.borrower_name, note=note,
         created_by=request.user,
     )
@@ -4164,6 +4328,7 @@ def api_tools_unit_add(request):
 
     unit = ToolUnit.objects.create(
         item=item, unit_code=unit_code,
+        department=data.get('department') or item.department,
         location=data.get('location', '') or item.location,
         condition_note=data.get('condition_note', ''),
     )
@@ -4185,12 +4350,84 @@ def api_tools_unit_update(request, pk):
         if status == 'checked_out':
             return JsonResponse({'error': 'กรุณาใช้ปุ่มเบิกเพื่อเปลี่ยนเป็นสถานะนี้'}, status=400)
         unit.status = status
+    if 'department' in data and data['department']:
+        unit.department = data['department']
     if 'location' in data:
         unit.location = data['location']
     if 'condition_note' in data:
         unit.condition_note = data['condition_note']
     unit.save()
     return JsonResponse({'success': True})
+
+
+# =====================================================================
+# 11) TOOL MAINTENANCE — ประวัติซ่อม + กำหนดการ PM รวมในโมเดลเดียว
+# =====================================================================
+@login_required
+def tools_maintenance_list(request):
+    logs = ToolMaintenanceLog.objects.select_related('tool_unit', 'tool_unit__item', 'created_by')
+    m_type = request.GET.get('type', '')
+    unit_id = request.GET.get('unit', '')
+    if m_type:
+        logs = logs.filter(maintenance_type=m_type)
+    if unit_id:
+        logs = logs.filter(tool_unit_id=unit_id)
+    context = {
+        'logs': logs,
+        'f_type': m_type, 'f_unit': unit_id,
+        'maintenance_type_choices': ToolMaintenanceLog.MAINTENANCE_TYPE_CHOICES,
+        'tool_units': ToolUnit.objects.select_related('item').order_by('item__code', 'unit_code'),
+    }
+    return render(request, 'myapp/tools/maintenance_list.html', context)
+
+
+@login_required
+@staff_required
+def tools_maintenance_add(request):
+    tool_units = ToolUnit.objects.select_related('item').exclude(status='retired').order_by('item__code', 'unit_code')
+    preselect_unit = request.GET.get('unit')
+
+    if request.method == 'POST':
+        unit = get_object_or_404(ToolUnit, pk=request.POST.get('tool_unit'))
+        technician = request.POST.get('technician', '').strip()
+        maintenance_type = request.POST.get('maintenance_type', 'repair')
+        log_date = request.POST.get('date') or timezone.now().date()
+
+        if not technician:
+            return render(request, 'myapp/tools/maintenance_form.html', {
+                'tool_units': tool_units,
+                'maintenance_type_choices': ToolMaintenanceLog.MAINTENANCE_TYPE_CHOICES,
+                'today': timezone.now().date(),
+                'preselect_unit': str(unit.pk),
+                'error': 'กรุณากรอกชื่อผู้ดำเนินการ',
+            })
+
+        next_due_date = request.POST.get('next_due_date') or None
+        if not next_due_date and maintenance_type == 'pm' and unit.maintenance_interval_days:
+            base_date = log_date
+            if isinstance(base_date, str):
+                base_date = datetime.strptime(base_date, '%Y-%m-%d').date()
+            next_due_date = base_date + timedelta(days=unit.maintenance_interval_days)
+
+        ToolMaintenanceLog.objects.create(
+            tool_unit=unit,
+            maintenance_type=maintenance_type,
+            date=log_date,
+            technician=technician,
+            description=request.POST.get('description', '').strip(),
+            cost=request.POST.get('cost') or None,
+            next_due_date=next_due_date,
+            created_by=request.user,
+        )
+        return redirect('tools_unit_detail', pk=unit.pk)
+
+    context = {
+        'tool_units': tool_units,
+        'maintenance_type_choices': ToolMaintenanceLog.MAINTENANCE_TYPE_CHOICES,
+        'today': timezone.now().date(),
+        'preselect_unit': preselect_unit,
+    }
+    return render(request, 'myapp/tools/maintenance_form.html', context)
 
 
 # ==========================================

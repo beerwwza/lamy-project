@@ -180,8 +180,8 @@ class InventoryItemAdmin(admin.ModelAdmin):
 
 @admin.register(InventoryTransaction)
 class InventoryTransactionAdmin(admin.ModelAdmin):
-    list_display = ['created_at', 'item', 'tx_type', 'quantity', 'department', 'work_group', 'equipment', 'employee_name', 'po_number']
-    list_filter  = ['tx_type', 'department']
+    list_display = ['created_at', 'item', 'tx_type', 'quantity', 'department', 'to_department', 'due_date', 'work_group', 'equipment', 'employee_name', 'po_number']
+    list_filter  = ['tx_type', 'department', 'to_department']
     search_fields = ['item__code', 'item__name', 'po_number', 'work_group', 'equipment__equipment_id', 'equipment__name']
 
 @admin.register(ToolReadinessCheck)
@@ -192,8 +192,8 @@ class ToolReadinessCheckAdmin(admin.ModelAdmin):
 
 @admin.register(ToolUnit)
 class ToolUnitAdmin(admin.ModelAdmin):
-    list_display  = ['unit_code', 'item', 'status', 'location', 'updated_at']
-    list_filter   = ['status', 'item']
+    list_display  = ['unit_code', 'item', 'department', 'status', 'location', 'next_maintenance_due', 'updated_at']
+    list_filter   = ['status', 'department', 'item']
     search_fields = ['unit_code', 'item__code', 'item__name']
 
 @admin.register(ToolCheckout)
@@ -201,6 +201,12 @@ class ToolCheckoutAdmin(admin.ModelAdmin):
     list_display  = ['tool_unit', 'borrower_name', 'department', 'checkout_date', 'due_date', 'return_date']
     list_filter   = ['department', 'return_date']
     search_fields = ['tool_unit__unit_code', 'borrower_name']
+
+@admin.register(ToolMaintenanceLog)
+class ToolMaintenanceLogAdmin(admin.ModelAdmin):
+    list_display  = ['tool_unit', 'maintenance_type', 'date', 'technician', 'cost', 'next_due_date']
+    list_filter   = ['maintenance_type', 'date']
+    search_fields = ['tool_unit__unit_code', 'technician', 'description']
 
 # ===== Training / Knowledge Center Module =====
 

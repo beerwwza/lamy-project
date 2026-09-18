@@ -8,6 +8,10 @@
   class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors no-underline">
   ✅ บันทึกตรวจสอบความพร้อม
 </a>
+<a href="{% url 'tools_maintenance_add' %}?unit={{ unit.pk }}"
+  class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium transition-colors no-underline">
+  🛠️ บันทึกซ่อมบำรุง
+</a>
 {% endif %}
 {% endblock %}
 
@@ -17,7 +21,10 @@
   <div>
     <p class="font-mono text-sm text-slate-400">{{ unit.unit_code }}</p>
     <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">{{ unit.item.name }}</h2>
-    {% if unit.location %}<p class="text-sm text-slate-500 mt-1">📍 {{ unit.location }}</p>{% endif %}
+    <p class="text-sm text-slate-500 mt-1">🏷️ {{ unit.get_department_display }}{% if unit.location %} · 📍 {{ unit.location }}{% endif %}</p>
+    {% if unit.next_maintenance_due %}
+    <p class="text-xs mt-1 {% if unit.maintenance_status == 'overdue' %}text-red-500 font-semibold{% elif unit.maintenance_status == 'due_soon' %}text-amber-600{% else %}text-slate-400{% endif %}">🛠️ กำหนดบำรุงรักษาครั้งถัดไป: {{ unit.next_maintenance_due|date:"d/m/Y" }}</p>
+    {% endif %}
   </div>
   <div class="text-right">
     {% if unit.status == 'available' %}
@@ -36,11 +43,14 @@
     {% if active_checkout.due_date %}
     <p class="text-xs {% if active_checkout.is_overdue %}text-red-500 font-semibold{% else %}text-slate-400{% endif %}">กำหนดคืน: {{ active_checkout.due_date|date:"d/m/Y" }}</p>
     {% endif %}
+    {% if cross_dept %}
+    <p class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium inline-block mt-1">ข้ามแผนก: ยืมโดย {{ active_checkout.get_department_display }}</p>
+    {% endif %}
     {% endif %}
   </div>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
   <!-- ประวัติเบิก-คืน -->
   <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -87,6 +97,29 @@
     </div>
     {% empty %}
     <div class="flex items-center justify-center py-10 text-slate-400 text-sm">ยังไม่มีประวัติตรวจสอบ</div>
+    {% endfor %}
+  </div>
+
+  <!-- ประวัติซ่อมบำรุง -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+      <span class="font-semibold text-sm text-slate-700 dark:text-slate-200">🛠️ ประวัติซ่อมบำรุง</span>
+    </div>
+    {% for log in maintenance_logs %}
+    <div class="px-5 py-3 border-b border-slate-50 dark:border-slate-800">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-medium text-slate-800 dark:text-slate-100">{{ log.technician }}</p>
+        {% if log.maintenance_type == 'pm' %}
+        <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">PM</span>
+        {% else %}
+        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">ซ่อม</span>
+        {% endif %}
+      </div>
+      <p class="text-xs text-slate-400 mt-0.5">{{ log.date|date:"d/m/Y" }}{% if log.cost %} · ฿{{ log.cost }}{% endif %}{% if log.next_due_date %} · กำหนดครั้งถัดไป {{ log.next_due_date|date:"d/m/Y" }}{% endif %}</p>
+      {% if log.description %}<p class="text-xs text-slate-400 mt-0.5">{{ log.description }}</p>{% endif %}
+    </div>
+    {% empty %}
+    <div class="flex items-center justify-center py-10 text-slate-400 text-sm">ยังไม่มีประวัติซ่อมบำรุง</div>
     {% endfor %}
   </div>
 </div>

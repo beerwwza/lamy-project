@@ -1,0 +1,79 @@
+{% extends 'myapp/tools/base.html' %}
+{% block page_title %}คู่มือการใช้งานเครื่องมือ{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'tools_dashboard' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← Dashboard</a>
+{% endblock %}
+
+{% block tools_content %}
+<div class="max-w-3xl space-y-5">
+  <p class="text-sm text-slate-500">คู่มือนี้อธิบาย 3 การทำรายการหลักของโมดูลเครื่องมือ ทำได้จากหน้า "ชนิดเครื่องมือ" → เลือกชนิด → เลือกหน่วย ปุ่มบันทึกรายการทั้งหมดใช้ได้เฉพาะผู้ใช้ระดับ staff/ผู้ดูแลระบบเท่านั้น</p>
+
+  <!-- ขั้นที่ 1: เบิก-คืนรายวัน -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+    <div class="flex items-center gap-3 mb-2">
+      <span class="w-7 h-7 flex items-center justify-center rounded-full bg-red-100 text-red-700 font-bold text-sm flex-shrink-0">1</span>
+      <h3 class="font-bold text-slate-800 dark:text-slate-100">เบิก-คืนรายวัน</h3>
+    </div>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mb-3">เครื่องมือแต่ละชิ้น (แม้เป็นชนิดเดียวกัน) มีรหัสหน่วยและสถานะของตัวเอง ทำให้ติดตามได้ว่าชิ้นไหนอยู่กับใคร</p>
+    <ol class="text-sm text-slate-600 dark:text-slate-300 space-y-1 list-decimal list-inside">
+      <li>เปิดเมนู "ชนิดเครื่องมือ" → เลือกชนิดที่ต้องการ → เลือกหน่วยที่สถานะ "พร้อมใช้งาน"</li>
+      <li>กดปุ่ม <span class="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">เบิก</span> กรอกผู้เบิก, แผนก, กำหนดคืน (ถ้ามี), หมายเหตุ</li>
+      <li>เมื่อนำเครื่องมือมาคืน ให้กดปุ่ม <span class="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">คืน</span> ที่หน่วยเดิม</li>
+    </ol>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mt-3">
+      ดูรายการที่เกินกำหนดคืนได้ที่เมนู <a href="{% url 'tools_overdue_list' %}" class="text-indigo-600 hover:underline font-medium">"เกินกำหนดคืน"</a>
+      และดูภาพรวม "เบิกวันนี้ / ครบกำหนดคืนวันนี้" ได้ที่ <a href="{% url 'tools_dashboard' %}" class="text-indigo-600 hover:underline font-medium">Dashboard</a>
+    </p>
+  </div>
+
+  <!-- ขั้นที่ 2: ยืมข้ามแผนก -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+    <div class="flex items-center gap-3 mb-2">
+      <span class="w-7 h-7 flex items-center justify-center rounded-full bg-purple-100 text-purple-700 font-bold text-sm flex-shrink-0">2</span>
+      <h3 class="font-bold text-slate-800 dark:text-slate-100">ยืมข้ามแผนก</h3>
+    </div>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mb-3">เครื่องมือแต่ละหน่วยมี "แผนกเจ้าของ" ของตัวเอง (ตั้งตอนเพิ่มหน่วยใหม่ หรือแก้ทีหลังได้ที่หน้ารายละเอียดหน่วย)</p>
+    <ol class="text-sm text-slate-600 dark:text-slate-300 space-y-1 list-decimal list-inside">
+      <li>เบิกเครื่องมือตามขั้นตอนปกติ (ข้อ 1) แต่เลือก "แผนก" ในฟอร์มเบิกเป็นแผนกของผู้ยืมจริง (ไม่ใช่แผนกเจ้าของ)</li>
+      <li>ระบบจะขึ้น badge <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">ข้ามแผนก</span> ให้อัตโนมัติเมื่อแผนกผู้เบิกไม่ตรงกับแผนกเจ้าของ</li>
+    </ol>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mt-3">
+      ดูภาพรวมเป็นรายแผนกได้ที่เมนู <a href="{% url 'tools_dept_summary' %}" class="text-indigo-600 hover:underline font-medium">"สรุปตามแผนก"</a>
+      — แต่ละแผนกจะเห็นทั้งรายการ "ยืมออกให้แผนกอื่น" และ "ยืมมาจากแผนกอื่น"
+    </p>
+  </div>
+
+  <!-- ขั้นที่ 3: บันทึกการทำ PM -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+    <div class="flex items-center gap-3 mb-2">
+      <span class="w-7 h-7 flex items-center justify-center rounded-full bg-amber-100 text-amber-700 font-bold text-sm flex-shrink-0">3</span>
+      <h3 class="font-bold text-slate-800 dark:text-slate-100">บันทึกการทำ PM / ซ่อมเครื่องมือ</h3>
+    </div>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mb-3">ใช้บันทึกทั้งการซ่อมเมื่อเครื่องมือเสีย และการบำรุงรักษาเชิงป้องกัน (PM) ตามรอบ</p>
+    <ol class="text-sm text-slate-600 dark:text-slate-300 space-y-1 list-decimal list-inside">
+      <li>เปิดหน้ารายละเอียดหน่วยเครื่องมือ กดปุ่ม <span class="font-mono text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">บันทึกซ่อมบำรุง</span></li>
+      <li>เลือกประเภท "ซ่อม" หรือ "บำรุงรักษาเชิงป้องกัน (PM)", กรอกผู้ดำเนินการ, ค่าใช้จ่าย, รายละเอียด</li>
+      <li>กรอก "กำหนดครั้งถัดไป" — หรือเว้นว่างไว้ได้ ถ้าตั้ง "ความถี่บำรุงรักษา (วัน)" ของหน่วยนี้ไว้แล้ว (แก้ได้ที่ Django Admin) ระบบจะคำนวณกำหนดครั้งถัดไปให้อัตโนมัติเมื่อเลือกประเภท PM</li>
+      <li>กด "บันทึก" — ระบบจะอัปเดต "กำหนดบำรุงรักษาครั้งถัดไป" ของหน่วยนี้ให้ทันที</li>
+    </ol>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mt-3">
+      ดูประวัติทั้งหมดได้ที่เมนู <a href="{% url 'tools_maintenance_list' %}" class="text-indigo-600 hover:underline font-medium">"ซ่อมบำรุงเครื่องมือ"</a>
+      และ Dashboard จะแจ้งเตือนหน่วยที่ใกล้ครบกำหนดหรือเกินกำหนดให้อัตโนมัติ
+    </p>
+  </div>
+
+  <!-- หมายเหตุสถานะเครื่องมือ -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+    <h3 class="font-bold text-slate-800 dark:text-slate-100 mb-3">สถานะเครื่องมือแต่ละชิ้น</h3>
+    <div class="grid grid-cols-2 gap-2 text-sm">
+      <div class="flex items-center gap-2"><span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">พร้อมใช้งาน</span><span class="text-slate-500">เบิกได้ทันที</span></div>
+      <div class="flex items-center gap-2"><span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">ถูกเบิกออก</span><span class="text-slate-500">อยู่กับผู้เบิก</span></div>
+      <div class="flex items-center gap-2"><span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">ซ่อมบำรุง</span><span class="text-slate-500">กำลังซ่อม/บำรุงรักษา</span></div>
+      <div class="flex items-center gap-2"><span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-white font-medium">สูญหาย</span><span class="text-slate-500">หาไม่พบ</span></div>
+      <div class="flex items-center gap-2"><span class="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-500 font-medium">ปลดระวาง</span><span class="text-slate-500">เลิกใช้งานถาวร</span></div>
+    </div>
+    <p class="text-sm text-slate-600 dark:text-slate-300 mt-3">เปลี่ยนสถานะได้จากปุ่มที่การ์ดของแต่ละหน่วยในหน้า "ชนิดเครื่องมือ" (เช่น "แจ้งซ่อม", "ปลดระวาง", "สูญหาย", "พร้อมใช้งานแล้ว") — หน่วยที่ถูกเบิกออกอยู่ต้องคืนก่อนถึงจะเปลี่ยนสถานะอื่นได้</p>
+  </div>
+</div>
+{% endblock %}

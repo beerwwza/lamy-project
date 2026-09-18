@@ -87,12 +87,15 @@ urlpatterns = [
     path('inventory/departments/',        inventory_dept_summary, name='inventory_dept_summary'),
     path('inventory/department/<str:key>/', inventory_dept_detail, name='inventory_dept_detail'),
     path('inventory/transactions/',       inventory_tx_list,      name='inventory_tx_list'),
+    path('inventory/loans/',              inventory_loans_list,   name='inventory_loans_list'),
     path('inventory/readiness/',          inventory_readiness_list, name='inventory_readiness_list'),
     path('inventory/readiness/add/',      inventory_readiness_add,  name='inventory_readiness_add'),
+    path('inventory/help/',               inventory_help,           name='inventory_help'),
 
     # ----- API (fetch + CSRF) -----
     path('api/inventory/checkout/',       api_inventory_checkout, name='api_inventory_checkout'),
     path('api/inventory/receive/',        api_inventory_receive,  name='api_inventory_receive'),
+    path('api/inventory/loan/',           api_inventory_loan,     name='api_inventory_loan'),
     path('api/inventory/add-item/',       api_inventory_add_item, name='api_inventory_add_item'),
     path('api/inventory/item/<int:pk>/edit/', api_inventory_update_item, name='api_inventory_update_item'),
     path('api/inventory/item/<int:pk>/delete/', api_inventory_delete_item, name='api_inventory_delete_item'),
@@ -105,6 +108,11 @@ urlpatterns = [
     path('tools/unit/<int:pk>/',          tools_unit_detail,      name='tools_unit_detail'),
     path('tools/overdue/',                tools_overdue_list,     name='tools_overdue_list'),
     path('tools/readiness/add/',          tools_readiness_add,    name='tools_readiness_add'),
+    path('tools/departments/',            tools_dept_summary,     name='tools_dept_summary'),
+    path('tools/department/<str:key>/',   tools_dept_detail,      name='tools_dept_detail'),
+    path('tools/maintenance/',            tools_maintenance_list, name='tools_maintenance_list'),
+    path('tools/maintenance/add/',        tools_maintenance_add,  name='tools_maintenance_add'),
+    path('tools/help/',                   tools_help,             name='tools_help'),
 
     path('api/tools/checkout/',           api_tools_checkout,     name='api_tools_checkout'),
     path('api/tools/return/',             api_tools_return,       name='api_tools_return'),

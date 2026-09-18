@@ -18,6 +18,13 @@
     </a>
   </li>
   <li>
+    <a href="{% url 'tools_dept_summary' %}"
+       class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400 transition-colors text-sm
+       {% if 'tools_dept' in request.resolver_match.url_name %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% endif %}">
+      <i data-lucide="building-2" class="w-4 h-4 flex-shrink-0"></i> สรุปตามแผนก
+    </a>
+  </li>
+  <li>
     <a href="{% url 'tools_overdue_list' %}"
        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400 transition-colors text-sm
        {% if request.resolver_match.url_name == 'tools_overdue_list' %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% endif %}">
@@ -32,9 +39,25 @@
       <i data-lucide="check-circle" class="w-4 h-4 flex-shrink-0"></i> ตรวจสอบความพร้อม
     </a>
   </li>
+  <li>
+    <a href="{% url 'tools_maintenance_list' %}"
+       class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400 transition-colors text-sm
+       {% if 'maintenance' in request.resolver_match.url_name %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% endif %}">
+      <i data-lucide="wrench" class="w-4 h-4 flex-shrink-0"></i> ซ่อมบำรุงเครื่องมือ
+    </a>
+  </li>
   {% endif %}
 </ul>
 <div class="my-3 mx-4 border-t border-slate-200 dark:border-slate-800"></div>
+<ul class="space-y-0.5 px-2 mb-3">
+  <li>
+    <a href="{% url 'tools_help' %}"
+       class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400 transition-colors text-sm
+       {% if request.resolver_match.url_name == 'tools_help' %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% endif %}">
+      <i data-lucide="book-open" class="w-4 h-4 flex-shrink-0"></i> คู่มือการใช้งาน
+    </a>
+  </li>
+</ul>
 {% endblock sidebar_section %}
 
 {% block content %}

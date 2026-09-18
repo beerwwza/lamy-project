@@ -1,0 +1,75 @@
+{% extends 'myapp/tools/base.html' %}
+{% block page_title %}บันทึกซ่อมบำรุงเครื่องมือ{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'tools_maintenance_list' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← ซ่อมบำรุงเครื่องมือ</a>
+{% endblock %}
+
+{% block tools_content %}
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl">
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+    {% if error %}<p class="text-red-500 text-sm">{{ error }}</p>{% endif %}
+
+    <div>
+      <label class="text-xs font-medium text-slate-500 block mb-1">หน่วยเครื่องมือ *</label>
+      <select name="tool_unit" required class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        {% for u in tool_units %}
+        <option value="{{ u.pk }}" {% if preselect_unit == u.pk|stringformat:'s' %}selected{% endif %}>{{ u.item.code }} — {{ u.unit_code }} ({{ u.item.name }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs font-medium text-slate-500 block mb-1">ประเภท</label>
+        <select name="maintenance_type" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          {% for val, label in maintenance_type_choices %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 block mb-1">วันที่ดำเนินการ</label>
+        <input type="date" name="date" value="{{ today|date:'Y-m-d' }}"
+          class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs font-medium text-slate-500 block mb-1">ผู้ดำเนินการ *</label>
+        <input type="text" name="technician" required placeholder="กรอกชื่อ"
+          class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-slate-500 block mb-1">ค่าใช้จ่าย</label>
+        <input type="number" name="cost" step="0.01" placeholder="(ไม่บังคับ)"
+          class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      </div>
+    </div>
+
+    <div>
+      <label class="text-xs font-medium text-slate-500 block mb-1">กำหนดครั้งถัดไป</label>
+      <input type="date" name="next_due_date"
+        class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <p class="text-xs text-slate-400 mt-1">ถ้าเว้นว่างและเป็นประเภท PM ระบบจะคำนวณให้อัตโนมัติจากความถี่บำรุงรักษาที่ตั้งไว้ของหน่วยนี้ (ถ้ามี) — และจะอัปเดต "กำหนดบำรุงรักษาครั้งถัดไป" ของหน่วยนี้ให้เมื่อบันทึก</p>
+    </div>
+
+    <div>
+      <label class="text-xs font-medium text-slate-500 block mb-1">รายละเอียด</label>
+      <textarea name="description" rows="3" placeholder="(ไม่บังคับ)"
+        class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+    </div>
+
+    <div class="flex gap-2 pt-1">
+      <button type="submit" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">
+        บันทึก
+      </button>
+      <a href="{% url 'tools_maintenance_list' %}" class="flex-1 text-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium py-2 rounded-lg text-sm transition-colors">
+        ยกเลิก
+      </a>
+    </div>
+  </form>
+</div>
+{% endblock %}
