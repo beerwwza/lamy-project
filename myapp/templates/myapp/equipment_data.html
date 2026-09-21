@@ -127,10 +127,12 @@
             class="flex items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors">
             <i data-lucide="clipboard-list" class="w-4 h-4"></i> ส่วนที่ 4: ใบสั่งซ่อม & แผน PM
         </button>
+        {% if perms.myapp.write_cbm %}
         <button id="tab-btn-cbm" onclick="switchTab('cbm')"
             class="flex items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors">
             <i data-lucide="activity" class="w-4 h-4"></i> ส่วนที่ 5: การตรวจสอบ & CBM
         </button>
+        {% endif %}
         <button id="tab-btn-manual" onclick="switchTab('manual')"
             class="flex items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors">
             <i data-lucide="file-text" class="w-4 h-4"></i> ส่วนที่ 6: เอกสาร & คู่มือ
@@ -2521,6 +2523,9 @@
     <script>
         // Tab switching logic
         function switchTab(tabId) {
+            // แท็บที่ขอมาอาจถูกซ่อนตามสิทธิ์ (เช่น 'cbm' เมื่อไม่มี perms.myapp.write_cbm) — fallback กลับไปแท็บ info
+            if (!document.getElementById(`tab-btn-${tabId}`)) tabId = 'info';
+
             // Save current tab to localStorage
             localStorage.setItem('activeEquipmentTab', tabId);
 
@@ -2532,6 +2537,8 @@
                 const btn = document.getElementById(`tab-btn-${id}`);
                 // Pane elements
                 const pane = document.getElementById(`tab-content-${id}`);
+
+                if (!btn || !pane) return; // ปุ่ม/เนื้อหาอาจถูกซ่อนตามสิทธิ์การเขียนข้อมูล (perms.myapp.write_cbm)
 
                 if (id === tabId) {
                     // Active state for button

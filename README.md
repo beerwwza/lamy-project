@@ -304,7 +304,7 @@ The Django Admin (`/admin/`) provides a second layer for reviewing and correctin
 - **Alerting / Notifications** — No automated email, SMS, or push alert system for threshold breaches.
 - **Reporting / PDF Export** — No built-in report generation to PDF; data export is via CSV/Excel import utilities only.
 - **Multi-tenancy** — Single-site deployment; no multi-plant or organization separation.
-- **Role-based Access Control (RBAC)** — Authentication is present but fine-grained permission roles per module are not implemented.
+- **Role-based Access Control (RBAC)** — Module-level *write* access is enforced (see [Access Control](#8-key-modules) in Key Modules), using Django's built-in Groups/Permissions; there is still no field-level or per-record permission granularity, and read access is not separately restricted by module.
 - **Audit Logs** — No automatic record of who changed what and when (beyond Django's admin history).
 
 ### Infrastructure Boundaries
@@ -394,6 +394,15 @@ Standalone module at `/tasks/`, linked to `Equipment` via FK. Lets an operator p
 
 - `MachineTask` — equipment, title, assignee, status (`todo`/`doing`/`done`), note. Created via a modal on the list page (`machine_task_list.html`), which shows each equipment's `power_kw`/`rpm_input`/`rpm` as reference info on selection (plain `<option data-*>` attributes + vanilla JS, no extra endpoint).
 - `MachineTaskVibration` — child of `MachineTask`, one row per `phase` (`no_load`/`loaded`, enforced unique together), duplicating all 14 `CBMVibration` measurement fields (Amp, DE/NDE gE/V/H/A/M, Temp DE/FRAME/NDE). Submitting a phase's form on the task detail page (`machine_task_detail.html`) also creates a real `CBMVibration` row for that equipment (tagged `[Task Manager] <phase> - <title>` in `measurement_point`, no schema change to `CBMVibration`) and auto-advances the task status (`todo`→`doing` on the no-load reading, →`done` on the loaded reading). The detail page renders both phases as a 14-row comparison table (no-load vs loaded side by side) rather than as extra columns on the main list.
+
+### Access Control (Module-level Write Permissions)
+
+Staff-level write access is scoped per module using Django's built-in Groups/Permissions, replacing the earlier all-or-nothing `is_staff` check:
+
+- 10 synthetic permissions (`write_boiler`, `write_equipment`, `write_cbm`, `write_maintenance`, `write_mill`, `write_docs`, `write_inventory`, `write_tools`, `write_training`, `write_general`) are declared on `Profile.Meta.permissions` and auto-created in `auth_permission` on `migrate`.
+- A matching Group per module (e.g. "Boiler Staff", "CBM Staff") is seeded by a data migration (`0095_seed_module_groups.py`), which also grandfathers all pre-existing `is_staff` users into every Group so no one loses access on deploy. New staff accounts start in zero Groups and must be assigned via Django Admin → Groups.
+- The `module_required('<key>')` decorator (`myapp/views.py`, replaces the old `staff_required`) gates each module's add/edit views: requires `is_staff` **and** the matching `write_<key>` permission, or `is_superuser` (which bypasses all module checks). The separate `superuser_required` decorator for destructive/admin-only actions is unchanged.
+- Templates hide nav links and dashboard shortcut cards for modules a user can't write to via `{% if perms.myapp.write_<key> %}` (`base.html`, `dashboard.html`, and the CBM tab in `equipment_data.html`) — this affects visibility of the entry point, not read access to the underlying views, most of which remain open to any logged-in user.
 
 ---
 

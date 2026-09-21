@@ -45,6 +45,7 @@
       <!-- Department Nav Cards -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
 
+        {% if perms.myapp.write_mill %}
         <a href="/mill/" class="group bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all flex items-center gap-3">
           <div class="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg group-hover:scale-110 transition-transform">
             <i data-lucide="factory" class="w-6 h-6"></i>
@@ -55,7 +56,9 @@
           </div>
           <span class="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">ปกติ</span>
         </a>
+        {% endif %}
 
+        {% if perms.myapp.write_boiler %}
         <a href="/boiler/" class="group bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-500 transition-all flex items-center gap-3">
           <div class="p-3 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg group-hover:scale-110 transition-transform">
             <i data-lucide="flame" class="w-6 h-6"></i>
@@ -70,7 +73,9 @@
             <span class="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">ปกติ</span>
           {% endif %}
         </a>
+        {% endif %}
 
+        {% if perms.myapp.write_maintenance %}
         <a href="/maintenance/" class="group bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-red-400 dark:hover:border-red-500 transition-all flex items-center gap-3">
           <div class="p-3 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg group-hover:scale-110 transition-transform">
             <i data-lucide="wrench" class="w-6 h-6"></i>
@@ -85,7 +90,9 @@
             <span class="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">ปกติ</span>
           {% endif %}
         </a>
+        {% endif %}
 
+        {% if perms.myapp.write_general %}
         <a href="/lathe/" class="group bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-indigo-400 dark:hover:border-indigo-500 transition-all flex items-center gap-3">
           <div class="p-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg group-hover:scale-110 transition-transform">
             <i data-lucide="settings" class="w-6 h-6"></i>
@@ -100,6 +107,7 @@
             <span class="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">ปกติ</span>
           {% endif %}
         </a>
+        {% endif %}
       </div>
 
       <!-- Department Tabs -->

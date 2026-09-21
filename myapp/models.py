@@ -53,6 +53,20 @@ class Profile(models.Model):
     def __str__(self):
         return self.user.username
 
+    class Meta:
+        permissions = [
+            ('write_boiler', 'เขียนข้อมูล: หม้อไอน้ำ (Boiler)'),
+            ('write_equipment', 'เขียนข้อมูล: เครื่องจักร/อะไหล่/PM/ใบสั่งงาน'),
+            ('write_cbm', 'เขียนข้อมูล: ตรวจสภาพเครื่องจักร (CBM)'),
+            ('write_maintenance', 'เขียนข้อมูล: แจ้งซ่อม/บันทึกปัญหาเครื่องจักร'),
+            ('write_mill', 'เขียนข้อมูล: ลูกหีบ/การผลิต (Mill)'),
+            ('write_docs', 'เขียนข้อมูล: คลังเอกสารงานซ่อม'),
+            ('write_inventory', 'เขียนข้อมูล: คลังพัสดุ (Inventory)'),
+            ('write_tools', 'เขียนข้อมูล: เครื่องมือ (Tools)'),
+            ('write_training', 'เขียนข้อมูล: ศูนย์การเรียนรู้ (Training)'),
+            ('write_general', 'เขียนข้อมูล: งานทั่วไป (คู่มือ/งานมอบหมาย/จองรถ/โรงกลึง)'),
+        ]
+
 # ==========================================
 # 2. Boiler & Machine Operation Logs
 # ==========================================
