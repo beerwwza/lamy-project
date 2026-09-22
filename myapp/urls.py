@@ -188,6 +188,18 @@ urlpatterns = [
     path('vehicles/booking/<int:pk>/edit/',        vehicle_booking_edit,      name='vehicle_booking_edit'),
     path('vehicles/booking/<int:pk>/delete/',      vehicle_booking_delete,    name='vehicle_booking_delete'),
     path('vehicles/export/',                       vehicle_booking_export_excel, name='vehicle_booking_export_excel'),
+    path('vehicles/manual/',                       vehicle_manual,            name='vehicle_manual'),
+
+    # ===== Energy Tracking Module — Electricity (Phase 1) =====
+    path('electricity/',                             electricity_plant_dashboard,   name='electricity_plant_dashboard'),
+    path('electricity/meter/<int:meter_id>/',         electricity_meter_dashboard,   name='electricity_meter_dashboard'),
+    path('electricity/meters/',                       electricity_meter_list,        name='electricity_meter_list'),
+    path('electricity/meters/add/',                   electricity_meter_form,        name='electricity_meter_add'),
+    path('electricity/meters/<int:meter_id>/edit/',   electricity_meter_form,        name='electricity_meter_edit'),
+    path('electricity/meters/<int:meter_id>/toggle-active/', electricity_meter_toggle_active, name='electricity_meter_toggle_active'),
+    path('electricity/reading/add/',                  electricity_reading_add,       name='electricity_reading_add'),
+    path('electricity/reading/add/<int:meter_id>/',   electricity_reading_add,       name='electricity_reading_add_for_meter'),
+    path('electricity/readings/',                     electricity_reading_list,      name='electricity_reading_list'),
 
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]

@@ -1,0 +1,106 @@
+{% extends 'myapp/base.html' %}
+{% block title %}จัดการมิเตอร์ไฟฟ้า{% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+    <header class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-lg text-amber-600 dark:text-amber-400">
+                <i data-lucide="zap" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">จัดการมิเตอร์ไฟฟ้า</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400">มิเตอร์ทั้งหมดในระบบติดตามพลังงาน</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{% url 'electricity_plant_dashboard' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← หน้าสรุปพลังงาน</a>
+            {% if perms.myapp.write_energy %}
+            <a href="{% url 'electricity_meter_add' %}"
+                class="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
+                <i data-lucide="plus" class="w-4 h-4"></i>เพิ่มมิเตอร์
+            </a>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-5">
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+            {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+            {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+            {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <div class="flex items-center gap-2">
+            <a href="{% url 'electricity_meter_list' %}"
+               class="text-xs px-3 py-1.5 rounded-full {% if not selected_plant %}bg-amber-600 text-white{% else %}bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300{% endif %}">ทั้งหมด</a>
+            {% for key, label in plant_choices %}
+            <a href="{% url 'electricity_meter_list' %}?plant={{ key }}"
+               class="text-xs px-3 py-1.5 rounded-full {% if selected_plant == key %}bg-amber-600 text-white{% else %}bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                        <th class="px-5 py-2.5 font-medium">รหัสมิเตอร์</th>
+                        <th class="px-5 py-2.5 font-medium">ชื่อ / สถานที่ตั้ง</th>
+                        <th class="px-5 py-2.5 font-medium">Plant</th>
+                        <th class="px-5 py-2.5 font-medium text-right">kWh(Max)</th>
+                        <th class="px-5 py-2.5 font-medium">สถานะ</th>
+                        <th class="px-5 py-2.5 font-medium text-right">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in meters %}
+                    <tr class="border-b border-slate-50 dark:border-slate-800 {% if not m.is_active %}opacity-50{% endif %}">
+                        <td class="px-5 py-3 font-medium text-slate-800 dark:text-slate-100">{{ m.meter_code }}</td>
+                        <td class="px-5 py-3 text-slate-700 dark:text-slate-200">
+                            {{ m.name }}
+                            {% if m.location %}<p class="text-xs text-slate-400">{{ m.location }}</p>{% endif %}
+                        </td>
+                        <td class="px-5 py-3">
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">{{ m.plant }}</span>
+                        </td>
+                        <td class="px-5 py-3 text-right text-slate-700 dark:text-slate-200">
+                            {{ m.target_kwh_effective|floatformat:2 }}
+                            {% if m.target_kwh_override != None %}<span class="text-xs text-amber-500" title="กำหนดเอง">*</span>{% endif %}
+                        </td>
+                        <td class="px-5 py-3">
+                            {% if m.is_active %}
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">ใช้งานอยู่</span>
+                            {% else %}
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">ปิดใช้งาน</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-right whitespace-nowrap">
+                            <a href="{% url 'electricity_meter_dashboard' m.pk %}" class="text-amber-600 hover:underline text-xs mr-2">ดูข้อมูล</a>
+                            {% if perms.myapp.write_energy %}
+                            <a href="{% url 'electricity_reading_add_for_meter' m.pk %}" class="text-emerald-600 hover:underline text-xs mr-2">ป้อนค่าวันนี้</a>
+                            <a href="{% url 'electricity_meter_edit' m.pk %}" class="text-indigo-500 hover:underline text-xs mr-2">แก้ไข</a>
+                            <form method="post" action="{% url 'electricity_meter_toggle_active' m.pk %}" class="inline">
+                                {% csrf_token %}
+                                <button type="submit" class="text-slate-500 hover:underline text-xs">{% if m.is_active %}ปิดใช้งาน{% else %}เปิดใช้งาน{% endif %}</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center py-10 text-slate-400 text-sm">ยังไม่มีมิเตอร์ในระบบ</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<script>
+    if (window.lucide) { lucide.createIcons(); }
+</script>
+{% endblock %}

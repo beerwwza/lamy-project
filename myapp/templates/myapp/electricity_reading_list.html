@@ -1,0 +1,85 @@
+{% extends 'myapp/base.html' %}
+{% block title %}ประวัติค่ามิเตอร์ไฟฟ้า{% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+    <header class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div>
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">ประวัติค่ามิเตอร์ไฟฟ้า</h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">200 รายการล่าสุด</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{% url 'electricity_meter_list' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← รายการมิเตอร์</a>
+            {% if perms.myapp.write_energy %}
+            <a href="{% url 'electricity_reading_add' %}"
+                class="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
+                <i data-lucide="plus" class="w-4 h-4"></i>ป้อนค่าวันนี้
+            </a>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-5">
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium
+            {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+            {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+            {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <div class="flex items-center gap-2 flex-wrap">
+            <a href="{% url 'electricity_reading_list' %}"
+               class="text-xs px-3 py-1.5 rounded-full {% if not selected_meter %}bg-amber-600 text-white{% else %}bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300{% endif %}">ทุกมิเตอร์</a>
+            {% for m in meters %}
+            <a href="{% url 'electricity_reading_list' %}?meter={{ m.pk }}"
+               class="text-xs px-3 py-1.5 rounded-full {% if selected_meter == m.pk|stringformat:'s' %}bg-amber-600 text-white{% else %}bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300{% endif %}">{{ m.meter_code }}</a>
+            {% endfor %}
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                        <th class="px-5 py-2.5 font-medium">วันที่</th>
+                        <th class="px-5 py-2.5 font-medium">มิเตอร์</th>
+                        <th class="px-5 py-2.5 font-medium text-right">เลขมิเตอร์สะสม</th>
+                        <th class="px-5 py-2.5 font-medium text-right">หน่วยที่ใช้ (kWh)</th>
+                        <th class="px-5 py-2.5 font-medium">หมายเหตุ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in readings %}
+                    <tr class="border-b border-slate-50 dark:border-slate-800">
+                        <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ r.date|date:"d/m/Y" }}</td>
+                        <td class="px-5 py-3 font-medium text-slate-800 dark:text-slate-100">{{ r.meter.meter_code }}</td>
+                        <td class="px-5 py-3 text-right text-slate-700 dark:text-slate-200">{{ r.reading_kwh|floatformat:2 }}</td>
+                        <td class="px-5 py-3 text-right">
+                            {% if r.is_meter_reset %}
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">เปลี่ยนมิเตอร์</span>
+                            {% elif r.usage_kwh == None %}
+                            <span class="text-xs text-slate-400">ยังไม่มีข้อมูลเปรียบเทียบ</span>
+                            {% elif r.is_anomalous %}
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium" title="ค่าติดลบ — ตรวจสอบข้อมูล">{{ r.usage_kwh|floatformat:2 }} ⚠ ตรวจสอบข้อมูล</span>
+                            {% else %}
+                            {{ r.usage_kwh|floatformat:2 }}
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-slate-400 text-xs">{{ r.note|default:"-" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center py-10 text-slate-400 text-sm">ยังไม่มีข้อมูลมิเตอร์</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<script>
+    if (window.lucide) { lucide.createIcons(); }
+</script>
+{% endblock %}

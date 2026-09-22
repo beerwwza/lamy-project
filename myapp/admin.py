@@ -354,3 +354,19 @@ class VehicleBookingAdmin(admin.ModelAdmin):
     list_filter = ['division', 'vehicle_type', 'booking_type', 'date_needed']
     search_fields = ['requester_name', 'department', 'location', 'job_description']
     ordering = ['-date_needed', 'start_time']
+
+
+# ===== Energy Tracking Module — Electricity (Phase 1) =====
+
+@admin.register(ElectricityMeter)
+class ElectricityMeterAdmin(admin.ModelAdmin):
+    list_display = ['meter_code', 'name', 'plant', 'location', 'target_kwh_effective', 'is_active']
+    list_filter = ['plant', 'is_active']
+    search_fields = ['meter_code', 'name', 'location']
+
+@admin.register(ElectricityReading)
+class ElectricityReadingAdmin(admin.ModelAdmin):
+    list_display = ['meter', 'date', 'reading_kwh', 'usage_kwh', 'is_meter_reset', 'is_anomalous']
+    list_filter = ['meter', 'is_meter_reset']
+    search_fields = ['meter__meter_code', 'meter__name']
+    ordering = ['-date']

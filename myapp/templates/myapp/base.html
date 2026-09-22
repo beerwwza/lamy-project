@@ -168,6 +168,14 @@
                         </a>
                     </li>
                     {% endif %}
+                    {% if perms.myapp.write_energy %}
+                    <li>
+                        <a href="{% url 'electricity_plant_dashboard' %}"
+                            class="flex items-center gap-3 px-3 py-3 rounded-lg transition-colors {% if 'electricity' in request.resolver_match.url_name %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% else %}text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400{% endif %}">
+                            <i data-lucide="zap" class="w-5 h-5 flex-shrink-0"></i><span>พลังงาน (ไฟฟ้า)</span>
+                        </a>
+                    </li>
+                    {% endif %}
                     {% if perms.myapp.write_tools %}
                     <li>
                         <a href="{% url 'tools_dashboard' %}"
