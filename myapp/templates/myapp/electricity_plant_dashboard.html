@@ -104,51 +104,55 @@
         <!-- Meter list for this plant -->
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <p class="text-sm font-semibold text-slate-700 dark:text-slate-200 px-5 pt-4 pb-2">มิเตอร์ใน {{ selected_plant }}</p>
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                        <th class="px-5 py-2.5 font-medium">มิเตอร์</th>
-                        <th class="px-5 py-2.5 font-medium">สถานที่ตั้ง</th>
-                        <th class="px-5 py-2.5 font-medium text-right">kWh(Max)/วัน</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for m in meters %}
-                    <tr class="border-b border-slate-50 dark:border-slate-800">
-                        <td class="px-5 py-3"><a href="{% url 'electricity_meter_dashboard' m.pk %}" class="text-amber-600 hover:underline font-medium">{{ m.meter_code }} - {{ m.name }}</a></td>
-                        <td class="px-5 py-3 text-slate-500">{{ m.location|default:"-" }}</td>
-                        <td class="px-5 py-3 text-right text-slate-700 dark:text-slate-200">{{ m.target_kwh_effective|floatformat:2 }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="3" class="text-center py-8 text-slate-400 text-sm">ยังไม่มีมิเตอร์ที่ใช้งานอยู่ใน plant นี้</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                            <th class="px-5 py-2.5 font-medium">มิเตอร์</th>
+                            <th class="px-5 py-2.5 font-medium">สถานที่ตั้ง</th>
+                            <th class="px-5 py-2.5 font-medium text-right">kWh(Max)/วัน</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in meters %}
+                        <tr class="border-b border-slate-50 dark:border-slate-800">
+                            <td class="px-5 py-3"><a href="{% url 'electricity_meter_dashboard' m.pk %}" class="text-amber-600 hover:underline font-medium">{{ m.meter_code }} - {{ m.name }}</a></td>
+                            <td class="px-5 py-3 text-slate-500">{{ m.location|default:"-" }}</td>
+                            <td class="px-5 py-3 text-right text-slate-700 dark:text-slate-200">{{ m.target_kwh_effective|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center py-8 text-slate-400 text-sm">ยังไม่มีมิเตอร์ที่ใช้งานอยู่ใน plant นี้</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- Monthly summary -->
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <p class="text-sm font-semibold text-slate-700 dark:text-slate-200 px-5 pt-4 pb-2">สรุปรายเดือน (6 เดือนล่าสุด)</p>
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                        <th class="px-5 py-2.5 font-medium">เดือน</th>
-                        <th class="px-5 py-2.5 font-medium text-right">kWh ใช้จริง</th>
-                        <th class="px-5 py-2.5 font-medium text-right">kWh(Max)</th>
-                        <th class="px-5 py-2.5 font-medium text-right">% ของ Max</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in monthly_summary %}
-                    <tr class="border-b border-slate-50 dark:border-slate-800">
-                        <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.label }}</td>
-                        <td class="px-5 py-3 text-right {% if row.over_target %}text-red-600 font-medium{% else %}text-slate-700 dark:text-slate-200{% endif %}">{{ row.actual_kwh|floatformat:0 }}</td>
-                        <td class="px-5 py-3 text-right text-slate-500">{{ row.target_kwh|floatformat:0 }}</td>
-                        <td class="px-5 py-3 text-right text-slate-500">{% if row.pct_of_target != None %}{{ row.pct_of_target }}%{% else %}-{% endif %}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                            <th class="px-5 py-2.5 font-medium">เดือน</th>
+                            <th class="px-5 py-2.5 font-medium text-right">kWh ใช้จริง</th>
+                            <th class="px-5 py-2.5 font-medium text-right">kWh(Max)</th>
+                            <th class="px-5 py-2.5 font-medium text-right">% ของ Max</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in monthly_summary %}
+                        <tr class="border-b border-slate-50 dark:border-slate-800">
+                            <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.label }}</td>
+                            <td class="px-5 py-3 text-right {% if row.over_target %}text-red-600 font-medium{% else %}text-slate-700 dark:text-slate-200{% endif %}">{{ row.actual_kwh|floatformat:0 }}</td>
+                            <td class="px-5 py-3 text-right text-slate-500">{{ row.target_kwh|floatformat:0 }}</td>
+                            <td class="px-5 py-3 text-right text-slate-500">{% if row.pct_of_target != None %}{{ row.pct_of_target }}%{% else %}-{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </main>

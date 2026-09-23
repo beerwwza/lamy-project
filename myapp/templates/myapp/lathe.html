@@ -657,27 +657,29 @@
             </div>
 
             <div class="overflow-auto table-container max-h-[65vh] border border-gray-200 dark:border-gray-700 rounded-lg">
-                <table class="min-w-full text-sm text-left text-gray-500 dark:text-gray-400 mb-0">
-                    <thead
-                        class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-100 dark:bg-gray-700 sticky top-0 z-10 shadow-sm">
-                        <tr>
-                            <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-28">Job No.</th>
-                            <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-24">วันที่</th>
-                            <th class="px-6 py-3 border-b dark:border-gray-600">รายละเอียดงาน</th>
-                            <th class="px-6 py-3 border-b dark:border-gray-600 w-32">แผนก</th>
-                            <th class="px-6 py-3 border-b dark:border-gray-600 w-40">ผู้จัดทำ</th>
-                            <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-20">เครื่อง</th>
-                            <th class="px-6 py-3 border-b dark:border-gray-600 text-right w-20">ชม.</th>
-                            <th class="px-6 py-3 border-b dark:border-gray-600 text-right w-20">ชิ้น</th>
-                            <th
-                                class="px-6 py-3 border-b dark:border-gray-600 text-right w-24 text-blue-600 dark:text-blue-400">
-                                ต้นทุน/ชิ้น</th>
-                            <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-32">สถานะ</th>
-                            <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-16 no-print">แก้ไข</th>
-                        </tr>
-                    </thead>
-                    <tbody id="jobHistoryBody" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
-                </table>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm text-left text-gray-500 dark:text-gray-400 mb-0">
+                        <thead
+                            class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-100 dark:bg-gray-700 sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-28">Job No.</th>
+                                <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-24">วันที่</th>
+                                <th class="px-6 py-3 border-b dark:border-gray-600">รายละเอียดงาน</th>
+                                <th class="px-6 py-3 border-b dark:border-gray-600 w-32">แผนก</th>
+                                <th class="px-6 py-3 border-b dark:border-gray-600 w-40">ผู้จัดทำ</th>
+                                <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-20">เครื่อง</th>
+                                <th class="px-6 py-3 border-b dark:border-gray-600 text-right w-20">ชม.</th>
+                                <th class="px-6 py-3 border-b dark:border-gray-600 text-right w-20">ชิ้น</th>
+                                <th
+                                    class="px-6 py-3 border-b dark:border-gray-600 text-right w-24 text-blue-600 dark:text-blue-400">
+                                    ต้นทุน/ชิ้น</th>
+                                <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-32">สถานะ</th>
+                                <th class="px-6 py-3 border-b dark:border-gray-600 text-center w-16 no-print">แก้ไข</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobHistoryBody" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -948,35 +950,37 @@
                     <span>3. บันทึกการทำงาน (Operation Log)</span>
                     <span class="text-xs font-normal opacity-80 self-center">*สำคัญ: ลงเวลาจริง</span>
                 </h2>
-                <table class="w-full border-collapse border border-gray-300 dark:border-gray-600 text-center mb-0"
-                    id="time-log-table">
-                    <thead>
-                        <tr class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                            <th class="border border-gray-300 dark:border-gray-600 py-1 w-24">วันที่</th>
-                            <th class="border border-gray-300 dark:border-gray-600 py-1">ขั้นตอน</th>
-                            <th class="border border-gray-300 dark:border-gray-600 py-1 w-20">เริ่ม</th>
-                            <th class="border border-gray-300 dark:border-gray-600 py-1 w-20">จบ</th>
-                            <th class="border border-gray-300 dark:border-gray-600 py-1 w-20">รวม ชม.</th>
-                            <th class="border border-gray-300 dark:border-gray-600 py-1 w-10 no-print">ลบ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Rows will be added dynamically or on load -->
-                    </tbody>
-                    <tfoot>
-                        <tr class="bg-gray-50 dark:bg-gray-700 font-bold">
-                            <td colspan="4"
-                                class="border border-gray-300 dark:border-gray-600 text-right pr-2 py-1 text-gray-800 dark:text-gray-200">
-                                รวมเวลาทั้งหมด (Total):</td>
-                            <td class="border border-gray-300 dark:border-gray-600 p-0"><input type="number"
-                                    id="grand_total" class="table-input font-bold bg-transparent" readonly
-                                    placeholder="Auto"></td>
-                            <td
-                                class="border border-gray-300 dark:border-gray-600 no-print bg-gray-200 dark:bg-gray-600">
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse border border-gray-300 dark:border-gray-600 text-center mb-0"
+                        id="time-log-table">
+                        <thead>
+                            <tr class="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                                <th class="border border-gray-300 dark:border-gray-600 py-1 w-24">วันที่</th>
+                                <th class="border border-gray-300 dark:border-gray-600 py-1">ขั้นตอน</th>
+                                <th class="border border-gray-300 dark:border-gray-600 py-1 w-20">เริ่ม</th>
+                                <th class="border border-gray-300 dark:border-gray-600 py-1 w-20">จบ</th>
+                                <th class="border border-gray-300 dark:border-gray-600 py-1 w-20">รวม ชม.</th>
+                                <th class="border border-gray-300 dark:border-gray-600 py-1 w-10 no-print">ลบ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows will be added dynamically or on load -->
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-gray-50 dark:bg-gray-700 font-bold">
+                                <td colspan="4"
+                                    class="border border-gray-300 dark:border-gray-600 text-right pr-2 py-1 text-gray-800 dark:text-gray-200">
+                                    รวมเวลาทั้งหมด (Total):</td>
+                                <td class="border border-gray-300 dark:border-gray-600 p-0"><input type="number"
+                                        id="grand_total" class="table-input font-bold bg-transparent" readonly
+                                        placeholder="Auto"></td>
+                                <td
+                                    class="border border-gray-300 dark:border-gray-600 no-print bg-gray-200 dark:bg-gray-600">
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
                 <button type="button" onclick="addLogRow()"
                     class="mt-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 border-0 rounded text-xs hover:bg-blue-100 dark:hover:bg-blue-800 no-print flex items-center gap-1 font-bold border border-blue-200 transition">
                     <i class="fas fa-plus"></i> เพิ่มแถวรายการ

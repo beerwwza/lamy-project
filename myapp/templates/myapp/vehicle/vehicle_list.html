@@ -35,61 +35,63 @@
         {% endif %}
 
         <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                        <th class="px-5 py-2.5 font-medium">รหัส/ทะเบียน</th>
-                        <th class="px-5 py-2.5 font-medium">ประเภทเครื่องจักร</th>
-                        <th class="px-5 py-2.5 font-medium">สถานะความพร้อม</th>
-                        <th class="px-5 py-2.5 font-medium">สถานะใช้งาน</th>
-                        <th class="px-5 py-2.5 font-medium text-right">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for v in vehicles %}
-                    <tr class="border-b border-slate-50 dark:border-slate-800 {% if not v.is_active %}opacity-50{% endif %}">
-                        <td class="px-5 py-3 font-medium text-slate-800 dark:text-slate-100">{{ v.code }}</td>
-                        <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ v.get_vehicle_type_display }}</td>
-                        <td class="px-5 py-3">
-                            {% if v.readiness_status == 'ready' %}
-                            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">พร้อมทำงาน</span>
-                            {% else %}
-                            <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium" title="{{ v.not_ready_reason }}">ไม่พร้อมทำงาน</span>
-                            <p class="text-xs text-slate-400 mt-0.5">{{ v.not_ready_reason }}</p>
-                            {% endif %}
-                        </td>
-                        <td class="px-5 py-3">
-                            {% if v.is_active %}
-                            <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">ใช้งานอยู่</span>
-                            {% else %}
-                            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">เลิกใช้งาน</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-5 py-3 text-right whitespace-nowrap">
-                            {% if v.readiness_status == 'not_ready' %}
-                            <form method="post" action="{% url 'vehicle_toggle_readiness' v.pk %}" class="inline">
-                                {% csrf_token %}
-                                <button type="submit" class="text-emerald-600 hover:underline text-xs mr-2">ตั้งเป็นพร้อม</button>
-                            </form>
-                            {% endif %}
-                            <a href="{% url 'vehicle_status_dashboard' %}?vehicle={{ v.pk }}" class="text-emerald-600 hover:underline text-xs mr-2">ดูงาน</a>
-                            <a href="{% url 'vehicle_edit' v.pk %}" class="text-indigo-500 hover:underline text-xs mr-2">แก้ไข</a>
-                            <form method="post" action="{% url 'vehicle_toggle_active' v.pk %}" class="inline">
-                                {% csrf_token %}
-                                <button type="submit" class="text-slate-500 hover:underline text-xs mr-2">{% if v.is_active %}ปิดใช้งาน{% else %}เปิดใช้งาน{% endif %}</button>
-                            </form>
-                            <form method="post" action="{% url 'vehicle_delete' v.pk %}" class="inline"
-                                onsubmit="return confirm('ยืนยันการลบรถ {{ v.code }}?');">
-                                {% csrf_token %}
-                                <button type="submit" class="text-red-500 hover:underline text-xs">ลบ</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="5" class="text-center py-10 text-slate-400 text-sm">ยังไม่มีรถบริการในระบบ</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                            <th class="px-5 py-2.5 font-medium">รหัส/ทะเบียน</th>
+                            <th class="px-5 py-2.5 font-medium">ประเภทเครื่องจักร</th>
+                            <th class="px-5 py-2.5 font-medium">สถานะความพร้อม</th>
+                            <th class="px-5 py-2.5 font-medium">สถานะใช้งาน</th>
+                            <th class="px-5 py-2.5 font-medium text-right">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for v in vehicles %}
+                        <tr class="border-b border-slate-50 dark:border-slate-800 {% if not v.is_active %}opacity-50{% endif %}">
+                            <td class="px-5 py-3 font-medium text-slate-800 dark:text-slate-100">{{ v.code }}</td>
+                            <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ v.get_vehicle_type_display }}</td>
+                            <td class="px-5 py-3">
+                                {% if v.readiness_status == 'ready' %}
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">พร้อมทำงาน</span>
+                                {% else %}
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium" title="{{ v.not_ready_reason }}">ไม่พร้อมทำงาน</span>
+                                <p class="text-xs text-slate-400 mt-0.5">{{ v.not_ready_reason }}</p>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3">
+                                {% if v.is_active %}
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">ใช้งานอยู่</span>
+                                {% else %}
+                                <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">เลิกใช้งาน</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-5 py-3 text-right whitespace-nowrap">
+                                {% if v.readiness_status == 'not_ready' %}
+                                <form method="post" action="{% url 'vehicle_toggle_readiness' v.pk %}" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-emerald-600 hover:underline text-xs mr-2">ตั้งเป็นพร้อม</button>
+                                </form>
+                                {% endif %}
+                                <a href="{% url 'vehicle_status_dashboard' %}?vehicle={{ v.pk }}" class="text-emerald-600 hover:underline text-xs mr-2">ดูงาน</a>
+                                <a href="{% url 'vehicle_edit' v.pk %}" class="text-indigo-500 hover:underline text-xs mr-2">แก้ไข</a>
+                                <form method="post" action="{% url 'vehicle_toggle_active' v.pk %}" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-slate-500 hover:underline text-xs mr-2">{% if v.is_active %}ปิดใช้งาน{% else %}เปิดใช้งาน{% endif %}</button>
+                                </form>
+                                <form method="post" action="{% url 'vehicle_delete' v.pk %}" class="inline"
+                                    onsubmit="return confirm('ยืนยันการลบรถ {{ v.code }}?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-red-500 hover:underline text-xs">ลบ</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center py-10 text-slate-400 text-sm">ยังไม่มีรถบริการในระบบ</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </main>

@@ -82,6 +82,69 @@ React + Babel standalone requires `eval()` in the browser. In production environ
 
 ---
 
+## Responsive / Mobile Layout Standard
+
+This project targets phones as a first-class client (shop-floor/field use — operators fill in logs from the plant floor, not just a desk). Every template — new or edited — must follow these rules. Reference implementation: `boiler_operation_form.html`, which is mobile-first throughout.
+
+The global sidebar in `base.html` is a fixed-width drawer on desktop (`md:` and up) and an off-canvas slide-in drawer on mobile, opened via a floating hamburger button (`toggleSidebar()`, bottom-left, fixed) with a tap-to-close overlay. This was fixed after users reported the layout being "too large"/squeezed on phones — the sidebar previously had zero responsive treatment and permanently ate ~256px of a ~375px screen.
+
+### 1. Mobile-first grids
+
+Always specify a `grid-cols-1` base, then scale up:
+
+```html
+<!-- Good -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+<!-- Bad — crushes content on a 375px phone -->
+<div class="grid grid-cols-3 gap-4">
+```
+
+Any grid cell containing a KPI number (`text-3xl`/`text-4xl`/`text-5xl` etc.) must start at `grid-cols-1` on mobile, never `grid-cols-2` or higher — the number gets crushed otherwise.
+
+### 2. Tables always scroll, never squeeze
+
+Every `<table>` must be wrapped:
+
+```html
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">...</table>
+</div>
+```
+
+This project has no JS framework for a card-view fallback — horizontal scroll inside a bounded container is the accepted mobile pattern here. Add the wrapper unconditionally, even if the table looks small today (columns get added later).
+
+### 3. Form inputs stack full-width on mobile
+
+Inside a `flex flex-wrap` filter/form bar, give each input/select wrapper a responsive width so fields stack cleanly instead of sizing to content:
+
+```html
+<div class="w-full sm:w-auto">
+  <label class="...">...</label>
+  <select class="w-full sm:w-auto border ...">...</select>
+</div>
+```
+
+### 4. Sidebar / navigation
+
+The sidebar drawer, hamburger button, and overlay live in `base.html` and are inherited automatically by every page that extends it — do not reimplement navigation per-template. When adding a new module's nav link (Step 8 below), just add the `<li>` inside the existing `<ul>` in `base.html`; the responsive drawer behavior applies to it for free.
+
+Pages that do **not** extend `base.html` (self-contained `<!DOCTYPE html>` documents) do not get this drawer — avoid this pattern for anything a user browses on a phone; it's only acceptable for print-only views.
+
+### 5. Button/action rows
+
+Any row of action buttons (`flex items-center gap-2`) in a header must include `flex-wrap` so buttons wrap to a new line instead of overflowing on narrow screens. Pair it with `min-h-*` instead of a fixed `h-*` on the containing header, so wrapped content isn't clipped.
+
+### 6. Verification
+
+No automated visual testing exists in this project. Manually check every new/edited template in browser devtools responsive mode at minimum: **375px** (small phone), **768px** (tablet/`md:` breakpoint boundary — sidebar switches from drawer to static exactly here), and **1280px** (desktop). Confirm: no horizontal page scroll (only inside `overflow-x-auto` table wrappers), no clipped/overlapping text, hamburger opens/closes the drawer cleanly with tap-outside-to-close working below 768px.
+
+### Note on Tailwind vs Bootstrap classes
+
+Tailwind (CDN) is the standard for page layout, grids, and containers — use it for all new markup per the rules above. Some `ModelForm` widgets independently render Bootstrap classes (`form-control`, `mb-3`, etc., see Step 6 of "How to Add a New Module") via widget `attrs` — that's a separate, pre-existing convention for form-field styling only, not something to unify with Tailwind. Don't add Bootstrap layout classes (`row`/`col`/`container`) to new templates, only Tailwind utility classes.
+
+---
+
 ## How to Add a New Module
 
 Follow this checklist exactly — every module needs all 5 layers.
@@ -205,6 +268,7 @@ Rules:
 - Always include `{% csrf_token %}` in every form.
 - Use Bootstrap classes (`container`, `mb-3`, `form-label`, `btn btn-primary`).
 - Show field errors inline.
+- Follow the [Responsive / Mobile Layout Standard](#responsive--mobile-layout-standard) above for all grids, tables, and multi-field forms in the new template.
 
 ### Step 7: Admin (`myapp/admin.py`)
 
@@ -296,6 +360,7 @@ CBM forms are submitted from the equipment CBM dashboard at `/equipment/cbm/<eq_
 - **Do not** hardcode the `SECRET_KEY` in `settings.py` for production. Use `.env`.
 - **Do not** commit `db.sqlite3` or `.env` — both are in `.gitignore`.
 - **Do not** edit migration files manually. Always use `makemigrations`.
+- **Do not** add a `grid-cols-N` (N≥2) class without a `grid-cols-1` mobile base, and **do not** add a `<table>` without wrapping it in `<div class="overflow-x-auto">` — see [Responsive / Mobile Layout Standard](#responsive--mobile-layout-standard).
 
 ### Dashboard view pattern — pre-compute alert flags in the view
 
