@@ -6,8 +6,8 @@
 # ตัวอย่าง: ./restore_db.sh lamy_db_2025-01-15_02-00-00.sqlite3.gz
 # =============================================================
 
-PROJECT_DIR="/app/lamy-project"
-BACKUP_LOCAL_DIR="/app/backups/lamy-db"
+PROJECT_DIR="/root/lamy-project"
+BACKUP_LOCAL_DIR="/root/backups/lamy-db"
 DB_TARGET="$PROJECT_DIR/db.sqlite3"
 LOG_FILE="/var/log/lamy_backup.log"
 LOG_DATE=$(date +"%Y-%m-%d %H:%M:%S")
@@ -60,5 +60,5 @@ rm "$TEMP_FILE"
 
 log "Restore สำเร็จ"
 log "หมายเหตุ: restart Docker เพื่อให้ระบบรับรู้การเปลี่ยนแปลง"
-log "  docker-compose restart web"
+log "  docker compose restart web"
 log "====== restore เสร็จสิ้น ======"

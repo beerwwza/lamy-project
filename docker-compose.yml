@@ -1,8 +1,11 @@
 services:
   web:
     build: .
+    restart: unless-stopped
     # คำสั่งรัน Server (สังเกต 0.0.0.0 คือเปิดให้ข้างนอกเข้าได้)
-    command: sh -c "python manage.py migrate --no-input && python manage.py createcachetable --no-color 2>/dev/null || true && python manage.py runserver 0.0.0.0:8000"
+    # --timeout 1200 ต้องตรงกับ proxy_read_timeout/proxy_send_timeout ใน nginx/default.conf
+    # เพื่อไม่ให้งานช้า (export Excel, อัปโหลดไฟล์ใหญ่) ถูกตัดกลางทาง
+    command: sh -c "python manage.py migrate --no-input && python manage.py createcachetable --no-color 2>/dev/null || true && gunicorn learning.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 1200 --access-logfile - --error-logfile -"
     env_file:
       - .env          # อ่าน DJANGO_SECRET_KEY, DJANGO_DEBUG, DJANGO_ALLOWED_HOSTS จากไฟล์นี้
     volumes:
@@ -13,6 +16,7 @@ services:
       - "8000:8000"
   nginx:
     image: nginx:latest
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"

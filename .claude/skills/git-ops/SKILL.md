@@ -10,7 +10,7 @@ metadata:
 
 # git-ops — LAMY git & VPS deploy skill
 
-Local git for `D:\lamy\lamy-project` (GitHub remote `origin` → `beerwwza/lamy-project.git`, branch `main`, no feature branches — commits land on `main` directly), plus generating deploy/rollback commands for the production VPS (Hostinger, `root@lamy23.cloud`, project at `/app/lamy-project`, Docker Compose services `web` + `nginx`).
+Local git for `D:\lamy\lamy-project` (GitHub remote `origin` → `beerwwza/lamy-project.git`, branch `main`, no feature branches — commits land on `main` directly), plus generating deploy/rollback commands for the production VPS (Hostinger, `root@lamy23.cloud`, project at `/root/lamy-project`, Docker Compose services `web` + `nginx`, invoked as the `docker compose` CLI plugin — confirmed 2026-09-23, not the standalone `docker-compose` script).
 
 **Always state which scope (범위) an action applies to before doing it: local-only, or "this will also touch the VPS/production."**
 
@@ -92,12 +92,12 @@ Always explain in plain terms what will happen to the user's files before runnin
 
 ```bash
 ssh root@lamy23.cloud
-cd /app/lamy-project
+cd /root/lamy-project
 bash scripts/backup_db.sh
 git pull origin main
-docker-compose up --build -d
-docker-compose exec web python manage.py migrate
-docker-compose exec web python manage.py collectstatic --noinput
+docker compose up --build -d
+docker compose exec web python manage.py migrate
+docker compose exec web python manage.py collectstatic --noinput
 ```
 
 Backup always comes first, every time — no exceptions, even for "small" changes. If the user says they already backed up recently, still include the step; it's cheap and the rule is unconditional per project decision.
@@ -110,12 +110,12 @@ Backup always comes first, every time — no exceptions, even for "small" change
 
 ```bash
 ssh root@lamy23.cloud
-cd /app/lamy-project
+cd /root/lamy-project
 bash scripts/backup_db.sh
 git pull origin main
-docker-compose up --build -d
-docker-compose exec web python manage.py migrate
-docker-compose exec web python manage.py collectstatic --noinput
+docker compose up --build -d
+docker compose exec web python manage.py migrate
+docker compose exec web python manage.py collectstatic --noinput
 ```
 
 If the DB also needs restoring to a pre-incident backup (not just code), point the user at `scripts/restore_db.sh <backup-filename>` — that script already prompts for confirmation and backs up the current DB before overwriting, run it interactively on the VPS, don't try to script the y/N prompt away.
@@ -123,8 +123,8 @@ If the DB also needs restoring to a pre-incident backup (not just code), point t
 ### 4.4 Read-only checks (safe to hand over, no confirmation needed)
 
 ```bash
-ssh root@lamy23.cloud "cd /app/lamy-project && docker-compose ps"
-ssh root@lamy23.cloud "cd /app/lamy-project && docker-compose logs --tail=100 web"
+ssh root@lamy23.cloud "cd /root/lamy-project && docker compose ps"
+ssh root@lamy23.cloud "cd /root/lamy-project && docker compose logs --tail=100 web"
 ```
 
 These are still commands for the *user* to run — this skill generates them, it does not execute them.

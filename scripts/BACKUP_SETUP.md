@@ -58,8 +58,8 @@ rclone lsd gdrive:
 เปิดไฟล์ `scripts/backup_db.sh` แล้วแก้ไขส่วน CONFIG ด้านบน:
 
 ```bash
-PROJECT_DIR="/app/lamy-project"    # path โปรเจกต์บน server (ตรวจสอบด้วย pwd)
-BACKUP_LOCAL_DIR="/app/backups/lamy-db"  # ที่เก็บ backup local
+PROJECT_DIR="/root/lamy-project"    # path โปรเจกต์บน server (ตรวจสอบด้วย pwd)
+BACKUP_LOCAL_DIR="/root/backups/lamy-db"  # ที่เก็บ backup local
 GDRIVE_REMOTE="gdrive"             # ชื่อ remote ที่ตั้งใน rclone config
 GDRIVE_FOLDER="lamy-backups"       # ชื่อโฟลเดอร์ที่ต้องการสร้างใน Google Drive
 KEEP_DAYS=30                       # เก็บ backup local กี่วัน
@@ -93,7 +93,7 @@ sudo bash scripts/backup_db.sh
 cat /var/log/lamy_backup.log
 
 # ดูไฟล์ที่สร้าง
-ls -lh /app/backups/lamy-db/
+ls -lh /root/backups/lamy-db/
 ```
 
 ---
@@ -110,7 +110,7 @@ sudo crontab -e
 0 4 * * * /path/to/lamy-project/scripts/backup_db.sh >> /var/log/lamy_backup.log 2>&1
 ```
 
-> แก้ `/path/to/lamy-project` ให้ตรงกับ path จริง เช่น `/app/lamy-project`
+> แก้ `/path/to/lamy-project` ให้ตรงกับ path จริง เช่น `/root/lamy-project`
 
 บันทึกและออก (Ctrl+X → Y → Enter ถ้าใช้ nano)
 
@@ -125,13 +125,13 @@ sudo crontab -l
 
 ```bash
 # ดูรายการ backup ที่มี
-ls -lh /app/backups/lamy-db/
+ls -lh /root/backups/lamy-db/
 
 # Restore จากไฟล์ที่ต้องการ
 sudo bash scripts/restore_db.sh lamy_db_2025-01-15_02-00-00.sqlite3.gz
 
 # Restart web container หลัง restore
-docker-compose restart web
+docker compose restart web
 ```
 
 > สคริปต์จะสำรอง db ปัจจุบันให้อัตโนมัติก่อน restore เสมอ
@@ -148,7 +148,7 @@ grep "$(date +%Y-%m-%d)" /var/log/lamy_backup.log
 rclone ls gdrive:lamy-backups/
 
 # ดู backup ที่เก็บใน local
-ls -lh /app/backups/lamy-db/
+ls -lh /root/backups/lamy-db/
 ```
 
 ---

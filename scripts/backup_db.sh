@@ -7,8 +7,8 @@
 # =============================================================
 
 # --- CONFIG (แก้ไขตาม path จริงของ server) ---
-PROJECT_DIR="/app/lamy-project"           # path โปรเจกต์บน server
-BACKUP_LOCAL_DIR="/app/backups/lamy-db"  # โฟลเดอร์เก็บ backup local
+PROJECT_DIR="/root/lamy-project"           # path โปรเจกต์บน server
+BACKUP_LOCAL_DIR="/root/backups/lamy-db"  # โฟลเดอร์เก็บ backup local
 GDRIVE_REMOTE="gdrive"                    # ชื่อ remote ของ rclone
 GDRIVE_FOLDER="lamy-backups"             # ชื่อโฟลเดอร์ใน Google Drive
 KEEP_DAYS=30                              # เก็บ backup กี่วัน (local)
