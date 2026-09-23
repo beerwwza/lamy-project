@@ -1,0 +1,224 @@
+{% extends 'myapp/base.html' %}
+{% block title %}{% if is_edit %}แก้ไขมิเตอร์ไฟฟ้า{% else %}เพิ่มมิเตอร์ไฟฟ้า{% endif %}{% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+    <header class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80">
+        <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">
+            {% if is_edit %}แก้ไขมิเตอร์ {{ meter.meter_code }}{% else %}เพิ่มมิเตอร์ไฟฟ้า{% endif %}
+        </h1>
+        <a href="{% url 'electricity_meter_list' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">← กลับรายการมิเตอร์</a>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6">
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 max-w-2xl">
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">รหัสมิเตอร์</label>
+                    {{ form.meter_code }}
+                    {% if form.meter_code.errors %}<p class="text-red-500 text-xs mt-1">{{ form.meter_code.errors }}</p>{% endif %}
+                </div>
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">ชื่อมิเตอร์</label>
+                    {{ form.name }}
+                    {% if form.name.errors %}<p class="text-red-500 text-xs mt-1">{{ form.name.errors }}</p>{% endif %}
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">Plant</label>
+                        {{ form.plant }}
+                        {% if form.plant.errors %}<p class="text-red-500 text-xs mt-1">{{ form.plant.errors }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">สถานที่ตั้ง</label>
+                        {{ form.location }}
+                        {% if form.location.errors %}<p class="text-red-500 text-xs mt-1">{{ form.location.errors }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-medium text-slate-500 block mb-1">เครื่องจักรที่ผูกกับมิเตอร์นี้ (เลือกได้หลายรายการ)</label>
+                    {{ form.equipment }}
+
+                    <div class="mb-2">
+                        <label class="text-xs text-slate-400 block mb-1">1. เลือกกระบวนการ เพื่อกรองรายการเครื่องจักร</label>
+                        <select id="meter-process" onchange="loadMeterEquipmentOptions(this.value)"
+                            class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white tw-select">
+                            <option value="">-- เลือกกระบวนการ --</option>
+                            {% for proc in process_choices %}
+                            <option value="{{ proc }}">{{ proc }}</option>
+                            {% endfor %}
+                            <option value="__other__">อื่นๆ/ไม่ระบุ</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="text-xs text-slate-400 block mb-1">2. เลือกเครื่องจักรของกระบวนการนี้ แล้วกดเพิ่ม</label>
+                        <div class="flex gap-2">
+                            <select id="meter-equipment-picker" disabled
+                                class="flex-1 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white tw-select">
+                                <option value="">-- เลือกกระบวนการก่อน --</option>
+                            </select>
+                            <button type="button" onclick="addSelectedMeterEquipment()"
+                                class="px-4 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors">
+                                + เพิ่ม
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">เครื่องจักรที่เลือกแล้วทั้งหมด</label>
+                        <div id="meter-equipment-chips" class="flex flex-wrap gap-1.5 min-h-[1.75rem]">
+                            <p class="text-xs text-slate-400">ยังไม่ได้เลือกเครื่องจักร</p>
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-slate-400 mt-2">ใช้คำนวณ kWh(Max) อัตโนมัติจาก Power (kW) ของเครื่องจักรที่เลือก</p>
+                    {% if form.equipment.errors %}<p class="text-red-500 text-xs mt-1">{{ form.equipment.errors }}</p>{% endif %}
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">ชั่วโมงทำงาน/วัน (สำหรับคำนวณ Max)</label>
+                        {{ form.assumed_operating_hours }}
+                        {% if form.assumed_operating_hours.errors %}<p class="text-red-500 text-xs mt-1">{{ form.assumed_operating_hours.errors }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">กำหนด kWh(Max) เอง (ไม่บังคับ)</label>
+                        {{ form.target_kwh_override }}
+                        {% if form.target_kwh_override.errors %}<p class="text-red-500 text-xs mt-1">{{ form.target_kwh_override.errors }}</p>{% endif %}
+                    </div>
+                </div>
+
+                {% if meter %}
+                <p class="text-xs text-slate-400">kWh(Max) ที่คำนวณอัตโนมัติตอนนี้: {{ meter.target_kwh_auto|floatformat:2 }} kWh/วัน</p>
+                {% endif %}
+
+                <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    {{ form.is_active }} สถานะใช้งาน (ยังไม่เลิกใช้)
+                </label>
+
+                <div class="flex gap-2 pt-1">
+                    <button type="submit" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 rounded-lg text-sm transition-colors">
+                        บันทึก
+                    </button>
+                    <a href="{% url 'electricity_meter_list' %}" class="flex-1 text-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium py-2 rounded-lg text-sm transition-colors">
+                        ยกเลิก
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+
+<script>
+    if (window.lucide) { lucide.createIcons(); }
+
+    const EQUIPMENT_BY_PROCESS_URL = "{% url 'api_equipment_by_process' %}";
+    const equipmentSelect = document.getElementById('id_equipment');
+
+    function selectedEquipmentOptions() {
+        return Array.from(equipmentSelect.options).filter(opt => opt.selected);
+    }
+
+    function setEquipmentSelected(equipmentId, selected) {
+        const opt = Array.from(equipmentSelect.options).find(o => o.value === equipmentId);
+        if (opt) opt.selected = selected;
+        renderSelectedChips();
+    }
+
+    function renderSelectedChips() {
+        const box = document.getElementById('meter-equipment-chips');
+        const selected = selectedEquipmentOptions();
+        box.textContent = '';
+        if (selected.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'text-xs text-slate-400';
+            empty.textContent = 'ยังไม่ได้เลือกเครื่องจักร';
+            box.appendChild(empty);
+            return;
+        }
+        selected.forEach(opt => {
+            const chip = document.createElement('span');
+            chip.className = 'inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 font-medium';
+            chip.textContent = opt.textContent;
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'hover:text-red-600';
+            removeBtn.textContent = '×';
+            removeBtn.onclick = () => setEquipmentSelected(opt.value, false);
+            chip.appendChild(removeBtn);
+            box.appendChild(chip);
+        });
+    }
+
+    function loadMeterEquipmentOptions(process) {
+        const picker = document.getElementById('meter-equipment-picker');
+        picker.textContent = '';
+        picker.disabled = true;
+
+        if (!process) {
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '-- เลือกกระบวนการก่อน --';
+            picker.appendChild(placeholder);
+            return;
+        }
+
+        const loading = document.createElement('option');
+        loading.value = '';
+        loading.textContent = 'กำลังโหลด...';
+        picker.appendChild(loading);
+
+        const selectedIds = new Set(selectedEquipmentOptions().map(opt => opt.value));
+
+        fetch(`${EQUIPMENT_BY_PROCESS_URL}?process=${encodeURIComponent(process)}`)
+            .then(r => r.json())
+            .then(data => {
+                picker.textContent = '';
+                // ไม่แสดงเครื่องจักรที่เลือกไว้แล้ว กันเพิ่มซ้ำ
+                const equipment = (data.equipment || []).filter(eq => !selectedIds.has(eq.equipment_id));
+
+                const empty = document.createElement('option');
+                empty.value = '';
+                empty.textContent = equipment.length ? '-- เลือกเครื่องจักร --' : 'ไม่มีเครื่องจักรให้เพิ่มในกระบวนการนี้';
+                picker.appendChild(empty);
+
+                equipment.forEach(eq => {
+                    const opt = document.createElement('option');
+                    opt.value = eq.equipment_id;
+                    opt.textContent = `${eq.equipment_id} - ${eq.name}` + (eq.power_kw ? ` (${eq.power_kw} kW)` : '');
+                    picker.appendChild(opt);
+                });
+                picker.disabled = false;
+            })
+            .catch(() => {
+                picker.textContent = '';
+                const err = document.createElement('option');
+                err.value = '';
+                err.textContent = 'โหลดรายการเครื่องจักรไม่สำเร็จ กรุณาลองใหม่';
+                picker.appendChild(err);
+                picker.disabled = false;
+            });
+    }
+
+    function addSelectedMeterEquipment() {
+        const picker = document.getElementById('meter-equipment-picker');
+        const equipmentId = picker.value;
+        if (!equipmentId) return;
+
+        setEquipmentSelected(equipmentId, true);
+
+        // เอาตัวที่เพิ่งเพิ่มออกจาก dropdown ทันที กันเพิ่มซ้ำ
+        const addedOpt = Array.from(picker.options).find(o => o.value === equipmentId);
+        if (addedOpt) addedOpt.remove();
+        picker.value = '';
+    }
+
+    renderSelectedChips();
+</script>
+{% endblock %}

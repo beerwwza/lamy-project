@@ -34,6 +34,7 @@ LAMY is a web-based industrial operations management system built for a large-sc
 - **Tools Module** — Dedicated hand-tool tracking (`/tools/`) separate from general Inventory, with per-physical-unit status (so identical tools like 5 impact wrenches are tracked individually), borrow/return history with due dates, and an integrated tool-readiness checklist.
 - **Manual Library** (`/manuals/`) — Structured machine operation & maintenance manuals (cover info, safety precautions, part names, pre-use checklist, operating steps, daily/periodic maintenance, troubleshooting, specifications), built via a multi-section form with dynamic add/remove rows.
 - **Task Manager** (`/tasks/`) — Machine readiness / trial-run task tracking: pick equipment from the registry, track a task through Todo → Doing → Done, and record a full vibration measurement set (Amp, DE/NDE, Temp) for both the no-load and loaded run phases, compared side by side. Each phase reading is also written into `CBMVibration` so it shows in the equipment's normal CBM history.
+- **Energy Tracking — Electricity** (`/electricity/`, Phase 1 of a broader Energy module; steam usage is a planned Phase 2) — Daily cumulative electricity-meter readings per plant (ESC-A / ESC-B), with each meter optionally linked to multiple pieces of equipment to auto-calculate a daily kWh(Max) target from their `power_kw`. Dashboards at plant level and per-meter/process level show actual vs. target kWh, a daily trend chart, a 6-month summary table, and month-over-month/year-over-year % comparisons.
 
 The system is primarily operated by plant engineers and maintenance teams, with data used for production optimization and equipment health trend analysis.
 
@@ -395,12 +396,20 @@ Standalone module at `/tasks/`, linked to `Equipment` via FK. Lets an operator p
 - `MachineTask` — equipment, title, assignee, status (`todo`/`doing`/`done`), note. Created via a modal on the list page (`machine_task_list.html`), which shows each equipment's `power_kw`/`rpm_input`/`rpm` as reference info on selection (plain `<option data-*>` attributes + vanilla JS, no extra endpoint).
 - `MachineTaskVibration` — child of `MachineTask`, one row per `phase` (`no_load`/`loaded`, enforced unique together), duplicating all 14 `CBMVibration` measurement fields (Amp, DE/NDE gE/V/H/A/M, Temp DE/FRAME/NDE). Submitting a phase's form on the task detail page (`machine_task_detail.html`) also creates a real `CBMVibration` row for that equipment (tagged `[Task Manager] <phase> - <title>` in `measurement_point`, no schema change to `CBMVibration`) and auto-advances the task status (`todo`→`doing` on the no-load reading, →`done` on the loaded reading). The detail page renders both phases as a 14-row comparison table (no-load vs loaded side by side) rather than as extra columns on the main list.
 
+### Energy Tracking — Electricity (Phase 1)
+
+Standalone module at `/electricity/`, first slice of a broader Energy module (steam usage is a planned Phase 2, sharing the same `write_energy` permission and the `PLANT_CHOICES` constant).
+
+- `ElectricityMeter` — master data per physical meter: `meter_code`, `name`, `plant` (`ESC-A`/`ESC-B`, via module-level `PLANT_CHOICES`), `location` (free text), `equipment` (M2M to `Equipment`, used to auto-calculate a target), `assumed_operating_hours` (default 24/day), `target_kwh_override` (manual override). Property `target_kwh_auto` = `sum(power_kw of linked equipment) × assumed_operating_hours`; property `target_kwh_effective` returns the override if set, else the auto value — every view reads this one property rather than re-implementing the precedence check.
+- `ElectricityReading` — one row per meter per day (`UniqueConstraint(meter, date)`), storing the **cumulative** meter reading (`reading_kwh`) as physically read off the dial. Property `usage_kwh` computes that day's consumption as the delta from the previous day's reading; returns `None` for the first-ever reading of a meter or when `is_meter_reset` is ticked (meter physically swapped/reset that day, so no delta is computed against the old meter's value). A negative delta without the reset flag ticked is kept (not hidden) and flagged via `is_anomalous` so a likely data-entry error surfaces in the UI instead of silently corrupting a chart. The module-level `electricity_usage_series(meters_qs, start, end)` function computes usage for many meters/days in one query pass (avoids N+1 queries in the dashboards).
+- Two dashboards: `electricity_plant_dashboard` (select `ESC-A`/`ESC-B`, aggregates target vs. actual kWh across all meters in that plant) and `electricity_meter_dashboard/<id>/` (same, scoped to one meter/process). Both share a `_electricity_period_comparison()` helper for the 6-month summary table and month-over-month/year-over-year % comparison, and follow the `boiler` view's existing `days`/`start`/`end` GET-param convention for the trend chart's date range. Alert/comparison booleans (e.g. `over_target`) are pre-computed in the view (Django templates can't do `>` comparisons), not in the template.
+
 ### Access Control (Module-level Write Permissions)
 
 Staff-level write access is scoped per module using Django's built-in Groups/Permissions, replacing the earlier all-or-nothing `is_staff` check:
 
-- 10 synthetic permissions (`write_boiler`, `write_equipment`, `write_cbm`, `write_maintenance`, `write_mill`, `write_docs`, `write_inventory`, `write_tools`, `write_training`, `write_general`) are declared on `Profile.Meta.permissions` and auto-created in `auth_permission` on `migrate`.
-- A matching Group per module (e.g. "Boiler Staff", "CBM Staff") is seeded by a data migration (`0095_seed_module_groups.py`), which also grandfathers all pre-existing `is_staff` users into every Group so no one loses access on deploy. New staff accounts start in zero Groups and must be assigned via Django Admin → Groups.
+- 11 synthetic permissions (`write_boiler`, `write_equipment`, `write_cbm`, `write_maintenance`, `write_mill`, `write_docs`, `write_inventory`, `write_tools`, `write_training`, `write_general`, `write_energy`) are declared on `Profile.Meta.permissions` and auto-created in `auth_permission` on `migrate`.
+- A matching Group per module (e.g. "Boiler Staff", "CBM Staff", "Energy Staff") is seeded by data migrations (`0095_seed_module_groups.py`, plus `0097_seed_energy_group.py` for the Energy module added later), which also grandfather all pre-existing `is_staff` users into every Group so no one loses access on deploy. New staff accounts start in zero Groups and must be assigned via Django Admin → Groups.
 - The `module_required('<key>')` decorator (`myapp/views.py`, replaces the old `staff_required`) gates each module's add/edit views: requires `is_staff` **and** the matching `write_<key>` permission, or `is_superuser` (which bypasses all module checks). The separate `superuser_required` decorator for destructive/admin-only actions is unchanged.
 - Templates hide nav links and dashboard shortcut cards for modules a user can't write to via `{% if perms.myapp.write_<key> %}` (`base.html`, `dashboard.html`, and the CBM tab in `equipment_data.html`) — this affects visibility of the entry point, not read access to the underlying views, most of which remain open to any logged-in user.
 
@@ -483,11 +492,15 @@ Task Manager (งานเตรียมความพร้อม/ทดล�
 └── MachineTask            (title, assignee, status: todo/doing/done, note)
     └── MachineTaskVibration   (phase: no_load/loaded; 14 measurement fields mirroring CBMVibration; unique per task+phase)
 
+Energy Tracking — Electricity (Phase 1) (ระบบติดตามการใช้พลังงาน — /electricity/, plant: ESC-A/ESC-B ผ่าน PLANT_CHOICES)
+└── ElectricityMeter       (meter_code, name, plant, location, equipment: M2M→Equipment, assumed_operating_hours, target_kwh_override)
+    └── ElectricityReading (meter FK, date, reading_kwh: เลขมิเตอร์สะสม, is_meter_reset, note; unique per meter+date)
+
 ```
 
 Google Drive uploads (`RepairDocument` only) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
-Database migrations: **82 migration files** in `myapp/migrations/`.
+Database migrations: **98 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -630,6 +643,20 @@ Database migrations: **82 migration files** in `myapp/migrations/`.
 | POST | `/tasks/delete/<task_id>/` | Delete a task (cascades to its vibration readings) |
 | GET | `/tasks/<task_id>/` | Task detail: equipment reference info, comparison table, phase entry forms |
 | POST | `/tasks/<task_id>/vibration/<phase>/` | Save a `no_load`/`loaded` vibration reading; also writes a `CBMVibration` row and advances task status |
+
+### Energy Tracking — Electricity
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/electricity/` | Plant-level dashboard (`?plant=ESC-A\|ESC-B`, `?days=`/`?start=`&`?end=`) |
+| GET | `/electricity/meter/<meter_id>/` | Single meter/process dashboard |
+| GET | `/electricity/meters/` | Meter list (`?plant=`) |
+| GET/POST | `/electricity/meters/add/` | Add a meter |
+| GET/POST | `/electricity/meters/<meter_id>/edit/` | Edit a meter |
+| POST | `/electricity/meters/<meter_id>/toggle-active/` | Activate/deactivate a meter |
+| GET/POST | `/electricity/reading/add/` | Add a daily reading (meter chosen in the form) |
+| GET/POST | `/electricity/reading/add/<meter_id>/` | Add a daily reading for a specific meter |
+| GET | `/electricity/readings/` | Reading history (`?meter=`) |
 
 ### Admin
 

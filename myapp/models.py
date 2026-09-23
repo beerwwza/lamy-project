@@ -65,6 +65,7 @@ class Profile(models.Model):
             ('write_tools', 'เขียนข้อมูล: เครื่องมือ (Tools)'),
             ('write_training', 'เขียนข้อมูล: ศูนย์การเรียนรู้ (Training)'),
             ('write_general', 'เขียนข้อมูล: งานทั่วไป (คู่มือ/งานมอบหมาย/จองรถ/โรงกลึง)'),
+            ('write_energy', 'เขียนข้อมูล: พลังงาน (ไฟฟ้า/ไอน้ำ)'),
         ]
 
 # ==========================================
@@ -2017,4 +2018,132 @@ class VehicleBooking(models.Model):
 
     def __str__(self):
         return f"{self.vehicle_type} - {self.date_needed} {self.start_time}-{self.end_time} ({self.requester_name})"
+
+
+# ==========================================
+# 9. NEW: Energy Tracking Module — Electricity (Phase 1)
+# ==========================================
+
+# module-level ไม่ผูกกับ class เพื่อให้โมดูลไอน้ำ (เฟสถัดไป) import ใช้ร่วมกันได้
+PLANT_CHOICES = [
+    ('ESC-A', 'ESC-A'),
+    ('ESC-B', 'ESC-B'),
+]
+
+
+class ElectricityMeter(models.Model):
+    meter_code = models.CharField(max_length=50, unique=True, verbose_name="รหัสมิเตอร์")
+    name = models.CharField(max_length=255, verbose_name="ชื่อมิเตอร์")
+    plant = models.CharField(max_length=10, choices=PLANT_CHOICES, verbose_name="Plant")
+    location = models.CharField(max_length=255, blank=True, null=True, verbose_name="สถานที่ตั้ง")
+    equipment = models.ManyToManyField(
+        'Equipment', blank=True, related_name='electricity_meters',
+        verbose_name="เครื่องจักรที่ผูกกับมิเตอร์นี้"
+    )
+    assumed_operating_hours = models.DecimalField(
+        max_digits=5, decimal_places=2, default=24.00, blank=True, null=True,
+        verbose_name="ชั่วโมงทำงานที่ใช้คำนวณ (ชม./วัน)"
+    )
+    target_kwh_override = models.DecimalField(
+        max_digits=10, decimal_places=2, blank=True, null=True,
+        verbose_name="กำหนด kWh(Max) เอง (ถ้าไม่กำหนด ระบบคำนวณอัตโนมัติ)"
+    )
+    is_active = models.BooleanField(default=True, verbose_name="สถานะใช้งาน")
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='electricity_meters_created', verbose_name="ผู้สร้าง")
+    updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='electricity_meters_updated', verbose_name="ผู้แก้ไขล่าสุด")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "มิเตอร์ไฟฟ้า"
+        verbose_name_plural = "มิเตอร์ไฟฟ้าทั้งหมด"
+        ordering = ['plant', 'name']
+
+    def __str__(self):
+        return f"{self.meter_code} - {self.name}"
+
+    @property
+    def target_kwh_auto(self):
+        total_kw = self.equipment.filter(power_kw__isnull=False).aggregate(
+            total=models.Sum('power_kw')
+        )['total'] or 0
+        hours = self.assumed_operating_hours or 0
+        return total_kw * hours
+
+    @property
+    def target_kwh_effective(self):
+        if self.target_kwh_override is not None:
+            return self.target_kwh_override
+        return self.target_kwh_auto
+
+
+class ElectricityReading(models.Model):
+    meter = models.ForeignKey(ElectricityMeter, on_delete=models.PROTECT, related_name='readings',
+                               verbose_name="มิเตอร์")
+    date = models.DateField(verbose_name="วันที่")
+    reading_kwh = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="เลขมิเตอร์สะสม (kWh)")
+    is_meter_reset = models.BooleanField(default=False, verbose_name="เปลี่ยน/รีเซ็ตมิเตอร์วันนี้")
+    note = models.CharField(max_length=255, blank=True, null=True, verbose_name="หมายเหตุ")
+    recorded_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='electricity_readings', verbose_name="ผู้บันทึก")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "ค่ามิเตอร์ไฟฟ้ารายวัน"
+        verbose_name_plural = "ค่ามิเตอร์ไฟฟ้ารายวันทั้งหมด"
+        ordering = ['-date']
+        constraints = [
+            models.UniqueConstraint(fields=['meter', 'date'], name='uniq_electricity_reading_meter_date')
+        ]
+
+    def __str__(self):
+        return f"{self.meter.meter_code} - {self.date}"
+
+    @property
+    def previous_reading(self):
+        return ElectricityReading.objects.filter(
+            meter_id=self.meter_id, date__lt=self.date
+        ).order_by('-date').first()
+
+    @property
+    def usage_kwh(self):
+        if self.is_meter_reset:
+            return None
+        prev = self.previous_reading
+        if prev is None:
+            return None
+        return self.reading_kwh - prev.reading_kwh
+
+    @property
+    def is_anomalous(self):
+        usage = self.usage_kwh
+        return usage is not None and usage < 0
+
+
+def electricity_usage_series(meters_qs, start_date, end_date):
+    """คืนค่า {date: total_usage_kwh} รวมทุกมิเตอร์ใน meters_qs ช่วง start_date..end_date
+    (วันที่ไม่มี key = ไม่มีข้อมูลใช้งานของมิเตอร์ใดเลยในวันนั้น — ให้ template แสดงเป็นช่องว่าง ไม่ใช่ 0)
+    ใช้ query เดียวต่อกลุ่มมิเตอร์แทนการเรียก .usage_kwh ทีละแถว เพื่อกัน N+1 query ในหน้า dashboard"""
+    meter_ids = list(meters_qs.values_list('id', flat=True))
+    daily_totals = {}
+    if not meter_ids:
+        return daily_totals
+
+    readings = ElectricityReading.objects.filter(
+        meter_id__in=meter_ids, date__lte=end_date
+    ).order_by('meter_id', 'date')
+
+    prev_by_meter = {}
+    for r in readings:
+        prev = prev_by_meter.get(r.meter_id)
+        usage = None
+        if not r.is_meter_reset and prev is not None:
+            usage = r.reading_kwh - prev.reading_kwh
+        prev_by_meter[r.meter_id] = r
+        if start_date <= r.date <= end_date and usage is not None:
+            daily_totals[r.date] = daily_totals.get(r.date, 0) + usage
+    return daily_totals
 

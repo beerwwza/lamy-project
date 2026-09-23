@@ -1,0 +1,190 @@
+{% extends 'myapp/base.html' %}
+{% block title %}สรุปการใช้ไฟฟ้า | Energy{% endblock title %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+    <header class="h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-lg text-amber-600 dark:text-amber-400">
+                <i data-lucide="zap" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">สรุปการใช้ไฟฟ้า — {{ selected_plant }}</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400">kWh(Max) เทียบกับใช้จริง รวมทุกมิเตอร์ใน plant นี้</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{% url 'electricity_meter_list' %}" class="text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">จัดการมิเตอร์</a>
+            {% if perms.myapp.write_energy %}
+            <a href="{% url 'electricity_reading_add' %}"
+                class="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
+                <i data-lucide="plus" class="w-4 h-4"></i>ป้อนค่าวันนี้
+            </a>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+        <!-- Plant selector -->
+        <div class="flex items-center gap-2">
+            {% for key, label in plant_choices %}
+            <a href="?plant={{ key }}&days={{ selected_days }}"
+               class="text-sm px-4 py-2 rounded-lg font-medium {% if selected_plant == key %}bg-amber-600 text-white{% else %}bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+
+        <!-- Day range selector -->
+        <div class="inline-flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+            <a href="?plant={{ selected_plant }}&days=7"
+               class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if not is_custom and selected_days == '7' %}bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm{% else %}text-slate-500 hover:text-slate-700 dark:hover:text-slate-300{% endif %}">7 วัน</a>
+            <a href="?plant={{ selected_plant }}&days=30"
+               class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if not is_custom and selected_days == '30' %}bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm{% else %}text-slate-500 hover:text-slate-700 dark:hover:text-slate-300{% endif %}">30 วัน</a>
+            <a href="?plant={{ selected_plant }}&days=90"
+               class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors {% if not is_custom and selected_days == '90' %}bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm{% else %}text-slate-500 hover:text-slate-700 dark:hover:text-slate-300{% endif %}">90 วัน</a>
+        </div>
+
+        <!-- Scorecard -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+                <p class="text-xs text-slate-400 mb-1">kWh(Max) รวมช่วงที่เลือก</p>
+                <p class="text-2xl font-bold text-slate-800 dark:text-slate-100">{{ period_target_total|floatformat:0 }}</p>
+                <p class="text-xs text-slate-400">({{ target_daily_total|floatformat:2 }} kWh/วัน × จำนวนวัน)</p>
+            </div>
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+                <p class="text-xs text-slate-400 mb-1">kWh ใช้จริงรวมช่วงที่เลือก</p>
+                <p class="text-2xl font-bold {% if over_target %}text-red-600{% else %}text-slate-800 dark:text-slate-100{% endif %}">{{ period_actual_total|floatformat:0 }}</p>
+            </div>
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+                <p class="text-xs text-slate-400 mb-1">สถานะ</p>
+                {% if over_target %}
+                <p class="text-lg font-bold text-red-600 flex items-center gap-1"><i data-lucide="alert-triangle" class="w-5 h-5"></i>เกินเป้า</p>
+                {% else %}
+                <p class="text-lg font-bold text-emerald-600 flex items-center gap-1"><i data-lucide="check-circle" class="w-5 h-5"></i>อยู่ในเป้า</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- MoM / YoY -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-400 mb-1">เทียบเดือนก่อน (MoM)</p>
+                    {% if mom.delta_pct != None %}
+                    <p class="text-xl font-bold {% if mom.direction == 'up' %}text-red-600{% elif mom.direction == 'down' %}text-emerald-600{% else %}text-slate-600{% endif %}">{{ mom.delta_pct }}%</p>
+                    {% else %}
+                    <p class="text-sm text-slate-400">ยังไม่มีข้อมูลเปรียบเทียบ</p>
+                    {% endif %}
+                </div>
+                {% if mom.direction == 'up' %}<i data-lucide="trending-up" class="w-6 h-6 text-red-500"></i>
+                {% elif mom.direction == 'down' %}<i data-lucide="trending-down" class="w-6 h-6 text-emerald-500"></i>
+                {% else %}<i data-lucide="minus" class="w-6 h-6 text-slate-400"></i>{% endif %}
+            </div>
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-400 mb-1">เทียบเดือนเดียวกันปีก่อน (YoY)</p>
+                    {% if yoy.delta_pct != None %}
+                    <p class="text-xl font-bold {% if yoy.direction == 'up' %}text-red-600{% elif yoy.direction == 'down' %}text-emerald-600{% else %}text-slate-600{% endif %}">{{ yoy.delta_pct }}%</p>
+                    {% else %}
+                    <p class="text-sm text-slate-400">ยังไม่มีข้อมูลเปรียบเทียบ</p>
+                    {% endif %}
+                </div>
+                {% if yoy.direction == 'up' %}<i data-lucide="trending-up" class="w-6 h-6 text-red-500"></i>
+                {% elif yoy.direction == 'down' %}<i data-lucide="trending-down" class="w-6 h-6 text-emerald-500"></i>
+                {% else %}<i data-lucide="minus" class="w-6 h-6 text-slate-400"></i>{% endif %}
+            </div>
+        </div>
+
+        <!-- Trend chart -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">แนวโน้มการใช้ไฟฟ้ารายวัน (kWh)</p>
+            <canvas id="electricityTrendChart" height="90"></canvas>
+        </div>
+
+        <!-- Meter list for this plant -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-200 px-5 pt-4 pb-2">มิเตอร์ใน {{ selected_plant }}</p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                            <th class="px-5 py-2.5 font-medium">มิเตอร์</th>
+                            <th class="px-5 py-2.5 font-medium">สถานที่ตั้ง</th>
+                            <th class="px-5 py-2.5 font-medium text-right">kWh(Max)/วัน</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in meters %}
+                        <tr class="border-b border-slate-50 dark:border-slate-800">
+                            <td class="px-5 py-3"><a href="{% url 'electricity_meter_dashboard' m.pk %}" class="text-amber-600 hover:underline font-medium">{{ m.meter_code }} - {{ m.name }}</a></td>
+                            <td class="px-5 py-3 text-slate-500">{{ m.location|default:"-" }}</td>
+                            <td class="px-5 py-3 text-right text-slate-700 dark:text-slate-200">{{ m.target_kwh_effective|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center py-8 text-slate-400 text-sm">ยังไม่มีมิเตอร์ที่ใช้งานอยู่ใน plant นี้</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Monthly summary -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-200 px-5 pt-4 pb-2">สรุปรายเดือน (6 เดือนล่าสุด)</p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                            <th class="px-5 py-2.5 font-medium">เดือน</th>
+                            <th class="px-5 py-2.5 font-medium text-right">kWh ใช้จริง</th>
+                            <th class="px-5 py-2.5 font-medium text-right">kWh(Max)</th>
+                            <th class="px-5 py-2.5 font-medium text-right">% ของ Max</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in monthly_summary %}
+                        <tr class="border-b border-slate-50 dark:border-slate-800">
+                            <td class="px-5 py-3 text-slate-700 dark:text-slate-200">{{ row.label }}</td>
+                            <td class="px-5 py-3 text-right {% if row.over_target %}text-red-600 font-medium{% else %}text-slate-700 dark:text-slate-200{% endif %}">{{ row.actual_kwh|floatformat:0 }}</td>
+                            <td class="px-5 py-3 text-right text-slate-500">{{ row.target_kwh|floatformat:0 }}</td>
+                            <td class="px-5 py-3 text-right text-slate-500">{% if row.pct_of_target != None %}{{ row.pct_of_target }}%{% else %}-{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    if (window.lucide) { lucide.createIcons(); }
+    const ctx = document.getElementById('electricityTrendChart');
+    new Chart(ctx, {
+        data: {
+            labels: {{ chart_dates|safe }},
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'ใช้จริง (kWh)',
+                    data: {{ chart_actual|safe }},
+                    backgroundColor: 'rgba(217, 119, 6, 0.6)',
+                },
+                {
+                    type: 'line',
+                    label: 'kWh(Max)',
+                    data: {{ chart_target|safe }},
+                    borderColor: 'rgba(220, 38, 38, 0.8)',
+                    borderDash: [6, 4],
+                    pointRadius: 0,
+                    fill: false,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { beginAtZero: true } },
+        }
+    });
+</script>
+{% endblock %}

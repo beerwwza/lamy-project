@@ -14,6 +14,7 @@ from .models import (
 )
 from .models import MachineTask, MachineTaskVibration
 from .models import Vehicle, VehicleBooking
+from .models import ElectricityMeter, ElectricityReading
 from .models import ProcessCategory
 
 class EmployeeForm(forms.ModelForm):
@@ -1090,5 +1091,56 @@ class VehicleBookingForm(forms.ModelForm):
                 overlapping = overlapping.exclude(pk=self.instance.pk)
             if overlapping.count() >= capacity:
                 self.add_error(None, 'รถประเภทนี้เต็มจำนวนในช่วงเวลาที่เลือก กรุณาเลือกเวลาอื่นหรือประเภทรถอื่น')
+        return cleaned_data
+
+
+# ==========================================
+# 9. Energy Tracking Module — Electricity (Phase 1)
+# ==========================================
+
+_TW_ENERGY = ('w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+              'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white')
+
+
+class ElectricityMeterForm(forms.ModelForm):
+    class Meta:
+        model = ElectricityMeter
+        fields = ['meter_code', 'name', 'plant', 'location', 'equipment',
+                  'assumed_operating_hours', 'target_kwh_override', 'is_active']
+        widgets = {
+            'meter_code': forms.TextInput(attrs={'class': _TW_ENERGY, 'placeholder': 'เช่น MTR-ESCA-01'}),
+            'name': forms.TextInput(attrs={'class': _TW_ENERGY, 'placeholder': 'เช่น มิเตอร์ลูกหีบ A'}),
+            'plant': forms.Select(attrs={'class': _TW_ENERGY + ' tw-select'}),
+            'location': forms.TextInput(attrs={'class': _TW_ENERGY, 'placeholder': 'เช่น อาคารสถานีลูกหีบ'}),
+            'equipment': forms.SelectMultiple(attrs={'class': 'hidden'}),
+            'assumed_operating_hours': forms.NumberInput(attrs={'class': _TW_ENERGY, 'step': '0.01'}),
+            'target_kwh_override': forms.NumberInput(attrs={'class': _TW_ENERGY, 'step': '0.01',
+                                                              'placeholder': 'เว้นว่าง = คำนวณอัตโนมัติจากเครื่องจักรที่ผูก'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'rounded border-slate-300 text-indigo-600 focus:ring-indigo-500'}),
+        }
+
+
+class ElectricityReadingForm(forms.ModelForm):
+    class Meta:
+        model = ElectricityReading
+        fields = ['meter', 'date', 'reading_kwh', 'is_meter_reset', 'note']
+        widgets = {
+            'meter': forms.Select(attrs={'class': _TW_ENERGY + ' tw-select'}),
+            'date': forms.DateInput(attrs={'type': 'date', 'class': _TW_ENERGY}),
+            'reading_kwh': forms.NumberInput(attrs={'class': _TW_ENERGY, 'step': '0.01'}),
+            'is_meter_reset': forms.CheckboxInput(attrs={'class': 'rounded border-slate-300 text-indigo-600 focus:ring-indigo-500'}),
+            'note': forms.TextInput(attrs={'class': _TW_ENERGY, 'placeholder': 'เช่น เหตุผลที่เปลี่ยนมิเตอร์ (ถ้ามี)'}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        meter = cleaned_data.get('meter')
+        date = cleaned_data.get('date')
+        if meter and date:
+            dup = ElectricityReading.objects.filter(meter=meter, date=date)
+            if self.instance.pk:
+                dup = dup.exclude(pk=self.instance.pk)
+            if dup.exists():
+                self.add_error('date', 'มีข้อมูลมิเตอร์นี้ของวันนี้แล้ว กรุณาแก้ไขรายการเดิมแทนการเพิ่มใหม่')
         return cleaned_data
 

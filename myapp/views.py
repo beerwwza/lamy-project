@@ -51,6 +51,7 @@ from django.utils import timezone
 import calendar
 from .models import Vehicle, VehicleBooking, VEHICLE_TYPE_CHOICES, VEHICLE_DIVISION_CHOICES
 from .forms import VehicleForm, VehicleBookingForm
+from .forms import ElectricityMeterForm, ElectricityReadingForm
 
 
 def module_required(module_key):
@@ -5888,4 +5889,291 @@ def vehicle_booking_export_excel(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
+
+
+@login_required
+def vehicle_manual(request):
+    return render(request, 'myapp/vehicle/manual.html')
+
+
+# ==========================================
+# 9. Energy Tracking Module — Electricity (Phase 1)
+# ==========================================
+
+def _electricity_date_range(request, default_days=30):
+    """แยก days/start/end จาก GET params ตาม convention เดียวกับ boiler view"""
+    from datetime import date as date_cls
+    days_param = request.GET.get('days', str(default_days))
+    start_str = request.GET.get('start', '')
+    end_str = request.GET.get('end', '')
+    today = date_cls.today()
+
+    is_custom = bool(start_str and end_str)
+    if is_custom:
+        try:
+            start_date = date_cls.fromisoformat(start_str)
+            end_date = date_cls.fromisoformat(end_str)
+        except ValueError:
+            start_date = today - timedelta(days=default_days - 1)
+            end_date = today
+            is_custom = False
+    else:
+        try:
+            days = int(days_param)
+        except ValueError:
+            days = default_days
+        end_date = today
+        start_date = today - timedelta(days=days - 1)
+    return start_date, end_date, days_param, is_custom
+
+
+def _electricity_pct_change(curr, prev):
+    if curr is None or prev is None or prev == 0:
+        return {'delta_pct': None, 'direction': 'flat'}
+    delta = curr - prev
+    pct = round(float(delta) / float(prev) * 100, 1)
+    if delta > 0:
+        direction = 'up'
+    elif delta < 0:
+        direction = 'down'
+    else:
+        direction = 'flat'
+    return {'delta_pct': abs(pct), 'direction': direction}
+
+
+def _electricity_period_comparison(meters_qs):
+    """สรุปรายเดือน 6 เดือนล่าสุด + เทียบเดือนก่อน (MoM) + เทียบเดือนเดียวกันปีก่อน (YoY)
+    ใช้ร่วมกันทั้ง plant dashboard และ meter dashboard"""
+    from datetime import date as date_cls
+
+    today = date_cls.today()
+    target_daily_total = sum((m.target_kwh_effective or 0) for m in meters_qs)
+
+    month_keys = []
+    y, m = today.year, today.month
+    for i in range(5, -1, -1):
+        mm = m - i
+        yy = y
+        while mm <= 0:
+            mm += 12
+            yy -= 1
+        month_keys.append((yy, mm))
+
+    monthly_summary = []
+    month_actuals = {}
+    for (yy, mm) in month_keys:
+        days_in_month = calendar.monthrange(yy, mm)[1]
+        start = date_cls(yy, mm, 1)
+        end = date_cls(yy, mm, days_in_month)
+        if end > today:
+            end = today
+        if end < start:
+            actual_total = 0
+            elapsed_days = 0
+        else:
+            usage_map = electricity_usage_series(meters_qs, start, end)
+            actual_total = sum(usage_map.values()) if usage_map else 0
+            elapsed_days = (end - start).days + 1
+        target_total = target_daily_total * elapsed_days
+        month_actuals[(yy, mm)] = actual_total
+        monthly_summary.append({
+            'label': f"{calendar.month_abbr[mm]} {yy}",
+            'actual_kwh': round(float(actual_total), 2),
+            'target_kwh': round(float(target_total), 2),
+            'pct_of_target': round(float(actual_total) / float(target_total) * 100, 1) if target_total else None,
+            'over_target': actual_total > target_total if target_total else False,
+        })
+
+    curr_key = month_keys[-1]
+    prev_key = month_keys[-2]
+    curr_val = month_actuals.get(curr_key)
+    prev_val = month_actuals.get(prev_key)
+    mom = _electricity_pct_change(curr_val, prev_val)
+
+    yy, mm = curr_key
+    last_year = yy - 1
+    days_in_month = calendar.monthrange(last_year, mm)[1]
+    start = date_cls(last_year, mm, 1)
+    end = date_cls(last_year, mm, days_in_month)
+    yoy_usage_map = electricity_usage_series(meters_qs, start, end)
+    yoy_val = sum(yoy_usage_map.values()) if yoy_usage_map else None
+    yoy = _electricity_pct_change(curr_val, yoy_val)
+
+    return {
+        'monthly_summary': monthly_summary,
+        'mom': mom,
+        'yoy': yoy,
+    }
+
+
+@login_required
+def electricity_meter_list(request):
+    plant_filter = request.GET.get('plant', '')
+    meters = ElectricityMeter.objects.all().order_by('plant', 'name')
+    if plant_filter:
+        meters = meters.filter(plant=plant_filter)
+    return render(request, 'myapp/electricity_meter_list.html', {
+        'meters': meters,
+        'plant_choices': PLANT_CHOICES,
+        'selected_plant': plant_filter,
+    })
+
+
+@login_required
+@module_required('energy')
+def electricity_meter_form(request, meter_id=None):
+    meter = get_object_or_404(ElectricityMeter, pk=meter_id) if meter_id else None
+    if request.method == 'POST':
+        form = ElectricityMeterForm(request.POST, instance=meter)
+        if form.is_valid():
+            obj = form.save(commit=False)
+            if meter is None:
+                obj.created_by = request.user
+            obj.updated_by = request.user
+            obj.save()
+            form.save_m2m()
+            messages.success(request, 'บันทึกข้อมูลมิเตอร์เรียบร้อยแล้ว')
+            return redirect('electricity_meter_list')
+    else:
+        form = ElectricityMeterForm(instance=meter)
+    return render(request, 'myapp/electricity_meter_form.html', {
+        'form': form, 'is_edit': meter is not None, 'meter': meter,
+        'process_choices': list(ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)),
+    })
+
+
+@login_required
+@module_required('energy')
+@require_POST
+def electricity_meter_toggle_active(request, meter_id):
+    meter = get_object_or_404(ElectricityMeter, pk=meter_id)
+    meter.is_active = not meter.is_active
+    meter.updated_by = request.user
+    meter.save(update_fields=['is_active', 'updated_by', 'updated_at'])
+    messages.success(request, f'{"เปิด" if meter.is_active else "ปิด"}ใช้งานมิเตอร์ {meter.meter_code} แล้ว')
+    return redirect('electricity_meter_list')
+
+
+@login_required
+@module_required('energy')
+def electricity_reading_add(request, meter_id=None):
+    from datetime import date as date_cls
+    initial = {'date': date_cls.today()}
+    if meter_id:
+        initial['meter'] = meter_id
+    if request.method == 'POST':
+        form = ElectricityReadingForm(request.POST)
+        if form.is_valid():
+            reading = form.save(commit=False)
+            reading.recorded_by = request.user
+            reading.save()
+            messages.success(request, 'บันทึกค่ามิเตอร์เรียบร้อยแล้ว')
+            if meter_id:
+                return redirect('electricity_meter_dashboard', meter_id=meter_id)
+            return redirect('electricity_reading_list')
+    else:
+        form = ElectricityReadingForm(initial=initial)
+    return render(request, 'myapp/electricity_reading_form.html', {'form': form})
+
+
+@login_required
+def electricity_reading_list(request):
+    meter_filter = request.GET.get('meter', '')
+    readings = ElectricityReading.objects.select_related('meter').order_by('-date')
+    if meter_filter:
+        readings = readings.filter(meter_id=meter_filter)
+    readings = readings[:200]
+    return render(request, 'myapp/electricity_reading_list.html', {
+        'readings': readings,
+        'meters': ElectricityMeter.objects.all().order_by('plant', 'name'),
+        'selected_meter': meter_filter,
+    })
+
+
+@login_required
+def electricity_plant_dashboard(request):
+    default_plant = request.GET.get('plant') or PLANT_CHOICES[0][0]
+    valid_plants = [p[0] for p in PLANT_CHOICES]
+    selected_plant = default_plant if default_plant in valid_plants else PLANT_CHOICES[0][0]
+
+    start_date, end_date, days_param, is_custom = _electricity_date_range(request)
+
+    meters = ElectricityMeter.objects.filter(plant=selected_plant, is_active=True)
+    usage_map = electricity_usage_series(meters, start_date, end_date)
+
+    date_list = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+    chart_dates = [d.strftime('%d/%m') for d in date_list]
+    chart_actual = [float(usage_map[d]) if d in usage_map else None for d in date_list]
+
+    target_daily_total = sum((m.target_kwh_effective or 0) for m in meters)
+    chart_target = [float(target_daily_total)] * len(date_list)
+
+    period_actual_total = sum(usage_map.values()) if usage_map else 0
+    period_target_total = target_daily_total * len(date_list)
+    over_target = period_actual_total > period_target_total if period_target_total else False
+
+    comparison = _electricity_period_comparison(meters)
+
+    context = {
+        'plant_choices': PLANT_CHOICES,
+        'selected_plant': selected_plant,
+        'meters': meters,
+        'selected_days': days_param,
+        'start_date': start_date.strftime('%Y-%m-%d'),
+        'end_date': end_date.strftime('%Y-%m-%d'),
+        'is_custom': is_custom,
+        'period_actual_total': round(float(period_actual_total), 2),
+        'period_target_total': round(float(period_target_total), 2),
+        'over_target': over_target,
+        'target_daily_total': round(float(target_daily_total), 2),
+        'monthly_summary': comparison['monthly_summary'],
+        'mom': comparison['mom'],
+        'yoy': comparison['yoy'],
+        'chart_dates': json.dumps(chart_dates, cls=DjangoJSONEncoder),
+        'chart_actual': json.dumps(chart_actual, cls=DjangoJSONEncoder),
+        'chart_target': json.dumps(chart_target, cls=DjangoJSONEncoder),
+    }
+    return render(request, 'myapp/electricity_plant_dashboard.html', context)
+
+
+@login_required
+def electricity_meter_dashboard(request, meter_id):
+    meter = get_object_or_404(ElectricityMeter, pk=meter_id)
+    start_date, end_date, days_param, is_custom = _electricity_date_range(request)
+
+    meters_qs = ElectricityMeter.objects.filter(pk=meter.pk)
+    usage_map = electricity_usage_series(meters_qs, start_date, end_date)
+
+    date_list = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+    chart_dates = [d.strftime('%d/%m') for d in date_list]
+    chart_actual = [float(usage_map[d]) if d in usage_map else None for d in date_list]
+
+    target_daily = meter.target_kwh_effective or 0
+    chart_target = [float(target_daily)] * len(date_list)
+
+    period_actual_total = sum(usage_map.values()) if usage_map else 0
+    period_target_total = target_daily * len(date_list)
+    over_target = period_actual_total > period_target_total if period_target_total else False
+
+    comparison = _electricity_period_comparison(meters_qs)
+
+    context = {
+        'meter': meter,
+        'other_meters': ElectricityMeter.objects.filter(is_active=True).exclude(pk=meter.pk).order_by('plant', 'name'),
+        'selected_days': days_param,
+        'start_date': start_date.strftime('%Y-%m-%d'),
+        'end_date': end_date.strftime('%Y-%m-%d'),
+        'is_custom': is_custom,
+        'period_actual_total': round(float(period_actual_total), 2),
+        'period_target_total': round(float(period_target_total), 2),
+        'over_target': over_target,
+        'target_daily_total': round(float(target_daily), 2),
+        'monthly_summary': comparison['monthly_summary'],
+        'mom': comparison['mom'],
+        'yoy': comparison['yoy'],
+        'chart_dates': json.dumps(chart_dates, cls=DjangoJSONEncoder),
+        'chart_actual': json.dumps(chart_actual, cls=DjangoJSONEncoder),
+        'chart_target': json.dumps(chart_target, cls=DjangoJSONEncoder),
+    }
+    return render(request, 'myapp/electricity_meter_dashboard.html', context)
 

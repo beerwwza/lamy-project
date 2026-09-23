@@ -43,7 +43,19 @@
     <div class="flex-1 overflow-y-auto p-6 space-y-6">
 
       <!-- Department Nav Cards -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+
+        {% if perms.myapp.write_energy %}
+        <a href="{% url 'electricity_plant_dashboard' %}" class="group bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-amber-400 dark:hover:border-amber-500 transition-all flex items-center gap-3">
+          <div class="p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg group-hover:scale-110 transition-transform">
+            <i data-lucide="zap" class="w-6 h-6"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h3 class="font-bold text-slate-700 dark:text-slate-200">Energy</h3>
+            <span class="text-xs text-slate-500">พลังงาน (ไฟฟ้า)</span>
+          </div>
+        </a>
+        {% endif %}
 
         {% if perms.myapp.write_mill %}
         <a href="/mill/" class="group bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all flex items-center gap-3">
@@ -243,7 +255,7 @@
 
         <div>
           <h4 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Downtime &amp; Capacity</h4>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
 
             {% with boiler.downtime_a_alert as alerted %}
             <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border {% if alerted %}border-orange-400 dark:border-orange-600{% else %}border-slate-200 dark:border-slate-700{% endif %}">
@@ -313,7 +325,7 @@
 
         <div>
           <h4 class="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Steam Header</h4>
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
               <div class="flex items-center gap-2 mb-3">
                 <div class="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
@@ -358,7 +370,7 @@
           {% endif %}
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
 
           {% with maint.mttr_alert as alerted %}
           <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border {% if alerted %}border-orange-400 dark:border-orange-600{% else %}border-slate-200 dark:border-slate-700{% endif %}">
@@ -439,7 +451,7 @@
           {% endif %}
         </div>
 
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-yellow-300 dark:border-yellow-700 shadow-sm text-center">
             <div class="text-4xl font-bold text-yellow-600 dark:text-yellow-400">{{ lathe.pending }}</div>
             <div class="text-sm text-slate-500 dark:text-slate-400 mt-2 flex items-center justify-center gap-1">
