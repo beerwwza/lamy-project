@@ -169,12 +169,28 @@ urlpatterns = [
     path('manuals/<int:manual_id>/delete/', manual_delete, name='manual_delete'),
 
     # ===== Task Manager Module =====
-    path('tasks/',                                     machine_task_list,            name='machine_task_list'),
+    path('tasks/',                                     task_manager_hub,             name='task_manager_hub'),
+    path('tasks/rotating/',                            machine_task_list,            name='machine_task_list'),
     path('tasks/add/',                                 machine_task_add,             name='machine_task_add'),
     path('tasks/edit/<int:task_id>/',                  machine_task_edit,            name='machine_task_edit'),
     path('tasks/delete/<int:task_id>/',                machine_task_delete,          name='machine_task_delete'),
     path('tasks/<int:task_id>/',                       machine_task_detail,          name='machine_task_detail'),
     path('tasks/<int:task_id>/vibration/<str:phase>/', machine_task_vibration_save,  name='machine_task_vibration_save'),
+
+    path('watercip/',                    water_cip_test_list,   name='water_cip_test_list'),
+    path('watercip/add/',                water_cip_test_add,    name='water_cip_test_add'),
+    path('watercip/edit/<int:test_id>/', water_cip_test_edit,   name='water_cip_test_edit'),
+    path('watercip/delete/<int:test_id>/', water_cip_test_delete, name='water_cip_test_delete'),
+
+    path('steamleak/',                    steam_leak_test_list,   name='steam_leak_test_list'),
+    path('steamleak/add/',                steam_leak_test_add,    name='steam_leak_test_add'),
+    path('steamleak/edit/<int:test_id>/', steam_leak_test_edit,   name='steam_leak_test_edit'),
+    path('steamleak/delete/<int:test_id>/', steam_leak_test_delete, name='steam_leak_test_delete'),
+
+    path('flushing/',                    flushing_test_list,   name='flushing_test_list'),
+    path('flushing/add/',                flushing_test_add,    name='flushing_test_add'),
+    path('flushing/edit/<int:test_id>/', flushing_test_edit,   name='flushing_test_edit'),
+    path('flushing/delete/<int:test_id>/', flushing_test_delete, name='flushing_test_delete'),
 
     # ===== Vehicle Service Booking Module (ระบบจองรถบริการ) =====
     path('vehicles/',                            vehicle_status_dashboard,  name='vehicle_status_dashboard'),

@@ -33,7 +33,7 @@ LAMY is a web-based industrial operations management system built for a large-sc
 - **Lathe Job Tracking** — Machining job management with job requirements, quality control records, and status tracking.
 - **Tools Module** — Dedicated hand-tool tracking (`/tools/`) separate from general Inventory, with per-physical-unit status (so identical tools like 5 impact wrenches are tracked individually), borrow/return history with due dates, and an integrated tool-readiness checklist.
 - **Manual Library** (`/manuals/`) — Structured machine operation & maintenance manuals (cover info, safety precautions, part names, pre-use checklist, operating steps, daily/periodic maintenance, troubleshooting, specifications), built via a multi-section form with dynamic add/remove rows.
-- **Task Manager** (`/tasks/`) — Machine readiness / trial-run task tracking: pick equipment from the registry, track a task through Todo → Doing → Done, and record a full vibration measurement set (Amp, DE/NDE, Temp) for both the no-load and loaded run phases, compared side by side. Each phase reading is also written into `CBMVibration` so it shows in the equipment's normal CBM history.
+- **Task Manager** (`/tasks/`) — A hub page linking to 4 equipment-readiness test types, each its own sub-module with its own list/form pages: **Rotating/Electrical/Control** (`/tasks/rotating/`) — pick equipment from the registry, track a task through Todo → Doing → Done, and record a full vibration measurement set (Amp, DE/NDE, Temp) for both the no-load and loaded run phases, compared side by side (each phase reading is also written into `CBMVibration` so it shows in the equipment's normal CBM history); **Water System Test (CIP)** (`/watercip/`) — pick a process, a start equipment and an end equipment along the tested water path, then log an unlimited number of pH readings (time + value); **Steam System Test (Leak Inspection)** (`/steamleak/`) — pick a process and a single piece of equipment, then work through a repeatable checklist (topic → item → standard → normal/abnormal; if abnormal, cause → corrective action → fix-due date); **Flushing Test** (`/flushing/`) — pick a process and a pipe/equipment, log unlimited blow rounds (round number, start/end time, blow pressure in bar, whether a copper plate was inserted, and — only when a plate was used — the count of spots larger than 0.3mm found), with pass/fail per round computed automatically (≤ 3 oversized spots/cm² passes). All 4 share the same task shell (title/assignee/status/note).
 - **Energy Tracking — Electricity** (`/electricity/`, Phase 1 of a broader Energy module; steam usage is a planned Phase 2) — Daily cumulative electricity-meter readings per plant (ESC-A / ESC-B), with each meter optionally linked to multiple pieces of equipment to auto-calculate a daily kWh(Max) target from their `power_kw`. Dashboards at plant level and per-meter/process level show actual vs. target kWh, a daily trend chart, a 6-month summary table, and month-over-month/year-over-year % comparisons.
 
 The system is primarily operated by plant engineers and maintenance teams, with data used for production optimization and equipment health trend analysis.
@@ -391,10 +391,29 @@ Standalone module at `/manuals/`, not linked to `Equipment` (machine name is fre
 
 ### Task Manager
 
-Standalone module at `/tasks/`, linked to `Equipment` via FK. Lets an operator pick a machine from the registry and track a readiness/trial-run task through a staged workflow instead of one big form:
+`/tasks/` is a **hub page** (`task_manager_hub` view, `task_manager_hub.html`) showing 4 shortcut cards
+(one per test type below, each with a live total/pending-count badge computed from that model's `status`
+field) — it does not merge or query across the 4 models beyond those counts. Each test type is otherwise
+a fully independent sub-module with its own model(s), form(s), list page and add/edit page; the hub is
+purely a navigation layer sitting in front of them, added after the 4 types accumulated 4 separate flat
+sidebar links that no longer read as one module. The sidebar now has a single "Task Manager" nav entry
+(`base.html`) that links to the hub, and each sub-module's list page has a back-arrow to return to it.
 
-- `MachineTask` — equipment, title, assignee, status (`todo`/`doing`/`done`), note. Created via a modal on the list page (`machine_task_list.html`), which shows each equipment's `power_kw`/`rpm_input`/`rpm` as reference info on selection (plain `<option data-*>` attributes + vanilla JS, no extra endpoint).
-- `MachineTaskVibration` — child of `MachineTask`, one row per `phase` (`no_load`/`loaded`, enforced unique together), duplicating all 14 `CBMVibration` measurement fields (Amp, DE/NDE gE/V/H/A/M, Temp DE/FRAME/NDE). Submitting a phase's form on the task detail page (`machine_task_detail.html`) also creates a real `CBMVibration` row for that equipment (tagged `[Task Manager] <phase> - <title>` in `measurement_point`, no schema change to `CBMVibration`) and auto-advances the task status (`todo`→`doing` on the no-load reading, →`done` on the loaded reading). The detail page renders both phases as a 14-row comparison table (no-load vs loaded side by side) rather than as extra columns on the main list.
+- **Rotating / Electrical / Control** at `/tasks/rotating/` (originally `/tasks/`, moved when the hub took
+  over that path — the URL *name* `machine_task_list` is unchanged, so every `{% url %}` reference
+  elsewhere in the codebase kept working without edits) — linked to `Equipment` via FK, lets an operator
+  pick a machine from the registry and track a readiness/trial-run task through a staged workflow instead
+  of one big form:
+  - `MachineTask` — equipment, title, assignee, status (`todo`/`doing`/`done`), note. Created via a modal on the list page (`machine_task_list.html`), which shows each equipment's `power_kw`/`rpm_input`/`rpm` as reference info on selection (plain `<option data-*>` attributes + vanilla JS, no extra endpoint).
+  - `MachineTaskVibration` — child of `MachineTask`, one row per `phase` (`no_load`/`loaded`, enforced unique together), duplicating all 14 `CBMVibration` measurement fields (Amp, DE/NDE gE/V/H/A/M, Temp DE/FRAME/NDE). Submitting a phase's form on the task detail page (`machine_task_detail.html`) also creates a real `CBMVibration` row for that equipment (tagged `[Task Manager] <phase> - <title>` in `measurement_point`, no schema change to `CBMVibration`) and auto-advances the task status (`todo`→`doing` on the no-load reading, →`done` on the loaded reading). The detail page renders both phases as a 14-row comparison table (no-load vs loaded side by side) rather than as extra columns on the main list.
+
+Three further test types were added as separate sub-modules with the same task shell (title/assignee/status/note), each with its own list + combined add/edit page (no separate detail page — editing happens on the same page as the child-row formset, following the Manual Library's inline-formset scaffold rather than the rotating test's own modal+detail-page split):
+
+- **Water System Test (CIP)** at `/watercip/` — `WaterCIPTest` (start/end equipment FK, test date, start/end time) + `WaterCIPPhReading` (child, unlimited add/remove rows: reading time, pH value, optional point label).
+- **Steam System Test (Leak Inspection)** at `/steamleak/` — `SteamLeakTest` (single equipment FK, inspection date) + `SteamLeakCheckItem` (child, unlimited add/remove rows: check topic, check item, standard, result normal/abnormal, and — shown only when abnormal — cause, corrective action, fix-due date).
+- **Flushing Test** at `/flushing/` — `FlushingTest` (single equipment/pipe FK, test date, measured pipe surface temperature) + `FlushingRound` (child, unlimited add/remove rows: round number, start/end time, blow pressure in bar, whether a copper plate was inserted, and — only relevant when a plate was used — the count of spots larger than 0.3mm found). `FlushingRound.passed` is a model `@property` (not a view/template calculation) that returns `None` when there's no plate or no count yet, else `True`/`False` against the fixed `OVERSIZED_SPOT_LIMIT = 3`/cm² threshold — the same "pre-compute the flag, never compare numbers in the template" convention used by `ElectricityReading.usage_kwh`.
+
+All 4 reuse the existing `api_equipment_by_process` cascade endpoint and the `_process_equipment_options()`/`_scoped_equipment_for()` helpers (factored out of `machine_task_list` for reuse) for the process→equipment dropdown, and none stores a `process` field on its own model (process is only a UI filter, matching `MachineTask`'s existing convention).
 
 ### Energy Tracking — Electricity (Phase 1)
 
@@ -492,6 +511,19 @@ Task Manager (งานเตรียมความพร้อม/ทดล�
 └── MachineTask            (title, assignee, status: todo/doing/done, note)
     └── MachineTaskVibration   (phase: no_load/loaded; 14 measurement fields mirroring CBMVibration; unique per task+phase)
 
+Task Manager — ทดสอบระบบน้ำ (CIP) (/watercip/, ผูก Equipment 2 จุด)
+└── WaterCIPTest           (start_equipment FK, end_equipment FK, title, assignee, status, note, test_date, start_time, end_time)
+    └── WaterCIPPhReading  (child, แถวเพิ่ม/ลบได้ไม่จำกัด: reading_time, ph_value, point_label)
+
+Task Manager — ทดสอบระบบไอน้ำ ตรวจรอยรั่ว (/steamleak/, ผูก Equipment 1 ตัวต่อใบบันทึก)
+└── SteamLeakTest          (equipment FK, title, assignee, status, note, inspection_date)
+    └── SteamLeakCheckItem (child, แถวเพิ่ม/ลบได้ไม่จำกัด: check_topic, check_item, standard, result: normal/abnormal, cause, corrective_action, fix_due_date)
+
+Task Manager — ทดสอบเป่าแป๊ป Flushing (/flushing/, ผูก Equipment/ท่อ 1 ตัวต่อใบบันทึก)
+└── FlushingTest           (equipment FK, title, assignee, status, note, test_date, pipe_surface_temp_c)
+    └── FlushingRound      (child, แถวเพิ่ม/ลบได้ไม่จำกัด: round_no, has_copper_plate, start_time, end_time,
+                             blow_pressure_bar, oversized_spot_count; property `passed` เทียบกับ OVERSIZED_SPOT_LIMIT=3)
+
 Energy Tracking — Electricity (Phase 1) (ระบบติดตามการใช้พลังงาน — /electricity/, plant: ESC-A/ESC-B ผ่าน PLANT_CHOICES)
 └── ElectricityMeter       (meter_code, name, plant, location, equipment: M2M→Equipment, assumed_operating_hours, target_kwh_override)
     └── ElectricityReading (meter FK, date, reading_kwh: เลขมิเตอร์สะสม, is_meter_reset, note; unique per meter+date)
@@ -500,7 +532,7 @@ Energy Tracking — Electricity (Phase 1) (ระบบติดตามกา�
 
 Google Drive uploads (`RepairDocument` only) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
-Database migrations: **98 migration files** in `myapp/migrations/`.
+Database migrations: **100 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -637,12 +669,40 @@ Database migrations: **98 migration files** in `myapp/migrations/`.
 
 | Method | URL | Description |
 |---|---|---|
-| GET | `/tasks/` | Task list (filter by `?equipment=` / `?status=`), add-task modal |
+| GET | `/tasks/` | Hub page: 4 cards linking to the sub-modules below, each with a total/pending count |
+| GET | `/tasks/rotating/` | Rotating/electrical/control task list (filter by `?equipment=` / `?status=`), add-task modal — this is the path that used to be bare `/tasks/` before the hub was added; the URL *name* `machine_task_list` didn't change |
 | POST | `/tasks/add/` | Create a new task (status starts at `todo`) |
 | POST | `/tasks/edit/<task_id>/` | Edit task title/assignee/status/note/equipment |
 | POST | `/tasks/delete/<task_id>/` | Delete a task (cascades to its vibration readings) |
 | GET | `/tasks/<task_id>/` | Task detail: equipment reference info, comparison table, phase entry forms |
 | POST | `/tasks/<task_id>/vibration/<phase>/` | Save a `no_load`/`loaded` vibration reading; also writes a `CBMVibration` row and advances task status |
+
+### Task Manager — Water System Test (CIP)
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/watercip/` | Test list (filter by `?title=` / `?status=`) |
+| GET/POST | `/watercip/add/` | Create a test: task shell + start/end equipment + pH readings formset |
+| GET/POST | `/watercip/edit/<test_id>/` | Edit an existing test and its pH readings |
+| POST | `/watercip/delete/<test_id>/` | Delete a test (cascades to its pH readings) |
+
+### Task Manager — Steam System Test (Leak Inspection)
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/steamleak/` | Test list (filter by `?title=` / `?status=`) |
+| GET/POST | `/steamleak/add/` | Create a test: task shell + equipment + checklist formset |
+| GET/POST | `/steamleak/edit/<test_id>/` | Edit an existing test and its checklist items |
+| POST | `/steamleak/delete/<test_id>/` | Delete a test (cascades to its checklist items) |
+
+### Task Manager — Flushing Test
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/flushing/` | Test list (filter by `?title=` / `?status=`) |
+| GET/POST | `/flushing/add/` | Create a test: task shell + equipment/pipe + blow-round formset |
+| GET/POST | `/flushing/edit/<test_id>/` | Edit an existing test and its blow rounds |
+| POST | `/flushing/delete/<test_id>/` | Delete a test (cascades to its blow rounds) |
 
 ### Energy Tracking — Electricity
 

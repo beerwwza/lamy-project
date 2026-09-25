@@ -1,0 +1,254 @@
+{% extends 'myapp/base.html' %}
+{% block title %}{% if is_edit %}แก้ไขงานตรวจรอยรั่วไอน้ำ{% else %}เพิ่มงานตรวจรอยรั่วไอน้ำ{% endif %} - Task Manager{% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header
+        class="min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <a href="{% url 'steam_leak_test_list' %}"
+            class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div class="p-2 bg-orange-100 dark:bg-orange-900/50 rounded-lg text-orange-600 dark:text-orange-400">
+            <i data-lucide="flame" class="w-5 h-5"></i>
+        </div>
+        <div>
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">
+                {% if is_edit %}แก้ไขงานตรวจรอยรั่วไอน้ำ{% else %}เพิ่มงานตรวจรอยรั่วไอน้ำ{% endif %}
+            </h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">เลือกกระบวนการและเครื่องจักร แล้วตรวจ checklist รายจุด</p>
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-5">
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+        {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+        {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+        {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+            <i data-lucide="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% else %}info{% endif %}"
+                class="w-4 h-4 flex-shrink-0"></i>
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <form method="POST"
+            action="{% if is_edit %}{% url 'steam_leak_test_edit' test.id %}{% else %}{% url 'steam_leak_test_add' %}{% endif %}">
+            {% csrf_token %}
+
+            <!-- ข้อมูลงาน -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 mb-5">
+                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 pb-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                    <i data-lucide="clipboard-list" class="w-4 h-4 text-orange-500"></i>ข้อมูลงาน
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">ชื่องาน</label>
+                        {{ form.title }}
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">ผู้รับผิดชอบ</label>
+                        {{ form.assignee }}
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">สถานะ</label>
+                        <div class="relative">
+                            {{ form.status }}
+                            <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                        </div>
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">หมายเหตุ/ปัญหา</label>
+                        {{ form.note }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- เลือกกระบวนการและเครื่องจักร -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 mb-5">
+                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 pb-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                    <i data-lucide="server" class="w-4 h-4 text-orange-500"></i>เครื่องจักรที่ตรวจสอบ
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">กระบวนการ</label>
+                        <div class="relative">
+                            <select id="steam-process"
+                                onchange="loadEquipmentOptions('steam-process','steam-equipment','{{ test.equipment_id|default:'' }}')"
+                                class="w-full p-2.5 border border-slate-300 rounded-lg text-sm appearance-none pr-8 focus:ring-2 focus:ring-orange-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                                <option value="">-- เลือกกระบวนการ --</option>
+                                {% for proc in process_choices %}
+                                <option value="{{ proc }}" {% if proc == effective_process %}selected{% endif %}>{{ proc }}</option>
+                                {% endfor %}
+                                <option value="__other__" {% if effective_process == '__other__' %}selected{% endif %}>อื่นๆ/ไม่ระบุ</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">เครื่องจักร</label>
+                        <div class="relative">
+                            <select name="equipment" id="steam-equipment" required
+                                class="w-full p-2.5 border border-slate-300 rounded-lg text-sm appearance-none pr-8 focus:ring-2 focus:ring-orange-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                                {% for eq in scoped_equipment %}
+                                <option value="{{ eq.equipment_id }}" {% if eq.equipment_id == test.equipment_id %}selected{% endif %}>
+                                    {{ eq.equipment_id }} - {{ eq.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 mb-1">วันที่ตรวจสอบ</label>
+                        {{ form.inspection_date }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Checklist -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 mb-5">
+                {% include 'myapp/_manual_formset_header.html' with title='รายการตรวจรอยรั่ว' subtitle='หัวข้อ / รายการตรวจสอบ / มาตรฐาน / ผลตรวจสอบ — ถ้าผิดปกติ ระบุสาเหตุ วิธีแก้ไข และวันกำหนดเสร็จ' prefix='items' container_id='rows-items' %}
+                {{ formset.management_form }}
+                <div id="rows-items" class="space-y-3">
+                    {% for f in formset %}
+                    <div class="items-form formset-row grid grid-cols-1 md:grid-cols-3 gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg">
+                        {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+                        <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">หัวข้อตรวจสอบ</label>{{ f.check_topic }}</div>
+                        <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">รายการตรวจสอบ</label>{{ f.check_item }}</div>
+                        <div><label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">มาตรฐานการตรวจสอบ</label>{{ f.standard }}</div>
+                        <div>
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">ผลตรวจสอบ</label>
+                            <div class="relative">
+                                {{ f.result }}
+                                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                            </div>
+                        </div>
+                        <div class="steam-abnormal-field {% if f.instance.result != 'abnormal' %}hidden{% endif %}">
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">สาเหตุ (หากผิดปกติ)</label>{{ f.cause }}
+                        </div>
+                        <div class="steam-abnormal-field {% if f.instance.result != 'abnormal' %}hidden{% endif %}">
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">วิธีการแก้ไข</label>{{ f.corrective_action }}
+                        </div>
+                        <div class="steam-abnormal-field {% if f.instance.result != 'abnormal' %}hidden{% endif %} md:col-span-1">
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">วันที่กำหนดแก้ไขเสร็จ</label>{{ f.fix_due_date }}
+                        </div>
+                        {% if f.DELETE %}
+                        <label class="md:col-span-3 flex items-center gap-1.5 text-xs text-red-500" onchange="this.closest('.formset-row').classList.toggle('opacity-40', this.querySelector('input').checked)">
+                            {{ f.DELETE }} ลบแถวนี้
+                        </label>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% if user.is_staff or user.is_superuser %}
+            <div class="flex justify-end">
+                <button type="submit"
+                    class="px-5 py-2 text-sm font-semibold bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow-sm flex items-center gap-2">
+                    <i data-lucide="save" class="w-4 h-4"></i>บันทึก
+                </button>
+            </div>
+            {% endif %}
+        </form>
+
+    </div>
+</main>
+
+<script>
+    const EQUIPMENT_BY_PROCESS_URL = "{% url 'api_equipment_by_process' %}";
+
+    lucide.createIcons();
+
+    function loadEquipmentOptions(processSelectId, equipmentSelectId, preserveEquipmentId) {
+        const process = document.getElementById(processSelectId).value;
+        const equipmentSelect = document.getElementById(equipmentSelectId);
+
+        equipmentSelect.textContent = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = process ? 'กำลังโหลด...' : '-- เลือกกระบวนการก่อน --';
+        equipmentSelect.appendChild(placeholder);
+        equipmentSelect.disabled = true;
+
+        if (!process) {
+            equipmentSelect.disabled = false;
+            return;
+        }
+
+        fetch(`${EQUIPMENT_BY_PROCESS_URL}?process=${encodeURIComponent(process)}`)
+            .then(r => r.json())
+            .then(data => {
+                equipmentSelect.textContent = '';
+                const empty = document.createElement('option');
+                empty.value = '';
+                empty.textContent = '-- เลือกเครื่องจักร --';
+                equipmentSelect.appendChild(empty);
+
+                (data.equipment || []).forEach(eq => {
+                    const opt = document.createElement('option');
+                    opt.value = eq.equipment_id;
+                    opt.textContent = `${eq.equipment_id} - ${eq.name}`;
+                    if (preserveEquipmentId && eq.equipment_id === preserveEquipmentId) {
+                        opt.selected = true;
+                    }
+                    equipmentSelect.appendChild(opt);
+                });
+                equipmentSelect.disabled = false;
+            })
+            .catch(() => {
+                equipmentSelect.textContent = '';
+                const err = document.createElement('option');
+                err.value = '';
+                err.textContent = 'โหลดรายการเครื่องจักรไม่สำเร็จ กรุณาลองใหม่';
+                equipmentSelect.appendChild(err);
+                equipmentSelect.disabled = false;
+            });
+    }
+
+    function addFormsetRow(prefix, containerId) {
+        var totalFormsInput = document.querySelector('#id_' + prefix + '-TOTAL_FORMS');
+        var formIndex = parseInt(totalFormsInput.value, 10);
+        var container = document.getElementById(containerId);
+        var template = container.querySelector('.' + prefix + '-form');
+        var newForm = template.cloneNode(true);
+        var re = new RegExp(prefix + '-(\\d+)-');
+
+        newForm.querySelectorAll('input, textarea, select').forEach(function (input) {
+            if (input.name) input.name = input.name.replace(re, prefix + '-' + formIndex + '-');
+            if (input.id) input.id = input.id.replace(re, prefix + '-' + formIndex + '-');
+            if (input.type === 'checkbox') {
+                input.checked = false;
+            } else if (input.type === 'hidden' && input.name && input.name.endsWith('-id')) {
+                input.value = '';
+            } else if (input.tagName === 'SELECT') {
+                input.selectedIndex = 0;
+            } else {
+                input.value = '';
+            }
+        });
+        newForm.classList.remove('opacity-40');
+        newForm.querySelectorAll('.steam-abnormal-field').forEach(function (el) {
+            el.classList.add('hidden');
+        });
+
+        container.appendChild(newForm);
+        totalFormsInput.value = formIndex + 1;
+        lucide.createIcons();
+    }
+
+    function toggleSteamLeakAbnormalFields(selectEl) {
+        const row = selectEl.closest('.formset-row');
+        const isAbnormal = selectEl.value === 'abnormal';
+        row.querySelectorAll('.steam-abnormal-field').forEach(function (el) {
+            el.classList.toggle('hidden', !isAbnormal);
+        });
+    }
+</script>
+{% endblock %}

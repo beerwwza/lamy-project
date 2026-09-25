@@ -1934,6 +1934,164 @@ class ProcessCategory(models.Model):
         return self.name
 
 
+class WaterCIPTest(models.Model):
+    STATUS_CHOICES = [
+        ('wait', 'รอดำเนินการ'),
+        ('todo', 'เตรียมการ'),
+        ('doing', 'กำลังทดสอบ'),
+        ('done', 'เสร็จสิ้น'),
+    ]
+    start_equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE,
+        related_name='cip_tests_start', verbose_name="เครื่องจักรต้นทาง")
+    end_equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE,
+        related_name='cip_tests_end', verbose_name="เครื่องจักรปลายทาง")
+    title = models.CharField(max_length=255, verbose_name="ชื่องาน")
+    assignee = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้รับผิดชอบ")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='wait', verbose_name="สถานะ")
+    note = models.TextField(blank=True, null=True, verbose_name="หมายเหตุ/ปัญหา")
+
+    test_date = models.DateField(null=True, blank=True, verbose_name="วันที่ทดสอบ")
+    start_time = models.TimeField(null=True, blank=True, verbose_name="เวลาเริ่มบันทึก")
+    end_time = models.TimeField(null=True, blank=True, verbose_name="เวลาสิ้นสุดบันทึก")
+
+    updated_by = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้แก้ไขล่าสุด")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "ทดสอบระบบน้ำ (CIP)"
+        verbose_name_plural = "ทดสอบระบบน้ำ (CIP)"
+
+    def __str__(self):
+        return f"{self.title} ({self.start_equipment.equipment_id} → {self.end_equipment.equipment_id})"
+
+
+class WaterCIPPhReading(models.Model):
+    test = models.ForeignKey(WaterCIPTest, on_delete=models.CASCADE, related_name='ph_readings', verbose_name="งานทดสอบ")
+    reading_time = models.TimeField(null=True, blank=True, verbose_name="เวลาที่บันทึก")
+    ph_value = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True, verbose_name="ค่า pH")
+    point_label = models.CharField(max_length=100, blank=True, null=True, verbose_name="จุดที่วัด (ถ้ามี)")
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['test', 'display_order']
+        verbose_name = "ค่า pH การทดสอบระบบน้ำ"
+        verbose_name_plural = "ค่า pH การทดสอบระบบน้ำ"
+
+    def __str__(self):
+        return f"{self.test.title} - pH {self.ph_value}"
+
+
+class SteamLeakTest(models.Model):
+    STATUS_CHOICES = WaterCIPTest.STATUS_CHOICES
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE,
+        related_name='steam_leak_tests', verbose_name="เครื่องจักร")
+    title = models.CharField(max_length=255, verbose_name="ชื่องาน")
+    assignee = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้รับผิดชอบ")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='wait', verbose_name="สถานะ")
+    note = models.TextField(blank=True, null=True, verbose_name="หมายเหตุ/ปัญหา")
+
+    inspection_date = models.DateField(null=True, blank=True, verbose_name="วันที่ตรวจสอบ")
+
+    updated_by = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้แก้ไขล่าสุด")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "ทดสอบระบบไอน้ำ (ตรวจรอยรั่ว)"
+        verbose_name_plural = "ทดสอบระบบไอน้ำ (ตรวจรอยรั่ว)"
+
+    def __str__(self):
+        return f"{self.title} - {self.equipment.equipment_id}"
+
+
+class SteamLeakCheckItem(models.Model):
+    RESULT_CHOICES = [
+        ('normal', 'ปกติ'),
+        ('abnormal', 'ผิดปกติ'),
+    ]
+    test = models.ForeignKey(SteamLeakTest, on_delete=models.CASCADE, related_name='check_items', verbose_name="งานทดสอบ")
+    check_topic = models.CharField(max_length=255, verbose_name="หัวข้อตรวจสอบ")
+    check_item = models.CharField(max_length=255, verbose_name="รายการตรวจสอบ")
+    standard = models.CharField(max_length=255, blank=True, null=True, verbose_name="มาตรฐานการตรวจสอบ")
+    result = models.CharField(max_length=10, choices=RESULT_CHOICES, default='normal', verbose_name="ผลตรวจสอบ")
+    cause = models.TextField(blank=True, null=True, verbose_name="สาเหตุ (หากผิดปกติ)")
+    corrective_action = models.TextField(blank=True, null=True, verbose_name="วิธีการแก้ไข")
+    fix_due_date = models.DateField(blank=True, null=True, verbose_name="วันที่กำหนดแก้ไขเสร็จ")
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['test', 'display_order']
+        verbose_name = "รายการตรวจรอยรั่วไอน้ำ"
+        verbose_name_plural = "รายการตรวจรอยรั่วไอน้ำ"
+
+    def __str__(self):
+        return f"{self.check_topic} - {self.check_item}"
+
+
+class FlushingTest(models.Model):
+    STATUS_CHOICES = WaterCIPTest.STATUS_CHOICES
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE,
+        related_name='flushing_tests', verbose_name="ท่อ/เครื่องจักร")
+    title = models.CharField(max_length=255, verbose_name="ชื่องาน")
+    assignee = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้รับผิดชอบ")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='wait', verbose_name="สถานะ")
+    note = models.TextField(blank=True, null=True, verbose_name="หมายเหตุ/ปัญหา")
+
+    test_date = models.DateField(null=True, blank=True, verbose_name="วันที่ทดสอบ")
+    pipe_surface_temp_c = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True,
+        verbose_name="อุณหภูมิผิวท่อที่วัดได้ (°C)")
+
+    updated_by = models.CharField(max_length=100, blank=True, null=True, verbose_name="ผู้แก้ไขล่าสุด")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "ทดสอบเป่าแป๊ป (Flushing)"
+        verbose_name_plural = "ทดสอบเป่าแป๊ป (Flushing)"
+
+    def __str__(self):
+        return f"{self.title} - {self.equipment.equipment_id}"
+
+
+class FlushingRound(models.Model):
+    # เกณฑ์ 0.3mm เป็นตัวกรองว่านับจุดไหน ไม่ใช่ค่าที่ต้องเทียบแยกจากจำนวนจุด — ผู้ใช้กรอกแค่จำนวนจุดที่เกินขนาดนี้
+    OVERSIZED_SPOT_LIMIT = 3  # จุด/cm²
+
+    test = models.ForeignKey(FlushingTest, on_delete=models.CASCADE, related_name='rounds', verbose_name="งานทดสอบ")
+    round_no = models.PositiveIntegerField(null=True, blank=True, verbose_name="ครั้งที่เป่า")
+    has_copper_plate = models.BooleanField(default=True, verbose_name="ใส่แผ่นทองแดง")
+    start_time = models.TimeField(null=True, blank=True, verbose_name="เวลาเริ่มเป่า")
+    end_time = models.TimeField(null=True, blank=True, verbose_name="เวลาเป่าเสร็จ")
+    blow_pressure_bar = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True,
+        verbose_name="แรงดันที่ใช้เป่า (bar)")
+    oversized_spot_count = models.PositiveIntegerField(null=True, blank=True,
+        verbose_name="จำนวนจุดขนาด > 0.3 mm ที่พบ (จุด/cm²)")
+    note = models.CharField(max_length=255, blank=True, null=True, verbose_name="หมายเหตุรอบนี้")
+    display_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['test', 'display_order']
+        verbose_name = "รอบการเป่าแป๊ป"
+        verbose_name_plural = "รอบการเป่าแป๊ป"
+
+    @property
+    def passed(self):
+        """None = ยังตัดสินไม่ได้ (ไม่ใส่แผ่น หรือยังไม่กรอกจำนวนจุด), True/False = ผ่าน/ไม่ผ่านเกณฑ์"""
+        if not self.has_copper_plate or self.oversized_spot_count is None:
+            return None
+        return self.oversized_spot_count <= self.OVERSIZED_SPOT_LIMIT
+
+    def __str__(self):
+        return f"{self.test.title} - ครั้งที่ {self.round_no or '-'}"
+
+
 # ==========================================
 # 8. Vehicle Service Booking Module (ระบบจองรถบริการ)
 # ==========================================

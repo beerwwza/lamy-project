@@ -13,6 +13,8 @@ from .models import (
     ManualSpecItem,
 )
 from .models import MachineTask, MachineTaskVibration
+from .models import WaterCIPTest, WaterCIPPhReading, SteamLeakTest, SteamLeakCheckItem
+from .models import FlushingTest, FlushingRound
 from .models import Vehicle, VehicleBooking
 from .models import ElectricityMeter, ElectricityReading
 from .models import ProcessCategory
@@ -1005,6 +1007,120 @@ class MachineTaskVibrationForm(forms.ModelForm):
             'temp_nde': forms.NumberInput(attrs={'class': _TW_VIBRATION, 'step': '0.01'}),
             'status': forms.Select(attrs={'class': _TW_VIBRATION}),
         }
+
+
+_TW_TASK = ('w-full p-2.5 border border-slate-300 rounded-lg text-sm '
+            'focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white')
+# <select> keeps its native OS "menulist" box height even with identical padding to <input> —
+# appearance-none strips that chrome so it matches; pr-8 leaves room for the chevron icon the
+# template draws on top (see CLAUDE.md "one Tailwind input class per form" for why this exists).
+_TW_TASK_SELECT = _TW_TASK + ' appearance-none pr-8'
+
+
+class WaterCIPTestForm(forms.ModelForm):
+    class Meta:
+        model = WaterCIPTest
+        fields = ['start_equipment', 'end_equipment', 'title', 'assignee', 'status', 'note',
+                  'test_date', 'start_time', 'end_time']
+        widgets = {
+            'start_equipment': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'end_equipment': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'title': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'เช่น ทดสอบ CIP สถานีน้ำอ้อย'}),
+            'assignee': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'ชื่อผู้รับผิดชอบ'}),
+            'status': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'note': forms.Textarea(attrs={'class': _TW_TASK, 'rows': 3, 'placeholder': 'บันทึกปัญหาที่พบ (ถ้ามี)'}),
+            'test_date': forms.DateInput(attrs={'type': 'date', 'class': _TW_TASK}),
+            'start_time': forms.TimeInput(attrs={'type': 'time', 'class': _TW_TASK}),
+            'end_time': forms.TimeInput(attrs={'type': 'time', 'class': _TW_TASK}),
+        }
+
+
+class WaterCIPPhReadingForm(forms.ModelForm):
+    class Meta:
+        model = WaterCIPPhReading
+        fields = ['reading_time', 'ph_value', 'point_label']
+        widgets = {
+            'reading_time': forms.TimeInput(attrs={'type': 'time', 'class': _TW_TASK}),
+            'ph_value': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01', 'placeholder': 'pH'}),
+            'point_label': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'จุดที่วัด (ถ้ามี)'}),
+        }
+
+WaterCIPPhReadingFormSet = inlineformset_factory(
+    WaterCIPTest, WaterCIPPhReading, form=WaterCIPPhReadingForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+class SteamLeakTestForm(forms.ModelForm):
+    class Meta:
+        model = SteamLeakTest
+        fields = ['equipment', 'title', 'assignee', 'status', 'note', 'inspection_date']
+        widgets = {
+            'equipment': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'title': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'เช่น ตรวจรอยรั่วไอน้ำ หม้อต้ม #1'}),
+            'assignee': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'ชื่อผู้รับผิดชอบ'}),
+            'status': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'note': forms.Textarea(attrs={'class': _TW_TASK, 'rows': 3, 'placeholder': 'บันทึกปัญหาที่พบ (ถ้ามี)'}),
+            'inspection_date': forms.DateInput(attrs={'type': 'date', 'class': _TW_TASK}),
+        }
+
+
+class SteamLeakCheckItemForm(forms.ModelForm):
+    class Meta:
+        model = SteamLeakCheckItem
+        fields = ['check_topic', 'check_item', 'standard', 'result', 'cause', 'corrective_action', 'fix_due_date']
+        widgets = {
+            'check_topic': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'หัวข้อตรวจสอบ'}),
+            'check_item': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'รายการตรวจสอบ'}),
+            'standard': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'มาตรฐานการตรวจสอบ'}),
+            'result': forms.Select(attrs={'class': _TW_TASK_SELECT, 'onchange': 'toggleSteamLeakAbnormalFields(this)'}),
+            'cause': forms.Textarea(attrs={'class': _TW_TASK, 'rows': 2, 'placeholder': 'สาเหตุ (หากผิดปกติ)'}),
+            'corrective_action': forms.Textarea(attrs={'class': _TW_TASK, 'rows': 2, 'placeholder': 'วิธีการแก้ไข'}),
+            'fix_due_date': forms.DateInput(attrs={'type': 'date', 'class': _TW_TASK}),
+        }
+
+SteamLeakCheckItemFormSet = inlineformset_factory(
+    SteamLeakTest, SteamLeakCheckItem, form=SteamLeakCheckItemForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
+
+
+class FlushingTestForm(forms.ModelForm):
+    class Meta:
+        model = FlushingTest
+        fields = ['equipment', 'title', 'assignee', 'status', 'note', 'test_date', 'pipe_surface_temp_c']
+        widgets = {
+            'equipment': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'title': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'เช่น เป่าแป๊ปไอน้ำ Header เส้น A'}),
+            'assignee': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'ชื่อผู้รับผิดชอบ'}),
+            'status': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'note': forms.Textarea(attrs={'class': _TW_TASK, 'rows': 3, 'placeholder': 'บันทึกปัญหาที่พบ (ถ้ามี)'}),
+            'test_date': forms.DateInput(attrs={'type': 'date', 'class': _TW_TASK}),
+            'pipe_surface_temp_c': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.1', 'placeholder': 'เป้าหมาย 200 °C'}),
+        }
+
+
+class FlushingRoundForm(forms.ModelForm):
+    class Meta:
+        model = FlushingRound
+        fields = ['round_no', 'has_copper_plate', 'start_time', 'end_time',
+                  'blow_pressure_bar', 'oversized_spot_count', 'note']
+        widgets = {
+            'round_no': forms.NumberInput(attrs={'class': _TW_TASK, 'placeholder': 'ครั้งที่'}),
+            'has_copper_plate': forms.CheckboxInput(attrs={
+                'class': 'rounded text-indigo-600 focus:ring-indigo-500',
+                'onchange': 'toggleFlushingPlateField(this)'}),
+            'start_time': forms.TimeInput(attrs={'type': 'time', 'class': _TW_TASK}),
+            'end_time': forms.TimeInput(attrs={'type': 'time', 'class': _TW_TASK}),
+            'blow_pressure_bar': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01', 'placeholder': 'bar'}),
+            'oversized_spot_count': forms.NumberInput(attrs={'class': _TW_TASK, 'placeholder': 'จุด (>0.3mm)'}),
+            'note': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'หมายเหตุ (ถ้ามี)'}),
+        }
+
+FlushingRoundFormSet = inlineformset_factory(
+    FlushingTest, FlushingRound, form=FlushingRoundForm,
+    extra=1, can_delete=True, max_num=100, validate_max=True,
+)
 
 
 # ==========================================

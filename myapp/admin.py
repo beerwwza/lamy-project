@@ -340,6 +340,48 @@ class ProcessCategoryAdmin(admin.ModelAdmin):
     search_fields = ['name']
 
 
+# ===== Water CIP Test (ทดสอบระบบน้ำ) =====
+
+class WaterCIPPhReadingInline(admin.TabularInline):
+    model = WaterCIPPhReading
+    extra = 0
+
+@admin.register(WaterCIPTest)
+class WaterCIPTestAdmin(admin.ModelAdmin):
+    list_display = ['title', 'start_equipment', 'end_equipment', 'status', 'test_date', 'assignee']
+    list_filter = ['status', 'test_date']
+    search_fields = ['title', 'start_equipment__equipment_id', 'end_equipment__equipment_id', 'assignee']
+    inlines = [WaterCIPPhReadingInline]
+
+
+# ===== Steam Leak Test (ทดสอบระบบไอน้ำ - ตรวจรอยรั่ว) =====
+
+class SteamLeakCheckItemInline(admin.TabularInline):
+    model = SteamLeakCheckItem
+    extra = 0
+
+@admin.register(SteamLeakTest)
+class SteamLeakTestAdmin(admin.ModelAdmin):
+    list_display = ['title', 'equipment', 'status', 'inspection_date', 'assignee']
+    list_filter = ['status', 'inspection_date']
+    search_fields = ['title', 'equipment__equipment_id', 'equipment__name', 'assignee']
+    inlines = [SteamLeakCheckItemInline]
+
+
+# ===== Flushing Test (ทดสอบเป่าแป๊ป) =====
+
+class FlushingRoundInline(admin.TabularInline):
+    model = FlushingRound
+    extra = 0
+
+@admin.register(FlushingTest)
+class FlushingTestAdmin(admin.ModelAdmin):
+    list_display = ['title', 'equipment', 'status', 'test_date', 'assignee']
+    list_filter = ['status', 'test_date']
+    search_fields = ['title', 'equipment__equipment_id', 'equipment__name', 'assignee']
+    inlines = [FlushingRoundInline]
+
+
 # ===== Vehicle Service Booking Module =====
 
 @admin.register(Vehicle)

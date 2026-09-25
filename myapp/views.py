@@ -8,6 +8,7 @@ import urllib.request
 import base64
 from datetime import datetime, time, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.db import transaction, connection
 from django.db.models import Sum, Avg, Count, Q, F, Max
 from django.core.cache import cache
@@ -35,6 +36,9 @@ from .models import PMSchedule
 from .forms import EquipmentForm, EquipmentBOMForm, EquipmentLinkForm, CBMVisualTestForm, CBMVibrationForm, CBMThermoscanForm, CBMOilAnalysisForm, CBMAcousticForm, RepairDocumentForm
 from .forms import PMScheduleForm, PMPlanForm, PMPlanItemForm, WorkOrderForm, WorkOrderStatusForm
 from .forms import MachineTaskForm, MachineTaskVibrationForm
+from .forms import (WaterCIPTestForm, WaterCIPPhReadingFormSet,
+                     SteamLeakTestForm, SteamLeakCheckItemFormSet)
+from .forms import FlushingTestForm, FlushingRoundFormSet
 from .models import TrainingSkill, EmployeeSkillLevel, TrainingCourse, TrainingRecord, TrainingExamScore
 from .models import (TrainingCourseMaterial, TrainingQuizQuestion, TrainingQuizChoice,
                       TrainingCourseExamAttempt, TrainingCourseExamAnswer)
@@ -4778,13 +4782,27 @@ def training_course_delete(request, course_id):
     return redirect('training_courses')
 
 
+SKILL_LEVEL_UP_PASS_COUNTS = {2: 5, 3: 10}  # level -> จำนวนครั้งสอบผ่านที่ต้องมี (L1 = ผ่านครั้งแรก)
+
+
 def _bump_skill_level_on_pass(emp, course):
     if not course.skill_id:
         return
+    passed_count = TrainingRecord.objects.filter(
+        employee=emp, course__skill_id=course.skill_id, status='passed'
+    ).count()
+    if passed_count >= SKILL_LEVEL_UP_PASS_COUNTS[3]:
+        new_level = 3
+    elif passed_count >= SKILL_LEVEL_UP_PASS_COUNTS[2]:
+        new_level = 2
+    elif passed_count >= 1:
+        new_level = 1
+    else:
+        new_level = 0
     level_obj, created = EmployeeSkillLevel.objects.get_or_create(
-        employee=emp, skill=course.skill, defaults={'level': 1})
-    if not created and level_obj.level < 3:
-        level_obj.level += 1
+        employee=emp, skill=course.skill, defaults={'level': new_level})
+    if not created and level_obj.level < new_level:
+        level_obj.level = new_level
         level_obj.save(update_fields=['level'])
 
 
@@ -5441,6 +5459,64 @@ MACHINE_TASK_VIBRATION_FIELDS = [
 ]
 
 
+def _process_equipment_options():
+    """คืน (active_process_names, active_process_set, equipment_by_process dict) สำหรับ cascade dropdown กระบวนการ→เครื่องจักร"""
+    active_names = list(
+        ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)
+    )
+    active_set = set(active_names)
+    equipment_rows = Equipment.objects.filter(is_active=True).order_by('equipment_id').values(
+        'equipment_id', 'name', 'process', 'power_kw', 'rpm_input', 'rpm'
+    )
+    equipment_by_process = {}
+    for row in equipment_rows:
+        key = row['process'] if row['process'] in active_set else PROCESS_OTHER_BUCKET
+        equipment_by_process.setdefault(key, []).append(row)
+    return active_names, active_set, equipment_by_process
+
+
+def _scoped_equipment_for(eq, active_set, equipment_by_process):
+    """คืน (effective_process, scoped_equipment_rows) — เครื่องจักรปัจจุบันเลือกได้เสมอ แม้ is_active=False หรือ process ไม่ตรง bucket"""
+    proc = eq.process if eq else None
+    effective_process = proc if proc in active_set else PROCESS_OTHER_BUCKET
+    scoped = list(equipment_by_process.get(effective_process, []))
+    if eq and not any(r['equipment_id'] == eq.equipment_id for r in scoped):
+        scoped.insert(0, {
+            'equipment_id': eq.equipment_id, 'name': eq.name,
+            'power_kw': eq.power_kw, 'rpm_input': eq.rpm_input, 'rpm': eq.rpm,
+        })
+    return effective_process, scoped
+
+
+@login_required
+def task_manager_hub(request):
+    def _counts(qs):
+        total = qs.count()
+        pending = qs.exclude(status='done').count()
+        return total, pending
+
+    machine_total, machine_pending = _counts(MachineTask.objects.all())
+    cip_total, cip_pending = _counts(WaterCIPTest.objects.all())
+    steam_total, steam_pending = _counts(SteamLeakTest.objects.all())
+    flushing_total, flushing_pending = _counts(FlushingTest.objects.all())
+
+    cards = [
+        {'title': 'เครื่องจักรหมุน / ไฟฟ้า / คอนโทรล', 'subtitle': 'ทดสอบความพร้อมก่อนเดินเครื่อง + Vibration',
+         'icon': 'clipboard-check', 'color': 'indigo', 'url': reverse('machine_task_list'),
+         'total': machine_total, 'pending': machine_pending},
+        {'title': 'ระบบน้ำ (CIP)', 'subtitle': 'Clean in Place — บันทึกค่า pH ต้นทาง/ปลายทาง',
+         'icon': 'droplet', 'color': 'sky', 'url': reverse('water_cip_test_list'),
+         'total': cip_total, 'pending': cip_pending},
+        {'title': 'ระบบไอน้ำ (ตรวจรอยรั่ว)', 'subtitle': 'Checklist ตรวจรอยรั่วไอน้ำรายเครื่องจักร',
+         'icon': 'flame', 'color': 'orange', 'url': reverse('steam_leak_test_list'),
+         'total': steam_total, 'pending': steam_pending},
+        {'title': 'เป่าแป๊ป (Flushing)', 'subtitle': 'เป่าล้างท่อ + ตรวจแผ่นทองแดง',
+         'icon': 'wind', 'color': 'cyan', 'url': reverse('flushing_test_list'),
+         'total': flushing_total, 'pending': flushing_pending},
+    ]
+    return render(request, 'myapp/task_manager_hub.html', {'cards': cards})
+
+
 @login_required
 def machine_task_list(request):
     tasks = MachineTask.objects.select_related('equipment').all()
@@ -5452,31 +5528,12 @@ def machine_task_list(request):
         tasks = tasks.filter(status=status_filter)
     tasks = list(tasks)
 
-    active_names = list(
-        ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)
-    )
-    active_set = set(active_names)
-
-    equipment_rows = Equipment.objects.filter(is_active=True).order_by('equipment_id').values(
-        'equipment_id', 'name', 'process', 'power_kw', 'rpm_input', 'rpm'
-    )
-    equipment_by_process = {}
-    for row in equipment_rows:
-        key = row['process'] if row['process'] in active_set else PROCESS_OTHER_BUCKET
-        equipment_by_process.setdefault(key, []).append(row)
+    active_names, active_set, equipment_by_process = _process_equipment_options()
 
     for task in tasks:
-        eq = task.equipment
-        proc = eq.process if eq else None
-        task.effective_process = proc if proc in active_set else PROCESS_OTHER_BUCKET
-        scoped = list(equipment_by_process.get(task.effective_process, []))
-        if eq and not any(r['equipment_id'] == eq.equipment_id for r in scoped):
-            # เครื่องจักรปัจจุบันของ task ต้องเลือกได้เสมอ แม้ is_active=False หรือ process ไม่ตรง bucket
-            scoped.insert(0, {
-                'equipment_id': eq.equipment_id, 'name': eq.name,
-                'power_kw': eq.power_kw, 'rpm_input': eq.rpm_input, 'rpm': eq.rpm,
-            })
-        task.scoped_equipment = scoped
+        task.effective_process, task.scoped_equipment = _scoped_equipment_for(
+            task.equipment, active_set, equipment_by_process
+        )
 
     return render(request, 'myapp/machine_task_list.html', {
         'tasks': tasks,
@@ -5601,6 +5658,301 @@ def machine_task_vibration_save(request, task_id, phase):
             messages.error(request, 'บันทึกข้อมูลไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
 
     return redirect('machine_task_detail', task_id=task.id)
+
+
+# ─── Water CIP Test (ทดสอบระบบน้ำ - Clean in Place) ──────────────────────────
+
+@login_required
+def water_cip_test_list(request):
+    tests = WaterCIPTest.objects.select_related('start_equipment', 'end_equipment').annotate(
+        ph_reading_count=Count('ph_readings'),
+    )
+    title_filter = request.GET.get('title') or ''
+    status_filter = request.GET.get('status') or ''
+    if title_filter:
+        tests = tests.filter(title__icontains=title_filter)
+    if status_filter:
+        tests = tests.filter(status=status_filter)
+
+    return render(request, 'myapp/water_cip_test_list.html', {
+        'tests': tests,
+        'status_choices': WaterCIPTest.STATUS_CHOICES,
+        'title_filter': title_filter,
+        'status_filter': status_filter,
+    })
+
+
+def _water_cip_test_form_context(request, test):
+    active_names, active_set, equipment_by_process = _process_equipment_options()
+    start_process, start_scoped = _scoped_equipment_for(
+        test.start_equipment if test.pk else None, active_set, equipment_by_process)
+    end_process, end_scoped = _scoped_equipment_for(
+        test.end_equipment if test.pk else None, active_set, equipment_by_process)
+    context_extra = {
+        'process_choices': active_names,
+        'start_process': start_process,
+        'end_process': end_process,
+        'start_scoped_equipment': start_scoped,
+        'end_scoped_equipment': end_scoped,
+    }
+    if request.method == 'POST':
+        form = WaterCIPTestForm(request.POST, instance=test)
+        formset = WaterCIPPhReadingFormSet(request.POST, prefix='ph', instance=test)
+    else:
+        form = WaterCIPTestForm(instance=test)
+        formset = WaterCIPPhReadingFormSet(prefix='ph', instance=test)
+    return form, formset, context_extra
+
+
+@login_required
+@module_required('general')
+def water_cip_test_add(request):
+    test = WaterCIPTest()
+    form, formset, context_extra = _water_cip_test_form_context(request, test)
+    if request.method == 'POST':
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                test = form.save(commit=False)
+                test.updated_by = request.user.username
+                test.save()
+                formset.instance = test
+                formset.save()
+            messages.success(request, f'สร้างงานทดสอบระบบน้ำ "{test.title}" เรียบร้อยแล้ว')
+            return redirect('water_cip_test_list')
+        messages.error(request, 'บันทึกไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+
+    return render(request, 'myapp/water_cip_test_form.html', {
+        'form': form, 'formset': formset, 'is_edit': False, **context_extra,
+    })
+
+
+@login_required
+@module_required('general')
+def water_cip_test_edit(request, test_id):
+    test = get_object_or_404(WaterCIPTest, id=test_id)
+    form, formset, context_extra = _water_cip_test_form_context(request, test)
+    if request.method == 'POST':
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                test = form.save(commit=False)
+                test.updated_by = request.user.username
+                test.save()
+                formset.instance = test
+                formset.save()
+            messages.success(request, f'บันทึกงานทดสอบระบบน้ำ "{test.title}" เรียบร้อยแล้ว')
+            return redirect('water_cip_test_list')
+        messages.error(request, 'บันทึกไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+
+    return render(request, 'myapp/water_cip_test_form.html', {
+        'form': form, 'formset': formset, 'is_edit': True, 'test': test, **context_extra,
+    })
+
+
+@login_required
+@superuser_required
+def water_cip_test_delete(request, test_id):
+    test = get_object_or_404(WaterCIPTest, id=test_id)
+    if request.method == 'POST':
+        title = test.title
+        test.delete()
+        messages.success(request, f'ลบงานทดสอบระบบน้ำ "{title}" เรียบร้อยแล้ว')
+    return redirect('water_cip_test_list')
+
+
+# ─── Steam Leak Test (ทดสอบระบบไอน้ำ - ตรวจรอยรั่ว) ──────────────────────────
+
+@login_required
+def steam_leak_test_list(request):
+    tests = SteamLeakTest.objects.select_related('equipment').annotate(
+        check_item_count=Count('check_items'),
+        abnormal_count=Count('check_items', filter=Q(check_items__result='abnormal')),
+    )
+    title_filter = request.GET.get('title') or ''
+    status_filter = request.GET.get('status') or ''
+    if title_filter:
+        tests = tests.filter(title__icontains=title_filter)
+    if status_filter:
+        tests = tests.filter(status=status_filter)
+
+    return render(request, 'myapp/steam_leak_test_list.html', {
+        'tests': tests,
+        'status_choices': SteamLeakTest.STATUS_CHOICES,
+        'title_filter': title_filter,
+        'status_filter': status_filter,
+    })
+
+
+def _steam_leak_test_form_context(request, test):
+    active_names, active_set, equipment_by_process = _process_equipment_options()
+    effective_process, scoped_equipment = _scoped_equipment_for(
+        test.equipment if test.pk else None, active_set, equipment_by_process)
+    context_extra = {
+        'process_choices': active_names,
+        'effective_process': effective_process,
+        'scoped_equipment': scoped_equipment,
+    }
+    if request.method == 'POST':
+        form = SteamLeakTestForm(request.POST, instance=test)
+        formset = SteamLeakCheckItemFormSet(request.POST, prefix='items', instance=test)
+    else:
+        form = SteamLeakTestForm(instance=test)
+        formset = SteamLeakCheckItemFormSet(prefix='items', instance=test)
+    return form, formset, context_extra
+
+
+@login_required
+@module_required('general')
+def steam_leak_test_add(request):
+    test = SteamLeakTest()
+    form, formset, context_extra = _steam_leak_test_form_context(request, test)
+    if request.method == 'POST':
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                test = form.save(commit=False)
+                test.updated_by = request.user.username
+                test.save()
+                formset.instance = test
+                formset.save()
+            messages.success(request, f'สร้างงานตรวจรอยรั่วไอน้ำ "{test.title}" เรียบร้อยแล้ว')
+            return redirect('steam_leak_test_list')
+        messages.error(request, 'บันทึกไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+
+    return render(request, 'myapp/steam_leak_test_form.html', {
+        'form': form, 'formset': formset, 'is_edit': False, **context_extra,
+    })
+
+
+@login_required
+@module_required('general')
+def steam_leak_test_edit(request, test_id):
+    test = get_object_or_404(SteamLeakTest, id=test_id)
+    form, formset, context_extra = _steam_leak_test_form_context(request, test)
+    if request.method == 'POST':
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                test = form.save(commit=False)
+                test.updated_by = request.user.username
+                test.save()
+                formset.instance = test
+                formset.save()
+            messages.success(request, f'บันทึกงานตรวจรอยรั่วไอน้ำ "{test.title}" เรียบร้อยแล้ว')
+            return redirect('steam_leak_test_list')
+        messages.error(request, 'บันทึกไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+
+    return render(request, 'myapp/steam_leak_test_form.html', {
+        'form': form, 'formset': formset, 'is_edit': True, 'test': test, **context_extra,
+    })
+
+
+@login_required
+@superuser_required
+def steam_leak_test_delete(request, test_id):
+    test = get_object_or_404(SteamLeakTest, id=test_id)
+    if request.method == 'POST':
+        title = test.title
+        test.delete()
+        messages.success(request, f'ลบงานตรวจรอยรั่วไอน้ำ "{title}" เรียบร้อยแล้ว')
+    return redirect('steam_leak_test_list')
+
+
+# ─── Flushing Test (ทดสอบเป่าแป๊ป) ────────────────────────────────────────────
+
+@login_required
+def flushing_test_list(request):
+    tests = FlushingTest.objects.select_related('equipment').prefetch_related('rounds')
+    title_filter = request.GET.get('title') or ''
+    status_filter = request.GET.get('status') or ''
+    if title_filter:
+        tests = tests.filter(title__icontains=title_filter)
+    if status_filter:
+        tests = tests.filter(status=status_filter)
+    tests = list(tests)
+
+    for test in tests:
+        rounds = list(test.rounds.all())
+        test.round_count = len(rounds)
+        plate_rounds = [r for r in rounds if r.has_copper_plate]
+        test.latest_plate_result = plate_rounds[-1].passed if plate_rounds else None
+
+    return render(request, 'myapp/flushing_test_list.html', {
+        'tests': tests,
+        'status_choices': FlushingTest.STATUS_CHOICES,
+        'title_filter': title_filter,
+        'status_filter': status_filter,
+    })
+
+
+def _flushing_test_form_context(request, test):
+    active_names, active_set, equipment_by_process = _process_equipment_options()
+    effective_process, scoped_equipment = _scoped_equipment_for(
+        test.equipment if test.pk else None, active_set, equipment_by_process)
+    context_extra = {
+        'process_choices': active_names,
+        'effective_process': effective_process,
+        'scoped_equipment': scoped_equipment,
+    }
+    if request.method == 'POST':
+        form = FlushingTestForm(request.POST, instance=test)
+        formset = FlushingRoundFormSet(request.POST, prefix='rounds', instance=test)
+    else:
+        form = FlushingTestForm(instance=test)
+        formset = FlushingRoundFormSet(prefix='rounds', instance=test)
+    return form, formset, context_extra
+
+
+@login_required
+@module_required('general')
+def flushing_test_add(request):
+    test = FlushingTest()
+    form, formset, context_extra = _flushing_test_form_context(request, test)
+    if request.method == 'POST':
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                test = form.save(commit=False)
+                test.updated_by = request.user.username
+                test.save()
+                formset.instance = test
+                formset.save()
+            messages.success(request, f'สร้างงานเป่าแป๊ป "{test.title}" เรียบร้อยแล้ว')
+            return redirect('flushing_test_list')
+        messages.error(request, 'บันทึกไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+
+    return render(request, 'myapp/flushing_test_form.html', {
+        'form': form, 'formset': formset, 'is_edit': False, **context_extra,
+    })
+
+
+@login_required
+@module_required('general')
+def flushing_test_edit(request, test_id):
+    test = get_object_or_404(FlushingTest, id=test_id)
+    form, formset, context_extra = _flushing_test_form_context(request, test)
+    if request.method == 'POST':
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                test = form.save(commit=False)
+                test.updated_by = request.user.username
+                test.save()
+                formset.instance = test
+                formset.save()
+            messages.success(request, f'บันทึกงานเป่าแป๊ป "{test.title}" เรียบร้อยแล้ว')
+            return redirect('flushing_test_list')
+        messages.error(request, 'บันทึกไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+
+    return render(request, 'myapp/flushing_test_form.html', {
+        'form': form, 'formset': formset, 'is_edit': True, 'test': test, **context_extra,
+    })
+
+
+@login_required
+@superuser_required
+def flushing_test_delete(request, test_id):
+    test = get_object_or_404(FlushingTest, id=test_id)
+    if request.method == 'POST':
+        title = test.title
+        test.delete()
+        messages.success(request, f'ลบงานเป่าแป๊ป "{title}" เรียบร้อยแล้ว')
+    return redirect('flushing_test_list')
 
 
 # ==========================================

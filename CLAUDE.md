@@ -135,9 +135,33 @@ Pages that do **not** extend `base.html` (self-contained `<!DOCTYPE html>` docum
 
 Any row of action buttons (`flex items-center gap-2`) in a header must include `flex-wrap` so buttons wrap to a new line instead of overflowing on narrow screens. Pair it with `min-h-*` instead of a fixed `h-*` on the containing header, so wrapped content isn't clipped.
 
-### 6. Verification
+### 6. `<select>` needs `appearance-none` + a custom chevron to match `<input>` height
 
-No automated visual testing exists in this project. Manually check every new/edited template in browser devtools responsive mode at minimum: **375px** (small phone), **768px** (tablet/`md:` breakpoint boundary — sidebar switches from drawer to static exactly here), and **1280px** (desktop). Confirm: no horizontal page scroll (only inside `overflow-x-auto` table wrappers), no clipped/overlapping text, hamburger opens/closes the drawer cleanly with tap-outside-to-close working below 768px.
+A `<select>` renders at a **different native height than `<input>`/`<textarea>` even with a byte-identical Tailwind class string** — confirmed by measurement (Playwright `boundingBox()`): with the shared `_TW_TASK`-style class (`p-2.5`, `border`, `text-sm`), `<input type="text">` measured **42px** tall while `<select>` measured **47px**. The browser's native OS "menulist" control (`appearance: auto` / `-webkit-appearance: auto`) boxes itself differently regardless of declared padding — this is a browser default, not a copy-paste mistake, and it affects every `<select>` in the project (the original Task Manager's status dropdown has the same 5px mismatch; it just went unnoticed).
+
+The fix, applied per `<select>` (both `ModelForm`-rendered and raw hand-written ones):
+```python
+# forms.py — derive a select-only variant from the module's shared input class:
+_TW_TASK_SELECT = _TW_TASK + ' appearance-none pr-8'
+# ... 'status': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+```
+```html
+<!-- template — appearance-none removes the native arrow, so draw one back with Lucide -->
+<div class="relative">
+  {{ form.status }}
+  <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+</div>
+```
+Rules:
+- Every `<select>` gets `appearance-none pr-8` (the `pr-8` reserves room for the chevron so option text doesn't run under it) and is wrapped in its own `relative` div with the chevron `<i>` — wrap the `<select>` alone, not the label+select block, or the icon won't center on the control.
+- This applies to raw hand-written `<select>` elements too (cascading process→equipment dropdowns), not just `ModelForm` widgets — the native-appearance issue is on the `<select>` element itself, independent of how it was rendered.
+- Separately, every `<input>`/`<select>`/`<textarea>` in one form should still share one Tailwind class string apart from this select-specific addition (don't invent a new class from memory or copy a different template's convention) — verify with `grep -n 'class="w-full'` before shipping.
+- `<input type="date">`/`<input type="time">` are ~2px taller than `<input type="text">` for the same reason (native picker-icon chrome); this is barely visible and is not worth risking `appearance-none` on, since it can suppress the clickable calendar icon in some browsers — leave date/time inputs alone.
+- Verify with real pixel measurements, not eyeballing a screenshot — a 5px `<select>` vs `<input>` gap is easy to miss visually. If Playwright/Chromium is available, measure `boundingBox().height` for one of each control type in the form and confirm they match.
+
+### 7. Verification
+
+No automated visual testing exists in this project. Manually check every new/edited template in browser devtools responsive mode at minimum: **375px** (small phone), **768px** (tablet/`md:` breakpoint boundary — sidebar switches from drawer to static exactly here), and **1280px** (desktop). Confirm: no horizontal page scroll (only inside `overflow-x-auto` table wrappers), no clipped/overlapping text, hamburger opens/closes the drawer cleanly with tap-outside-to-close working below 768px, and all form fields in the same form are visually the same size (see item 6).
 
 ### Note on Tailwind vs Bootstrap classes
 
@@ -361,6 +385,7 @@ CBM forms are submitted from the equipment CBM dashboard at `/equipment/cbm/<eq_
 - **Do not** commit `db.sqlite3` or `.env` — both are in `.gitignore`.
 - **Do not** edit migration files manually. Always use `makemigrations`.
 - **Do not** add a `grid-cols-N` (N≥2) class without a `grid-cols-1` mobile base, and **do not** add a `<table>` without wrapping it in `<div class="overflow-x-auto">` — see [Responsive / Mobile Layout Standard](#responsive--mobile-layout-standard).
+- **Do not** style a `<select>` with the same Tailwind class as `<input>`/`<textarea>` and expect matching height — it needs `appearance-none pr-8` plus a custom chevron icon, or it renders taller due to native OS control styling. See item 6 of [Responsive / Mobile Layout Standard](#responsive--mobile-layout-standard).
 
 ### Dashboard view pattern — pre-compute alert flags in the view
 

@@ -1,0 +1,47 @@
+{% extends 'myapp/base.html' %}
+{% block title %}Task Manager{% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header
+        class="min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg text-indigo-600 dark:text-indigo-400">
+            <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+        </div>
+        <div>
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">Task Manager</h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">เลือกระบบทดสอบที่ต้องการ</p>
+        </div>
+    </header>
+
+    <!-- Scrollable body -->
+    <div class="flex-1 overflow-y-auto p-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {% for card in cards %}
+            <a href="{{ card.url }}"
+                class="group bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-{{ card.color }}-400 dark:hover:border-{{ card.color }}-500 transition-all flex flex-col gap-3">
+                <div class="p-3 bg-{{ card.color }}-100 dark:bg-{{ card.color }}-900/30 text-{{ card.color }}-600 dark:text-{{ card.color }}-400 rounded-lg w-fit group-hover:scale-110 transition-transform">
+                    <i data-lucide="{{ card.icon }}" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-700 dark:text-slate-200">{{ card.title }}</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ card.subtitle }}</p>
+                </div>
+                <div class="flex items-center gap-2 mt-auto pt-2 border-t border-slate-100 dark:border-slate-700">
+                    <span class="text-xs text-slate-500 dark:text-slate-400">ทั้งหมด {{ card.total }} งาน</span>
+                    {% if card.pending %}
+                    <span class="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 px-2 py-0.5 rounded-full font-medium">ค้าง {{ card.pending }}</span>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</main>
+
+<script>
+    lucide.createIcons();
+</script>
+{% endblock %}
