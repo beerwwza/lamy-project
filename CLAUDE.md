@@ -51,6 +51,7 @@ myapp/
 6. **Inline JavaScript** — JS logic lives inside `{% block %}` in templates, not separate `.js` files.
 7. **Django template rendering** — All data is rendered server-side via Django template tags (`{% if %}`, `{% for %}`, `{{ var }}`). Do not inject server data as JSON and parse it client-side with React or similar.
 8. **CDN dependencies** — `base.html` loads Tailwind CSS and Lucide Icons via CDN. Templates extend `base.html` and inherit these. Do not load React, Babel, or additional heavy CDN libraries.
+9. **Thailand time everywhere** — `settings.TIME_ZONE = 'Asia/Bangkok'`. Always get "now"/"today" through Django's timezone helpers, never through raw `datetime`/`date`. See [Timezone Rules](#timezone-rules) below — this has broken before.
 
 ### Frontend Pattern (the right way)
 
@@ -79,6 +80,35 @@ myapp/
 ### Why no React on this project
 
 React + Babel standalone requires `eval()` in the browser. In production environments this can be blocked silently, causing the entire page to render as a blank black screen with no visible error. The app crashed this way on `dashboard.html` — the React version was replaced with a plain Django template that works reliably.
+
+---
+
+## Timezone Rules
+
+The mill is in Thailand (UTC+7). `settings.py` sets `TIME_ZONE = 'Asia/Bangkok'` with `USE_TZ = True`, and `requirements.txt` includes `tzdata` (the production image is `python:3.10-slim`, which has no system timezone database — without the `tzdata` PyPI package, `zoneinfo` cannot resolve `'Asia/Bangkok'` at all).
+
+Setting `TIME_ZONE` alone is **not enough** — code that bypasses Django's timezone helpers still gets the wrong time/date. This has already caused a real bug in this codebase (dashboards and PM/CBM due-date logic silently using UTC), so treat these as hard rules, not style preferences:
+
+- **Never call `datetime.now()` or `date.today()`** (plain stdlib). They read the OS clock, which is UTC in the Docker container regardless of `settings.TIME_ZONE`. Use `django.utils.timezone` instead:
+  - "today's date" → `timezone.localdate()`
+  - "current moment" (for a `DateTimeField`) → `timezone.now()`
+- **Never write `timezone.now().date()`.** This is the classic trap: `timezone.now()` returns a UTC-aware datetime, and `.date()` extracts the UTC calendar date *before* converting to Bangkok time. Between 00:00–06:59 Thai time (still the previous day in UTC), this silently returns yesterday's date — exactly the kind of bug that corrupts "today's shift" dashboards and KPI filters. Always use `timezone.localdate()` for a date, never `timezone.now().date()`.
+- **Never `.strftime()` a `DateTimeField` value directly** (e.g. `obj.created_at.strftime(...)`) — it formats the stored UTC value as-is. Convert first: `timezone.localtime(obj.created_at).strftime(...)`.
+- Plain `DateField`/`TimeField` values (the project's own shift-logging convention, see `models.py` rules below) are naive and have no UTC offset — `.strftime()` on those is fine as-is.
+- Template rendering (`{{ obj.created_at }}`, `{% now 'Y-m-d' %}`) automatically localizes to `settings.TIME_ZONE` — no extra work needed there, this rule is only about Python code.
+
+```python
+# Bad — reads container/OS clock (UTC), ignores settings.TIME_ZONE entirely
+from datetime import date
+today = date.today()
+
+# Bad — classic trap: takes UTC calendar date, wrong before ~07:00 Thai time
+today = timezone.now().date()
+
+# Good
+from django.utils import timezone
+today = timezone.localdate()
+```
 
 ---
 
@@ -386,6 +416,7 @@ CBM forms are submitted from the equipment CBM dashboard at `/equipment/cbm/<eq_
 - **Do not** edit migration files manually. Always use `makemigrations`.
 - **Do not** add a `grid-cols-N` (N≥2) class without a `grid-cols-1` mobile base, and **do not** add a `<table>` without wrapping it in `<div class="overflow-x-auto">` — see [Responsive / Mobile Layout Standard](#responsive--mobile-layout-standard).
 - **Do not** style a `<select>` with the same Tailwind class as `<input>`/`<textarea>` and expect matching height — it needs `appearance-none pr-8` plus a custom chevron icon, or it renders taller due to native OS control styling. See item 6 of [Responsive / Mobile Layout Standard](#responsive--mobile-layout-standard).
+- **Do not** call `datetime.now()`, `date.today()`, or `timezone.now().date()` for "today"/"now". Use `timezone.localdate()` / `timezone.now()` from `django.utils.timezone` — see [Timezone Rules](#timezone-rules). This has caused a real production bug (dashboards showing the wrong day during Thai early-morning hours).
 
 ### Dashboard view pattern — pre-compute alert flags in the view
 

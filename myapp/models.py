@@ -1,8 +1,9 @@
 from django.db import models
 from django.db.models import Sum, Q
 from django.contrib.auth.models import User
+from django.utils import timezone
 from decimal import Decimal
-from datetime import date, timedelta
+from datetime import timedelta
 
 # ==========================================
 # 1. User & Employee Management Models
@@ -757,7 +758,6 @@ class Equipment(models.Model):
     def update_reliability_metrics(self):
         from django.db.models import Sum
         from django.db.models.functions import Coalesce
-        from datetime import date as today_date
         logs = self.maintenance_logs.all()
         n = logs.count()
         if n == 0:
@@ -768,7 +768,7 @@ class Equipment(models.Model):
         total_down = agg['total_stop']
         self.mttr = round(total_down / n, 2)
         if self.installation_date:
-            operating_hours = (today_date.today() - self.installation_date).days * 24
+            operating_hours = (timezone.localdate() - self.installation_date).days * 24
             uptime = max(operating_hours - total_down, 0)
             self.mtbf = round(uptime / n, 2)
         self.save(update_fields=['mtbf', 'mttr'])
@@ -807,10 +807,9 @@ class PMSchedule(models.Model):
 
     @property
     def pm_status(self):
-        from datetime import date, timedelta
         if not self.next_due_date:
             return 'unscheduled'
-        today = date.today()
+        today = timezone.localdate()
         if self.next_due_date < today:
             return 'overdue'
         if self.next_due_date <= today + timedelta(days=7):
@@ -818,9 +817,8 @@ class PMSchedule(models.Model):
         return 'ok'
 
     def calculate_next_due(self):
-        from datetime import date, timedelta
         from dateutil.relativedelta import relativedelta
-        base = self.last_completed_date or date.today()
+        base = self.last_completed_date or timezone.localdate()
         val  = self.frequency_value or 1
         freq = self.frequency_type
         if freq == 'daily':
@@ -1253,7 +1251,7 @@ class ToolUnit(models.Model):
         """สถานะกำหนดบำรุงรักษา: unscheduled / overdue / due_soon (≤7 วัน) / ok"""
         if not self.next_maintenance_due:
             return 'unscheduled'
-        today = date.today()
+        today = timezone.localdate()
         if self.next_maintenance_due < today:
             return 'overdue'
         if self.next_maintenance_due <= today + timedelta(days=7):
@@ -1329,7 +1327,7 @@ class ToolCheckout(models.Model):
 
     @property
     def is_overdue(self):
-        return bool(self.due_date and not self.return_date and self.due_date < date.today())
+        return bool(self.due_date and not self.return_date and self.due_date < timezone.localdate())
 
 
 class ToolMaintenanceLog(models.Model):

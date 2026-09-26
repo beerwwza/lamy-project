@@ -148,7 +148,7 @@ def equipment_data(request, eq_id=None):
         for link in links:
             link.resolved = link_eq_map.get(link.linked_equipment_id.strip(), None) if link.linked_equipment_id else None
 
-    today = timezone.now().date()
+    today = timezone.localdate()
     pm_plans = list(PMPlan.objects.filter(equipment=equipment).prefetch_related('items'))
     for plan in pm_plans:
         base = plan.last_completed_date or plan.start_date
@@ -419,7 +419,7 @@ def pm_plan_complete(request, plan_id):
     plan = PMPlan.objects.filter(id=plan_id).first()
     if plan:
         eq_id = plan.equipment.equipment_id
-        today = timezone.now().date()
+        today = timezone.localdate()
         plan.last_completed_date = today
         plan.save()
         PMPlanCompletion.objects.create(plan=plan, completed_date=today, completed_by=request.user.username)
@@ -477,7 +477,7 @@ def work_order_add(request, eq_id):
             wo = form.save(commit=False)
             wo.equipment = equipment
             if not wo.report_date:
-                wo.report_date = timezone.now().date()
+                wo.report_date = timezone.localdate()
             yymm = wo.report_date.strftime('%y%m')
             seq = WorkOrder.objects.filter(wo_no__startswith=f'WO-{yymm}-').count() + 1
             wo.wo_no = f'WO-{yymm}-{seq:04d}'
@@ -502,7 +502,7 @@ def work_order_edit(request, wo_id):
         if form.is_valid():
             wo = form.save(commit=False)
             if wo.status == 'completed' and not wo.completed_date:
-                wo.completed_date = timezone.now().date()
+                wo.completed_date = timezone.localdate()
             wo.save()
             messages.success(request, f'อัปเดตสถานะ {wo.wo_no} เรียบร้อยแล้ว')
         else:
@@ -770,11 +770,10 @@ def pm_schedule_edit(request, pm_id):
 @login_required
 @module_required('equipment')
 def pm_schedule_complete(request, pm_id):
-    from datetime import date
     if request.method != 'POST':
         return redirect('equipment_list')
     pm = get_object_or_404(PMSchedule, id=pm_id)
-    pm.last_completed_date = date.today()
+    pm.last_completed_date = timezone.localdate()
     pm.calculate_next_due()
     pm.save()
     messages.success(request, f'บันทึกการทำ PM "{pm.task_name}" เรียบร้อย — ครั้งต่อไป {pm.next_due_date}')
@@ -983,9 +982,9 @@ def dashboard(request):
             'cane_weight': f"{r.cane_weight:,.0f}" if r.cane_weight else "0",
             'ccs': f"{r.ccs:.2f}" if r.ccs else "-",
             'created_by': r.created_by.get_full_name() or r.created_by.username if r.created_by else None,
-            'created_at': r.created_at.strftime('%d/%m %H:%M') if r.created_at else None,
+            'created_at': timezone.localtime(r.created_at).strftime('%d/%m %H:%M') if r.created_at else None,
             'updated_by': r.updated_by.get_full_name() or r.updated_by.username if r.updated_by else None,
-            'updated_at': r.updated_at.strftime('%d/%m %H:%M') if r.updated_at else None,
+            'updated_at': timezone.localtime(r.updated_at).strftime('%d/%m %H:%M') if r.updated_at else None,
         })
 
     mill_data = {
@@ -1029,7 +1028,7 @@ def dashboard(request):
     }
 
     # 3. Maintenance Data — วันนี้ (ยกเว้นโรงกลึง)
-    today = datetime.now().date()
+    today = timezone.localdate()
     maint_qs = MaintenanceLog.objects.filter(date=today).exclude(dept='โรงกลึง')
     maint_count = maint_qs.count()
     maint_agg = maint_qs.aggregate(
@@ -1090,15 +1089,15 @@ def dashboard_api(request):
             start = datetime.strptime(start_date, '%Y-%m-%d').date()
         else:
              # Default to last 7 days
-            start = datetime.now().date() - pd.Timedelta(days=7)
-        
+            start = timezone.localdate() - pd.Timedelta(days=7)
+
         if end_date:
             end = datetime.strptime(end_date, '%Y-%m-%d').date()
         else:
-            end = datetime.now().date()
+            end = timezone.localdate()
     except ValueError:
         return JsonResponse({'error': 'Invalid date format'}, status=400)
-    
+
     data = []
     labels = []
 
@@ -1192,12 +1191,12 @@ def boiler_history_api(request):
         if start_date:
             start = datetime.strptime(start_date, '%Y-%m-%d').date()
         else:
-            start = datetime.now().date() - timedelta(days=7)
-        
+            start = timezone.localdate() - timedelta(days=7)
+
         if end_date:
             end = datetime.strptime(end_date, '%Y-%m-%d').date()
         else:
-            end = datetime.now().date()
+            end = timezone.localdate()
     except ValueError:
         return JsonResponse({'error': 'Invalid date format'}, status=400)
 
@@ -2208,7 +2207,7 @@ def boiler(request):
     days_param = request.GET.get('days', '7')
     start_str = request.GET.get('start', '')
     end_str = request.GET.get('end', '')
-    today = date_cls.today()
+    today = timezone.localdate()
 
     is_custom = bool(start_str and end_str)
     if is_custom:
@@ -2334,7 +2333,7 @@ def boiler_export_csv(request):
     days_param = request.GET.get('days', '7')
     start_str = request.GET.get('start', '')
     end_str = request.GET.get('end', '')
-    today = date_cls.today()
+    today = timezone.localdate()
 
     if start_str and end_str:
         try:
@@ -2574,7 +2573,7 @@ def maintenance_import_csv(request):
                         if y > 2400: y -= 543 # แปลง พ.ศ. เป็น ค.ศ.
                         parsed_date = datetime(y, m, d).date()
                     except Exception:
-                        parsed_date = datetime.now().date()
+                        parsed_date = timezone.localdate()
                     
                     def to_float(val):
                         try: return float(val) if val else 0.0
@@ -2615,7 +2614,7 @@ def maintenance_import_csv(request):
 @login_required
 def mill(request):
     # (Same as provided logic)
-    today = datetime.now().date()
+    today = timezone.localdate()
     # Get latest report that actually has data (cane_weight is not null)
     latest_a = MillReport.objects.filter(line='A', cane_weight__isnull=False).order_by('-date', '-created_at').first()
     sum_cane_a = MillReport.objects.filter(line='A').aggregate(total=Sum('cane_weight'))['total'] or 0
@@ -2706,7 +2705,7 @@ def mill_history_api(request):
 
         # Default to last 7 days if no date provided
         if not end_date_str:
-            end_date = datetime.now().date()
+            end_date = timezone.localdate()
         else:
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
             
@@ -2950,7 +2949,7 @@ def lathe_dashboard(request):
     logs = MaintenanceLog.objects.filter(dept='โรงกลึง').order_by('-date')
     
     # Simple stats for today
-    today = datetime.now().date()
+    today = timezone.localdate()
     today_logs = logs.filter(date=today)
     
     stats = {
@@ -3060,7 +3059,6 @@ def lathe_api(request):
 @login_required
 def doc_repository(request):
     from django.db.models import Sum, Count
-    from datetime import date
 
     # ── Filters ──────────────────────────────────────────────
     dept_filter  = request.GET.get('dept', '')
@@ -3084,7 +3082,7 @@ def doc_repository(request):
         )
 
     # ── KPIs ─────────────────────────────────────────────────
-    today        = date.today()
+    today        = timezone.localdate()
     all_docs     = RepairDocument.objects.all()
     total_docs   = all_docs.count()
     monthly_docs = all_docs.filter(
@@ -3732,7 +3730,7 @@ def inventory_loans_list(request):
                   latest_due=Max('due_date', filter=Q(tx_type='loan_out')),
               ))
 
-    today = timezone.now().date()
+    today = timezone.localdate()
     rows = []
     for g in groups:
         outstanding = (g['loaned'] or Decimal(0)) - (g['returned'] or Decimal(0))
@@ -3987,13 +3985,13 @@ def inventory_readiness_add(request):
     if request.method == 'POST':
         item = get_object_or_404(InventoryItem, pk=request.POST.get('item'), category='tools')
         inspector = request.POST.get('inspector', '').strip()
-        check_date = request.POST.get('check_date') or timezone.now().date()
+        check_date = request.POST.get('check_date') or timezone.localdate()
 
         if not inspector:
             return render(request, 'myapp/inventory/readiness_form.html', {
                 'tool_items': tool_items,
                 'status_choices': ToolReadinessCheck.STATUS_CHOICES,
-                'today': timezone.now().date(),
+                'today': timezone.localdate(),
                 'error': 'กรุณากรอกชื่อผู้ตรวจสอบ',
             })
 
@@ -4014,7 +4012,7 @@ def inventory_readiness_add(request):
     context = {
         'tool_items': tool_items,
         'status_choices': ToolReadinessCheck.STATUS_CHOICES,
-        'today': timezone.now().date(),
+        'today': timezone.localdate(),
     }
     return render(request, 'myapp/inventory/readiness_form.html', context)
 
@@ -4029,7 +4027,7 @@ def inventory_readiness_add(request):
 def tools_dashboard(request):
     tool_items = InventoryItem.objects.filter(category='tools', is_active=True)
     units = ToolUnit.objects.filter(item__is_active=True)
-    today = timezone.now().date()
+    today = timezone.localdate()
     overdue_checkouts = (ToolCheckout.objects
                          .filter(return_date__isnull=True, due_date__lt=today)
                          .select_related('tool_unit', 'tool_unit__item')
@@ -4144,7 +4142,7 @@ def tools_unit_detail(request, pk):
 
 @login_required
 def tools_overdue_list(request):
-    today = timezone.now().date()
+    today = timezone.localdate()
     checkouts = (ToolCheckout.objects
                  .filter(return_date__isnull=True, due_date__lt=today)
                  .select_related('tool_unit', 'tool_unit__item')
@@ -4198,13 +4196,13 @@ def tools_readiness_add(request):
     if request.method == 'POST':
         unit = get_object_or_404(ToolUnit, pk=request.POST.get('tool_unit'))
         inspector = request.POST.get('inspector', '').strip()
-        check_date = request.POST.get('check_date') or timezone.now().date()
+        check_date = request.POST.get('check_date') or timezone.localdate()
 
         if not inspector:
             return render(request, 'myapp/tools/readiness_form.html', {
                 'tool_units': tool_units,
                 'status_choices': ToolReadinessCheck.STATUS_CHOICES,
-                'today': timezone.now().date(),
+                'today': timezone.localdate(),
                 'error': 'กรุณากรอกชื่อผู้ตรวจสอบ',
             })
 
@@ -4226,7 +4224,7 @@ def tools_readiness_add(request):
     context = {
         'tool_units': tool_units,
         'status_choices': ToolReadinessCheck.STATUS_CHOICES,
-        'today': timezone.now().date(),
+        'today': timezone.localdate(),
         'preselect_unit': preselect_unit,
     }
     return render(request, 'myapp/tools/readiness_form.html', context)
@@ -4250,7 +4248,7 @@ def api_tools_checkout(request):
         tool_unit=unit,
         borrower_name=borrower,
         department=data.get('department') or unit.department,
-        checkout_date=data.get('checkout_date') or timezone.now().date(),
+        checkout_date=data.get('checkout_date') or timezone.localdate(),
         due_date=data.get('due_date') or None,
         note=data.get('note', ''),
         created_by=request.user,
@@ -4285,7 +4283,7 @@ def api_tools_return(request):
     if not checkout:
         return JsonResponse({'error': 'หน่วยนี้ไม่มีรายการเบิกที่ค้างคืนอยู่'}, status=400)
 
-    checkout.return_date = data.get('return_date') or timezone.now().date()
+    checkout.return_date = data.get('return_date') or timezone.localdate()
     note = data.get('note', '').strip()
     if note:
         checkout.note = (checkout.note + '\n' if checkout.note else '') + note
@@ -4402,13 +4400,13 @@ def tools_maintenance_add(request):
         unit = get_object_or_404(ToolUnit, pk=request.POST.get('tool_unit'))
         technician = request.POST.get('technician', '').strip()
         maintenance_type = request.POST.get('maintenance_type', 'repair')
-        log_date = request.POST.get('date') or timezone.now().date()
+        log_date = request.POST.get('date') or timezone.localdate()
 
         if not technician:
             return render(request, 'myapp/tools/maintenance_form.html', {
                 'tool_units': tool_units,
                 'maintenance_type_choices': ToolMaintenanceLog.MAINTENANCE_TYPE_CHOICES,
-                'today': timezone.now().date(),
+                'today': timezone.localdate(),
                 'preselect_unit': str(unit.pk),
                 'error': 'กรุณากรอกชื่อผู้ดำเนินการ',
             })
@@ -4435,7 +4433,7 @@ def tools_maintenance_add(request):
     context = {
         'tool_units': tool_units,
         'maintenance_type_choices': ToolMaintenanceLog.MAINTENANCE_TYPE_CHOICES,
-        'today': timezone.now().date(),
+        'today': timezone.localdate(),
         'preselect_unit': preselect_unit,
     }
     return render(request, 'myapp/tools/maintenance_form.html', context)
@@ -4459,7 +4457,7 @@ TRAINING_TARGET_L3 = 12
 
 def get_expiring_certs_count(days_ahead=30):
     """นับใบรับรองที่กำลังจะหมดอายุใน N วันข้างหน้า (ยังไม่หมดอายุตอนนี้)"""
-    today = timezone.now().date()
+    today = timezone.localdate()
     soon = today + timedelta(days=days_ahead)
     records = TrainingRecord.objects.filter(
         status='passed', course__expiry_months__isnull=False
@@ -4810,7 +4808,7 @@ def _build_profile_context(emp):
     skill_levels = EmployeeSkillLevel.objects.filter(employee=emp).select_related('skill').order_by('skill__display_order')
     skill_rows = [{'skill': sl.skill, 'level': sl.level, 'pct': round(sl.level / 3 * 100)} for sl in skill_levels]
 
-    today = timezone.now().date()
+    today = timezone.localdate()
     records = TrainingRecord.objects.filter(employee=emp).select_related('course').order_by('-date')
     record_rows = []
     for r in records:
@@ -5211,7 +5209,7 @@ def training_mark_video_watched(request, course_id, employee_id):
     emp = get_object_or_404(employee, id=employee_id)
     record, _ = TrainingRecord.objects.get_or_create(
         employee=emp, course=course, training_type='online',
-        defaults={'date': timezone.now().date()},
+        defaults={'date': timezone.localdate()},
     )
     record.video_completed_at = timezone.now()
     record.save(update_fields=['video_completed_at'])
@@ -5236,7 +5234,7 @@ def training_exam_take(request, course_id, employee_id):
 
         overall_score, fully_correct, total, results = _grade_course_exam(questions, submitted_answers)
 
-        today = timezone.now().date()
+        today = timezone.localdate()
         attempt_no = TrainingCourseExamAttempt.objects.filter(employee=emp, course=course).count() + 1
         attempt = TrainingCourseExamAttempt.objects.create(
             employee=emp, course=course, attempt_no=attempt_no,
@@ -6037,7 +6035,7 @@ def vehicle_booking_add(request):
             messages.success(request, 'บันทึกการจองรถบริการเรียบร้อยแล้ว')
             return redirect(next_url or 'vehicle_status_dashboard')
     else:
-        form = VehicleBookingForm(initial={'date_needed': timezone.now().date()})
+        form = VehicleBookingForm(initial={'date_needed': timezone.localdate()})
     return render(request, 'myapp/vehicle/booking_form.html', {'form': form, 'is_edit': False, 'next_url': next_url})
 
 
@@ -6146,7 +6144,7 @@ def vehicle_status_dashboard(request):
 
 def _vehicle_booking_window_and_filters(request):
     """แยก logic คำนวณช่วงสัปดาห์ + filter ให้ dashboard และ export ใช้ร่วมกัน"""
-    today = timezone.now().date()
+    today = timezone.localdate()
     monday_this_week = today - timedelta(days=today.weekday())
     try:
         week_offset = int(request.GET.get('week', 0) or 0)
@@ -6258,7 +6256,7 @@ def _electricity_date_range(request, default_days=30):
     days_param = request.GET.get('days', str(default_days))
     start_str = request.GET.get('start', '')
     end_str = request.GET.get('end', '')
-    today = date_cls.today()
+    today = timezone.localdate()
 
     is_custom = bool(start_str and end_str)
     if is_custom:
@@ -6298,7 +6296,7 @@ def _electricity_period_comparison(meters_qs):
     ใช้ร่วมกันทั้ง plant dashboard และ meter dashboard"""
     from datetime import date as date_cls
 
-    today = date_cls.today()
+    today = timezone.localdate()
     target_daily_total = sum((m.target_kwh_effective or 0) for m in meters_qs)
 
     month_keys = []
@@ -6410,7 +6408,7 @@ def electricity_meter_toggle_active(request, meter_id):
 @module_required('energy')
 def electricity_reading_add(request, meter_id=None):
     from datetime import date as date_cls
-    initial = {'date': date_cls.today()}
+    initial = {'date': timezone.localdate()}
     if meter_id:
         initial['meter'] = meter_id
     if request.method == 'POST':
