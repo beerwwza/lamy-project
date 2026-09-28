@@ -19,8 +19,12 @@
              class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200 flex-1 min-w-[180px]">
       <select name="department" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">
         <option value="">แผนกทั้งหมด</option>
-        {% for value, label in department_choices %}
-        <option value="{{ value }}" {% if department_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% for group_name, group_choices in department_choices %}
+        <optgroup label="{{ group_name }}">
+          {% for value, label in group_choices %}
+          <option value="{{ value }}" {% if department_filter == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </optgroup>
         {% endfor %}
       </select>
       <select name="group" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 text-sm dark:text-slate-200">

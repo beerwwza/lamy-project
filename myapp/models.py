@@ -10,12 +10,24 @@ from datetime import timedelta
 # ==========================================
 
 # แผนก — ใช้ร่วมกันทั้งพนักงาน (employee) และเอกสารงานซ่อม (RepairDocument)
+# จัดกลุ่มตามฝ่าย: ฝ่ายวิศวกรรมจักรกล (เดิม) และฝ่ายผลิต (หม้อต้ม/หม้อเคี่ยว/หม้อปั่น/รีไฟน์)
 DEPARTMENT_CHOICES = [
-    ('ลูกหีบ',              'ลูกหีบ (Mill)'),
-    ('หม้อน้ำ',             'หม้อน้ำ (Boiler)'),
-    ('ซ่อมบำรุงเครื่องกล', 'ซ่อมบำรุงเครื่องกล (Mechanical)'),
-    ('โรงกลึง',             'โรงกลึง (Lathe)'),
+    ('ฝ่ายวิศวกรรมจักรกล', [
+        ('ลูกหีบ',              'ลูกหีบ (Mill)'),
+        ('หม้อน้ำ',             'หม้อน้ำ (Boiler)'),
+        ('ซ่อมบำรุงเครื่องกล', 'ซ่อมบำรุงเครื่องกล (Mechanical)'),
+        ('โรงกลึง',             'โรงกลึง (Lathe)'),
+    ]),
+    ('ฝ่ายผลิต', [
+        ('หม้อต้ม',   'หม้อต้ม (Evaporator)'),
+        ('หม้อเคี่ยว', 'หม้อเคี่ยว (Vacuum Pan)'),
+        ('หม้อปั่น',  'หม้อปั่น (Centrifuge)'),
+        ('รีไฟน์',    'รีไฟน์ (Refine)'),
+    ]),
 ]
+
+# รายการแผนกแบบแบน (value, label) — ใช้เมื่อต้องวนลูปนับ/แสดงผลโดยไม่มีการจัดกลุ่ม เช่น dept_counts, filter tabs
+DEPARTMENT_CHOICES_FLAT = [choice for _, choices in DEPARTMENT_CHOICES for choice in choices]
 
 class Job(models.Model):
     fullname = models.CharField(max_length=255)

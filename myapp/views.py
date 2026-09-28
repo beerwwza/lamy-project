@@ -3092,7 +3092,7 @@ def doc_repository(request):
 
     # นับแยกแผนก (สำหรับ filter badge)
     dept_counts = {}
-    for dept, _ in RepairDocument.DEPT_CHOICES:
+    for dept, _ in DEPARTMENT_CHOICES_FLAT:
         dept_counts[dept] = all_docs.filter(department=dept).count()
 
     # ปีงบประมาณที่มีในระบบ (สำหรับ dropdown) — ต้องเป็น string เพื่อเทียบกับ year_filter ที่มาจาก GET
@@ -3116,7 +3116,7 @@ def doc_repository(request):
         'dept_counts':   dept_counts,
         'budget_years':  budget_years,
         # Dept choices for filter tabs
-        'dept_choices':  RepairDocument.DEPT_CHOICES,
+        'dept_choices':  DEPARTMENT_CHOICES_FLAT,
         'doc_count':     docs.count(),
     }
     return render(request, 'myapp/doc_repository.html', context)
@@ -4548,49 +4548,88 @@ def training_employee_reactivate(request, employee_id):
     return redirect('training_employees')
 
 
+def _training_kpi_for_employees(emp_qs):
+    """คืนค่า KPI 4 ตัว (headcount/coverage, สัดส่วนระดับทักษะ, อัตราผ่านการประเมิน, ชม.ฝึกอบรมเฉลี่ย/คน) สำหรับกลุ่มพนักงานที่ระบุ"""
+    total = emp_qs.count()
+    emp_ids = list(emp_qs.values_list('id', flat=True))
+
+    finalized_qs = TrainingRecord.objects.filter(employee_id__in=emp_ids).exclude(status='pending')
+    finalized_total = finalized_qs.count()
+    finalized_passed = finalized_qs.filter(status='passed').count()
+    pass_rate = round(finalized_passed / finalized_total * 100, 1) if finalized_total else 0
+
+    passed_qs = TrainingRecord.objects.filter(employee_id__in=emp_ids, status='passed').select_related('course')
+    total_hours = sum(float(r.course.duration_days) * 8 for r in passed_qs)
+    avg_hours = round(total_hours / total, 1) if total else 0
+
+    best_per_employee = EmployeeSkillLevel.objects.filter(
+        employee_id__in=emp_ids
+    ).values('employee').annotate(max_level=Max('level'))
+    evaluated_count = best_per_employee.count()
+    exact_l1 = best_per_employee.filter(max_level=1).count()
+    exact_l2 = best_per_employee.filter(max_level=2).count()
+    exact_l3 = best_per_employee.filter(max_level=3).count()
+    exact_l0 = total - exact_l1 - exact_l2 - exact_l3
+
+    def seg_pct(count):
+        return round(count / total * 100, 1) if total else 0
+
+    return {
+        'total': total,
+        'evaluated_count': evaluated_count,
+        'evaluated_pct': round(evaluated_count / total * 100) if total else 0,
+        'skill_l0_count': exact_l0,
+        'skill_l1_count': exact_l1,
+        'skill_l2_count': exact_l2,
+        'skill_l3_count': exact_l3,
+        'skill_l0_pct': seg_pct(exact_l0),
+        'skill_l1_pct': seg_pct(exact_l1),
+        'skill_l2_pct': seg_pct(exact_l2),
+        'skill_l3_pct': seg_pct(exact_l3),
+        'pass_rate': pass_rate,
+        'avg_hours': avg_hours,
+    }
+
+
 @login_required
 def training_overview(request):
-    total_employees = employee.objects.filter(is_active=True).count()
+    division_depts = dict(DEPARTMENT_CHOICES)
+    eng_codes = [code for code, _ in division_depts.get('ฝ่ายวิศวกรรมจักรกล', [])]
+    prod_codes = [code for code, _ in division_depts.get('ฝ่ายผลิต', [])]
 
-    avg_level = EmployeeSkillLevel.objects.aggregate(a=Avg('level'))['a'] or 0
+    active_qs = employee.objects.filter(is_active=True)
+    eng_qs = active_qs.filter(department__in=eng_codes)
+    prod_qs = active_qs.filter(department__in=prod_codes)
+    unassigned_count = active_qs.exclude(department__in=eng_codes + prod_codes).count()
 
-    total_records = TrainingRecord.objects.count()
-    passed_records = TrainingRecord.objects.filter(status='passed').count()
-    pass_rate = round(passed_records / total_records * 100, 1) if total_records else 0
+    eng_kpi = _training_kpi_for_employees(eng_qs)
+    prod_kpi = _training_kpi_for_employees(prod_qs)
 
-    passed_qs = TrainingRecord.objects.filter(status='passed').select_related('course')
-    total_hours = sum(float(r.course.duration_days) * 8 for r in passed_qs)
-    avg_hours = round(total_hours / total_employees, 1) if total_employees else 0
-    total_budget = sum(float(r.course.cost_per_person) for r in passed_qs)
-
-    best_per_employee = EmployeeSkillLevel.objects.values('employee').annotate(max_level=Max('level'))
-    evaluated_count = best_per_employee.count()
-    l1_count = best_per_employee.filter(max_level__gte=1).count()
-    l2_count = best_per_employee.filter(max_level__gte=2).count()
-    l3_count = best_per_employee.filter(max_level__gte=3).count()
+    # เป้าหมาย KPI ปี 68/69 (TRAINING_TARGET_*) ตั้งไว้ก่อนมีฝ่ายผลิต จึงยังอ้างอิงเฉพาะฝ่ายวิศวกรรมจักรกล
+    l1_count = eng_qs.filter(id__in=EmployeeSkillLevel.objects.filter(level__gte=1).values('employee_id')).count()
+    l2_count = eng_qs.filter(id__in=EmployeeSkillLevel.objects.filter(level__gte=2).values('employee_id')).count()
 
     def pct(value, target):
         return min(round(value / target * 100), 100) if target else 0
 
     context = {
-        'total_employees': total_employees,
-        'avg_level': round(avg_level, 2),
-        'pass_rate': pass_rate,
-        'avg_hours': avg_hours,
-        'total_budget': total_budget,
-        'l3_expert_count': l3_count,
+        'total_employees': active_qs.count(),
+        'unassigned_count': unassigned_count,
+        'eng_kpi': eng_kpi,
+        'prod_kpi': prod_kpi,
 
         'target_total': TRAINING_TARGET_TOTAL,
         'target_l1': TRAINING_TARGET_L1,
         'target_l2': TRAINING_TARGET_L2,
         'target_l3': TRAINING_TARGET_L3,
-        'evaluated_count': evaluated_count,
+        'evaluated_count': eng_kpi['evaluated_count'],
         'l1_count': l1_count,
         'l2_count': l2_count,
-        'evaluated_pct': pct(evaluated_count, TRAINING_TARGET_TOTAL),
+        'l3_expert_count': eng_kpi['skill_l3_count'],
+        'evaluated_pct': pct(eng_kpi['evaluated_count'], TRAINING_TARGET_TOTAL),
         'l1_pct': pct(l1_count, TRAINING_TARGET_L1),
         'l2_pct': pct(l2_count, TRAINING_TARGET_L2),
-        'l3_pct': pct(l3_count, TRAINING_TARGET_L3),
+        'l3_pct': pct(eng_kpi['skill_l3_count'], TRAINING_TARGET_L3),
 
         'expiring_soon_count': get_expiring_certs_count(),
     }

@@ -36,7 +36,7 @@
             <span class="text-slate-500">L{{ row.level }}</span>
           </div>
           <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-            <div class="h-2 rounded-full {% if row.level == 0 %}bg-red-500{% elif row.level == 1 %}bg-amber-500{% elif row.level == 2 %}bg-blue-500{% else %}bg-emerald-500{% endif %}" style="width: {{ row.pct }}%"></div>
+            <div class="h-2 rounded-full {% if row.level == 0 %}bg-yellow-500{% elif row.level == 1 %}bg-green-500{% elif row.level == 2 %}bg-blue-500{% else %}bg-emerald-500{% endif %}" style="width: {{ row.pct }}%"></div>
           </div>
         </div>
         {% empty %}
