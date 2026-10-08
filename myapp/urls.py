@@ -30,6 +30,8 @@ urlpatterns = [
     path('maintenance/add/', maintenance_log_add, name='maintenance_log_add'),
     path('maintenance/edit/<int:log_id>/', maintenance_log_edit, name='maintenance_log_edit'),
     path('maintenance/kpi/add/', maintenance_kpi_metric_add, name='maintenance_kpi_metric_add'),
+    path('maintenance/wo/add/', views.work_order_add, name='work_order_add_global'),
+    path('maintenance/tracking/', views.repair_tracking, name='repair_tracking'),
     
     path('mill/', mill, name='mill'),
     path('mill/report/', mill_report, name='mill_report'),

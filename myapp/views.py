@@ -1,4 +1,5 @@
 import os
+import math
 import random
 import pandas as pd
 import numpy as np
@@ -6,7 +7,7 @@ import csv
 import io
 import urllib.request
 import base64
-from datetime import datetime, time, timedelta
+from datetime import datetime, date, time, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.db import transaction, connection
@@ -68,6 +69,22 @@ def module_required(module_key):
             if user.is_superuser:
                 return view_func(request, *args, **kwargs)
             if not user.is_staff or not user.has_perm(perm):
+                raise PermissionDenied
+            return view_func(request, *args, **kwargs)
+        return _wrapped
+    return decorator
+
+
+def module_required_any(*module_keys):
+    """เหมือน module_required แต่ผ่านได้ถ้ามีสิทธิ์เขียน "อย่างน้อยหนึ่ง" โมดูลในรายการ — ใช้กับ view ที่ถูกเรียกใช้ร่วมกันจากหลายโมดูล เช่น WorkOrder ที่แก้ไขได้ทั้งจากหน้าเครื่องจักร (equipment) และหน้าติดตามงานซ่อมรวม (maintenance)"""
+    perms = [f'myapp.write_{k}' for k in module_keys]
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped(request, *args, **kwargs):
+            user = request.user
+            if user.is_superuser:
+                return view_func(request, *args, **kwargs)
+            if not user.is_staff or not any(user.has_perm(p) for p in perms):
                 raise PermissionDenied
             return view_func(request, *args, **kwargs)
         return _wrapped
@@ -170,6 +187,56 @@ def equipment_data(request, eq_id=None):
     }
     pm_completion_history = PMPlanCompletion.objects.filter(plan__equipment=equipment).select_related('plan')[:20]
 
+    # Unified PM list for the merged panel (presentation-only; PMPlan/PMSchedule tables are untouched)
+    pm_items = []
+    for plan in pm_plans:
+        pm_items.append({
+            'source': 'pm_plan',
+            'obj': plan,
+            'id': plan.id,
+            'code': plan.pm_code,
+            'title': plan.title,
+            'freq_label': f"ทุก {plan.interval_value} {plan.get_interval_unit_display()}",
+            'next_due_date': plan.next_due_date,
+            'status': 'overdue' if plan.is_overdue else ('due_soon' if plan.is_due_soon else 'ok'),
+            'days_left': plan.days_left,
+            'days_overdue': plan.days_overdue,
+            'assigned': plan.assigned_team,
+            'items_count': plan.items.all().count(),
+            'complete_url': reverse('pm_plan_complete', args=[plan.id]),
+            'delete_url': reverse('pm_plan_delete', args=[plan.id]),
+            'edit_url': None,
+        })
+    for pm in pm_schedules:
+        days_left = (pm.next_due_date - today).days if pm.next_due_date else None
+        pm_items.append({
+            'source': 'pm_schedule',
+            'obj': pm,
+            'id': pm.id,
+            'code': pm.get_frequency_type_display(),
+            'title': pm.task_name,
+            'freq_label': pm.get_frequency_type_display(),
+            'next_due_date': pm.next_due_date,
+            'status': pm.pm_status,
+            'days_left': days_left,
+            'days_overdue': abs(days_left) if (days_left is not None and days_left < 0) else 0,
+            'assigned': pm.assigned_to,
+            'items_count': None,
+            'complete_url': reverse('pm_schedule_complete', args=[pm.id]),
+            'delete_url': reverse('pm_schedule_delete', args=[pm.id]),
+            'edit_url': reverse('pm_schedule_edit', args=[pm.id]),
+        })
+    pm_items.sort(key=lambda i: (i['next_due_date'] is None, i['next_due_date'] or date.max))
+
+    pm_summary_unified = {
+        'total': len(pm_items),
+        'overdue': sum(1 for i in pm_items if i['status'] == 'overdue'),
+        'due_soon': sum(1 for i in pm_items if i['status'] == 'due_soon'),
+        'completed_this_month': pm_summary['completed_this_month'] + PMSchedule.objects.filter(
+            equipment=equipment, last_completed_date__year=today.year, last_completed_date__month=today.month
+        ).count(),
+    }
+
     manuals = RepairDocument.objects.filter(equipment=equipment).select_related('uploaded_by').order_by('-created_at')
     form_document = RepairDocumentForm(initial={'equipment': equipment})
 
@@ -185,6 +252,51 @@ def equipment_data(request, eq_id=None):
         'in_progress': sum(1 for wo in work_orders if wo.status == 'in_progress'),
         'completed': len(completed_wos),
         'avg_resolution_days': wo_avg_resolution_days,
+    }
+
+    # Unified repair-history list for the merged panel (WorkOrder/MaintenanceLog tables are untouched)
+    repair_items = []
+    for wo in work_orders:
+        repair_items.append({
+            'source': 'work_order',
+            'obj': wo,
+            'id': wo.id,
+            'date': wo.report_date,
+            'code': wo.wo_no,
+            'title': wo.problem_title,
+            'detail': wo.description,
+            'status': wo.status,
+            'status_label': wo.get_status_display(),
+            'reporter': wo.reporter,
+            'resolver': wo.mechanic,
+            'delete_url': reverse('work_order_delete', args=[wo.id]),
+            'edit_url': None,
+        })
+    for log in maintenance_logs:
+        repair_items.append({
+            'source': 'maintenance_log',
+            'obj': log,
+            'id': log.id,
+            'date': log.date,
+            'code': None,
+            'title': log.problem,
+            'detail': log.solution,
+            'status': 'stopped' if log.downtime_stop else 'logged',
+            'status_label': f"หยุด {log.downtime_stop:.1f} ชม." if log.downtime_stop else "ไม่หยุด",
+            'reporter': log.reporter,
+            'resolver': log.resolver,
+            'edit_url': reverse('maintenance_log_edit', args=[log.id]),
+            'delete_url': None,
+        })
+    repair_items.sort(key=lambda i: i['date'], reverse=True)
+
+    repair_summary_unified = {
+        'total': wo_summary['total'] + len(maintenance_logs),
+        'pending': wo_summary['pending'],
+        'in_progress': wo_summary['in_progress'],
+        'completed': wo_summary['completed'],
+        'rca_logged': len(maintenance_logs),
+        'avg_resolution_days': wo_summary['avg_resolution_days'],
     }
 
     context = {
@@ -223,6 +335,10 @@ def equipment_data(request, eq_id=None):
         'wo_summary': wo_summary,
         'manuals': manuals,
         'form_document': form_document,
+        'pm_items': pm_items,
+        'pm_summary_unified': pm_summary_unified,
+        'repair_items': repair_items,
+        'repair_summary_unified': repair_summary_unified,
     }
     return render(request, 'myapp/equipment_data.html', context)
 
@@ -464,13 +580,25 @@ def pm_plan_item_delete(request, item_id):
 
 
 # --- Work Order Views ---
+# Valid redirect targets for the 'next' POST field — the two global (non-equipment-scoped)
+# pages that can launch a WorkOrder action: the untouched legacy /maintenance/ page and the
+# new cross-equipment repair_tracking page. Whitelisted to avoid an open redirect.
+_WORK_ORDER_NEXT_TARGETS = {'maintenance_dashboard', 'repair_tracking'}
+
+# eq_id comes from the URL when called from a single equipment's detail tab
+# (equipment/<eq_id>/wo/add/), or is left out and read from POST['equipment_id']
+# when called from a global cross-equipment page (maintenance/wo/add/).
+# 'next' in POST decides where to redirect back to (see _WORK_ORDER_NEXT_TARGETS).
 @login_required
-@module_required('equipment')
-def work_order_add(request, eq_id):
-    equipment = Equipment.objects.filter(equipment_id=eq_id).first()
+@module_required_any('equipment', 'maintenance')
+def work_order_add(request, eq_id=None):
+    if eq_id is None and request.method == 'POST':
+        eq_id = request.POST.get('equipment_id')
+    equipment = Equipment.objects.filter(equipment_id=eq_id).first() if eq_id else None
+    next_page = request.POST.get('next') if request.method == 'POST' else None
     if not equipment:
         messages.error(request, 'ไม่พบเครื่องจักรที่ระบุ')
-        return redirect('equipment_list')
+        return redirect(next_page if next_page in _WORK_ORDER_NEXT_TARGETS else 'equipment_list')
     if request.method == 'POST':
         form = WorkOrderForm(request.POST)
         if form.is_valid():
@@ -486,17 +614,20 @@ def work_order_add(request, eq_id):
             messages.success(request, f'แจ้งซ่อม {wo.wo_no} เรียบร้อยแล้ว')
         else:
             messages.error(request, 'แจ้งซ่อมไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
-    return redirect('equipment_data_detail', eq_id=eq_id)
+    if next_page in _WORK_ORDER_NEXT_TARGETS:
+        return redirect(next_page)
+    return redirect('equipment_data_detail', eq_id=equipment.equipment_id)
 
 
 @login_required
-@module_required('equipment')
+@module_required_any('equipment', 'maintenance')
 def work_order_edit(request, wo_id):
     wo = WorkOrder.objects.filter(id=wo_id).first()
     if not wo:
         messages.error(request, 'ไม่พบใบสั่งซ่อมที่ระบุ')
         return redirect('equipment_list')
     eq_id = wo.equipment.equipment_id
+    next_page = request.POST.get('next') if request.method == 'POST' else None
     if request.method == 'POST':
         form = WorkOrderStatusForm(request.POST, instance=wo)
         if form.is_valid():
@@ -507,6 +638,8 @@ def work_order_edit(request, wo_id):
             messages.success(request, f'อัปเดตสถานะ {wo.wo_no} เรียบร้อยแล้ว')
         else:
             messages.error(request, 'อัปเดตสถานะไม่สำเร็จ กรุณาตรวจสอบข้อมูล')
+    if next_page in _WORK_ORDER_NEXT_TARGETS:
+        return redirect(next_page)
     return redirect('equipment_data_detail', eq_id=eq_id)
 
 
@@ -517,8 +650,11 @@ def work_order_delete(request, wo_id):
     if wo:
         eq_id = wo.equipment.equipment_id
         wo_no = wo.wo_no
+        next_page = request.POST.get('next')
         wo.delete()
         messages.success(request, f'ลบใบสั่งซ่อม {wo_no} เรียบร้อยแล้ว')
+        if next_page in _WORK_ORDER_NEXT_TARGETS:
+            return redirect(next_page)
         return redirect('equipment_data_detail', eq_id=eq_id)
     messages.error(request, 'ไม่พบใบสั่งซ่อมที่ต้องการลบ')
     return redirect('equipment_list')
@@ -2443,11 +2579,107 @@ def maintenance_dashboard(request):
     }
     return render(request, 'myapp/maintenance_dashboard.html', context)
 
+
+@login_required
+def repair_tracking(request):
+    """ติดตามงานและสถานะแจ้งซ่อมข้ามเครื่องจักรทั้งหมด — รวม WorkOrder (สถานะ pending/in_progress/completed)
+    และ MaintenanceLog (บันทึก RCA) เป็นรายการเดียว เรียงตามวันที่ล่าสุด — หน้านี้แยกจาก /maintenance/ เดิม
+    (ซึ่งยังคงเป็น React/Babel SPA เดิมสำหรับ KPI/CSV import ตามเดิม ไม่เกี่ยวข้องกัน)"""
+    search_query = request.GET.get('q', '').strip()
+    equipment_filter = request.GET.get('equipment', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+
+    wo_qs = WorkOrder.objects.select_related('equipment').all()
+    log_qs = MaintenanceLog.objects.select_related('equipment_fk').all()
+
+    if equipment_filter:
+        wo_qs = wo_qs.filter(equipment__equipment_id=equipment_filter)
+        log_qs = log_qs.filter(equipment_fk__equipment_id=equipment_filter)
+    if date_from:
+        wo_qs = wo_qs.filter(report_date__gte=date_from)
+        log_qs = log_qs.filter(date__gte=date_from)
+    if date_to:
+        wo_qs = wo_qs.filter(report_date__lte=date_to)
+        log_qs = log_qs.filter(date__lte=date_to)
+    if search_query:
+        wo_qs = wo_qs.filter(
+            Q(wo_no__icontains=search_query) | Q(problem_title__icontains=search_query) |
+            Q(description__icontains=search_query) | Q(reporter__icontains=search_query) |
+            Q(mechanic__icontains=search_query) | Q(equipment__name__icontains=search_query) |
+            Q(equipment__equipment_id__icontains=search_query)
+        )
+        log_qs = log_qs.filter(
+            Q(machine__icontains=search_query) | Q(problem__icontains=search_query) |
+            Q(solution__icontains=search_query) | Q(reporter__icontains=search_query) |
+            Q(resolver__icontains=search_query)
+        )
+    if status_filter in ('pending', 'in_progress', 'completed'):
+        log_qs = log_qs.none()
+        wo_qs = wo_qs.filter(status=status_filter)
+    elif status_filter == 'logged':
+        wo_qs = wo_qs.none()
+
+    items = []
+    for wo in wo_qs:
+        items.append({
+            'source': 'work_order', 'id': wo.id, 'date': wo.report_date,
+            'equipment_id': wo.equipment.equipment_id, 'equipment_name': wo.equipment.name,
+            'code': wo.wo_no, 'title': wo.problem_title, 'detail': wo.description,
+            'status': wo.status, 'status_label': wo.get_status_display(),
+            'reporter': wo.reporter, 'resolver': wo.mechanic, 'obj': wo,
+        })
+    for log in log_qs:
+        items.append({
+            'source': 'maintenance_log', 'id': log.id, 'date': log.date,
+            'equipment_id': log.equipment_fk.equipment_id if log.equipment_fk else None,
+            'equipment_name': log.equipment_fk.name if log.equipment_fk else log.machine,
+            'code': None, 'title': log.problem, 'detail': log.solution,
+            'status': 'stopped' if log.downtime_stop else 'logged',
+            'status_label': f"หยุด {log.downtime_stop:.1f} ชม." if log.downtime_stop else "บันทึก RCA",
+            'reporter': log.reporter, 'resolver': log.resolver, 'obj': log,
+        })
+    items.sort(key=lambda i: i['date'] or date.min, reverse=True)
+
+    paginator = Paginator(items, 20)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    querystring = request.GET.copy()
+    querystring.pop('page', None)
+    querystring = querystring.urlencode()
+
+    all_wo = WorkOrder.objects.all()
+    overview = {
+        'open_wo': all_wo.filter(status__in=['pending', 'in_progress']).count(),
+        'pending_wo': all_wo.filter(status='pending').count(),
+        'in_progress_wo': all_wo.filter(status='in_progress').count(),
+        'completed_wo': all_wo.filter(status='completed').count(),
+        'total_logs': MaintenanceLog.objects.count(),
+        'total_downtime': round(MaintenanceLog.objects.aggregate(t=Sum('downtime_stop'))['t'] or 0, 1),
+        'total_leaks': MaintenanceLog.objects.filter(is_leak=True).count(),
+    }
+
+    context = {
+        'page_obj': page_obj,
+        'querystring': querystring,
+        'search_query': search_query,
+        'equipment_filter': equipment_filter,
+        'status_filter': status_filter,
+        'date_from': date_from,
+        'date_to': date_to,
+        'equipment_choices': Equipment.objects.filter(is_active=True).order_by('equipment_id'),
+        'overview': overview,
+        'form_wo': WorkOrderForm(),
+    }
+    return render(request, 'myapp/repair_tracking.html', context)
+
 @login_required
 @module_required('maintenance')
 def maintenance_log_add(request):
     equipment_choices = Equipment.objects.filter(is_active=True).order_by('equipment_id')
     prefill_eq = request.GET.get('equipment', '')
+    next_page = request.GET.get('next', 'maintenance_dashboard')
     if request.method == 'POST':
         form = MaintenanceLogForm(request.POST)
         if form.is_valid():
@@ -2456,7 +2688,8 @@ def maintenance_log_add(request):
             log.save()
             if log.equipment_fk:
                 log.equipment_fk.update_reliability_metrics()
-            return redirect('maintenance_dashboard')
+            posted_next = request.POST.get('next')
+            return redirect(posted_next if posted_next in _WORK_ORDER_NEXT_TARGETS else 'maintenance_dashboard')
     else:
         initial = {}
         if prefill_eq:
@@ -2467,6 +2700,7 @@ def maintenance_log_add(request):
     return render(request, 'myapp/maintenance_log_form.html', {
         'form': form,
         'equipment_choices': equipment_choices,
+        'next': next_page if next_page in _WORK_ORDER_NEXT_TARGETS else 'maintenance_dashboard',
     })
 
 @login_required
@@ -2474,6 +2708,7 @@ def maintenance_log_add(request):
 def maintenance_log_edit(request, log_id):
     log = get_object_or_404(MaintenanceLog, id=log_id)
     equipment_choices = Equipment.objects.filter(is_active=True).order_by('equipment_id')
+    next_page = request.GET.get('next', 'maintenance_dashboard')
     if request.method == 'POST':
         form = MaintenanceLogForm(request.POST, instance=log)
         if form.is_valid():
@@ -2482,7 +2717,8 @@ def maintenance_log_edit(request, log_id):
             log.save()
             if log.equipment_fk:
                 log.equipment_fk.update_reliability_metrics()
-            return redirect('maintenance_dashboard')
+            posted_next = request.POST.get('next')
+            return redirect(posted_next if posted_next in _WORK_ORDER_NEXT_TARGETS else 'maintenance_dashboard')
     else:
         form = MaintenanceLogForm(instance=log)
     return render(request, 'myapp/maintenance_log_form.html', {
@@ -2490,6 +2726,7 @@ def maintenance_log_edit(request, log_id):
         'equipment_choices': equipment_choices,
         'is_edit': True,
         'log_id': log_id,
+        'next': next_page if next_page in _WORK_ORDER_NEXT_TARGETS else 'maintenance_dashboard',
     })
 
 @login_required
@@ -4449,10 +4686,17 @@ ALLOWED_DOCUMENT_EXTENSIONS = {'.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'}
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov'}
 TRAINING_MATERIAL_MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
 
-TRAINING_TARGET_TOTAL = 122
-TRAINING_TARGET_L1 = 85
-TRAINING_TARGET_L2 = 24
-TRAINING_TARGET_L3 = 12
+# สัดส่วนเป้าหมาย KPI ปี 68/69 เทียบกับจำนวนพนักงานจริง (ระดับ L1 >70%, L2 >=20%, L3 >=10%)
+TRAINING_TARGET_L1_RATIO = 0.70
+TRAINING_TARGET_L2_RATIO = 0.20
+TRAINING_TARGET_L3_RATIO = 0.10
+
+# ช่วงเดือนของแผนงาน: (ชื่อช่วง, เดือนที่อยู่ในช่วง)
+TRAINING_PLAN_PHASES = [
+    ('before', (11, 12)),
+    ('during', (1, 2)),
+    ('after', (3, 4)),
+]
 
 
 def get_expiring_certs_count(days_ahead=30):
@@ -4505,7 +4749,7 @@ def training_employees(request):
 @module_required('training')
 def training_employee_add(request):
     if request.method == 'POST':
-        form = EmployeeForm(request.POST)
+        form = EmployeeForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
             return redirect('training_employees')
@@ -4519,7 +4763,7 @@ def training_employee_add(request):
 def training_employee_edit(request, employee_id):
     emp = get_object_or_404(employee, id=employee_id)
     if request.method == 'POST':
-        form = EmployeeForm(request.POST, instance=emp)
+        form = EmployeeForm(request.POST, request.FILES, instance=emp)
         if form.is_valid():
             form.save()
             return redirect('training_employees')
@@ -4605,12 +4849,44 @@ def training_overview(request):
     eng_kpi = _training_kpi_for_employees(eng_qs)
     prod_kpi = _training_kpi_for_employees(prod_qs)
 
-    # เป้าหมาย KPI ปี 68/69 (TRAINING_TARGET_*) ตั้งไว้ก่อนมีฝ่ายผลิต จึงยังอ้างอิงเฉพาะฝ่ายวิศวกรรมจักรกล
-    l1_count = eng_qs.filter(id__in=EmployeeSkillLevel.objects.filter(level__gte=1).values('employee_id')).count()
-    l2_count = eng_qs.filter(id__in=EmployeeSkillLevel.objects.filter(level__gte=2).values('employee_id')).count()
+    # เป้าหมาย KPI ปี 68/69 อ้างอิงเฉพาะฝ่ายวิศวกรรมจักรกล และคำนวณจากจำนวนพนักงาน active จริง
+    best_level_qs = EmployeeSkillLevel.objects.filter(
+        employee_id__in=eng_qs.values('id')
+    ).values('employee').annotate(max_level=Max('level'))
+    l1_count = best_level_qs.filter(max_level__gte=1).count()
+    l2_count = best_level_qs.filter(max_level__gte=2).count()
+    l3_count = best_level_qs.filter(max_level__gte=3).count()
+
+    target_total = eng_kpi['total']
+    target_l1 = math.ceil(target_total * TRAINING_TARGET_L1_RATIO)
+    target_l2 = math.ceil(target_total * TRAINING_TARGET_L2_RATIO)
+    target_l3 = math.ceil(target_total * TRAINING_TARGET_L3_RATIO)
 
     def pct(value, target):
         return min(round(value / target * 100), 100) if target else 0
+
+    # แผนงาน: ช่วงปัจจุบันตามเดือนจริง (เวลาไทย) และความคืบหน้าจากข้อมูลที่ป้อนแล้ว
+    current_month = timezone.localdate().month
+    current_phase = next((name for name, months in TRAINING_PLAN_PHASES if current_month in months), None)
+
+    def exam_round_count(attempt_no):
+        return TrainingExamScore.objects.filter(
+            employee_id__in=eng_qs.values('id'), attempt_no=attempt_no
+        ).values('employee').distinct().count()
+
+    failed_count = TrainingRecord.objects.filter(
+        employee_id__in=eng_qs.values('id'), status='failed'
+    ).values('employee').distinct().count()
+
+    plan_progress = {
+        'pretest': exam_round_count(0),
+        'round1': exam_round_count(1),
+        'round2': exam_round_count(2),
+        'round3': exam_round_count(3),
+        'failed': failed_count,
+        'l2': l2_count,
+        'l3': l3_count,
+    }
 
     context = {
         'total_employees': active_qs.count(),
@@ -4618,18 +4894,21 @@ def training_overview(request):
         'eng_kpi': eng_kpi,
         'prod_kpi': prod_kpi,
 
-        'target_total': TRAINING_TARGET_TOTAL,
-        'target_l1': TRAINING_TARGET_L1,
-        'target_l2': TRAINING_TARGET_L2,
-        'target_l3': TRAINING_TARGET_L3,
+        'target_total': target_total,
+        'target_l1': target_l1,
+        'target_l2': target_l2,
+        'target_l3': target_l3,
         'evaluated_count': eng_kpi['evaluated_count'],
         'l1_count': l1_count,
         'l2_count': l2_count,
-        'l3_expert_count': eng_kpi['skill_l3_count'],
-        'evaluated_pct': pct(eng_kpi['evaluated_count'], TRAINING_TARGET_TOTAL),
-        'l1_pct': pct(l1_count, TRAINING_TARGET_L1),
-        'l2_pct': pct(l2_count, TRAINING_TARGET_L2),
-        'l3_pct': pct(eng_kpi['skill_l3_count'], TRAINING_TARGET_L3),
+        'l3_expert_count': l3_count,
+        'evaluated_pct': pct(eng_kpi['evaluated_count'], target_total),
+        'l1_pct': pct(l1_count, target_l1),
+        'l2_pct': pct(l2_count, target_l2),
+        'l3_pct': pct(l3_count, target_l3),
+
+        'current_phase': current_phase,
+        'plan_progress': plan_progress,
 
         'expiring_soon_count': get_expiring_certs_count(),
     }

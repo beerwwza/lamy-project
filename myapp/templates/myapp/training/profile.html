@@ -12,9 +12,13 @@
 
   <!-- Header -->
   <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 flex items-center gap-4">
-    <div class="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+    {% if employee.photo %}
+    <img src="{{ employee.photo.url }}" alt="{{ employee.full_name }}" class="w-24 h-24 rounded-full object-cover flex-shrink-0 border border-slate-200 dark:border-slate-600">
+    {% else %}
+    <div class="w-24 h-24 rounded-full bg-indigo-600 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0">
       {{ employee.full_name|first }}
     </div>
+    {% endif %}
     <div>
       <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">{{ employee.full_name }}</h2>
       <p class="text-sm text-slate-500 dark:text-slate-400">{{ employee.employeeID }} &middot; {{ employee.get_department_display }} &middot; {{ employee.group }}</p>

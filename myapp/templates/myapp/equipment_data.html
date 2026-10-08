@@ -954,15 +954,15 @@
         <div id="tab-content-wopm" class="hidden pb-12 tab-pane">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                <!-- PM Schedules (live data) -->
+                <!-- PM Panel (merged PMPlan + PMSchedule) -->
                 <div class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col">
-                    <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                    <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white flex-wrap gap-2 min-h-[3.5rem]">
                         <h3 class="font-bold tracking-wide text-slate-800 flex items-center gap-2">
                             <i data-lucide="calendar-check" class="w-5 h-5 text-indigo-600"></i>
                             แผนบำรุงรักษาเชิงป้องกัน (PM)
                         </h3>
                         {% if user.is_staff or user.is_superuser %}
-                        <button type="button" onclick="togglePmAddForm()"
+                        <button type="button" onclick="toggleId('pm-add-form')"
                             class="text-indigo-600 hover:text-indigo-700 text-sm font-semibold transition-colors flex items-center gap-1">
                             <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มแผน PM
                         </button>
@@ -971,11 +971,11 @@
 
                     <!-- PM Summary Report -->
                     <div class="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-4 text-xs text-slate-600 flex-wrap">
-                        <span>แผนทั้งหมด: <strong class="text-slate-800">{{ pm_summary.total }}</strong></span>
-                        <span class="text-red-600">เลยกำหนด: <strong>{{ pm_summary.overdue }}</strong></span>
-                        <span class="text-amber-600">ใกล้ครบกำหนด: <strong>{{ pm_summary.due_soon }}</strong></span>
-                        <span class="text-green-600">ทำแล้วเดือนนี้: <strong>{{ pm_summary.completed_this_month }}</strong></span>
-                        <button type="button" onclick="togglePmHistory()"
+                        <span>แผนทั้งหมด: <strong class="text-slate-800">{{ pm_summary_unified.total }}</strong></span>
+                        <span class="text-red-600">เลยกำหนด: <strong>{{ pm_summary_unified.overdue }}</strong></span>
+                        <span class="text-amber-600">ใกล้ครบกำหนด: <strong>{{ pm_summary_unified.due_soon }}</strong></span>
+                        <span class="text-green-600">ทำแล้วเดือนนี้: <strong>{{ pm_summary_unified.completed_this_month }}</strong></span>
+                        <button type="button" onclick="toggleId('pm-history')"
                             class="ml-auto text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
                             <i data-lucide="history" class="w-3.5 h-3.5"></i> ประวัติการทำ PM
                         </button>
@@ -993,7 +993,7 @@
                         {% endfor %}
                     </div>
 
-                    <!-- Add PM Plan Form -->
+                    <!-- Add PM Plan Form (always creates a PMPlan) -->
                     {% if user.is_staff or user.is_superuser %}
                     <div id="pm-add-form" class="hidden px-5 py-4 bg-indigo-50/50 border-b border-indigo-100">
                         <form method="POST" action="{% url 'pm_plan_add' equipment.equipment_id %}"
@@ -1040,7 +1040,7 @@
                                     class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
                             </div>
                             <div class="col-span-2 flex gap-2 justify-end pt-1">
-                                <button type="button" onclick="togglePmAddForm()"
+                                <button type="button" onclick="toggleId('pm-add-form')"
                                     class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">ยกเลิก</button>
                                 <button type="submit"
                                     class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">บันทึกแผน
@@ -1050,26 +1050,28 @@
                     </div>
                     {% endif %}
 
-                    <!-- PM Plan (ระบบใหม่) -->
+                    <!-- Unified, sorted PM list (PMPlan + PMSchedule) -->
                     <div class="p-5 flex-grow space-y-4">
-                        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">PM Plan (ระบบใหม่)</h4>
-                        {% for plan in pm_plans %}
-                        <div
-                            class="border border-slate-200 rounded-lg p-4 hover:border-indigo-300 transition-colors group">
-                            <div class="flex justify-between items-start mb-2">
+                        {% for item in pm_items %}
+                        <div class="border rounded-lg p-4 transition-colors
+                            {% if item.status == 'overdue' %}border-red-200 bg-red-50/30
+                            {% elif item.status == 'due_soon' %}border-amber-200 bg-amber-50/30
+                            {% else %}border-slate-200 hover:border-indigo-300{% endif %}">
+                            <div class="flex justify-between items-start mb-2 flex-wrap gap-2">
                                 <div>
                                     <span
-                                        class="bg-indigo-100 text-indigo-700 text-[10px] uppercase px-2 py-0.5 rounded font-bold tracking-wider">{{ plan.pm_code }}</span>
-                                    <h4 class="font-semibold text-slate-800 mt-1">{{ plan.title }}</h4>
+                                        class="bg-indigo-100 text-indigo-700 text-[10px] uppercase px-2 py-0.5 rounded font-bold tracking-wider">{{ item.code }}</span>
+                                    <h4 class="font-semibold text-slate-800 mt-1">{{ item.title }}</h4>
                                 </div>
-                                {% if plan.is_overdue %}
+                                {% if item.status == 'overdue' %}
                                 <span
-                                    class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-md font-semibold border border-red-200 whitespace-nowrap">เลยกำหนด
-                                    {{ plan.days_overdue }} วัน</span>
-                                {% elif plan.is_due_soon %}
+                                    class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-md font-semibold border border-red-200 whitespace-nowrap">เลยกำหนด {{ item.days_overdue }} วัน</span>
+                                {% elif item.status == 'due_soon' %}
                                 <span
-                                    class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-semibold border border-amber-200 whitespace-nowrap">Due
-                                    in {{ plan.days_left }} days</span>
+                                    class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-semibold border border-amber-200 whitespace-nowrap">ใกล้ครบกำหนด ({{ item.days_left }} วัน)</span>
+                                {% elif item.status == 'unscheduled' %}
+                                <span
+                                    class="bg-slate-100 text-slate-500 text-xs px-2 py-1 rounded-md font-medium border border-slate-200 whitespace-nowrap">ยังไม่กำหนด</span>
                                 {% else %}
                                 <span
                                     class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-medium border border-slate-200 whitespace-nowrap">ในแผน</span>
@@ -1077,31 +1079,40 @@
                             </div>
                             <div class="flex items-center text-sm text-slate-500 mt-3 gap-4 flex-wrap">
                                 <div class="flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4"></i>
-                                    คิวถัดไป: {{ plan.next_due_date|date:"d M Y" }}</div>
-                                {% if plan.assigned_team %}
+                                    คิวถัดไป: {{ item.next_due_date|date:"d M Y"|default:"ยังไม่กำหนด" }}</div>
+                                {% if item.assigned %}
                                 <div class="flex items-center gap-1.5"><i data-lucide="user" class="w-4 h-4"></i>
-                                    {{ plan.assigned_team }}</div>
+                                    {{ item.assigned }}</div>
                                 {% endif %}
+                                <div class="flex items-center gap-1.5"><i data-lucide="repeat" class="w-4 h-4"></i>
+                                    {{ item.freq_label }}</div>
                             </div>
 
-                            <div class="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs">
-                                <button type="button" onclick="togglePmItems({{ plan.id }})"
+                            <div class="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs flex-wrap">
+                                {% if item.source == 'pm_plan' %}
+                                <button type="button" onclick="toggleId('pm-items-{{ item.id }}')"
                                     class="text-slate-500 hover:text-indigo-600 font-medium flex items-center gap-1">
                                     <i data-lucide="list-checks" class="w-3.5 h-3.5"></i> รายการที่ต้องทำ
-                                    ({{ plan.items.all|length }})
+                                    ({{ item.items_count }})
                                 </button>
+                                {% endif %}
                                 {% if user.is_staff or user.is_superuser %}
-                                <form method="POST" action="{% url 'pm_plan_complete' plan.id %}" class="inline">
+                                <form method="POST" action="{{ item.complete_url }}" class="inline">
                                     {% csrf_token %}
                                     <button type="submit"
                                         class="text-green-600 hover:text-green-700 font-medium flex items-center gap-1">
                                         <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> ทำ PM แล้ว
                                     </button>
                                 </form>
+                                {% if item.edit_url %}
+                                <a href="{{ item.edit_url }}" class="text-slate-500 hover:text-indigo-600 font-medium flex items-center gap-1">
+                                    <i data-lucide="square-pen" class="w-3.5 h-3.5"></i> แก้ไข
+                                </a>
+                                {% endif %}
                                 {% endif %}
                                 {% if user.is_superuser %}
-                                <form method="POST" action="{% url 'pm_plan_delete' plan.id %}" class="inline ml-auto"
-                                    onsubmit="return confirm('ต้องการลบแผน PM {{ plan.pm_code }} ใช่หรือไม่?')">
+                                <form method="POST" action="{{ item.delete_url }}" class="inline ml-auto"
+                                    onsubmit="return confirm('ต้องการลบแผน PM {{ item.code }} ใช่หรือไม่?')">
                                     {% csrf_token %}
                                     <button type="submit" class="text-slate-400 hover:text-red-600" title="ลบแผน">
                                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
@@ -1110,15 +1121,16 @@
                                 {% endif %}
                             </div>
 
-                            <!-- Checklist -->
-                            <div id="pm-items-{{ plan.id }}"
+                            {% if item.source == 'pm_plan' %}
+                            <!-- Checklist (PMPlan only) -->
+                            <div id="pm-items-{{ item.id }}"
                                 class="hidden mt-3 pt-3 border-t border-slate-100 space-y-2">
-                                {% for item in plan.items.all %}
+                                {% for chk in item.obj.items.all %}
                                 <div
                                     class="flex items-center justify-between text-sm text-slate-600 bg-slate-50 rounded px-3 py-1.5">
-                                    <span>{{ item.description }}</span>
+                                    <span>{{ chk.description }}</span>
                                     {% if user.is_superuser %}
-                                    <form method="POST" action="{% url 'pm_plan_item_delete' item.id %}"
+                                    <form method="POST" action="{% url 'pm_plan_item_delete' chk.id %}"
                                         class="inline">
                                         {% csrf_token %}
                                         <button type="submit" class="text-slate-400 hover:text-red-600">
@@ -1131,7 +1143,7 @@
                                 <p class="text-xs text-slate-400">ยังไม่มีรายการที่ต้องทำ</p>
                                 {% endfor %}
                                 {% if user.is_staff or user.is_superuser %}
-                                <form method="POST" action="{% url 'pm_plan_item_add' plan.id %}"
+                                <form method="POST" action="{% url 'pm_plan_item_add' item.id %}"
                                     class="flex gap-2 pt-1">
                                     {% csrf_token %}
                                     <input type="text" name="description" required placeholder="เพิ่มรายการที่ต้องทำ"
@@ -1141,6 +1153,7 @@
                                 </form>
                                 {% endif %}
                             </div>
+                            {% endif %}
                         </div>
                         {% empty %}
                         <div class="text-center py-8 text-slate-400">
@@ -1148,93 +1161,40 @@
                             <p class="text-sm font-medium">ยังไม่มีแผน PM</p>
                         </div>
                         {% endfor %}
-                    </div>
-
-                    <!-- PM Schedule (ระบบเดิม) -->
-                    <div class="p-5 flex-grow space-y-3 border-t border-slate-100">
-                        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">PM Schedule (ระบบเดิม)</h4>
-                        {% for pm in pm_schedules %}
-                        <div class="border rounded-lg p-4 hover:border-indigo-300 transition-colors
-                            {% if pm.pm_status == 'overdue' %}border-red-200 bg-red-50/30
-                            {% elif pm.pm_status == 'due_soon' %}border-amber-200 bg-amber-50/30
-                            {% else %}border-slate-200{% endif %}">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <span class="bg-indigo-100 text-indigo-700 text-[10px] uppercase px-2 py-0.5 rounded font-bold">{{ pm.get_frequency_type_display }}</span>
-                                    <h4 class="font-semibold text-slate-800 mt-1 text-sm">{{ pm.task_name }}</h4>
-                                </div>
-                                {% if pm.pm_status == 'overdue' %}
-                                <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-md font-semibold border border-red-200 whitespace-nowrap">เกินกำหนด!</span>
-                                {% elif pm.pm_status == 'due_soon' %}
-                                <span class="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-md font-semibold border border-amber-200 whitespace-nowrap">ใกล้ครบกำหนด</span>
-                                {% else %}
-                                <span class="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-md font-medium border border-slate-200 whitespace-nowrap">ในแผน</span>
-                                {% endif %}
-                            </div>
-                            <div class="flex items-center text-sm text-slate-500 gap-4">
-                                <span class="flex items-center gap-1"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> {{ pm.next_due_date|date:"d/m/Y"|default:"ยังไม่กำหนด" }}</span>
-                                <span class="flex items-center gap-1"><i data-lucide="user" class="w-3.5 h-3.5"></i> {{ pm.assigned_to|default:"ไม่ระบุ" }}</span>
-                            </div>
-                            <div class="flex gap-2 mt-3">
-                                {% if user.is_staff or user.is_superuser %}
-                                <form method="POST" action="{% url 'pm_schedule_complete' pm.id %}">{% csrf_token %}
-                                    <button type="submit" class="text-xs bg-emerald-600 text-white px-3 py-1 rounded-lg hover:bg-emerald-700 transition-colors">ทำ PM เสร็จแล้ว</button>
-                                </form>
-                                <a href="{% url 'pm_schedule_edit' pm.id %}" class="text-xs bg-slate-100 text-slate-600 px-3 py-1 rounded-lg hover:bg-slate-200 transition-colors">แก้ไข</a>
-                                {% endif %}
-                                {% if user.is_superuser %}
-                                <form method="POST" action="{% url 'pm_schedule_delete' pm.id %}" onsubmit="return confirm('ลบแผน PM นี้?')">{% csrf_token %}
-                                    <button type="submit" class="text-xs bg-red-50 text-red-500 px-3 py-1 rounded-lg hover:bg-red-100 transition-colors border border-red-200">ลบ</button>
-                                </form>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% empty %}
-                        <div class="text-center py-8 text-slate-400">
-                            <i data-lucide="calendar-x" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
-                            <p class="text-sm font-medium">ยังไม่มีแผน PM</p>
-                        </div>
-                        {% endfor %}
-                        {% if user.is_staff or user.is_superuser %}
-                        <div class="pt-2 border-t border-slate-100">
-                            <a href="{{ pm_add_url }}" class="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-                                <i data-lucide="plus-circle" class="w-4 h-4"></i> เพิ่มแผน PM ใหม่
-                            </a>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
 
-                <!-- Work Orders (live data) -->
+                <!-- Repair History Panel (merged WorkOrder + MaintenanceLog) -->
                 <div class="bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col">
-                    <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
+                    <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white flex-wrap gap-2 min-h-[3.5rem]">
                         <h3 class="font-bold tracking-wide text-slate-800 flex items-center gap-2">
                             <i data-lucide="wrench" class="w-5 h-5 text-orange-500"></i>
-                            ประวัติการซ่อม (Work Orders)
+                            ประวัติการซ่อม
                         </h3>
-                        <div class="flex items-center gap-2">
-                            {% if user.is_staff or user.is_superuser %}
+                        {% if user.is_staff or user.is_superuser %}
+                        <div class="flex items-center gap-3 flex-wrap">
                             <a href="{% url 'maintenance_log_add' %}?equipment={{ equipment.equipment_id }}"
-                               class="bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
-                                <i data-lucide="plus" class="w-4 h-4"></i> แจ้งซ่อม (เดิม)
+                               class="text-slate-500 hover:text-orange-600 text-xs font-medium underline decoration-dotted">
+                                + บันทึกซ่อมแบบละเอียด (RCA)
                             </a>
-                            <button type="button" onclick="toggleWoAddForm()"
-                                class="bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
-                                <i data-lucide="plus" class="w-4 h-4"></i> แจ้งซ่อม (Work Order)
+                            <button type="button" onclick="toggleId('wo-add-form')"
+                                class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1">
+                                <i data-lucide="plus" class="w-4 h-4"></i> แจ้งซ่อม
                             </button>
-                            {% endif %}
                         </div>
+                        {% endif %}
                     </div>
 
-                    <!-- Work Order Summary Report -->
+                    <!-- Repair Summary Report -->
                     <div class="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-4 text-xs text-slate-600 flex-wrap">
-                        <span>ทั้งหมด: <strong class="text-slate-800">{{ wo_summary.total }}</strong></span>
-                        <span class="text-slate-500">รอดำเนินการ: <strong>{{ wo_summary.pending }}</strong></span>
-                        <span class="text-amber-600">กำลังดำเนินการ: <strong>{{ wo_summary.in_progress }}</strong></span>
-                        <span class="text-green-600">ปิดงานแล้ว: <strong>{{ wo_summary.completed }}</strong></span>
-                        {% if wo_summary.avg_resolution_days is not None %}
-                        <span class="ml-auto">เวลาซ่อมเฉลี่ย: <strong class="text-slate-800">{{ wo_summary.avg_resolution_days }} วัน</strong></span>
+                        <span>ทั้งหมด: <strong class="text-slate-800">{{ repair_summary_unified.total }}</strong></span>
+                        <span class="text-slate-500">รอดำเนินการ: <strong>{{ repair_summary_unified.pending }}</strong></span>
+                        <span class="text-amber-600">กำลังดำเนินการ: <strong>{{ repair_summary_unified.in_progress }}</strong></span>
+                        <span class="text-green-600">ปิดงานแล้ว: <strong>{{ repair_summary_unified.completed }}</strong></span>
+                        {% if repair_summary_unified.avg_resolution_days is not None %}
+                        <span>เวลาซ่อมเฉลี่ย: <strong class="text-slate-800">{{ repair_summary_unified.avg_resolution_days }} วัน</strong></span>
                         {% endif %}
+                        <span class="ml-auto text-slate-400">บันทึก RCA ละเอียด: {{ repair_summary_unified.rca_logged }} รายการ</span>
                     </div>
 
                     <!-- Add Work Order Form -->
@@ -1270,7 +1230,7 @@
                                     class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
                             </div>
                             <div class="col-span-2 flex gap-2 justify-end pt-1">
-                                <button type="button" onclick="toggleWoAddForm()"
+                                <button type="button" onclick="toggleId('wo-add-form')"
                                     class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">ยกเลิก</button>
                                 <button type="submit"
                                     class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">แจ้งซ่อม</button>
@@ -1278,59 +1238,63 @@
                         </form>
                     </div>
                     {% endif %}
+
+                    <!-- Unified, sorted repair list (WorkOrder + MaintenanceLog) -->
                     <div class="p-5 flex-grow space-y-4">
-                        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Work Order (ระบบใหม่)</h4>
-                        {% for wo in work_orders %}
+                        {% for item in repair_items %}
                         <div
-                            class="border border-slate-200 rounded-lg p-4 transition-colors {% if wo.status == 'completed' %}bg-slate-50/50 grayscale-[50%] opacity-80{% else %}hover:border-orange-300{% endif %}">
-                            <div class="flex justify-between items-start mb-2">
+                            class="border border-slate-200 rounded-lg p-4 transition-colors {% if item.status == 'completed' %}bg-slate-50/50 opacity-80{% else %}hover:border-orange-300{% endif %}">
+                            <div class="flex justify-between items-start mb-2 flex-wrap gap-2">
                                 <div>
-                                    <span
-                                        class="{% if wo.status == 'completed' %}text-slate-600{% else %}text-orange-600{% endif %} font-bold text-sm tracking-wide">{{ wo.wo_no }}</span>
-                                    <h4 class="font-medium text-slate-800 mt-0.5 text-sm">{{ wo.problem_title }}</h4>
+                                    {% if item.code %}<span
+                                        class="{% if item.status == 'completed' %}text-slate-600{% else %}text-orange-600{% endif %} font-bold text-sm tracking-wide">{{ item.code }}</span>{% endif %}
+                                    <h4 class="font-medium text-slate-800 mt-0.5 text-sm">{{ item.title|truncatechars:80 }}</h4>
                                 </div>
-                                {% if wo.status == 'completed' %}
-                                <span
-                                    class="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-green-200">Completed</span>
-                                {% elif wo.status == 'in_progress' %}
-                                <span
-                                    class="bg-amber-100 text-amber-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-amber-200">In
-                                    Progress</span>
+                                {% if item.source == 'work_order' %}
+                                    {% if item.status == 'completed' %}
+                                    <span class="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-green-200 whitespace-nowrap">{{ item.status_label }}</span>
+                                    {% elif item.status == 'in_progress' %}
+                                    <span class="bg-amber-100 text-amber-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-amber-200 whitespace-nowrap">{{ item.status_label }}</span>
+                                    {% else %}
+                                    <span class="bg-slate-100 text-slate-600 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-slate-200 whitespace-nowrap">{{ item.status_label }}</span>
+                                    {% endif %}
                                 {% else %}
-                                <span
-                                    class="bg-slate-100 text-slate-600 text-[10px] px-2 py-1 rounded-full font-bold uppercase border border-slate-200">Pending</span>
+                                    <span class="{% if item.status == 'stopped' %}bg-red-100 text-red-700 border-red-200{% else %}bg-slate-100 text-slate-500 border-slate-200{% endif %} text-[10px] px-2 py-1 rounded-full font-bold border whitespace-nowrap">{{ item.status_label }}</span>
                                 {% endif %}
                             </div>
-                            {% if wo.description %}
-                            <p class="text-xs text-slate-500 mb-3">{{ wo.description }}</p>
+                            {% if item.detail %}
+                            <p class="text-xs text-slate-500 mb-2">{{ item.detail|truncatechars:100 }}</p>
                             {% endif %}
-                            {% if wo.status == 'in_progress' %}
+                            {% if item.source == 'work_order' and item.status == 'in_progress' %}
                             <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2">
-                                <div class="bg-amber-500 h-1.5 rounded-full" style="width: {{ wo.progress_percent }}%">
-                                </div>
+                                <div class="bg-amber-500 h-1.5 rounded-full" style="width: {{ item.obj.progress_percent }}%"></div>
                             </div>
                             {% endif %}
                             <div class="flex justify-between text-[10px] text-slate-400 font-medium flex-wrap gap-1">
-                                {% if wo.status == 'completed' %}
-                                <span>ช่างซ่อม: {{ wo.mechanic|default:"-" }}</span>
-                                <span>ปิดงาน: {{ wo.completed_date|date:"d M y" }}</span>
+                                <span>{{ item.date|date:"d M y" }} • ผู้แจ้ง: {{ item.reporter }}</span>
+                                {% if item.source == 'work_order' %}
+                                <span>{% if item.status == 'completed' %}ช่างซ่อม: {{ item.resolver|default:"-" }}{% else %}{{ item.obj.current_action|default:"" }}{% endif %}</span>
                                 {% else %}
-                                <span>ผู้แจ้ง: {{ wo.reporter }}{% if wo.reporter_dept %}
-                                    ({{ wo.reporter_dept }}){% endif %} • {{ wo.report_date|date:"d M y" }}</span>
-                                <span>{{ wo.current_action|default:"" }}</span>
+                                <span>ช่าง: {{ item.resolver }} · RCA</span>
                                 {% endif %}
                             </div>
 
-                            <div class="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs">
-                                {% if user.is_staff or user.is_superuser %}
-                                <button type="button" onclick="toggleWoEdit({{ wo.id }})"
-                                    class="text-slate-500 hover:text-orange-600 font-medium flex items-center gap-1">
-                                    <i data-lucide="square-pen" class="w-3.5 h-3.5"></i> อัปเดตสถานะ
-                                </button>
+                            <div class="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100 text-xs flex-wrap">
+                                {% if item.source == 'work_order' %}
+                                    {% if user.is_staff or user.is_superuser %}
+                                    <button type="button" onclick="toggleId('wo-edit-{{ item.id }}')"
+                                        class="text-slate-500 hover:text-orange-600 font-medium flex items-center gap-1">
+                                        <i data-lucide="square-pen" class="w-3.5 h-3.5"></i> อัปเดตสถานะ
+                                    </button>
+                                    {% endif %}
+                                {% elif perms.myapp.write_maintenance %}
+                                    <a href="{{ item.edit_url }}" class="text-slate-500 hover:text-orange-600 font-medium flex items-center gap-1">
+                                        <i data-lucide="square-pen" class="w-3.5 h-3.5"></i> แก้ไข RCA
+                                    </a>
                                 {% endif %}
-                                {% if user.is_superuser %}
-                                <form method="POST" action="{% url 'work_order_delete' wo.id %}" class="inline ml-auto"
-                                    onsubmit="return confirm('ต้องการลบใบสั่งซ่อม {{ wo.wo_no }} ใช่หรือไม่?')">
+                                {% if item.delete_url and user.is_superuser %}
+                                <form method="POST" action="{{ item.delete_url }}" class="inline ml-auto"
+                                    onsubmit="return confirm('ต้องการลบใบสั่งซ่อม {{ item.code }} ใช่หรือไม่?')">
                                     {% csrf_token %}
                                     <button type="submit" class="text-slate-400 hover:text-red-600"
                                         title="ลบใบสั่งซ่อม">
@@ -1340,95 +1304,64 @@
                                 {% endif %}
                             </div>
 
-                            <!-- Status Update Form -->
-                            {% if user.is_staff or user.is_superuser %}
-                            <div id="wo-edit-{{ wo.id }}" class="hidden mt-3 pt-3 border-t border-slate-100">
-                                <form method="POST" action="{% url 'work_order_edit' wo.id %}"
+                            {% if item.source == 'work_order' %}{% if user.is_staff or user.is_superuser %}
+                            <!-- Status Update Form (WorkOrder only) -->
+                            <div id="wo-edit-{{ item.id }}" class="hidden mt-3 pt-3 border-t border-slate-100">
+                                <form method="POST" action="{% url 'work_order_edit' item.id %}"
                                     class="grid grid-cols-2 gap-3">
                                     {% csrf_token %}
                                     <div>
                                         <label class="block text-xs font-semibold text-slate-500 mb-1">สถานะ</label>
                                         <select name="status"
                                             class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
-                                            <option value="pending" {% if wo.status == 'pending' %}selected{% endif %}>รอดำเนินการ</option>
-                                            <option value="in_progress" {% if wo.status == 'in_progress' %}selected{% endif %}>กำลังดำเนินการ</option>
-                                            <option value="completed" {% if wo.status == 'completed' %}selected{% endif %}>ปิดงาน</option>
+                                            <option value="pending" {% if item.status == 'pending' %}selected{% endif %}>รอดำเนินการ</option>
+                                            <option value="in_progress" {% if item.status == 'in_progress' %}selected{% endif %}>กำลังดำเนินการ</option>
+                                            <option value="completed" {% if item.status == 'completed' %}selected{% endif %}>ปิดงาน</option>
                                         </select>
                                     </div>
                                     <div>
                                         <label class="block text-xs font-semibold text-slate-500 mb-1">ช่างผู้รับผิดชอบ</label>
-                                        <input type="text" name="mechanic" value="{{ wo.mechanic|default:'' }}"
+                                        <input type="text" name="mechanic" value="{{ item.resolver|default:'' }}"
                                             class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
                                     </div>
                                     <div class="col-span-2">
                                         <label class="block text-xs font-semibold text-slate-500 mb-1">การดำเนินการปัจจุบัน</label>
                                         <input type="text" name="current_action"
-                                            value="{{ wo.current_action|default:'' }}" placeholder="เช่น กำลังเบิกอะไหล่"
+                                            value="{{ item.obj.current_action|default:'' }}" placeholder="เช่น กำลังเบิกอะไหล่"
                                             class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
                                     </div>
                                     <div>
                                         <label class="block text-xs font-semibold text-slate-500 mb-1">ความคืบหน้า
                                             (%)</label>
                                         <input type="number" name="progress_percent" min="0" max="100"
-                                            value="{{ wo.progress_percent }}"
+                                            value="{{ item.obj.progress_percent }}"
                                             class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
                                     </div>
                                     <div>
                                         <label class="block text-xs font-semibold text-slate-500 mb-1">วันที่ปิดงาน</label>
                                         <input type="date" name="completed_date"
-                                            value="{{ wo.completed_date|date:'Y-m-d' }}"
+                                            value="{{ item.obj.completed_date|date:'Y-m-d' }}"
                                             class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none">
                                     </div>
                                     <div class="col-span-2 flex gap-2 justify-end pt-1">
-                                        <button type="button" onclick="toggleWoEdit({{ wo.id }})"
+                                        <button type="button" onclick="toggleId('wo-edit-{{ item.id }}')"
                                             class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">ยกเลิก</button>
                                         <button type="submit"
                                             class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">บันทึก</button>
                                     </div>
                                 </form>
                             </div>
-                            {% endif %}
+                            {% endif %}{% endif %}
                         </div>
                         {% empty %}
                         <div class="text-center text-slate-400 py-8">
                             <i data-lucide="wrench" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
-                            <p class="text-sm font-medium">ยังไม่มีประวัติใบสั่งซ่อมสำหรับเครื่องจักรนี้</p>
+                            <p class="text-sm font-medium">ยังไม่มีประวัติการซ่อมสำหรับเครื่องจักรนี้</p>
                             <p class="text-xs mt-1">กดปุ่ม "แจ้งซ่อม" ด้านบนเพื่อสร้างใบสั่งซ่อมใหม่</p>
-                        </div>
-                        {% endfor %}
-                    </div>
-
-                    <div class="p-5 flex-grow space-y-3 border-t border-slate-100">
-                        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide">ประวัติการซ่อม (ระบบเดิม)</h4>
-                        {% for log in maintenance_logs %}
-                        <div class="border border-slate-200 rounded-lg p-4 hover:border-orange-200 transition-colors">
-                            <div class="flex justify-between items-start mb-1.5">
-                                <div>
-                                    <span class="text-xs text-slate-400">{{ log.date|date:"d/m/Y" }}</span>
-                                    <h4 class="font-medium text-slate-800 text-sm mt-0.5">{{ log.problem|truncatechars:60 }}</h4>
-                                </div>
-                                {% if log.downtime_stop > 0 %}
-                                <span class="bg-red-100 text-red-700 text-[10px] px-2 py-1 rounded-full font-bold border border-red-200 whitespace-nowrap">หยุด {{ log.downtime_stop|floatformat:1 }}h</span>
-                                {% else %}
-                                <span class="bg-slate-100 text-slate-500 text-[10px] px-2 py-1 rounded-full font-bold border border-slate-200 whitespace-nowrap">ไม่หยุด</span>
-                                {% endif %}
-                            </div>
-                            {% if log.solution %}
-                            <p class="text-xs text-slate-500 mt-1">{{ log.solution|truncatechars:80 }}</p>
-                            {% endif %}
-                            <div class="flex justify-between text-[10px] text-slate-400 mt-2 pt-2 border-t border-slate-100">
-                                <span>{{ log.category }} • ผู้แจ้ง: {{ log.reporter }}</span>
-                                <span>ช่าง: {{ log.resolver }}</span>
-                            </div>
-                        </div>
-                        {% empty %}
-                        <div class="text-center py-8 text-slate-400">
-                            <i data-lucide="check-circle" class="w-10 h-10 mx-auto mb-2 text-slate-300"></i>
-                            <p class="text-sm font-medium">ยังไม่มีประวัติการซ่อม</p>
                             {% if user.is_staff or user.is_superuser %}
                             <a href="{% url 'maintenance_log_add' %}?equipment={{ equipment.equipment_id }}"
-                               class="mt-3 inline-flex items-center gap-1.5 text-sm text-orange-600 hover:text-orange-700 font-semibold">
-                                <i data-lucide="plus" class="w-4 h-4"></i> บันทึกงานซ่อมแรก
+                               class="mt-3 inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-orange-600 font-medium underline decoration-dotted">
+                                หรือบันทึกซ่อมแบบละเอียด (RCA)
                             </a>
                             {% endif %}
                         </div>
@@ -2605,24 +2538,8 @@
             document.getElementById(`bom-edit-row-${bomId}`).classList.toggle('hidden');
         }
 
-        function togglePmAddForm() {
-            document.getElementById('pm-add-form').classList.toggle('hidden');
-        }
-
-        function togglePmItems(planId) {
-            document.getElementById(`pm-items-${planId}`).classList.toggle('hidden');
-        }
-
-        function togglePmHistory() {
-            document.getElementById('pm-history').classList.toggle('hidden');
-        }
-
-        function toggleWoAddForm() {
-            document.getElementById('wo-add-form').classList.toggle('hidden');
-        }
-
-        function toggleWoEdit(woId) {
-            document.getElementById(`wo-edit-${woId}`).classList.toggle('hidden');
+        function toggleId(id) {
+            document.getElementById(id).classList.toggle('hidden');
         }
 
         function uploadCBMFileToDrive(input, fieldName, statusId) {

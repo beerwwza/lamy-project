@@ -22,7 +22,7 @@ from .models import ProcessCategory
 class EmployeeForm(forms.ModelForm):
     class Meta:
         model = employee
-        fields = ['first_name', 'last_name', 'employeeID', 'tell', 'group', 'department', 'is_active']
+        fields = ['first_name', 'last_name', 'employeeID', 'tell', 'group', 'department', 'is_active', 'photo']
 
         labels = {
             'first_name': 'ชื่อ',
@@ -32,6 +32,7 @@ class EmployeeForm(forms.ModelForm):
             'group': 'กลุ่มงาน',
             'department': 'แผนก',
             'is_active': 'ยังทำงานอยู่ (ไม่ติ๊ก = ลาออก)',
+            'photo': 'รูปภาพพนักงาน',
         }
 
         widgets = {
@@ -42,6 +43,7 @@ class EmployeeForm(forms.ModelForm):
             'group': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'เช่น ช่างเทคนิค L1'}),
             'department': forms.Select(attrs={'class': 'form-control'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'photo': forms.FileInput(attrs={'accept': 'image/*'}),
         }
 class BoilerOperationForm(forms.ModelForm):
     class Meta:

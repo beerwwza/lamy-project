@@ -10,7 +10,7 @@ from datetime import timedelta
 # ==========================================
 
 # แผนก — ใช้ร่วมกันทั้งพนักงาน (employee) และเอกสารงานซ่อม (RepairDocument)
-# จัดกลุ่มตามฝ่าย: ฝ่ายวิศวกรรมจักรกล (เดิม) และฝ่ายผลิต (หม้อต้ม/หม้อเคี่ยว/หม้อปั่น/รีไฟน์)
+# จัดกลุ่มตามฝ่าย: ฝ่ายวิศวกรรมจักรกล (เดิม) และฝ่ายผลิต (หม้อต้ม/หม้อเคี่ยว/หม้อปั่น/รีไฟน์/ผลิตน้ำ)
 DEPARTMENT_CHOICES = [
     ('ฝ่ายวิศวกรรมจักรกล', [
         ('ลูกหีบ',              'ลูกหีบ (Mill)'),
@@ -23,6 +23,7 @@ DEPARTMENT_CHOICES = [
         ('หม้อเคี่ยว', 'หม้อเคี่ยว (Vacuum Pan)'),
         ('หม้อปั่น',  'หม้อปั่น (Centrifuge)'),
         ('รีไฟน์',    'รีไฟน์ (Refine)'),
+        ('ผลิตน้ำ',   'ผลิตน้ำ (Water Production)'),
     ]),
 ]
 
@@ -45,6 +46,7 @@ class employee(models.Model):
     group = models.CharField(max_length=100, blank=True, verbose_name="กลุ่มงาน")
     department = models.CharField(max_length=50, choices=DEPARTMENT_CHOICES, blank=True, default='', verbose_name="แผนก")
     is_active = models.BooleanField(default=True, verbose_name="ยังทำงานอยู่")
+    photo = models.ImageField(upload_to='employee_photos/', blank=True, null=True, verbose_name="รูปภาพพนักงาน")
 
     class Meta:
         ordering = ['first_name', 'last_name']

@@ -439,7 +439,7 @@ Staff-level write access is scoped per module using Django's built-in Groups/Per
 ```
 User / Personnel
 ├── Job
-├── employee
+├── employee               (แผนกจัดกลุ่มฝ่ายวิศวกรรมจักรกล/ฝ่ายผลิต รวม ผลิตน้ำ; มี photo สำหรับรูปพนักงาน → media/employee_photos/)
 └── Profile (extends Django User)
 
 Boiler
@@ -576,6 +576,8 @@ Database migrations: **100 migration files** in `myapp/migrations/`.
 | POST | `/maintenance/add/` | Add maintenance log |
 | POST | `/maintenance/edit/<log_id>/` | Edit maintenance log |
 | POST | `/maintenance/kpi/add/` | Add KPI metric |
+| GET/POST | `/maintenance/wo/add/` | Add work order (global, choose equipment) |
+| GET | `/maintenance/tracking/` | Repair tracking (WorkOrder + MaintenanceLog รวมกัน) |
 | POST | `/maintenance/import_csv/` | Bulk import via CSV |
 
 ### Mill Operations

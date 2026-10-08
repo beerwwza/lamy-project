@@ -147,8 +147,8 @@
                     {% endif %}
                     {% if perms.myapp.write_maintenance %}
                     <li>
-                        <a href="{% url 'maintenance_dashboard' %}"
-                            class="flex items-center gap-3 px-3 py-3 rounded-lg transition-colors {% if request.resolver_match.url_name == 'maintenance_dashboard' %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% else %}text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400{% endif %}">
+                        <a href="{% url 'repair_tracking' %}"
+                            class="flex items-center gap-3 px-3 py-3 rounded-lg transition-colors {% if request.resolver_match.url_name == 'repair_tracking' %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% else %}text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400{% endif %}">
                             <i data-lucide="clipboard-list" class="w-5 h-5 flex-shrink-0"></i><span>แจ้งซ่อมเครื่องจักร</span>
                         </a>
                     </li>

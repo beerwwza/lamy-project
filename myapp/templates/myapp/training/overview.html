@@ -73,36 +73,38 @@
         <i data-lucide="calendar" class="w-4 h-4 text-sky-500"></i> กรอบเวลาและแผนงาน (Action Plan)
       </h3>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+        <div class="rounded-lg p-4 relative {% if current_phase == 'before' %}border-2 border-amber-400 bg-amber-50/50 dark:bg-amber-900/10{% else %}border border-slate-200 dark:border-slate-700{% endif %}">
+          {% if current_phase == 'before' %}<span class="absolute -top-2.5 right-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ปัจจุบัน</span>{% endif %}
           <p class="text-center font-bold text-slate-700 dark:text-slate-200">ก่อนหีบ</p>
           <p class="text-center text-xs text-amber-600 mb-3">พ.ย. - ธ.ค.</p>
           <ul class="text-xs text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside">
             <li>สำรวจ/แบ่งกลุ่ม รายวิชาที่ไม่ผ่าน</li>
             <li>จัดทำหลักสูตรพื้นฐานตาม Skill Bible</li>
             <li>จัดตารางเรียน/ออกข้อสอบ</li>
-            <li>Pre-test L1 &gt;&gt; ค้นหา L2 ที่มีแวว</li>
-            <li>ทบทวนเนื้อหา + สอบรอบที่ 1</li>
+            <li>Pre-test L1 &gt;&gt; ค้นหา L2 ที่มีแวว <span class="font-semibold text-slate-700 dark:text-slate-200">(สอบแล้ว {{ plan_progress.pretest }}/{{ target_total }} คน)</span></li>
+            <li>ทบทวนเนื้อหา + สอบรอบที่ 1 <span class="font-semibold text-slate-700 dark:text-slate-200">(สอบแล้ว {{ plan_progress.round1 }}/{{ target_total }} คน)</span></li>
           </ul>
         </div>
-        <div class="rounded-lg border-2 border-amber-400 bg-amber-50/50 dark:bg-amber-900/10 p-4 relative">
-          <span class="absolute -top-2.5 right-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ปัจจุบัน</span>
+        <div class="rounded-lg p-4 relative {% if current_phase == 'during' %}border-2 border-amber-400 bg-amber-50/50 dark:bg-amber-900/10{% else %}border border-slate-200 dark:border-slate-700{% endif %}">
+          {% if current_phase == 'during' %}<span class="absolute -top-2.5 right-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ปัจจุบัน</span>{% endif %}
           <p class="text-center font-bold text-slate-700 dark:text-slate-200">ระหว่างหีบ</p>
           <p class="text-center text-xs text-amber-600 mb-3">ม.ค. - ก.พ.</p>
           <ul class="text-xs text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside">
             <li>Checklist ผ่าน/ไม่ผ่าน รายบุคคล</li>
             <li>ทำ Coaching รายบุคคล</li>
-            <li>ทบทวน + สอบรอบที่ 2 (ผู้ไม่ผ่าน L1)</li>
-            <li>คัด L2 ท็อป 25 มาเทรนวิธีสอน</li>
-            <li>คัด L3 จาก L2 ที่โดดเด่น</li>
+            <li>ทบทวน + สอบรอบที่ 2 (ผู้ไม่ผ่าน L1) <span class="font-semibold text-slate-700 dark:text-slate-200">(สอบแล้ว {{ plan_progress.round2 }}/{{ target_total }} คน · ไม่ผ่านการอบรม {{ plan_progress.failed }} คน)</span></li>
+            <li>คัด L2 ท็อป 25 มาเทรนวิธีสอน <span class="font-semibold text-slate-700 dark:text-slate-200">(L2 ขึ้นไป {{ plan_progress.l2 }} คน)</span></li>
+            <li>คัด L3 จาก L2 ที่โดดเด่น <span class="font-semibold text-slate-700 dark:text-slate-200">(L3 {{ plan_progress.l3 }} คน)</span></li>
           </ul>
         </div>
-        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+        <div class="rounded-lg p-4 relative {% if current_phase == 'after' %}border-2 border-amber-400 bg-amber-50/50 dark:bg-amber-900/10{% else %}border border-slate-200 dark:border-slate-700{% endif %}">
+          {% if current_phase == 'after' %}<span class="absolute -top-2.5 right-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ปัจจุบัน</span>{% endif %}
           <p class="text-center font-bold text-slate-700 dark:text-slate-200">หลังหีบ</p>
           <p class="text-center text-xs text-amber-600 mb-3">มี.ค. - เม.ย.</p>
           <ul class="text-xs text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside">
             <li>มอบหมาย L2 สอนในเนื้อหา Skill Bible</li>
             <li>มอบหมาย L3 กำกับ/ปรึกษาให้ L2</li>
-            <li>ทบทวน + สอบรอบที่ 3 (กลุ่มเสี่ยง)</li>
+            <li>ทบทวน + สอบรอบที่ 3 (กลุ่มเสี่ยง) <span class="font-semibold text-slate-700 dark:text-slate-200">(สอบแล้ว {{ plan_progress.round3 }}/{{ target_total }} คน)</span></li>
           </ul>
         </div>
       </div>
