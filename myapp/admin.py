@@ -15,7 +15,12 @@ from .models import MillReport
 
 admin.site.register(Job)
 admin.site.register(Profile)
-admin.site.register(LatheJob)
+
+@admin.register(LatheJob)
+class LatheJobAdmin(admin.ModelAdmin):
+    list_display = ['job_no', 'date', 'requester', 'dept', 'machine', 'priority', 'status', 'hours', 'pieces']
+    list_filter = ['status', 'priority', 'machine', 'date']
+    search_fields = ['job_no', 'requester', 'dept', 'topic']
 
 @admin.register(employee)
 class EmployeeAdmin(admin.ModelAdmin):

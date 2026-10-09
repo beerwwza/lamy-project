@@ -30,7 +30,7 @@ LAMY is a web-based industrial operations management system built for a large-sc
 - **Maintenance Management** — Failure logging, root cause analysis, downtime categorization, spare parts tracking, and KPI scoring.
 - **Mill Production Reporting** — Daily production KPIs for Line A/B covering extraction rates, purity, bagasse moisture, and throughput.
 - **Equipment Registry** — Master inventory of all plant equipment with technical specifications, maintenance history, spare parts (BOM), criticality levels, and image storage.
-- **Lathe Job Tracking** — Machining job management with job requirements, quality control records, and status tracking.
+- **Lathe Job Tracking** — Server-rendered machine-shop job orders (one page with KPIs + charts + filtered list, add/edit forms, status change, printable job order, CSV/JSON import & export). Writes need `write_general`; delete is superuser-only.
 - **Tools Module** — Dedicated hand-tool tracking (`/tools/`) separate from general Inventory, with per-physical-unit status (so identical tools like 5 impact wrenches are tracked individually), borrow/return history with due dates, and an integrated tool-readiness checklist.
 - **Manual Library** (`/manuals/`) — Structured machine operation & maintenance manuals (cover info, safety precautions, part names, pre-use checklist, operating steps, daily/periodic maintenance, troubleshooting, specifications), built via a multi-section form with dynamic add/remove rows.
 - **Task Manager** (`/tasks/`) — A hub page linking to 4 equipment-readiness test types, each its own sub-module with its own list/form pages: **Rotating/Electrical/Control** (`/tasks/rotating/`) — pick equipment from the registry, track a task through Todo → Doing → Done, and record a full vibration measurement set (Amp, DE/NDE, Temp) for both the no-load and loaded run phases, compared side by side (each phase reading is also written into `CBMVibration` so it shows in the equipment's normal CBM history); **Water System Test (CIP)** (`/watercip/`) — pick a process, a start equipment and an end equipment along the tested water path, then log an unlimited number of pH readings (time + value); **Steam System Test (Leak Inspection)** (`/steamleak/`) — pick a process and a single piece of equipment, then work through a repeatable checklist (topic → item → standard → normal/abnormal; if abnormal, cause → corrective action → fix-due date); **Flushing Test** (`/flushing/`) — pick a process and a pipe/equipment, log unlimited blow rounds (round number, start/end time, blow pressure in bar, whether a copper plate was inserted, and — only when a plate was used — the count of spots larger than 0.3mm found), with pass/fail per round computed automatically (≤ 3 oversized spots/cm² passes). All 4 share the same task shell (title/assignee/status/note).
@@ -202,7 +202,7 @@ lamy-project/
 │           ├── maintenance_kpi_metric_form.html
 │           ├── mill.html
 │           ├── mill_report.html
-│           ├── lathe.html
+│           ├── lathe_list.html / lathe_form.html / lathe_print.html
 │           ├── equipment_list.html
 │           ├── equipment_form.html
 │           ├── equipment_data.html
@@ -472,7 +472,7 @@ Equipment
 └── WorkOrder              (repair job history, linked to Equipment)
 
 Shop
-└── LatheJob
+└── LatheJob               (job_no auto-generated JOB-YYMM-NNN, unique; job_value = sum of labor/material/machine/service cost when any factor > 0; attachment = Drive file ID + attachment_name; free-text machine; Decimal hours/pieces/costs; created_at/updated_at/updated_by)
 
 Inventory
 ├── InventoryItem          (stock item: tools/spares/consumables/lubricants; soft-delete via is_active; optional image)
@@ -530,7 +530,7 @@ Energy Tracking — Electricity (Phase 1) (ระบบติดตามกา�
 
 ```
 
-Google Drive uploads (`RepairDocument` only) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
+Google Drive uploads (`RepairDocument` and Lathe job attachments → `LAMY/Lathe/<year>/<job_no>`; Drive files are not deleted when a record is removed/replaced) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
 Database migrations: **100 migration files** in `myapp/migrations/`.
 
@@ -618,8 +618,16 @@ Database migrations: **100 migration files** in `myapp/migrations/`.
 
 | Method | URL | Description |
 |---|---|---|
-| GET | `/lathe/` | Lathe job dashboard |
-| GET | `/api/lathe/` | Lathe job data (JSON) |
+| GET | `/lathe/` | Single page: KPIs, summary charts, filtered job list with pagination |
+| GET/POST | `/lathe/add/` | Add job order (`write_general`) |
+| GET/POST | `/lathe/edit/<job_id>/` | Edit job order (`write_general`) |
+| POST | `/lathe/status/<job_id>/` | Change status (`write_general`) |
+| POST | `/lathe/delete/<job_id>/` | Delete job order (superuser) |
+| GET | `/lathe/<job_id>/print/` | Printable job order |
+| GET | `/lathe/export/?format=csv\|json` | Export (respects list filters) |
+| POST | `/lathe/import/` | Import CSV/JSON, upsert by `job_no` (`write_general`) |
+
+The old `/api/lathe/` JSON endpoint was removed.
 
 ### Inventory
 

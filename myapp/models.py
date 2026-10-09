@@ -678,6 +678,32 @@ class MillReport(models.Model):
     def __str__(self):
         return f"{self.date} - Line {self.line}"
 
+LATHE_STATUS_CHOICES = [
+    ('Pending', 'รอรับงาน'),
+    ('In Progress', 'กำลังทำ'),
+    ('Done', 'เสร็จสิ้น'),
+    ('Rejected', 'ไม่รับ'),
+]
+LATHE_PRIORITY_CHOICES = [
+    ('Breakdown', 'A: เครื่องจักรหยุด (Breakdown)'),
+    ('Urgent', 'B: ด่วน (Urgent) - ภายใน 24 ชม.'),
+    ('Normal', 'C: ปกติ (Normal) - ตามคิวงาน'),
+]
+LATHE_PLAN_STATUS_CHOICES = [
+    ('Accepted', 'รับงาน'),
+    ('Rejected', 'ไม่รับงาน'),
+]
+LATHE_QC_CHOICES = [
+    ('Pass', 'ผ่าน (Pass)'),
+    ('Fail', 'ไม่ผ่าน (Fail)'),
+]
+LATHE_JOB_TYPE_CHOICES = [
+    ('ทำใหม่', 'ทำใหม่ (New)'),
+    ('ซ่อมแซม', 'ซ่อมแซม (Repair)'),
+    ('ดัดแปลง', 'ดัดแปลง (Modify)'),
+]
+
+
 class LatheJob(models.Model):
     job_no = models.CharField(max_length=50, unique=True, verbose_name="เลขที่ใบงาน")
     date = models.DateField(null=True, blank=True, verbose_name="วันที่แจ้ง")
@@ -688,26 +714,44 @@ class LatheJob(models.Model):
     cust_machine = models.CharField(max_length=100, null=True, blank=True, verbose_name="เครื่องจักรลูกค้า")
     topic = models.TextField(null=True, blank=True, verbose_name="รายละเอียดงาน")
     job_type = models.CharField(max_length=100, null=True, blank=True, verbose_name="ประเภทงาน")
-    priority = models.CharField(max_length=50, null=True, blank=True, verbose_name="ความเร่งด่วน")
+    priority = models.CharField(max_length=50, null=True, blank=True, choices=LATHE_PRIORITY_CHOICES, verbose_name="ความเร่งด่วน")
     req_date = models.DateField(null=True, blank=True, verbose_name="วันที่ต้องการใช้ของ")
-    has_drawing = models.BooleanField(default=False, verbose_name="มีแบบ Drawing")
-    has_sample = models.BooleanField(default=False, verbose_name="มีตัวอย่าง")
-    has_material = models.BooleanField(default=False, verbose_name="มีวัสดุมาให้")
-    plan_status = models.CharField(max_length=50, null=True, blank=True, verbose_name="สถานะพิจารณา")
+    plan_status = models.CharField(max_length=50, null=True, blank=True, choices=LATHE_PLAN_STATUS_CHOICES, verbose_name="สถานะพิจารณา")
     plan_reject_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name="เหตุผลไม่รับ")
     plan_due_date = models.DateField(null=True, blank=True, verbose_name="กำหนดส่ง")
     maker = models.CharField(max_length=100, null=True, blank=True, verbose_name="ผู้รับผิดชอบ")
-    material_cost = models.FloatField(default=0, verbose_name="ค่าวัสดุ")
-    hours = models.FloatField(default=0, verbose_name="เวลาทำงานรวม (ชม.)")
-    pieces = models.FloatField(default=1, verbose_name="จำนวน (ชิ้น)")
-    qc_result = models.CharField(max_length=50, null=True, blank=True, verbose_name="ผล QC")
+    job_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0, verbose_name="มูลค่าชิ้นงาน (บาท)")
+    labor_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0, verbose_name="ค่าแรง")
+    material_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0, verbose_name="ค่าวัสดุ")
+    machine_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0, verbose_name="ค่าเครื่องจักร")
+    service_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0, verbose_name="ค่าดำเนินการ")
+    hours = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, default=0, verbose_name="เวลาทำงานรวม (ชม.)")
+    pieces = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, default=1, verbose_name="จำนวน (ชิ้น)")
+    qc_result = models.CharField(max_length=50, null=True, blank=True, choices=LATHE_QC_CHOICES, verbose_name="ผล QC")
     qc_note = models.CharField(max_length=255, null=True, blank=True, verbose_name="หมายเหตุ QC")
     receiver = models.CharField(max_length=100, null=True, blank=True, verbose_name="ผู้รับงาน")
-    status = models.CharField(max_length=50, default='Pending', verbose_name="สถานะงาน")
+    status = models.CharField(max_length=50, default='Pending', choices=LATHE_STATUS_CHOICES, verbose_name="สถานะงาน")
     attachment = models.CharField(max_length=255, null=True, blank=True, verbose_name="Google Drive File ID")
+    attachment_name = models.CharField(max_length=255, null=True, blank=True, verbose_name="ชื่อไฟล์แนบ")
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+    updated_by = models.CharField(max_length=150, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "ใบสั่งงานโรงกลึง"
+        verbose_name_plural = "ใบสั่งงานโรงกลึง"
+        ordering = ['-date', '-id']
 
     def __str__(self):
         return self.job_no
+
+    @property
+    def job_type_list(self):
+        return [t for t in (self.job_type or '').split(',') if t]
+
+    @property
+    def attachment_url(self):
+        return f"https://drive.google.com/file/d/{self.attachment}/view" if self.attachment else None
 
 # ==========================================
 # 5. NEW: Equipment Data Models

@@ -1,0 +1,131 @@
+{% extends 'myapp/base.html' %}
+{% block title %}ใบสั่งงานโรงกลึง {{ job.job_no }}{% endblock title %}
+
+{% block content %}
+<style>
+    @media print {
+        #sidebar, #sidebar-overlay, .no-print, button[aria-label="เปิดเมนู"] { display: none !important; }
+        main { height: auto !important; overflow: visible !important; }
+        .print-area { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+        body { background: #fff !important; }
+    }
+</style>
+<main class="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
+
+    <header
+        class="no-print min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="flex items-center gap-3">
+            <a href="{% url 'lathe_list' %}"
+                class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100">ใบสั่งงาน {{ job.job_no }}</h1>
+        </div>
+        <button type="button" onclick="window.print()"
+            class="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg shadow-md font-medium text-sm">
+            <i data-lucide="printer" class="w-4 h-4"></i>พิมพ์
+        </button>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-4 md:p-6 print:overflow-visible print:p-0">
+        <div class="print-area max-w-3xl mx-auto bg-white text-slate-900 border border-slate-300 rounded shadow-sm p-5 md:p-8 text-sm">
+
+            <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-xl font-bold">ใบสั่งงานโรงกลึง / งานซ่อมสร้าง</h2>
+                    <p class="text-slate-600">Machine Shop Job Order</p>
+                </div>
+                <div class="text-right">
+                    <p class="font-bold text-lg">{{ job.job_no }}</p>
+                    <p>วันที่แจ้ง: {{ job.date|date:"d/m/Y"|default:"-" }}</p>
+                    <p>จำนวน: {{ job.pieces|floatformat:"-2"|default:"-" }} ชิ้น</p>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse">
+                    <tr><th colspan="4" class="border border-slate-400 bg-slate-800 text-white text-left p-2">1. ผู้ขอใช้บริการ</th></tr>
+                    <tr>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2 w-1/5">ชื่อผู้ขอ</th>
+                        <td class="border border-slate-400 p-2">{{ job.requester|default:"-" }}</td>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2 w-1/5">แผนก</th>
+                        <td class="border border-slate-400 p-2">{{ job.dept|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">เบอร์โทร</th>
+                        <td class="border border-slate-400 p-2">{{ job.tel|default:"-" }}</td>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">วันที่ต้องการใช้ของ</th>
+                        <td class="border border-slate-400 p-2">{{ job.req_date|date:"d/m/Y"|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">เครื่องจักรลูกค้า</th>
+                        <td class="border border-slate-400 p-2">{{ job.cust_machine|default:"-" }}</td>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">ความเร่งด่วน</th>
+                        <td class="border border-slate-400 p-2">
+                            {% for value, label in priority_choices %}
+                            <div>{% if job.priority == value %}☑{% else %}☐{% endif %} {{ label }}</div>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">ประเภทงาน</th>
+                        <td colspan="3" class="border border-slate-400 p-2">
+                            {% for t in type_choices %}
+                            <span class="mr-3 whitespace-nowrap">{% if t in job_types %}☑{% else %}☐{% endif %} {{ t }}</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">รายละเอียดงาน</th>
+                        <td colspan="3" class="border border-slate-400 p-2 whitespace-pre-line min-h-24">{{ job.topic|default:"-" }}</td>
+                    </tr>
+                    <tr><th colspan="4" class="border border-slate-400 bg-slate-800 text-white text-left p-2">2. ผู้รับงาน (พนักงานโรงกลึง)</th></tr>
+                    <tr>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">การพิจารณา</th>
+                        <td class="border border-slate-400 p-2">{{ job.get_plan_status_display|default:"-" }}{% if job.plan_reject_reason %} ({{ job.plan_reject_reason }}){% endif %}</td>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">กำหนดส่ง</th>
+                        <td class="border border-slate-400 p-2">{{ job.plan_due_date|date:"d/m/Y"|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">เครื่องจักรที่ใช้ผลิต</th>
+                        <td class="border border-slate-400 p-2">{{ job.machine|default:"-" }}</td>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">ผู้รับผิดชอบ</th>
+                        <td class="border border-slate-400 p-2">{{ job.maker|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">เวลาทำงาน</th>
+                        <td class="border border-slate-400 p-2">{{ job.hours|floatformat:"-2" }} ชม.</td>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">มูลค่าชิ้นงาน</th>
+                        <td class="border border-slate-400 p-2">
+                            {{ job.job_value|floatformat:2 }} บาท
+                            {% if job.labor_cost or job.material_cost or job.machine_cost or job.service_cost %}
+                            <div class="text-xs text-slate-600">
+                                ค่าแรง {{ job.labor_cost|floatformat:2 }} · ค่าวัสดุ {{ job.material_cost|floatformat:2 }} ·
+                                ค่าเครื่องจักร {{ job.machine_cost|floatformat:2 }} · ค่าดำเนินการ {{ job.service_cost|floatformat:2 }}
+                            </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">สถานะงาน</th>
+                        <td colspan="3" class="border border-slate-400 p-2">{{ job.get_status_display }}</td>
+                    </tr>
+                    <tr><th colspan="4" class="border border-slate-400 bg-slate-800 text-white text-left p-2">3. ผู้ตรวจสอบงาน</th></tr>
+                    <tr>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">ผล QC</th>
+                        <td class="border border-slate-400 p-2">{{ job.get_qc_result_display|default:"-" }}{% if job.qc_note %} ({{ job.qc_note }}){% endif %}</td>
+                        <th class="border border-slate-400 bg-slate-100 text-left p-2">ผู้รับงาน</th>
+                        <td class="border border-slate-400 p-2">{{ job.receiver|default:"-" }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-10 text-center text-xs">
+                <div class="border-t border-slate-800 pt-1">ผู้ขอใช้บริการ{% if job.requester %} ({{ job.requester }}){% endif %}</div>
+                <div class="border-t border-slate-800 pt-1">ผู้รับงาน (โรงกลึง){% if job.maker %} ({{ job.maker }}){% endif %}</div>
+                <div class="border-t border-slate-800 pt-1">ผู้ตรวจสอบงาน</div>
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock content %}

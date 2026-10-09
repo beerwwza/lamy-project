@@ -10,11 +10,12 @@ import base64
 from datetime import datetime, date, time, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
-from django.db import transaction, connection
+from django.db import transaction, connection, IntegrityError
 from django.db.models import Sum, Avg, Count, Q, F, Max
+from django.db.models.functions import TruncMonth
 from django.core.cache import cache
 from django.core.paginator import Paginator
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse, JsonResponse, Http404
 from functools import wraps
 from .models import *
@@ -56,6 +57,7 @@ from django.utils import timezone
 import calendar
 from .models import Vehicle, VehicleBooking, VEHICLE_TYPE_CHOICES, VEHICLE_DIVISION_CHOICES
 from .forms import VehicleForm, VehicleBookingForm
+from .forms import LatheJobForm
 from .forms import ElectricityMeterForm, ElectricityReadingForm
 
 
@@ -3180,116 +3182,396 @@ def mill_import(request):
     return redirect('mill')
 
 
+# ==========================================
+# Lathe (โรงกลึง) — ใบสั่งงานโรงกลึง
+# ==========================================
+
+LATHE_PAGE_SIZE = 20
+LATHE_IMPORT_MAX_BYTES = 2 * 1024 * 1024
+LATHE_IMPORT_MAX_ROWS = 2000
+LATHE_EXPORT_FIELDS = [
+    'job_no', 'date', 'requester', 'dept', 'tel', 'machine', 'cust_machine', 'topic', 'job_type',
+    'priority', 'req_date', 'plan_status', 'plan_reject_reason', 'plan_due_date', 'maker',
+    'job_value', 'labor_cost', 'material_cost', 'machine_cost', 'service_cost', 'hours', 'pieces',
+    'qc_result', 'qc_note', 'receiver', 'status', 'attachment', 'attachment_name',
+]
+
+
+def _lathe_next_job_no():
+    """JOB-YYMM-NNN ตามเดือนปัจจุบัน (เวลาไทย) และไม่ซ้ำกับของเดิม"""
+    prefix = f"JOB-{timezone.localdate():%y%m}-"
+    count = LatheJob.objects.filter(job_no__startswith=prefix).count() + 1
+    while LatheJob.objects.filter(job_no=f"{prefix}{count:03d}").exists():
+        count += 1
+    return f"{prefix}{count:03d}"
+
+
+def _lathe_filtered(request):
+    jobs = LatheJob.objects.all()
+    q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    machine = request.GET.get('machine', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    if q:
+        jobs = jobs.filter(Q(job_no__icontains=q) | Q(requester__icontains=q) |
+                           Q(topic__icontains=q) | Q(dept__icontains=q))
+    if status:
+        jobs = jobs.filter(status=status)
+    if machine:
+        jobs = jobs.filter(machine=machine)
+    if date_from:
+        jobs = jobs.filter(date__gte=date_from)
+    if date_to:
+        jobs = jobs.filter(date__lte=date_to)
+    return jobs, {'q': q, 'status': status, 'machine': machine, 'date_from': date_from, 'date_to': date_to}
+
+
+def _lathe_machine_choices():
+    """ชื่อเครื่องที่เคยกรอกไว้ (ช่องเครื่องจักรเป็นข้อความอิสระ) ใช้เป็นตัวกรองและคำแนะนำ"""
+    return list(LatheJob.objects.exclude(machine__isnull=True).exclude(machine='')
+                .order_by('machine').values_list('machine', flat=True).distinct())
+
+
+class _LatheUploadError(Exception):
+    pass
+
+
+def _lathe_apply_attachment(job, form):
+    """อัปโหลดไฟล์แนบใหม่ขึ้น Drive (LAMY/Lathe/<ปี>/<job_no>) หรือล้างไฟล์เดิมถ้าติ๊กลบ
+    ล้มเหลว → raise _LatheUploadError ให้ผู้เรียก rollback (ไม่บันทึกใบสั่งงานโดยไม่มีไฟล์)"""
+    upload = form.cleaned_data.get('attachment_file')
+    if upload:
+        year = (job.date or timezone.localdate()).year
+        folder_path = f'LAMY/Lathe/{year}/{job.job_no}'
+        if upload.size <= GAS_SIZE_LIMIT_BYTES:
+            file_id = _upload_to_drive(upload, upload.name, folder_path)
+        else:
+            file_id = _upload_to_drive_chunked(upload, upload.name, folder_path)
+        if not file_id:
+            raise _LatheUploadError
+        job.attachment = file_id
+        job.attachment_name = upload.name[:255]
+    elif form.cleaned_data.get('remove_attachment'):
+        job.attachment = None
+        job.attachment_name = None
+
+
 @login_required
-def lathe_dashboard(request):
-    # Filter logs for 'โรงกลึง'
-    logs = MaintenanceLog.objects.filter(dept='โรงกลึง').order_by('-date')
-    
-    # Simple stats for today
-    today = timezone.localdate()
-    today_logs = logs.filter(date=today)
-    
-    stats = {
-        'today_count': today_logs.count(),
-        'today_downtime': today_logs.aggregate(Sum('downtime_stop'))['downtime_stop__sum'] or 0
+def lathe_list(request):
+    try:
+        jobs, filters = _lathe_filtered(request)
+    except (ValidationError, ValueError):  # วันที่ใน query string ผิดรูปแบบ
+        messages.error(request, 'เงื่อนไขการค้นหาไม่ถูกต้อง (รูปแบบวันที่)')
+        return redirect('lathe_list')
+    paginator = Paginator(jobs, LATHE_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    agg = LatheJob.objects.aggregate(hours=Sum('hours'), pieces=Sum('pieces'), cost=Sum('job_value'))
+    overview = {
+        'hours': agg['hours'] or 0,
+        'pieces': agg['pieces'] or 0,
+        'cost': agg['cost'] or 0,
     }
-    
-    return render(request, 'myapp/lathe.html', {
-        'logs': logs,
-        'stats': stats
+    params = request.GET.copy()
+    params.pop('page', None)
+    return render(request, 'myapp/lathe_list.html', {
+        **_lathe_chart_context(jobs),
+        'page_obj': page_obj,
+        'overview': overview,
+        'filters': filters,
+        'querystring': params.urlencode(),
+        'status_choices': LATHE_STATUS_CHOICES,
+        'machine_choices': _lathe_machine_choices(),
+        'total_count': paginator.count,
     })
 
 
+LATHE_CHART_MAX_BARS = 12  # เกินนี้รวมเป็น "อื่นๆ"
+
+
+def _lathe_dim_rows(jobs, dim):
+    """รวม ชิ้นงาน/ชั่วโมง/มูลค่า ตามมิติที่เลือก → [{'label','pieces','hours','value','jobs'}]"""
+    if dim == 'month':
+        raw = (jobs.exclude(date__isnull=True).annotate(k=TruncMonth('date')).values('k')
+               .annotate(p=Sum('pieces'), h=Sum('hours'), v=Sum('job_value'), n=Count('id')).order_by('k'))
+        rows = [{'label': f'{r["k"]:%m/%y}', 'pieces': r['p'], 'hours': r['h'], 'value': r['v'], 'jobs': r['n']} for r in raw]
+        return rows[-LATHE_CHART_MAX_BARS:]
+    if dim == 'job_type':
+        acc = {}
+        for jt, p, h, v in jobs.values_list('job_type', 'pieces', 'hours', 'job_value'):
+            for t in ([x for x in (jt or '').split(',') if x] or ['ไม่ระบุ']):
+                row = acc.setdefault(t, {'label': t, 'pieces': 0, 'hours': 0, 'value': 0, 'jobs': 0})
+                row['pieces'] += p or 0
+                row['hours'] += h or 0
+                row['value'] += v or 0
+                row['jobs'] += 1
+        rows = list(acc.values())
+    else:
+        raw = jobs.values(dim).annotate(p=Sum('pieces'), h=Sum('hours'), v=Sum('job_value'), n=Count('id'))
+        acc = {}
+        for r in raw:  # ค่าว่าง/ช่องว่างล้วนรวมเป็น "ไม่ระบุ"
+            label = (r[dim] or '').strip() or 'ไม่ระบุ'
+            row = acc.setdefault(label, {'label': label, 'pieces': 0, 'hours': 0, 'value': 0, 'jobs': 0})
+            row['pieces'] += r['p'] or 0
+            row['hours'] += r['h'] or 0
+            row['value'] += r['v'] or 0
+            row['jobs'] += r['n']
+        rows = list(acc.values())
+    rows.sort(key=lambda r: (-float(r['hours']), r['label']))
+    if len(rows) > LATHE_CHART_MAX_BARS:
+        head, tail = rows[:LATHE_CHART_MAX_BARS - 1], rows[LATHE_CHART_MAX_BARS - 1:]
+        head.append({'label': 'อื่นๆ', 'pieces': sum(r['pieces'] for r in tail), 'hours': sum(r['hours'] for r in tail),
+                     'value': sum(r['value'] for r in tail), 'jobs': sum(r['jobs'] for r in tail)})
+        rows = head
+    return rows
+
+
+LATHE_CHART_DIMENSIONS = [
+    ('month', 'เดือน'),
+    ('machine', 'เครื่องจักร'),
+    ('job_type', 'ประเภทงาน'),
+    ('maker', 'ผู้รับผิดชอบ'),
+    ('dept', 'แผนกผู้ขอ'),
+]
+
+
+LATHE_RANKING_SIZE = 10
+
+
+def _lathe_maker_ranking(jobs):
+    """จัดอันดับผู้รับผิดชอบ (โรงกลึง) ตามจำนวนชิ้นงานรวม — เสมอกันได้อันดับเท่ากัน"""
+    acc = {}
+    for r in (jobs.exclude(maker__isnull=True)
+              .values('maker').annotate(p=Sum('pieces'), h=Sum('hours'), v=Sum('job_value'), n=Count('id'))):
+        name = (r['maker'] or '').strip()
+        if not name:
+            continue
+        row = acc.setdefault(name, {'name': name, 'pieces': 0, 'hours': 0, 'value': 0, 'jobs': 0})
+        row['pieces'] += r['p'] or 0
+        row['hours'] += r['h'] or 0
+        row['value'] += r['v'] or 0
+        row['jobs'] += r['n']
+    rows = sorted(acc.values(), key=lambda r: (-r['pieces'], -r['hours'], r['name']))
+    top = float(rows[0]['pieces']) if rows else 0
+    prev_pieces, prev_rank = None, 0
+    for i, r in enumerate(rows, start=1):
+        r['rank'] = prev_rank if r['pieces'] == prev_pieces else i
+        prev_pieces, prev_rank = r['pieces'], r['rank']
+        r['percent'] = round(float(r['pieces']) / top * 100) if top else 0
+    return rows[:LATHE_RANKING_SIZE]
+
+
+def _lathe_chart_context(jobs):
+    """ข้อมูลกราฟสรุปในหน้า /lathe/ — ใช้ใบสั่งงานที่ผ่านตัวกรองของหน้ารายการ"""
+    dims = []
+    for key, label in LATHE_CHART_DIMENSIONS:
+        rows = _lathe_dim_rows(jobs, key)
+        dims.append({
+            'key': key, 'label': label,
+            'labels': [r['label'] for r in rows],
+            'pieces': [float(r['pieces'] or 0) for r in rows],
+            'hours': [float(r['hours'] or 0) for r in rows],
+            'value': [float(r['value'] or 0) for r in rows],
+        })
+    status_counts = {row['status']: row['n'] for row in jobs.values('status').annotate(n=Count('id'))}
+    status_rows = [{'key': key, 'label': label, 'count': status_counts.get(key, 0)}
+                   for key, label in LATHE_STATUS_CHOICES]
+    return {'chart_dims': dims, 'status_rows': status_rows, 'maker_ranking': _lathe_maker_ranking(jobs)}
+
+
+def _lathe_form_context(form, is_edit, job=None):
+    return {'form': form, 'is_edit': is_edit, 'job': job, 'machine_suggestions': _lathe_machine_choices()}
+
 
 @login_required
-def lathe_api(request):
-    if request.method == 'GET':
-        jobs = LatheJob.objects.all().values()
-        jobs_list = list(jobs)
-        # จัดการรูปแบบวันที่ให้ส่งเป็น JSON ได้
-        for job in jobs_list:
-            if job['date']: job['date'] = job['date'].strftime('%Y-%m-%d')
-            if job['req_date']: job['req_date'] = job['req_date'].strftime('%Y-%m-%d')
-            if job['plan_due_date']: job['plan_due_date'] = job['plan_due_date'].strftime('%Y-%m-%d')
-        return JsonResponse(jobs_list, safe=False)
-    
-    elif request.method == 'POST':
-        if not request.user.is_staff:
-            raise PermissionDenied
-        try:
-            if request.content_type.startswith('multipart/form-data'):
-                data_str = request.POST.get('data')
-                data = json.loads(data_str) if data_str else {}
+@module_required('general')
+def lathe_add(request):
+    if request.method == 'POST':
+        form = LatheJobForm(request.POST, request.FILES)
+        if form.is_valid():
+            job = form.save(commit=False)
+            job.updated_by = request.user.username
+            try:
+                for attempt in range(3):  # กันเลขชนกันเมื่อมีสองคนบันทึกพร้อมกัน
+                    job.job_no = _lathe_next_job_no()
+                    try:
+                        with transaction.atomic():
+                            _lathe_apply_attachment(job, form)
+                            job.save()
+                        break
+                    except IntegrityError:
+                        if attempt == 2:
+                            raise
+            except _LatheUploadError:
+                form.add_error('attachment_file', 'อัปโหลดไฟล์ไป Google Drive ไม่สำเร็จ ยังไม่ได้บันทึกใบสั่งงาน กรุณาลองใหม่อีกครั้ง')
             else:
-                data = json.loads(request.body)
+                messages.success(request, f'บันทึกใบสั่งงาน {job.job_no} เรียบร้อย')
+                return redirect('lathe_list')
+        messages.error(request, 'กรุณาตรวจสอบข้อมูลที่กรอก')
+    else:
+        form = LatheJobForm(initial={'date': timezone.localdate()})
+    return render(request, 'myapp/lathe_form.html', _lathe_form_context(form, False))
 
-            action = data.get('action')
-            
-            if action == 'save_job':
-                job_data = data.get('job')
-                job, created = LatheJob.objects.update_or_create(
-                    job_no=job_data.get('job_no'),
-                    defaults={
-                        'date': job_data.get('date') or None,
-                        'requester': job_data.get('requester'),
-                        'dept': job_data.get('dept'),
-                        'tel': job_data.get('tel'),
-                        'machine': job_data.get('machine'),
-                        'cust_machine': job_data.get('cust_machine'),
-                        'topic': job_data.get('topic'),
-                        'job_type': ','.join(job_data.get('job_type', [])),
-                        'priority': job_data.get('priority'),
-                        'req_date': job_data.get('req_date') or None,
-                        'has_drawing': job_data.get('has_drawing', False),
-                        'has_sample': job_data.get('has_sample', False),
-                        'has_material': job_data.get('has_material', False),
-                        'plan_status': job_data.get('plan_status'),
-                        'plan_reject_reason': job_data.get('plan_reject_reason'),
-                        'plan_due_date': job_data.get('plan_due_date') or None,
-                        'maker': job_data.get('maker'),
-                        'material_cost': float(job_data.get('material_cost', 0) or 0),
-                        'hours': float(job_data.get('hours', 0) or 0),
-                        'pieces': float(job_data.get('pieces', 1) or 1),
-                        'qc_result': job_data.get('qc_result'),
-                        'qc_note': job_data.get('qc_note'),
-                        'receiver': job_data.get('receiver'),
-                        'status': job_data.get('status', 'Pending'),
-                        'attachment': job_data.get('attachment')
-                    }
-                )
 
-                return JsonResponse({'status': 'success', 'job_no': job.job_no})
-            
-            elif action == 'update_status':
-                job_no = data.get('job_no')
-                new_status = data.get('status')
-                LatheJob.objects.filter(job_no=job_no).update(status=new_status)
-                return JsonResponse({'status': 'success'})
+@login_required
+@module_required('general')
+def lathe_edit(request, job_id):
+    job = get_object_or_404(LatheJob, pk=job_id)
+    if request.method == 'POST':
+        form = LatheJobForm(request.POST, request.FILES, instance=job)
+        if form.is_valid():
+            job = form.save(commit=False)
+            job.updated_by = request.user.username
+            try:
+                with transaction.atomic():
+                    _lathe_apply_attachment(job, form)
+                    job.save()
+            except _LatheUploadError:
+                form.add_error('attachment_file', 'อัปโหลดไฟล์ไป Google Drive ไม่สำเร็จ ยังไม่ได้บันทึกการแก้ไข กรุณาลองใหม่อีกครั้ง')
+                job = LatheJob.objects.get(pk=job_id)  # ไม่ให้ instance ที่แก้ค้างไปโผล่ในหน้าจอ
+            else:
+                messages.success(request, f'แก้ไขใบสั่งงาน {job.job_no} เรียบร้อย')
+                return redirect('lathe_list')
+        messages.error(request, 'กรุณาตรวจสอบข้อมูลที่กรอก')
+    else:
+        form = LatheJobForm(instance=job)
+    return render(request, 'myapp/lathe_form.html', _lathe_form_context(form, True, job))
 
-            elif action == 'sync_all':
-                 jobs_data = data.get('jobs', [])
-                 for job_data in jobs_data:
-                     LatheJob.objects.update_or_create(
-                        job_no=job_data.get('job_no'),
-                        defaults={
-                            'date': job_data.get('date') or None,
-                            'topic': job_data.get('topic'),
-                            'dept': job_data.get('dept'),
-                            'machine': job_data.get('machine'),
-                            'cust_machine': job_data.get('cust_machine'),
-                            'maker': job_data.get('maker'),
-                            'hours': float(job_data.get('hours', 0) or 0),
-                            'pieces': float(job_data.get('pieces', 1) or 1),
-                            'status': job_data.get('status', 'Pending'),
-                            'material_cost': float(job_data.get('material_cost', 0) or 0),
-                        }
-                     )
-                 return JsonResponse({'status': 'success'})
 
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
-            
-    return JsonResponse({'status': 'invalid method'}, status=405)
+@login_required
+@module_required('general')
+@require_POST
+def lathe_status_update(request, job_id):
+    job = get_object_or_404(LatheJob, pk=job_id)
+    new_status = request.POST.get('status', '')
+    if new_status not in dict(LATHE_STATUS_CHOICES):
+        messages.error(request, 'สถานะไม่ถูกต้อง')
+    else:
+        job.status = new_status
+        job.updated_by = request.user.username
+        job.save(update_fields=['status', 'updated_by', 'updated_at'])
+        messages.success(request, f'เปลี่ยนสถานะ {job.job_no} เป็น "{job.get_status_display()}" แล้ว')
+    return redirect(request.POST.get('next') if (request.POST.get('next') or '').startswith('/lathe/') else 'lathe_list')
+
+
+@login_required
+@superuser_required
+@require_POST
+def lathe_delete(request, job_id):
+    job = get_object_or_404(LatheJob, pk=job_id)
+    job_no = job.job_no
+    job.delete()
+    messages.success(request, f'ลบใบสั่งงาน {job_no} แล้ว')
+    return redirect('lathe_list')
+
+
+@login_required
+def lathe_print(request, job_id):
+    job = get_object_or_404(LatheJob, pk=job_id)
+    return render(request, 'myapp/lathe_print.html', {
+        'job': job,
+        'job_types': job.job_type_list,
+        'type_choices': [v for v, _ in LATHE_JOB_TYPE_CHOICES],
+        'priority_choices': LATHE_PRIORITY_CHOICES,
+    })
+
+
+def _lathe_export_row(job):
+    row = {}
+    for f in LATHE_EXPORT_FIELDS:
+        value = getattr(job, f)
+        if hasattr(value, 'isoformat'):
+            value = value.isoformat()
+        elif isinstance(value, Decimal):
+            value = str(value)
+        row[f] = value
+    return row
+
+
+@login_required
+def lathe_export(request):
+    jobs, _ = _lathe_filtered(request)
+    rows = [_lathe_export_row(j) for j in jobs]
+    stamp = timezone.localtime(timezone.now()).strftime('%Y%m%d_%H%M')
+    if request.GET.get('format') == 'json':
+        response = HttpResponse(json.dumps({'jobs': rows}, ensure_ascii=False, indent=2),
+                                content_type='application/json; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="lathe_jobs_{stamp}.json"'
+        return response
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = f'attachment; filename="lathe_jobs_{stamp}.csv"'
+    response.write('\ufeff')
+    writer = csv.DictWriter(response, fieldnames=LATHE_EXPORT_FIELDS)
+    writer.writeheader()
+    writer.writerows(rows)
+    return response
+
+
+def _lathe_import_rows(upload):
+    raw = upload.read().decode('utf-8-sig')
+    if upload.name.lower().endswith('.json'):
+        payload = json.loads(raw)
+        if isinstance(payload, dict):
+            payload = next((v for v in payload.values() if isinstance(v, list)), [])
+        return [r for r in payload if isinstance(r, dict)]
+    return list(csv.DictReader(io.StringIO(raw)))
+
+
+@login_required
+@module_required('general')
+@require_POST
+def lathe_import(request):
+    upload = request.FILES.get('file')
+    if not upload or not upload.name.lower().endswith(('.csv', '.json')):
+        messages.error(request, 'กรุณาเลือกไฟล์ .csv หรือ .json')
+        return redirect('lathe_list')
+    if upload.size > LATHE_IMPORT_MAX_BYTES:
+        messages.error(request, 'ไฟล์ใหญ่เกิน 2 MB')
+        return redirect('lathe_list')
+    try:
+        rows = _lathe_import_rows(upload)
+    except (UnicodeDecodeError, ValueError, csv.Error):
+        messages.error(request, 'อ่านไฟล์ไม่ได้ ตรวจสอบรูปแบบไฟล์ (UTF-8, CSV หรือ JSON)')
+        return redirect('lathe_list')
+    if len(rows) > LATHE_IMPORT_MAX_ROWS:
+        messages.error(request, f'จำนวนแถวเกิน {LATHE_IMPORT_MAX_ROWS} รายการ')
+        return redirect('lathe_list')
+
+    created = updated = 0
+    errors = []
+    with transaction.atomic():
+        for idx, row in enumerate(rows, start=2):
+            job_no = str(row.get('job_no') or '').strip()
+            if not job_no:
+                errors.append(f'แถว {idx}: ไม่มีเลขที่ใบงาน')
+                continue
+            data = {f: ('' if row.get(f) is None else row.get(f)) for f in LATHE_EXPORT_FIELDS}
+            jt = data['job_type']
+            data['job_type'] = jt if isinstance(jt, list) else [t.strip() for t in str(jt).split(',') if t.strip()]
+            instance = LatheJob.objects.filter(job_no=job_no).first()
+            form = LatheJobForm(data, instance=instance)
+            if not form.is_valid():
+                errors.append(f'แถว {idx} ({job_no}): ' + ', '.join(form.errors.keys()))
+                continue
+            job = form.save(commit=False)
+            job.job_no = job_no
+            if str(row.get('attachment') or '').strip():  # ไฟล์แนบอัปโหลดผ่านฟอร์มเท่านั้น; นำเข้าได้แค่ ID เดิม
+                job.attachment = str(row['attachment']).strip()[:255]
+                job.attachment_name = str(row.get('attachment_name') or '').strip()[:255] or None
+            job.updated_by = request.user.username
+            job.save()
+            if instance:
+                updated += 1
+            else:
+                created += 1
+    if created or updated:
+        messages.success(request, f'นำเข้าสำเร็จ: เพิ่มใหม่ {created} แก้ไข {updated} รายการ')
+    if errors:
+        messages.error(request, f'ข้ามบางแถว {len(errors)} รายการ — ' + '; '.join(errors[:5]))
+    if not (created or updated or errors):
+        messages.info(request, 'ไม่พบข้อมูลในไฟล์')
+    return redirect('lathe_list')
 
 
 # ─── View 1: หน้ารายการ + Dashboard ─────────────────────────────────────────

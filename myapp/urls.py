@@ -38,8 +38,14 @@ urlpatterns = [
     path('mill/import/', mill_import, name='mill_import'),
     path('mill/api/history/', mill_history_api, name='mill_history_api'),
 
-    path('lathe/', lathe_dashboard, name='lathe_dashboard'),
-    path('api/lathe/', lathe_api, name='lathe_api'),
+    path('lathe/', lathe_list, name='lathe_list'),
+    path('lathe/add/', lathe_add, name='lathe_add'),
+    path('lathe/edit/<int:job_id>/', lathe_edit, name='lathe_edit'),
+    path('lathe/delete/<int:job_id>/', lathe_delete, name='lathe_delete'),
+    path('lathe/status/<int:job_id>/', lathe_status_update, name='lathe_status_update'),
+    path('lathe/<int:job_id>/print/', lathe_print, name='lathe_print'),
+    path('lathe/export/', lathe_export, name='lathe_export'),
+    path('lathe/import/', lathe_import, name='lathe_import'),
 
     # Equipment Data
     path('equipment/', equipment_data, name='equipment_data'),

@@ -1,52 +1,20 @@
+"""สคริปต์ตรวจ Lathe แบบเร็ว (ไม่ใช่ test suite หลัก — ใช้ `python manage.py test myapp` แทน)
+
+รัน: python test_lathe.py
+ใช้ test database ชั่วคราวผ่าน Django test runner จึงไม่แตะ db.sqlite3 จริง
+"""
 import os
+import sys
+
 import django
-import json
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "learning.settings")
 django.setup()
 
-from django.test import Client
-from django.contrib.auth.models import User
+from django.test.utils import get_runner
+from django.conf import settings
 
-client = Client()
-
-user, _ = User.objects.get_or_create(username='testuser', defaults={'password': 'testpassword'})
-client.force_login(user)
-
-payload = {
-    "action": "save_job",
-    "job": {
-        "job_no": "TEST-123",
-        "date": "2023-10-10",
-        "requester": "John Doe",
-        "dept": "Maintenance",
-        "tel": "1234567890",
-        "machine": "Lathe A",
-        "cust_machine": "Pump 1",
-        "topic": "Fixing the pump",
-        "job_type": ["Repair", "Fabrication"],
-        "priority": "Normal",
-        "req_date": "2023-10-15",
-        "has_drawing": False,
-        "has_sample": True,
-        "has_material": False,
-        "plan_status": "Accepted",
-        "plan_reject_reason": "",
-        "plan_due_date": "2023-10-14",
-        "maker": "Smith",
-        "material_cost": 500,
-        "hours": 2.5,
-        "pieces": 1,
-        "qc_result": "Pass",
-        "qc_note": "Looks good",
-        "receiver": "John",
-        "status": "Done"
-    }
-}
-
-response = client.post('/api/lathe/', data=json.dumps(payload), content_type='application/json')
-print(f"Status Code: {response.status_code}")
-try:
-    print(f"Response: {response.json()}")
-except Exception as e:
-    print(f"Response Text: {response.content}")
+if __name__ == "__main__":
+    TestRunner = get_runner(settings)
+    failures = TestRunner(verbosity=1).run_tests(["myapp.tests.LatheModuleTests"])
+    sys.exit(bool(failures))
