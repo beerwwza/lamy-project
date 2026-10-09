@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.forms import inlineformset_factory
 from .models import employee  # เรียกใช้ Model ที่เราสร้างไว้
@@ -18,6 +20,7 @@ from .models import FlushingTest, FlushingRound
 from .models import Vehicle, VehicleBooking
 from .models import ElectricityMeter, ElectricityReading
 from .models import ProcessCategory
+from .models import LatheJob, LATHE_JOB_TYPE_CHOICES
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
@@ -1262,3 +1265,118 @@ class ElectricityReadingForm(forms.ModelForm):
                 self.add_error('date', 'มีข้อมูลมิเตอร์นี้ของวันนี้แล้ว กรุณาแก้ไขรายการเดิมแทนการเพิ่มใหม่')
         return cleaned_data
 
+
+LATHE_ATTACHMENT_EXTENSIONS = ('.pdf', '.jpg', '.jpeg', '.png', '.docx', '.xlsx', '.dwg', '.dxf')
+LATHE_ATTACHMENT_MAX_BYTES = 100 * 1024 * 1024
+LATHE_COST_FACTORS = ('labor_cost', 'material_cost', 'machine_cost', 'service_cost')
+
+
+class LatheJobForm(forms.ModelForm):
+    """ใบสั่งงานโรงกลึง — job_type เก็บเป็นข้อความคั่นด้วยคอมมา (รูปแบบเดิม);
+    ไม่มีช่อง job_no (สร้างอัตโนมัติใน view และแก้ไม่ได้);
+    ไฟล์แนบอัปโหลดผ่าน attachment_file แล้ว view เป็นคนส่งขึ้น Google Drive;
+    ถ้า factor ค่าใช้จ่ายย่อยตัวใดมีค่า > 0 job_value จะเป็นผลรวมของ factor"""
+    job_type = forms.MultipleChoiceField(
+        choices=LATHE_JOB_TYPE_CHOICES, required=False, label='ประเภทงาน',
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'w-4 h-4'}))
+    attachment_file = forms.FileField(
+        required=False, label='ไฟล์แนบ',
+        widget=forms.ClearableFileInput(attrs={
+            'class': _TW_TASK, 'accept': ','.join(LATHE_ATTACHMENT_EXTENSIONS)}))
+    remove_attachment = forms.BooleanField(
+        required=False, label='ลบไฟล์แนบเดิม', widget=forms.CheckboxInput(attrs={'class': 'w-4 h-4'}))
+
+    class Meta:
+        model = LatheJob
+        fields = ['date', 'requester', 'dept', 'tel', 'machine', 'cust_machine', 'topic',
+                  'job_type', 'priority', 'req_date',
+                  'plan_status', 'plan_reject_reason', 'plan_due_date', 'maker',
+                  'job_value', 'labor_cost', 'material_cost', 'machine_cost', 'service_cost',
+                  'hours', 'pieces', 'qc_result', 'qc_note', 'receiver', 'status']
+        widgets = {
+            'date': forms.DateInput(attrs={'type': 'date', 'class': _TW_TASK}),
+            'requester': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'ระบุชื่อผู้แจ้ง'}),
+            'dept': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'ระบุแผนก'}),
+            'tel': forms.TextInput(attrs={'class': _TW_TASK, 'placeholder': 'ระบุเบอร์ติดต่อ'}),
+            'machine': forms.TextInput(attrs={'class': _TW_TASK, 'list': 'lathe-machines', 'autocomplete': 'off',
+                                              'placeholder': 'พิมพ์ชื่อเครื่องจักร'}),
+            'cust_machine': forms.TextInput(attrs={'class': _TW_TASK}),
+            'topic': forms.Textarea(attrs={'class': _TW_TASK, 'rows': 3}),
+            'priority': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'req_date': forms.DateInput(attrs={'type': 'date', 'class': _TW_TASK}),
+            'plan_status': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'plan_reject_reason': forms.TextInput(attrs={'class': _TW_TASK}),
+            'plan_due_date': forms.DateInput(attrs={'type': 'date', 'class': _TW_TASK}),
+            'maker': forms.TextInput(attrs={'class': _TW_TASK}),
+            'job_value': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01', 'min': '0'}),
+            'labor_cost': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01', 'min': '0'}),
+            'material_cost': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01', 'min': '0'}),
+            'machine_cost': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01', 'min': '0'}),
+            'service_cost': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01', 'min': '0'}),
+            'hours': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01', 'min': '0'}),
+            'pieces': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01', 'min': '0'}),
+            'qc_result': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'qc_note': forms.TextInput(attrs={'class': _TW_TASK}),
+            'receiver': forms.TextInput(attrs={'class': _TW_TASK}),
+            'status': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ('priority', 'plan_status', 'qc_result'):
+            self.fields[name].choices = [('', '---------')] + list(LatheJob._meta.get_field(name).choices)
+        if self.instance and self.instance.pk:
+            self.initial['job_type'] = self.instance.job_type_list
+        else:
+            self.initial.setdefault('priority', 'Normal')
+            self.initial.setdefault('status', 'Pending')
+
+    def clean_job_type(self):
+        return ','.join(self.cleaned_data.get('job_type') or [])
+
+    def clean_machine(self):
+        return (self.cleaned_data.get('machine') or '').strip() or None
+
+    def clean_attachment_file(self):
+        upload = self.cleaned_data.get('attachment_file')
+        if not upload:
+            return upload
+        if not upload.name.lower().endswith(LATHE_ATTACHMENT_EXTENSIONS):
+            raise forms.ValidationError('รองรับเฉพาะไฟล์ ' + ', '.join(LATHE_ATTACHMENT_EXTENSIONS))
+        if upload.size > LATHE_ATTACHMENT_MAX_BYTES:
+            raise forms.ValidationError('ไฟล์ใหญ่เกิน 100 MB')
+        return upload
+
+    def _clean_nonneg(self, name):
+        value = self.cleaned_data.get(name)
+        if value is not None and value < 0:
+            raise forms.ValidationError('ค่าต้องไม่ติดลบ')
+        return value
+
+    def clean_job_value(self):
+        return self._clean_nonneg('job_value')
+
+    def clean_labor_cost(self):
+        return self._clean_nonneg('labor_cost')
+
+    def clean_material_cost(self):
+        return self._clean_nonneg('material_cost')
+
+    def clean_machine_cost(self):
+        return self._clean_nonneg('machine_cost')
+
+    def clean_service_cost(self):
+        return self._clean_nonneg('service_cost')
+
+    def clean_hours(self):
+        return self._clean_nonneg('hours')
+
+    def clean_pieces(self):
+        return self._clean_nonneg('pieces')
+
+    def clean(self):
+        cleaned = super().clean()
+        factors = [cleaned.get(f) for f in LATHE_COST_FACTORS]
+        if any(v is not None and v > 0 for v in factors):
+            cleaned['job_value'] = sum((v for v in factors if v is not None), Decimal('0'))
+        return cleaned

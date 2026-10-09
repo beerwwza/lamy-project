@@ -1,0 +1,323 @@
+{% extends 'myapp/base.html' %}
+{% block title %}{% if is_edit %}แก้ไขใบสั่งงาน {{ job.job_no }}{% else %}เพิ่มใบสั่งงานโรงกลึง{% endif %} - Lathe{% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <header
+        class="min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <a href="{% url 'lathe_list' %}"
+            class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div class="p-2 bg-orange-100 dark:bg-orange-900/50 rounded-lg text-orange-600 dark:text-orange-400">
+            <i data-lucide="settings-2" class="w-5 h-5"></i>
+        </div>
+        <div>
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">
+                {% if is_edit %}แก้ไขใบสั่งงาน {{ job.job_no }}{% else %}เพิ่มใบสั่งงานโรงกลึง{% endif %}
+            </h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">ใบสั่งงานโรงกลึง / งานซ่อมสร้าง (Machine Shop Job Order)</p>
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-5">
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+        {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+        {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+        {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+            <i data-lucide="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% else %}info{% endif %}"
+                class="w-4 h-4 flex-shrink-0"></i>
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <form method="POST" enctype="multipart/form-data"
+            action="{% if is_edit %}{% url 'lathe_edit' job.id %}{% else %}{% url 'lathe_add' %}{% endif %}">
+            {% csrf_token %}
+            {% if form.non_field_errors %}<div class="text-red-600 text-sm mb-3">{{ form.non_field_errors }}</div>{% endif %}
+
+            <!-- 1. ผู้ขอใช้บริการ -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-5 overflow-hidden">
+                <div class="px-5 py-3 bg-sky-50 dark:bg-sky-900/20 border-b border-sky-100 dark:border-sky-900/40 flex flex-wrap items-center gap-3">
+                    <div class="p-2 rounded-lg bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400">
+                        <i data-lucide="user" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">1. ผู้ขอใช้บริการ</h4>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">ผู้ขอกรอกข้อมูลและรายละเอียดงานที่ต้องการ</p>
+                    </div>
+                </div>
+                <div class="p-5 space-y-5">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">ข้อมูลผู้ขอ</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <span class="block text-xs font-semibold text-slate-500 mb-1">เลขที่ใบงาน</span>
+                        <div class="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-300">
+                            {% if is_edit %}<span class="font-semibold">{{ job.job_no }}</span>{% else %}ระบบกำหนดให้อัตโนมัติเมื่อบันทึก (JOB-ปีเดือน-ลำดับ){% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <label for="{{ form.date.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.date.label }}</label>
+                        {{ form.date }}
+                        {% for e in form.date.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.requester.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.requester.label }}</label>
+                        {{ form.requester }}
+                        {% for e in form.requester.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.dept.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.dept.label }}</label>
+                        {{ form.dept }}
+                        {% for e in form.dept.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.tel.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.tel.label }}</label>
+                        {{ form.tel }}
+                        {% for e in form.tel.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">รายละเอียดงานที่ขอ</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label for="{{ form.cust_machine.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.cust_machine.label }}</label>
+                        {{ form.cust_machine }}
+                        {% for e in form.cust_machine.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.priority.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.priority.label }}</label>
+                        <div class="relative">
+                            {{ form.priority }}
+                            <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                        </div>
+                        {% for e in form.priority.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.req_date.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.req_date.label }}</label>
+                        {{ form.req_date }}
+                        {% for e in form.req_date.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div class="md:col-span-3">
+                        <label for="{{ form.topic.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.topic.label }}</label>
+                        {{ form.topic }}
+                        {% for e in form.topic.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div class="md:col-span-2">
+                        <span class="block text-xs font-semibold text-slate-500 mb-1">{{ form.job_type.label }}</span>
+                        <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-700 dark:text-slate-200">
+                            {% for choice in form.job_type %}
+                            <label class="flex items-center gap-2">{{ choice.tag }} {{ choice.choice_label }}</label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label for="{{ form.attachment_file.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">ไฟล์แนบ (เก็บใน Google Drive)</label>
+                        <input type="file" name="attachment_file" id="{{ form.attachment_file.id_for_label }}"
+                            accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx,.dwg,.dxf"
+                            class="w-full p-2 border border-slate-300 rounded-lg text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-slate-100 file:text-slate-700 dark:file:bg-slate-700 dark:file:text-slate-200">
+                        <p class="text-xs text-slate-400 mt-1">รองรับ PDF, JPG, PNG, DOCX, XLSX, DWG, DXF ขนาดไม่เกิน 100 MB · ผู้ที่มีลิงก์ไฟล์ใน Drive เปิดดูได้</p>
+                        {% if is_edit and job.attachment %}
+                        <div class="mt-2 flex flex-wrap items-center gap-3 text-sm">
+                            <a href="{{ job.attachment_url }}" target="_blank" rel="noopener"
+                                class="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 underline">
+                                <i data-lucide="paperclip" class="w-4 h-4"></i>{{ job.attachment_name|default:"ไฟล์แนบเดิม" }}
+                            </a>
+                            <label class="flex items-center gap-2 text-slate-600 dark:text-slate-300">{{ form.remove_attachment }} {{ form.remove_attachment.label }}</label>
+                            <span class="text-xs text-slate-400">(อัปโหลดไฟล์ใหม่จะแทนที่ไฟล์เดิม; ไฟล์เดิมยังคงอยู่ใน Drive)</span>
+                        </div>
+                        {% endif %}
+                        {% for e in form.attachment_file.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. ผู้รับงาน (พนักงานโรงกลึง) -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-5 overflow-hidden">
+                <div class="px-5 py-3 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-100 dark:border-orange-900/40 flex flex-wrap items-center gap-3">
+                    <div class="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400">
+                        <i data-lucide="wrench" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">2. ผู้รับงาน (พนักงานโรงกลึง)</h4>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">พนักงานโรงกลึงพิจารณารับงาน กำหนดส่ง เครื่องที่ใช้ และบันทึกผลการทำงาน</p>
+                    </div>
+                </div>
+                <div class="p-5 space-y-5">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">การพิจารณารับงาน</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label for="{{ form.plan_status.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.plan_status.label }}</label>
+                        <div class="relative">
+                            {{ form.plan_status }}
+                            <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                        </div>
+                        {% for e in form.plan_status.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.plan_reject_reason.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.plan_reject_reason.label }}</label>
+                        {{ form.plan_reject_reason }}
+                        {% for e in form.plan_reject_reason.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.plan_due_date.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.plan_due_date.label }}</label>
+                        {{ form.plan_due_date }}
+                        {% for e in form.plan_due_date.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">การดำเนินงาน</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label for="{{ form.machine.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.machine.label }}</label>
+                        {{ form.machine }}
+                        <datalist id="lathe-machines">{% for m in machine_suggestions %}<option value="{{ m }}">{% endfor %}</datalist>
+                        {% for e in form.machine.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.maker.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.maker.label }}</label>
+                        {{ form.maker }}
+                        {% for e in form.maker.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.status.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.status.label }}</label>
+                        <div class="relative">
+                            {{ form.status }}
+                            <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                        </div>
+                        {% for e in form.status.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.hours.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.hours.label }}</label>
+                        {{ form.hours }}
+                        {% for e in form.hours.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.pieces.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.pieces.label }}</label>
+                        {{ form.pieces }}
+                        {% for e in form.pieces.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div class="md:col-span-3">
+                        <label for="{{ form.job_value.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">มูลค่าชิ้นงาน (บาท)</label>
+                        <div class="max-w-xs">{{ form.job_value }}</div>
+                        {% for e in form.job_value.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                        <p id="job-value-hint" class="text-xs text-slate-400 mt-1">กรอกมูลค่ารวมเอง หรือเปิด Advance setting เพื่อแจกแจงเป็นค่าใช้จ่ายย่อย ระบบจะรวมให้</p>
+                        <details class="mt-2 border border-slate-200 dark:border-slate-700 rounded-lg" {% if form.labor_cost.value or form.material_cost.value or form.machine_cost.value or form.service_cost.value %}open{% endif %}>
+                            <summary class="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                                <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>Advance setting (ค่าใช้จ่ายย่อย)
+                            </summary>
+                            <div id="cost-factors" class="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 border-t border-slate-100 dark:border-slate-700">
+                            <div>
+                                <label for="{{ form.labor_cost.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">ค่าแรง (บาท)</label>
+                                {{ form.labor_cost }}
+                                {% for e in form.labor_cost.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                            </div>
+                            <div>
+                                <label for="{{ form.material_cost.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">ค่าวัสดุ (บาท)</label>
+                                {{ form.material_cost }}
+                                {% for e in form.material_cost.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                            </div>
+                            <div>
+                                <label for="{{ form.machine_cost.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">ค่าเครื่องจักร (บาท)</label>
+                                {{ form.machine_cost }}
+                                {% for e in form.machine_cost.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                            </div>
+                            <div>
+                                <label for="{{ form.service_cost.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">ค่าดำเนินการ (บาท)</label>
+                                {{ form.service_cost }}
+                                {% for e in form.service_cost.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                            </div>
+                                <p class="sm:col-span-2 lg:col-span-4 text-xs text-slate-400">ถ้ากรอกค่าใดก็ตามมากกว่า 0 มูลค่าชิ้นงานจะเท่ากับผลรวมของ 4 ช่องนี้</p>
+                            </div>
+                        </details>
+                    </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. ผู้ตรวจสอบงาน -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm mb-5 overflow-hidden">
+                <div class="px-5 py-3 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-900/40 flex flex-wrap items-center gap-3">
+                    <div class="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400">
+                        <i data-lucide="badge-check" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">3. ผู้ตรวจสอบงาน</h4>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">ผู้ตรวจสอบบันทึกผล QC และผู้รับมอบงาน</p>
+                    </div>
+                </div>
+                <div class="p-5 space-y-5">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label for="{{ form.qc_result.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.qc_result.label }}</label>
+                        <div class="relative">
+                            {{ form.qc_result }}
+                            <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                        </div>
+                        {% for e in form.qc_result.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.qc_note.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.qc_note.label }}</label>
+                        {{ form.qc_note }}
+                        {% for e in form.qc_note.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ form.receiver.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.receiver.label }}</label>
+                        {{ form.receiver }}
+                        {% for e in form.receiver.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                    </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-end gap-2">
+                <a href="{% url 'lathe_list' %}"
+                    class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium">ยกเลิก</a>
+                <button type="submit"
+                    class="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-5 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
+                    <i data-lucide="save" class="w-4 h-4"></i>บันทึก
+                </button>
+            </div>
+        </form>
+    </div>
+</main>
+<script>
+(function () {
+    var ids = ['labor_cost', 'material_cost', 'machine_cost', 'service_cost'];
+    var total = document.getElementById('{{ form.job_value.id_for_label }}');
+    var hint = document.getElementById('job-value-hint');
+    var factors = ids.map(function (n) { return document.querySelector('#cost-factors [name="' + n + '"]'); });
+    if (!total || factors.some(function (f) { return !f; })) return;
+
+    function sync() {
+        var sum = 0, used = false;
+        factors.forEach(function (f) {
+            var v = parseFloat(f.value);
+            if (!isNaN(v) && v > 0) { sum += v; used = true; }
+        });
+        if (used) {
+            total.value = sum.toFixed(2);
+            total.readOnly = true;
+            if (hint) hint.textContent = 'คำนวณอัตโนมัติจาก Advance setting (ค่าแรง + ค่าวัสดุ + ค่าเครื่องจักร + ค่าดำเนินการ)';
+        } else {
+            total.readOnly = false;
+            if (hint) hint.textContent = 'กรอกมูลค่ารวมเอง หรือเปิด Advance setting เพื่อแจกแจงเป็นค่าใช้จ่ายย่อย ระบบจะรวมให้';
+        }
+    }
+    factors.forEach(function (f) { f.addEventListener('input', sync); });
+    sync();
+})();
+</script>
+{% endblock content %}

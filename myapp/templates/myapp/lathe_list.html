@@ -1,0 +1,391 @@
+{% extends 'myapp/base.html' %}
+{% block title %}โรงกลึง (Lathe) - ใบสั่งงาน{% endblock title %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header
+        class="min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-orange-100 dark:bg-orange-900/50 rounded-lg text-orange-600 dark:text-orange-400">
+                <i data-lucide="settings-2" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">โรงกลึง (Lathe)</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400">ใบสั่งงานโรงกลึง / งานซ่อมสร้าง</p>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            {% if perms.myapp.write_general or user.is_superuser %}
+            <a href="{% url 'lathe_add' %}"
+                class="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors font-medium text-sm">
+                <i data-lucide="plus" class="w-4 h-4"></i>เพิ่มใบสั่งงาน
+            </a>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-6 space-y-5">
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+        {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+        {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+        {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+            <i data-lucide="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% else %}info{% endif %}"
+                class="w-4 h-4 flex-shrink-0"></i>
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- KPI -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+                <p class="text-xs font-semibold text-slate-500">ชั่วโมงทำงานรวม</p>
+                <p class="text-3xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">{{ overview.hours|floatformat:1 }} <span class="text-base font-medium text-slate-500">ชม.</span></p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+                <p class="text-xs font-semibold text-slate-500">จำนวนชิ้นงานรวม</p>
+                <p class="text-3xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">{{ overview.pieces|floatformat:0 }} <span class="text-base font-medium text-slate-500">ชิ้น</span></p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+                <p class="text-xs font-semibold text-slate-500">มูลค่าชิ้นงานรวม</p>
+                <p class="text-3xl font-bold text-slate-800 dark:text-slate-100 tabular-nums">{{ overview.cost|floatformat:2 }} <span class="text-base font-medium text-slate-500">บาท</span></p>
+            </div>
+        </div>
+
+        <!-- Charts (ตามตัวกรองด้านล่าง) -->
+        <details open class="group">
+            <summary class="flex flex-wrap items-center gap-2 cursor-pointer text-sm font-bold text-slate-700 dark:text-slate-200 mb-3 select-none">
+                <i data-lucide="bar-chart-3" class="w-4 h-4 text-orange-500"></i>กราฟเปรียบเทียบ
+                <span class="text-xs font-normal text-slate-400">ตามตัวกรองด้านล่าง ({{ total_count }} ใบสั่งงาน)</span>
+            </summary>
+            <div class="mb-3 w-full sm:w-64">
+                <label for="chart-dim" class="block text-xs font-semibold text-slate-500 mb-1">เปรียบเทียบตาม</label>
+                <div class="relative">
+                    <select id="chart-dim"
+                        class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white appearance-none pr-8">
+                        {% for d in chart_dims %}<option value="{{ d.key }}">{{ d.label }}</option>{% endfor %}
+                    </select>
+                    <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+                    <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">จำนวนชิ้นงาน เทียบ ชั่วโมงทำงาน</h4>
+                    <div class="relative h-72"><canvas id="chart-pieces-hours"></canvas></div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+                    <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">มูลค่าชิ้นงาน เทียบ ชั่วโมงทำงาน</h4>
+                    <div class="relative h-72"><canvas id="chart-value-hours"></canvas></div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+                    <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">สัดส่วนสถานะงาน</h4>
+                    <div class="relative h-64"><canvas id="chart-status"></canvas></div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+                    <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1">อันดับการผลิตชิ้นงาน</h4>
+                    <p class="text-xs text-slate-400 mb-3">ตามจำนวนชิ้นงานของผู้รับผิดชอบ (โรงกลึง) · สูงสุด 10 อันดับ</p>
+                    {% if maker_ranking %}
+                    <ol class="space-y-3">
+                        {% for r in maker_ranking %}
+                        <li class="flex items-center gap-3">
+                            <span class="flex-none w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+                                {% if r.rank == 1 %}bg-amber-100 text-amber-700{% elif r.rank == 2 %}bg-slate-200 text-slate-700{% elif r.rank == 3 %}bg-orange-100 text-orange-700{% else %}bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300{% endif %}">{{ r.rank }}</span>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-baseline justify-between gap-x-3">
+                                    <span class="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{{ r.name }}</span>
+                                    <span class="text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums">{{ r.pieces|floatformat:"-2" }} ชิ้น</span>
+                                </div>
+                                <div class="h-2 mt-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                                    <div class="h-full rounded-full {% if r.rank == 1 %}bg-amber-500{% else %}bg-orange-500{% endif %}" style="width: {{ r.percent }}%"></div>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-1 tabular-nums">{{ r.jobs }} ใบสั่งงาน · {{ r.hours|floatformat:"-1" }} ชม. · {{ r.value|floatformat:2 }} บาท</p>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ol>
+                    {% else %}
+                    <p class="text-sm text-slate-400 py-10 text-center">ยังไม่มีข้อมูลผู้รับผิดชอบในใบสั่งงานที่เลือก</p>
+                    {% endif %}
+                </div>
+            </div>
+        </details>
+
+        <!-- Filters -->
+        <form method="get"
+            class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 flex flex-wrap items-end gap-3">
+            <div class="w-full sm:w-auto sm:flex-1 sm:min-w-[200px]">
+                <label for="f-q" class="block text-xs font-semibold text-slate-500 mb-1">ค้นหา</label>
+                <input type="text" id="f-q" name="q" value="{{ filters.q }}" placeholder="เลขที่ / ผู้ขอ / แผนก / รายละเอียด"
+                    class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="f-status" class="block text-xs font-semibold text-slate-500 mb-1">สถานะ</label>
+                <div class="relative">
+                    <select id="f-status" name="status"
+                        class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white appearance-none pr-8">
+                        <option value="">ทั้งหมด</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                </div>
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="f-machine" class="block text-xs font-semibold text-slate-500 mb-1">เครื่องจักร</label>
+                <div class="relative">
+                    <select id="f-machine" name="machine"
+                        class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white appearance-none pr-8">
+                        <option value="">ทั้งหมด</option>
+                        {% for m in machine_choices %}
+                        <option value="{{ m }}" {% if filters.machine == m %}selected{% endif %}>{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                    <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                </div>
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="f-from" class="block text-xs font-semibold text-slate-500 mb-1">ตั้งแต่วันที่</label>
+                <input type="date" id="f-from" name="date_from" value="{{ filters.date_from }}"
+                    class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="f-to" class="block text-xs font-semibold text-slate-500 mb-1">ถึงวันที่</label>
+                <input type="date" id="f-to" name="date_to" value="{{ filters.date_to }}"
+                    class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="submit"
+                    class="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium">
+                    <i data-lucide="search" class="w-4 h-4"></i>ค้นหา
+                </button>
+                {% if filters.q or filters.status or filters.machine or filters.date_from or filters.date_to %}
+                <a href="{% url 'lathe_list' %}" class="text-sm text-slate-500 hover:text-slate-700 underline">ล้างตัวกรอง</a>
+                {% endif %}
+            </div>
+        </form>
+
+        <!-- Table -->
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">ใบสั่งงาน {{ total_count }} รายการ</p>
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{% url 'lathe_export' %}?{{ querystring }}"
+                        class="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>CSV
+                    </a>
+                    <a href="{% url 'lathe_export' %}?{{ querystring }}{% if querystring %}&{% endif %}format=json"
+                        class="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>JSON
+                    </a>
+                    {% if perms.myapp.write_general or user.is_superuser %}
+                    <form method="post" action="{% url 'lathe_import' %}" enctype="multipart/form-data" class="flex items-center gap-2">
+                        {% csrf_token %}
+                        <label for="import-file"
+                            class="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
+                            <i data-lucide="upload" class="w-3.5 h-3.5"></i>นำเข้า CSV/JSON
+                        </label>
+                        <input type="file" id="import-file" name="file" accept=".csv,.json" class="hidden"
+                            onchange="if (this.files.length) this.form.submit()">
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-900/50 text-slate-500 text-xs">
+                        <tr>
+                            <th class="text-left px-4 py-2 whitespace-nowrap">เลขที่ใบงาน</th>
+                            <th class="text-left px-4 py-2 whitespace-nowrap">วันที่แจ้ง</th>
+                            <th class="text-left px-4 py-2">ผู้ขอ / แผนก</th>
+                            <th class="text-left px-4 py-2">เครื่องจักร</th>
+                            <th class="text-left px-4 py-2">รายละเอียดงาน</th>
+                            <th class="text-left px-4 py-2 whitespace-nowrap">ความเร่งด่วน</th>
+                            <th class="text-left px-4 py-2">สถานะ</th>
+                            <th class="text-right px-4 py-2 whitespace-nowrap">ชม.</th>
+                            <th class="text-right px-4 py-2 whitespace-nowrap">ชิ้น</th>
+                            <th class="px-4 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                        {% for job in page_obj %}
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40">
+                            <td class="px-4 py-2 font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                                {{ job.job_no }}
+                                {% if job.attachment %}
+                                <a href="{{ job.attachment_url }}" target="_blank" rel="noopener"
+                                    class="inline-block align-middle text-blue-500 hover:text-blue-700 ml-1" title="{{ job.attachment_name|default:"ดูไฟล์แนบ" }}">
+                                    <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+                                </a>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2 whitespace-nowrap">{{ job.date|date:"d/m/Y"|default:"-" }}</td>
+                            <td class="px-4 py-2">{{ job.requester|default:"-" }}<br><span class="text-xs text-slate-500">{{ job.dept|default:"" }}</span></td>
+                            <td class="px-4 py-2 whitespace-nowrap">{{ job.machine|default:"-" }}</td>
+                            <td class="px-4 py-2 max-w-xs truncate" title="{{ job.topic|default:'' }}">{{ job.topic|default:"-" }}</td>
+                            <td class="px-4 py-2 whitespace-nowrap">
+                                {% if job.priority == 'Breakdown' %}<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">เครื่องหยุด</span>
+                                {% elif job.priority == 'Urgent' %}<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">ด่วน</span>
+                                {% elif job.priority == 'Normal' %}<span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">ปกติ</span>
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="px-4 py-2">
+                                {% if perms.myapp.write_general or user.is_superuser %}
+                                <form method="post" action="{% url 'lathe_status_update' job.id %}" class="relative min-w-[8.5rem]">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <select name="status" aria-label="สถานะ {{ job.job_no }}" onchange="this.form.submit()"
+                                        class="w-full p-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white appearance-none pr-7">
+                                        {% for value, label in status_choices %}
+                                        <option value="{{ value }}" {% if job.status == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                                </form>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold
+                                    {% if job.status == 'Done' %}bg-emerald-100 text-emerald-700{% elif job.status == 'In Progress' %}bg-blue-100 text-blue-700{% elif job.status == 'Rejected' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">{{ job.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2 text-right tabular-nums">{{ job.hours|floatformat:1|default:"-" }}</td>
+                            <td class="px-4 py-2 text-right tabular-nums">{{ job.pieces|floatformat:0|default:"-" }}</td>
+                            <td class="px-4 py-2">
+                                <div class="flex items-center justify-end gap-1">
+                                    <a href="{% url 'lathe_print' job.id %}" title="ใบสั่งงานพิมพ์"
+                                        class="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700">
+                                        <i data-lucide="printer" class="w-4 h-4"></i>
+                                    </a>
+                                    {% if perms.myapp.write_general or user.is_superuser %}
+                                    <a href="{% url 'lathe_edit' job.id %}" title="แก้ไข"
+                                        class="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-700">
+                                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                                    </a>
+                                    {% endif %}
+                                    {% if user.is_superuser %}
+                                    <form method="post" action="{% url 'lathe_delete' job.id %}"
+                                        onsubmit="return confirm('ลบใบสั่งงาน {{ job.job_no|escapejs }} ? การลบไม่สามารถกู้คืนได้');">
+                                        {% csrf_token %}
+                                        <button type="submit" title="ลบ"
+                                            class="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-slate-700">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="10" class="px-4 py-10 text-center text-slate-400">ยังไม่มีใบสั่งงานตามเงื่อนไขที่เลือก</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if page_obj.paginator.num_pages > 1 %}
+            <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-slate-100 dark:border-slate-700 text-sm">
+                <span class="text-slate-500">หน้า {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                <div class="flex items-center gap-1">
+                    {% if page_obj.has_previous %}
+                    <a href="?{{ querystring }}{% if querystring %}&{% endif %}page={{ page_obj.previous_page_number }}"
+                        class="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700">ก่อนหน้า</a>
+                    {% endif %}
+                    {% if page_obj.has_next %}
+                    <a href="?{{ querystring }}{% if querystring %}&{% endif %}page={{ page_obj.next_page_number }}"
+                        class="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700">ถัดไป</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</main>
+<script>
+(function () {
+    if (typeof Chart === 'undefined') return;
+    var dark = document.documentElement.classList.contains('dark');
+    Chart.defaults.color = dark ? '#cbd5e1' : '#475569';
+    Chart.defaults.borderColor = dark ? '#334155' : '#e2e8f0';
+    Chart.defaults.font.family = "'Sarabun', system-ui, sans-serif";
+
+    var DIMS = {
+{% for d in chart_dims %}        '{{ d.key }}': {
+            labels: [{% for x in d.labels %}'{{ x|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            pieces: [{% for x in d.pieces %}{{ x|stringformat:".2f" }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            hours: [{% for x in d.hours %}{{ x|stringformat:".2f" }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+            value: [{% for x in d.value %}{{ x|stringformat:".2f" }}{% if not forloop.last %}, {% endif %}{% endfor %}]
+        }{% if not forloop.last %},{% endif %}
+{% endfor %}    };
+
+    function combo(canvasId, barLabel, barField, barColor, barUnit) {
+        var el = document.getElementById(canvasId);
+        if (!el) return null;
+        return new Chart(el, {
+            data: {
+                labels: [],
+                datasets: [
+                    { type: 'bar', label: barLabel, data: [], backgroundColor: barColor, yAxisID: 'y', order: 2 },
+                    { type: 'line', label: 'ชั่วโมงทำงาน (ชม.)', data: [], borderColor: '#2563eb', backgroundColor: '#2563eb',
+                      pointRadius: 4, tension: 0.2, yAxisID: 'y1', order: 1 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    y: { beginAtZero: true, position: 'left', title: { display: true, text: barUnit } },
+                    y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'ชั่วโมง' },
+                          grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    }
+
+    var c1 = combo('chart-pieces-hours', 'จำนวนชิ้นงาน (ชิ้น)', 'pieces', '#ea580c', 'ชิ้น');
+    var c2 = combo('chart-value-hours', 'มูลค่าชิ้นงาน (บาท)', 'value', '#10b981', 'บาท');
+
+    function show(key) {
+        var d = DIMS[key];
+        if (!d) return;
+        [[c1, 'pieces'], [c2, 'value']].forEach(function (pair) {
+            var chart = pair[0];
+            if (!chart) return;
+            chart.data.labels = d.labels;
+            chart.data.datasets[0].data = d[pair[1]];
+            chart.data.datasets[1].data = d.hours;
+            chart.update();
+        });
+    }
+    var sel = document.getElementById('chart-dim');
+    var saved = null;
+    try { saved = sessionStorage.getItem('latheChartDim'); } catch (e) {}
+    if (saved && DIMS[saved]) sel.value = saved;
+    sel.addEventListener('change', function () {
+        try { sessionStorage.setItem('latheChartDim', sel.value); } catch (e) {}
+        show(sel.value);
+    });
+    show(sel.value);
+
+    var statusEl = document.getElementById('chart-status');
+    if (statusEl) {
+        new Chart(statusEl, {
+            type: 'doughnut',
+            data: {
+                labels: [{% for s in status_rows %}'{{ s.label|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+                datasets: [{ backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444'],
+                    data: [{% for s in status_rows %}{{ s.count }}{% if not forloop.last %}, {% endif %}{% endfor %}] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+})();
+</script>
+{% endblock content %}
