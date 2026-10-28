@@ -3,31 +3,56 @@
 {% block page_title %}วิเคราะห์ช่องว่างทักษะ (Skill Gap Analysis){% endblock %}
 
 {% block training_content %}
-<div class="space-y-4">
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-    {% for row in gap_rows %}
-    <div class="rounded-xl p-5 text-white shadow-sm
-                {% if row.severity == 'critical' %}bg-red-500{% elif row.severity == 'warning' %}bg-amber-500{% else %}bg-emerald-500{% endif %}">
-      <h4 class="text-lg font-bold mb-3">{{ row.skill.name }}</h4>
-      <div class="grid grid-cols-3 gap-2 text-center text-xs mb-3">
-        <div>
-          <p class="text-xl font-bold">{{ row.critical }}</p>
-          <p class="opacity-80">วิกฤต</p>
+<div class="space-y-8">
+  <p class="text-xs text-slate-500 dark:text-slate-400">
+    นับจำนวนคนที่ระดับทักษะนั้นพอดี (L0 รวมคนที่ยังไม่ประเมิน) เทียบเป้า L1 70% · L2 20% · L3 10% ของยอดพนักงานแต่ละฝ่าย — สีการ์ดดูเฉพาะ L0 และ L1:
+    <span class="font-semibold">แดง</span> = L0 เกิน 30% ของฝ่าย ·
+    <span class="font-semibold">เหลือง</span> = L0 ไม่เกิน 30% แต่ L1 ยังไม่ถึงเป้า ·
+    <span class="font-semibold">เขียว</span> = L1 ถึงเป้า
+  </p>
+
+  {% for d in divisions %}
+  <div>
+    <h3 class="font-bold {% if d.key == 'eng' %}text-indigo-700 dark:text-indigo-400{% else %}text-teal-700 dark:text-teal-400{% endif %} mb-1 flex items-center gap-2">
+      <i data-lucide="{% if d.key == 'eng' %}cog{% else %}flame{% endif %}" class="w-4 h-4"></i> {{ d.name }}
+    </h3>
+    <p class="text-xs text-slate-400 mb-3">พนักงานทั้งหมด {{ d.total }} คน · เป้า L1 {{ d.target_l1 }} · L2 {{ d.target_l2 }} · L3 {{ d.target_l3 }} คน</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {% for row in d.gap_rows %}
+      <div class="rounded-xl p-5 text-white shadow-sm
+                  {% if row.severity == 'critical' %}bg-red-500{% elif row.severity == 'warning' %}bg-amber-500{% else %}bg-emerald-500{% endif %}">
+        <h4 class="text-lg font-bold mb-3">{{ row.skill.name }}</h4>
+        <div class="flex w-full h-2 rounded-full overflow-hidden bg-white/20 mb-3">
+          <div style="width: {{ row.l0_pct }}%" class="bg-yellow-300"></div>
+          <div style="width: {{ row.l1_pct }}%" class="bg-green-300"></div>
+          <div style="width: {{ row.l2_pct }}%" class="bg-blue-300"></div>
+          <div style="width: {{ row.l3_pct }}%" class="bg-white"></div>
         </div>
-        <div>
-          <p class="text-xl font-bold">{{ row.warning }}</p>
-          <p class="opacity-80">เฝ้าระวัง</p>
+        <div class="grid grid-cols-4 gap-2 text-center text-xs mb-3">
+          <div>
+            <p class="text-xl font-bold">{{ row.l0 }}</p>
+            <p class="opacity-80">L0</p>
+          </div>
+          <div>
+            <p class="text-xl font-bold">{{ row.l1 }}</p>
+            <p class="opacity-80">L1 / {{ d.target_l1 }}</p>
+          </div>
+          <div>
+            <p class="text-xl font-bold">{{ row.l2 }}</p>
+            <p class="opacity-80">L2 / {{ d.target_l2 }}</p>
+          </div>
+          <div>
+            <p class="text-xl font-bold">{{ row.l3 }}</p>
+            <p class="opacity-80">L3 / {{ d.target_l3 }}</p>
+          </div>
         </div>
-        <div>
-          <p class="text-xl font-bold">{{ row.good }}</p>
-          <p class="opacity-80">ผ่านแล้ว</p>
-        </div>
+        <p class="text-sm opacity-90 border-t border-white/30 pt-2">{{ row.recommendation }}</p>
       </div>
-      <p class="text-sm opacity-90 border-t border-white/30 pt-2">{{ row.recommendation }}</p>
+      {% empty %}
+      <div class="col-span-full text-center text-slate-400 p-8">ยังไม่มีทักษะในระบบ</div>
+      {% endfor %}
     </div>
-    {% empty %}
-    <div class="col-span-full text-center text-slate-400 p-8">ยังไม่มีทักษะในระบบ</div>
-    {% endfor %}
   </div>
+  {% endfor %}
 </div>
 {% endblock %}

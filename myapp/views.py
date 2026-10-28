@@ -4968,10 +4968,19 @@ ALLOWED_DOCUMENT_EXTENSIONS = {'.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'}
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.webm', '.mov'}
 TRAINING_MATERIAL_MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
 
-# สัดส่วนเป้าหมาย KPI ปี 68/69 เทียบกับจำนวนพนักงานจริง (ระดับ L1 >70%, L2 >=20%, L3 >=10%)
-TRAINING_TARGET_L1_RATIO = 0.70
-TRAINING_TARGET_L2_RATIO = 0.20
-TRAINING_TARGET_L3_RATIO = 0.10
+# สัดส่วนเป้าหมาย KPI ปี 68/69 แบ่งจากยอดพนักงานของฝ่าย (L1 70%, L2 20%, L3 10% รวม 100%)
+TRAINING_TARGET_SPLIT_PERCENT = (70, 20, 10)
+
+
+def _training_split_targets(total):
+    """แบ่งยอดพนักงานเป็นเป้า (L1, L2, L3) ตาม 70/20/10 โดยผลรวมเท่ากับ total เสมอ (largest remainder)"""
+    shares = [total * p for p in TRAINING_TARGET_SPLIT_PERCENT]
+    targets = [s // 100 for s in shares]
+    leftover = total - sum(targets)
+    order = sorted(range(3), key=lambda i: (-(shares[i] % 100), i))
+    for i in order[:leftover]:
+        targets[i] += 1
+    return tuple(targets)
 
 # ช่วงเดือนของแผนงาน: (ชื่อช่วง, เดือนที่อยู่ในช่วง)
 TRAINING_PLAN_PHASES = [
@@ -5131,66 +5140,58 @@ def training_overview(request):
     eng_kpi = _training_kpi_for_employees(eng_qs)
     prod_kpi = _training_kpi_for_employees(prod_qs)
 
-    # เป้าหมาย KPI ปี 68/69 อ้างอิงเฉพาะฝ่ายวิศวกรรมจักรกล และคำนวณจากจำนวนพนักงาน active จริง
-    best_level_qs = EmployeeSkillLevel.objects.filter(
-        employee_id__in=eng_qs.values('id')
-    ).values('employee').annotate(max_level=Max('level'))
-    l1_count = best_level_qs.filter(max_level__gte=1).count()
-    l2_count = best_level_qs.filter(max_level__gte=2).count()
-    l3_count = best_level_qs.filter(max_level__gte=3).count()
-
-    target_total = eng_kpi['total']
-    target_l1 = math.ceil(target_total * TRAINING_TARGET_L1_RATIO)
-    target_l2 = math.ceil(target_total * TRAINING_TARGET_L2_RATIO)
-    target_l3 = math.ceil(target_total * TRAINING_TARGET_L3_RATIO)
+    # แผนงาน: ช่วงปัจจุบันตามเดือนจริง (เวลาไทย)
+    current_month = timezone.localdate().month
+    current_phase = next((name for name, months in TRAINING_PLAN_PHASES if current_month in months), None)
 
     def pct(value, target):
         return min(round(value / target * 100), 100) if target else 0
 
-    # แผนงาน: ช่วงปัจจุบันตามเดือนจริง (เวลาไทย) และความคืบหน้าจากข้อมูลที่ป้อนแล้ว
-    current_month = timezone.localdate().month
-    current_phase = next((name for name, months in TRAINING_PLAN_PHASES if current_month in months), None)
+    def build_division(key, name, qs, kpi):
+        """การ์ดเป้าหมาย + กรอบเวลาของฝ่ายเดียว: ข้อ 1 = ยอดพนักงานฝ่าย, ข้อ 2-4 = จำนวนระดับสูงสุดพอดี เทียบเป้า 70/20/10"""
+        total = kpi['total']
+        t1, t2, t3 = _training_split_targets(total)
+        emp_ids = qs.values('id')
 
-    def exam_round_count(attempt_no):
-        return TrainingExamScore.objects.filter(
-            employee_id__in=eng_qs.values('id'), attempt_no=attempt_no
+        def exam_round_count(attempt_no):
+            return TrainingExamScore.objects.filter(
+                employee_id__in=emp_ids, attempt_no=attempt_no
+            ).values('employee').distinct().count()
+
+        failed_count = TrainingRecord.objects.filter(
+            employee_id__in=emp_ids, status='failed'
         ).values('employee').distinct().count()
 
-    failed_count = TrainingRecord.objects.filter(
-        employee_id__in=eng_qs.values('id'), status='failed'
-    ).values('employee').distinct().count()
+        return {
+            'key': key,
+            'name': name,
+            'total': total,
+            'evaluated': kpi['evaluated_count'],
+            'evaluated_pct': pct(kpi['evaluated_count'], total),
+            'l1': kpi['skill_l1_count'], 'target_l1': t1, 'l1_pct': pct(kpi['skill_l1_count'], t1),
+            'l2': kpi['skill_l2_count'], 'target_l2': t2, 'l2_pct': pct(kpi['skill_l2_count'], t2),
+            'l3': kpi['skill_l3_count'], 'target_l3': t3, 'l3_pct': pct(kpi['skill_l3_count'], t3),
+            'plan_progress': {
+                'pretest': exam_round_count(0),
+                'round1': exam_round_count(1),
+                'round2': exam_round_count(2),
+                'round3': exam_round_count(3),
+                'failed': failed_count,
+            },
+        }
 
-    plan_progress = {
-        'pretest': exam_round_count(0),
-        'round1': exam_round_count(1),
-        'round2': exam_round_count(2),
-        'round3': exam_round_count(3),
-        'failed': failed_count,
-        'l2': l2_count,
-        'l3': l3_count,
-    }
+    divisions = [
+        build_division('eng', 'ฝ่ายวิศวกรรมจักรกล', eng_qs, eng_kpi),
+        build_division('prod', 'ฝ่ายผลิต', prod_qs, prod_kpi),
+    ]
 
     context = {
         'total_employees': active_qs.count(),
         'unassigned_count': unassigned_count,
         'eng_kpi': eng_kpi,
         'prod_kpi': prod_kpi,
-
-        'target_total': target_total,
-        'target_l1': target_l1,
-        'target_l2': target_l2,
-        'target_l3': target_l3,
-        'evaluated_count': eng_kpi['evaluated_count'],
-        'l1_count': l1_count,
-        'l2_count': l2_count,
-        'l3_expert_count': l3_count,
-        'evaluated_pct': pct(eng_kpi['evaluated_count'], target_total),
-        'l1_pct': pct(l1_count, target_l1),
-        'l2_pct': pct(l2_count, target_l2),
-        'l3_pct': pct(l3_count, target_l3),
-
+        'divisions': divisions,
         'current_phase': current_phase,
-        'plan_progress': plan_progress,
 
         'expiring_soon_count': get_expiring_certs_count(),
     }
@@ -5528,41 +5529,61 @@ def training_career_step_delete(request, step_id):
 
 @login_required
 def training_gap(request):
-    skills = TrainingSkill.objects.all().order_by('display_order')
-    total_employees = employee.objects.filter(is_active=True).count()
+    """วิเคราะห์ช่องว่างทักษะรายฝ่าย: นับระดับพอดี (L0 รวมคนที่ยังไม่ประเมิน) เทียบเป้า 70/20/10 เหมือนหน้า Overview; สีการ์ดดูเฉพาะ L0 และ L1"""
+    division_depts = dict(DEPARTMENT_CHOICES)
+    active_qs = employee.objects.filter(is_active=True)
+    division_defs = [
+        ('eng', 'ฝ่ายวิศวกรรมจักรกล'),
+        ('prod', 'ฝ่ายผลิต'),
+    ]
+    skills = list(TrainingSkill.objects.all().order_by('display_order'))
 
-    gap_rows = []
-    for sk in skills:
-        counts = {0: 0, 1: 0, 2: 0, 3: 0}
-        for row in EmployeeSkillLevel.objects.filter(skill=sk, employee__is_active=True).values('level').annotate(c=Count('id')):
-            counts[row['level']] = row['c']
+    divisions = []
+    for key, name in division_defs:
+        codes = [code for code, _ in division_depts.get(name, [])]
+        emp_qs = active_qs.filter(department__in=codes)
+        total = emp_qs.count()
+        t1, t2, t3 = _training_split_targets(total)
 
-        evaluated = sum(counts.values())
-        missing = total_employees - evaluated
-        critical = counts[0] + missing
-        warning = counts[1]
-        good = counts[2] + counts[3]
+        level_counts = {}
+        for row in EmployeeSkillLevel.objects.filter(
+            employee_id__in=emp_qs.values('id')
+        ).values('skill', 'level').annotate(c=Count('id')):
+            level_counts[(row['skill'], row['level'])] = row['c']
 
-        critical_ratio = critical / total_employees if total_employees else 0
-        warning_ratio = warning / total_employees if total_employees else 0
+        gap_rows = []
+        for sk in skills:
+            l1 = level_counts.get((sk.id, 1), 0)
+            l2 = level_counts.get((sk.id, 2), 0)
+            l3 = level_counts.get((sk.id, 3), 0)
+            l0 = total - l1 - l2 - l3  # L0 + ยังไม่ประเมิน
 
-        if critical_ratio > 0.3:
-            severity = 'critical'
-            recommendation = f'เร่งจัดอบรมพื้นฐานด้าน {sk.name} ด่วน (ยังไม่ผ่าน {critical} คน)'
-        elif warning_ratio > 0.3:
-            severity = 'warning'
-            recommendation = f'วางแผนจัด Workshop เพิ่มเติมสำหรับทักษะ {sk.name}'
-        else:
-            severity = 'good'
-            recommendation = f'ทักษะ {sk.name} อยู่ในเกณฑ์ดี ควรรักษาระดับต่อไป'
+            if total and l0 / total > 0.3:
+                severity = 'critical'
+                recommendation = f'เร่งจัดอบรมพื้นฐานด้าน {sk.name} ด่วน (ยังไม่ถึง L1 {l0} คน)'
+            elif l1 < t1:
+                severity = 'warning'
+                recommendation = f'วางแผนจัด Workshop เพิ่มเติมสำหรับทักษะ {sk.name} (L1 ยังขาดอีก {t1 - l1} คน)'
+            else:
+                severity = 'good'
+                recommendation = f'ทักษะ {sk.name} อยู่ในเกณฑ์ดี ควรรักษาระดับต่อไป'
 
-        gap_rows.append({
-            'skill': sk, 'critical': critical, 'warning': warning, 'good': good,
-            'severity': severity, 'recommendation': recommendation,
+            def seg(count):
+                return round(count / total * 100, 1) if total else 0
+
+            gap_rows.append({
+                'skill': sk, 'severity': severity, 'recommendation': recommendation,
+                'l0': l0, 'l1': l1, 'l2': l2, 'l3': l3,
+                'l0_pct': seg(l0), 'l1_pct': seg(l1), 'l2_pct': seg(l2), 'l3_pct': seg(l3),
+            })
+
+        divisions.append({
+            'key': key, 'name': name, 'total': total,
+            'target_l1': t1, 'target_l2': t2, 'target_l3': t3,
+            'gap_rows': gap_rows,
         })
 
-    context = {'gap_rows': gap_rows, 'total_employees': total_employees}
-    return render(request, 'myapp/training/gap.html', context)
+    return render(request, 'myapp/training/gap.html', {'divisions': divisions})
 
 
 # ----- คลังหลักสูตร: เอกสาร/วิดีโอการเรียน -----
