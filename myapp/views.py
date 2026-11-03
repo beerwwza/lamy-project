@@ -54,10 +54,12 @@ from .forms import (
 )
 from decimal import Decimal, InvalidOperation
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 import calendar
 from .models import Vehicle, VehicleBooking, VEHICLE_TYPE_CHOICES, VEHICLE_DIVISION_CHOICES
 from .forms import VehicleForm, VehicleBookingForm
 from .forms import LatheJobForm
+from .forms import MEInspectionForm, ME_SIGNATURE_ROLES
 from .forms import ElectricityMeterForm, ElectricityReadingForm
 
 
@@ -7148,3 +7150,802 @@ def electricity_meter_dashboard(request, meter_id):
     }
     return render(request, 'myapp/electricity_meter_dashboard.html', context)
 
+
+
+
+# ===== ME Inspection — ใบตรวจเช็คซ่อมบำรุงเครื่องจักร (ย้ายจากฟอร์ม ME V.2 บน Google Apps Script) =====
+
+ME_WRITE_MODULES = ('maintenance', 'cbm')
+ME_LIST_PAGE_SIZE = 50
+ME_EQUIPMENT_SEARCH_LIMIT = 30
+ME_TAB_LABELS = [
+    'ข้อมูลพื้นฐาน & อะไหล่', 'พิกัดงานสวม (ISO Fits)', 'ความสมมาตรเพลา & แรงดัน',
+    'Alignment', 'Vibration (ISO 10816)', 'ความพร้อมเครื่องจักร (10 ข้อ)', 'สถานะงาน & ลายเซ็น',
+]
+ME_BASIC_FIELDS = ['record_date', 'repair_group', 'department', 'brand', 'model_no', 'flow_m3h', 'head_m', 'motor_kw', 'rpm']
+# การ์ดอะไหล่ใน Tab 1: (หัวข้อ, [(field, ป้ายสั้น)])
+ME_PART_GROUPS = [
+    ('ลูกปืน DE (ฝั่งขับ / ด้านคัปปลิ้ง)', [('bearing_de_no', 'เบอร์'), ('bearing_de_action', 'การเปลี่ยน')]),
+    ('ลูกปืน NDE (ฝั่งใบพัด)', [('bearing_nde_no', 'เบอร์'), ('bearing_nde_action', 'การเปลี่ยน')]),
+    ('ออยซีล DE', [('oil_seal_de_no', 'เบอร์'), ('oil_seal_de_action', 'การเปลี่ยน')]),
+    ('ออยซีล NDE', [('oil_seal_nde_no', 'เบอร์'), ('oil_seal_nde_action', 'การเปลี่ยน')]),
+    ('อุปกรณ์กันรั่ว (ปะเก็น / แมคซีล)', [('seal_device_type', 'ชนิด'), ('seal_device_model', 'รุ่น'), ('seal_device_action', 'การเปลี่ยน')]),
+    ('สารหล่อลื่น', [('lube_type', 'ชนิด'), ('lube_grade', 'เบอร์'), ('lube_volume', 'ปริมาตร'), ('lube_action', 'การเปลี่ยน')]),
+    ('ปลอกเพลา (Sleeve)', [('sleeve_od_mm', 'OD (mm)'), ('sleeve_id_mm', 'ID (mm)'), ('sleeve_len_mm', 'L (mm)'), ('sleeve_action', 'การเปลี่ยน')]),
+    ('คัปปลิ้ง (Coupling)', [('coupling_type', 'ชนิด'), ('coupling_model', 'รุ่น'), ('coupling_action', 'การเปลี่ยน')]),
+    ('ตาแมวดูระดับน้ำมัน (Sight glass)', [('sight_glass_size', 'ขนาด'), ('sight_glass_action', 'การเปลี่ยน')]),
+]
+ME_CONDITION_PARTS = [
+    ('impeller', 'ใบพัดปั๊ม'), ('cover', 'ฝาชน'), ('casing', 'เสื้อปั๊ม'),
+    ('bearing_housing', 'เสื้อลูกปืน'), ('shaft', 'เพลา'),
+]
+# ทุกช่อง "ไม่เปลี่ยน/เปลี่ยน" ของอะไหล่และชิ้นส่วน — ใบงานใหม่ตั้งเป็น "ไม่เปลี่ยน" ไว้ก่อน (ตามฟอร์มเดิม) และ dashboard ใช้นับการเปลี่ยนอะไหล่
+ME_PART_ACTION_FIELDS = [name for _, fields in ME_PART_GROUPS for name, _ in fields if name.endswith('_action')] + [
+    f'{key}_action' for key, _ in ME_CONDITION_PARTS]
+# Smart memory — ช่องที่ดึงจากใบงานล่าสุดของเครื่องเดียวกัน (สเปคอะไหล่และขนาดพิกัด ไม่รวมผลตรวจ)
+ME_MEMORY_FIELDS = [
+    'bearing_de_no', 'bearing_nde_no', 'oil_seal_de_no', 'oil_seal_nde_no',
+    'seal_device_type', 'seal_device_model', 'lube_type', 'lube_grade', 'lube_volume',
+    'sleeve_od_mm', 'sleeve_id_mm', 'sleeve_len_mm', 'coupling_type', 'coupling_model', 'sight_glass_size',
+    'housing_de_nominal', 'housing_nde_nominal', 'shaft_de_nominal', 'shaft_nde_nominal',
+    'shaft_key_nominal', 'key_h', 'key_l', 'key_b', 'key_t1', 'key_b1',
+    'bore_type', 'bore_nominal', 'bore_t2', 'bore_b2',
+]
+
+
+# ใครแก้ใบงานได้ในแต่ละสถานะ — () = superuser เท่านั้น
+ME_STAGE_EDIT_MODULES = {
+    ME_STATUS_REPAIRING: ('maintenance', 'cbm'),
+    ME_STATUS_WAIT_CBM: ('cbm',),
+    ME_STATUS_WAIT_APPROVAL: (),
+    ME_STATUS_APPROVED: (),
+}
+# ลายเซ็นที่เซ็น/ล้างได้ในแต่ละสถานะ (superuser เซ็นได้ทุกช่อง)
+ME_STAGE_SIGNATURE = {
+    ME_STATUS_REPAIRING: 'tech',
+    ME_STATUS_WAIT_CBM: 'cbm',
+    ME_STATUS_WAIT_APPROVAL: 'head',
+}
+# (สถานะปัจจุบัน, ปุ่ม) → (สถานะใหม่, โมดูลที่มีสิทธิ์ทำ, ลายเซ็นที่ต้องมีก่อน, ป้ายปุ่ม)
+# สิทธิ์โมดูลของผู้เซ็นแต่ละช่อง — () = superuser เท่านั้น
+ME_SIGNATURE_MODULES = {'tech': ('maintenance',), 'cbm': ('cbm',), 'head': ()}
+ME_TRANSITIONS = {
+    (ME_STATUS_REPAIRING, 'forward'): (ME_STATUS_WAIT_CBM, ('maintenance',), 'tech', 'ส่งตรวจ CBM'),
+    (ME_STATUS_WAIT_CBM, 'forward'): (ME_STATUS_WAIT_APPROVAL, ('cbm',), 'cbm', 'ส่งหัวหน้าอนุมัติ'),
+    (ME_STATUS_WAIT_APPROVAL, 'forward'): (ME_STATUS_APPROVED, (), 'head', 'อนุมัติใบงาน'),
+    (ME_STATUS_WAIT_CBM, 'back'): (ME_STATUS_REPAIRING, ('cbm',), None, 'ส่งกลับให้ช่างแก้ไข'),
+    (ME_STATUS_WAIT_APPROVAL, 'back'): (ME_STATUS_WAIT_CBM, (), None, 'ส่งกลับให้ CBM ตรวจใหม่'),
+    (ME_STATUS_APPROVED, 'reopen'): (ME_STATUS_WAIT_APPROVAL, (), None, 'เปิดใบงานกลับมาแก้ไข'),
+}
+# การ์ดความพร้อม 10 ข้อ: (field, หัวข้อ, รูปประกอบใน includes/me_svg_readiness.html)
+ME_READINESS_ITEMS = [
+    ('ready_adjust_bolt_pump', 'Adjust bolt ปั๊ม/เกียร์', 'adjust_bolt'),
+    ('ready_adjust_bolt_motor', 'Adjust bolt มอเตอร์', 'adjust_bolt'),
+    ('ready_base', 'แท่นเครื่องจักร', 'baseplate'),
+    ('ready_bolt_mark', 'น็อตยึดแท่นทำมาร์ค', 'bolt_mark'),
+    ('ready_rotation_mark', 'สัญลักษณ์ทิศทางหมุน', 'rotation'),
+    ('ready_coupling_guard', 'ฝาครอบคัปปลิ้ง', 'coupling_guard'),
+    ('ready_air_breather', 'Air breather', 'air_breather'),
+    ('ready_oil_seal', 'Oil seal', 'oil_seal'),
+    ('ready_oil_level_gauge', 'Oil level gauge (ตาแมว)', 'sight_glass'),
+    ('ready_oil_level', 'ระดับน้ำมันเครื่องจักร', 'level_gauge'),
+]
+ME_SIGNATURE_LABELS = {'tech': 'ช่างผู้บันทึก', 'cbm': 'ผู้ตรวจ CBM', 'head': 'หัวหน้าผู้อนุมัติ'}
+
+
+def _me_has_module_perm(user, modules):
+    """เงื่อนไขเดียวกับ module_required_any — modules ว่าง = superuser เท่านั้น"""
+    if user.is_superuser:
+        return True
+    return user.is_staff and any(user.has_perm(f'myapp.write_{m}') for m in modules)
+
+
+def _me_can_write(user):
+    return _me_has_module_perm(user, ME_WRITE_MODULES)
+
+
+def _me_can_edit(user, status):
+    return _me_has_module_perm(user, ME_STAGE_EDIT_MODULES[status])
+
+
+def _me_signable_roles(user, status):
+    if user.is_superuser:
+        return list(ME_SIGNATURE_ROLES)
+    role = ME_STAGE_SIGNATURE.get(status)
+    if role and _me_can_edit(user, status) and _me_has_module_perm(user, ME_SIGNATURE_MODULES[role]):
+        return [role]
+    return []
+
+
+def _me_available_actions(user, status):
+    """ปุ่มเปลี่ยนสถานะที่ผู้ใช้กดได้ (action, ป้าย, ต้องเซ็นก่อนไหม)"""
+    return [
+        (action, label, signature)
+        for (from_status, action), (_, modules, signature, label) in ME_TRANSITIONS.items()
+        if from_status == status and _me_has_module_perm(user, modules)
+    ]
+
+
+def _me_save_submission(request, form, previous_status):
+    """บันทึกฟอร์ม + ลายเซ็น + เปลี่ยนสถานะตามปุ่มที่กด; คืน (inspection, ข้อความ) หรือ (None, None) ถ้าไม่ผ่าน (error อยู่ในฟอร์ม)"""
+    user = request.user
+    action = request.POST.get('action', 'save')
+    inspection = form.save(commit=False)
+    signable = _me_signable_roles(user, previous_status)
+
+    def will_have_signature(role):
+        if role in signable and form.cleaned_data.get(f'{role}_signature_data'):
+            return True
+        if role in signable and form.cleaned_data.get(f'{role}_signature_clear'):
+            return False
+        return bool(getattr(inspection, f'{role}_signature'))
+
+    message = 'บันทึกใบตรวจเช็ค ME-{pk} เรียบร้อย'
+    if action != 'save':
+        transition = ME_TRANSITIONS.get((previous_status, action))
+        if transition is None or not _me_has_module_perm(user, transition[1]):
+            form.add_error(None, 'คุณไม่มีสิทธิ์เปลี่ยนสถานะใบงานนี้ หรือสถานะใบงานเปลี่ยนไปแล้ว')
+            return None, None
+        new_status, _, required_signature, label = transition
+        if required_signature and not will_have_signature(required_signature):
+            form.add_error(None, f'ต้องมีลายเซ็น{ME_SIGNATURE_LABELS[required_signature]}ก่อน "{label}"')
+            return None, None
+        inspection.status = new_status
+        if new_status == ME_STATUS_APPROVED:
+            inspection.approved_at = timezone.now()
+        elif previous_status == ME_STATUS_APPROVED:
+            inspection.approved_at = None
+        message = f'{label} (ME-{{pk}}) เรียบร้อย'
+
+    for role in signable:
+        new_file = form.cleaned_data.get(f'{role}_signature_data')
+        if new_file:
+            getattr(inspection, f'{role}_signature').save(new_file.name, new_file, save=False)
+        elif form.cleaned_data.get(f'{role}_signature_clear'):
+            setattr(inspection, f'{role}_signature', None)
+    if not inspection.created_by:
+        inspection.created_by = user.username
+    inspection.updated_by = user.username
+    inspection.apply_computed_results()
+    inspection.save()
+    return inspection, message.format(pk=inspection.pk)
+
+
+def _me_decimal_or_none(value):
+    """สเปคใน Equipment บางช่องเป็นข้อความ (เช่น capacity '120 m3/hr') — เอาเฉพาะที่แปลงเป็นตัวเลขได้"""
+    if value in (None, ''):
+        return None
+    try:
+        return Decimal(str(value).replace(',', '').strip())
+    except InvalidOperation:
+        return None
+
+
+def _me_equipment_snapshot(eq):
+    """ค่าเริ่มต้นของ snapshot สเปคเครื่องจักรในใบงาน — คีย์ตรงกับ field ของ MEInspectionForm"""
+    return {
+        'department': eq.process or eq.location or '',
+        'brand': eq.manufacturer or '',
+        'model_no': eq.model or '',
+        'flow_m3h': _me_decimal_or_none(eq.capacity),
+        'head_m': _me_decimal_or_none(eq.head_size),
+        'motor_kw': eq.power_kw,
+        'rpm': _me_decimal_or_none(eq.rpm) or eq.rpm_input,
+    }
+
+
+ME_FIT_TITLES = {
+    'housing_de': 'เสื้อลูกปืน DE (ขนาดรู)', 'housing_nde': 'เสื้อลูกปืน NDE (ขนาดรู)',
+    'shaft_de': 'เพลาด้าน DE (ตำแหน่งลูกปืน)', 'shaft_nde': 'เพลาด้าน NDE (ตำแหน่งลูกปืน)',
+}
+ME_VIB_SECTIONS = [
+    # (หัวข้อ, ช่องกระแส, [(ป้ายแถว, prefix ของช่อง H/V/A, มีอุณหภูมิไหม)])
+    ('เดินเครื่องตัวเปล่า (No-load)', 'vib_noload_current', [
+        ('มอเตอร์ DE', 'vib_noload_motor_de', False), ('มอเตอร์ NDE', 'vib_noload_motor_nde', False)]),
+    ('เดินเครื่องจริง (On-load)', 'vib_onload_current', [
+        ('มอเตอร์ DE', 'vib_onload_motor_de', False), ('มอเตอร์ NDE', 'vib_onload_motor_nde', False),
+        ('ปั๊ม DE', 'vib_onload_pump_de', True), ('ปั๊ม NDE', 'vib_onload_pump_nde', True)]),
+]
+
+
+def _me_tolerance_js_context():
+    """เกณฑ์จาก models.py ส่งให้ JS ในหน้าฟอร์ม เพื่อให้สีบนจอใช้ตัวเลขชุดเดียวกับที่ server ตัดสิน"""
+    return {
+        'runout': ME_RUNOUT_LIMIT_MM, 'align': ME_ALIGNMENT_LIMIT,
+        'vib_kw': ME_VIB_LARGE_MOTOR_KW, 'vib_large': ME_VIB_LIMITS_LARGE, 'vib_small': ME_VIB_LIMITS_SMALL,
+        'temp': ME_TEMP_LIMITS_C, 'slack': ME_ISO_FIT_SLACK_MM,
+        'bands': ME_ISO_FIT_BANDS, 'key_fit': ME_SHAFT_KEY_FIT, 'bore_fit': ME_BORE_FIT,
+    }
+
+
+def _me_measure_context(form):
+    """จัดกลุ่มช่องค่าวัด Tab 2–5 ให้ template วนลูปได้"""
+    return {
+        'fit_cards': [
+            {'key': prefix, 'title': ME_FIT_TITLES[prefix], 'code': code,
+             'fields': [form[f'{prefix}_{part}'] for part in ('nominal', 'm1', 'm2')]}
+            for prefix, code in ME_ISO_FIT_POINTS
+        ],
+        'key_dims': [form[f'key_{k}'] for k in ('h', 'l', 'b', 't1', 'b1')],
+        'runout_rows': [(deg, [form[f'runout_{deg}_p{p}'] for p in range(1, 5)]) for deg in ME_RUNOUT_ANGLES],
+        'pressure_rows': [(f'ครั้งที่ {i} — ผล', form[f'pressure_{i}_result'], form[f'pressure_{i}_reason']) for i in (1, 2, 3)],
+        'align_phases': [
+            (phase_label, [(f'{axis.upper()} {kind.capitalize()}', form[f'align_{phase}_{axis}_{kind}'])
+                           for axis in ('v', 'h') for kind in ('offset', 'angle')])
+            for phase, phase_label in (('before', 'ก่อนปรับตั้ง'), ('after', 'หลังปรับตั้ง'))
+        ],
+        'vib_sections': [
+            (title, form[current], [
+                (label, [form[f'{prefix}_{ax}'] for ax in 'hva'], form[f'{prefix}_temp'] if has_temp else None)
+                for label, prefix, has_temp in rows])
+            for title, current, rows in ME_VIB_SECTIONS
+        ],
+        'tol': _me_tolerance_js_context(),
+    }
+
+
+def _me_form_context(form, user, inspection=None):
+    eq = None
+    if inspection is not None:
+        eq = inspection.equipment
+    elif form.is_bound:
+        eq = Equipment.objects.filter(pk=form.data.get('equipment')).first()
+    elif form.initial.get('equipment'):
+        eq = form.initial['equipment']
+    status = inspection.status if inspection else ME_STATUS_REPAIRING
+    can_edit = _me_can_edit(user, status)
+    signable = _me_signable_roles(user, status) if can_edit else []
+    return {
+        'form': form,
+        'inspection': inspection,
+        'is_edit': inspection is not None,
+        'can_edit': can_edit,
+        'status': status,
+        'status_steps': [(code, label, code == status) for code, label in ME_STATUS_CHOICES],
+        'workflow_actions': _me_available_actions(user, status) if can_edit else [],
+        'can_delete': inspection is not None and user.is_superuser,
+        # ค่าแรกของ choices แต่ละข้อคือค่า "ปกติ" (ใช้กับปุ่ม "ปกติทั้งหมด")
+        'readiness_cards': [
+            (title, form[name], svg, MEInspection._meta.get_field(name).choices[0][0])
+            for name, title, svg in ME_READINESS_ITEMS
+        ],
+        'signature_cards': [
+            (role, ME_SIGNATURE_LABELS[role], form[f'{role}_name'], form[f'{role}_signature_data'],
+             form[f'{role}_signature_clear'], getattr(inspection, f'{role}_signature') if inspection else None,
+             role in signable)
+            for role in ME_SIGNATURE_ROLES
+        ],
+        'selected_equipment': eq,
+        'tab_labels': ME_TAB_LABELS,
+        'basic_fields': [form[name] for name in ME_BASIC_FIELDS],
+        'part_groups': [(title, [(form[name], label) for name, label in fields]) for title, fields in ME_PART_GROUPS],
+        'condition_parts': [(label, form[f'{key}_action'], form[f'{key}_reason']) for key, label in ME_CONDITION_PARTS],
+        **_me_measure_context(form),
+        'photo_fields': [
+            (form['photo_before'], inspection.photo_before if inspection else None, 'รูปก่อนซ่อม / สภาพความเสียหาย (Before)'),
+            (form['photo_after'], inspection.photo_after if inspection else None, 'รูปหลังซ่อม / ติดตั้งเสร็จ (After)'),
+        ],
+        'process_choices': list(ProcessCategory.objects.filter(is_active=True).order_by('name').values_list('name', flat=True)),
+    }
+
+
+def _me_filtered(request):
+    """ตัวกรองหน้าประวัติใบงาน ME — คืน (queryset, ค่าตัวกรอง, ข้อความ error ของวันที่ที่อ่านไม่ได้)"""
+    qs = MEInspection.objects.select_related('equipment')
+    filters = {key: request.GET.get(key, '').strip()
+               for key in ('q', 'process', 'group', 'status', 'date_from', 'date_to')}
+    if filters['q']:
+        q = filters['q']
+        qs = qs.filter(Q(equipment__equipment_id__icontains=q) | Q(equipment__name__icontains=q) |
+                       Q(department__icontains=q) | Q(remark__icontains=q) |
+                       Q(tech_name__icontains=q) | Q(cbm_name__icontains=q))
+    if filters['process']:
+        qs = qs.filter(department=filters['process'])
+    if filters['group']:
+        qs = qs.filter(repair_group=filters['group'])
+    if filters['status']:
+        qs = qs.filter(status=filters['status'])
+    bad_dates = []
+    for key, lookup in (('date_from', 'record_date__gte'), ('date_to', 'record_date__lte')):
+        if filters[key]:
+            try:
+                parsed = parse_date(filters[key])
+            except ValueError:  # รูปแบบถูกแต่วันไม่มีจริง เช่น 2026-02-30
+                parsed = None
+            if parsed:
+                qs = qs.filter(**{lookup: parsed})
+            else:
+                bad_dates.append(filters[key])
+                filters[key] = ''
+    return qs, filters, bad_dates
+
+
+@login_required
+def me_inspection_list(request):
+    qs, filters, bad_dates = _me_filtered(request)
+    if bad_dates:
+        messages.error(request, 'รูปแบบวันที่ในตัวกรองไม่ถูกต้อง: ' + ', '.join(bad_dates))
+    page_obj = Paginator(qs, ME_LIST_PAGE_SIZE).get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    return render(request, 'myapp/me_inspection_list.html', {
+        'page_obj': page_obj,
+        'filters': filters,
+        'querystring': params.urlencode(),
+        'process_choices': list(MEInspection.objects.exclude(department__isnull=True).exclude(department='')
+                                .order_by('department').values_list('department', flat=True).distinct()),
+        'group_choices': ME_REPAIR_GROUP_CHOICES,
+        'status_choices': ME_STATUS_CHOICES,
+        'can_write': _me_can_write(request.user),
+        'can_import': _me_has_module_perm(request.user, ('equipment',)),
+    })
+
+
+@login_required
+@module_required_any(*ME_WRITE_MODULES)
+def me_inspection_add(request):
+    if request.method == 'POST':
+        form = MEInspectionForm(request.POST, request.FILES)
+        if form.is_valid():
+            inspection, message = _me_save_submission(request, form, ME_STATUS_REPAIRING)
+            if inspection:
+                messages.success(request, message)
+                return redirect('me_inspection_edit', inspection_id=inspection.pk)
+        messages.error(request, 'กรุณาตรวจสอบข้อมูลที่กรอก')
+    else:
+        initial = {'record_date': timezone.localdate(), **{name: 'keep' for name in ME_PART_ACTION_FIELDS}}
+        eq = Equipment.objects.filter(pk=request.GET.get('equipment')).first() if request.GET.get('equipment') else None
+        if eq:
+            initial.update(_me_equipment_snapshot(eq), equipment=eq)
+        form = MEInspectionForm(initial=initial)
+    return render(request, 'myapp/me_inspection_form.html', _me_form_context(form, request.user))
+
+
+@login_required
+def me_inspection_edit(request, inspection_id):
+    inspection = get_object_or_404(MEInspection.objects.select_related('equipment'), pk=inspection_id)
+    previous_status = inspection.status
+    if request.method == 'POST':
+        if not _me_can_edit(request.user, previous_status):
+            raise PermissionDenied
+        form = MEInspectionForm(request.POST, request.FILES, instance=inspection)
+        if form.is_valid():
+            saved, message = _me_save_submission(request, form, previous_status)
+            if saved:
+                messages.success(request, message)
+                return redirect('me_inspection_edit', inspection_id=saved.pk)
+        messages.error(request, 'กรุณาตรวจสอบข้อมูลที่กรอก')
+    else:
+        form = MEInspectionForm(instance=inspection)
+    return render(request, 'myapp/me_inspection_form.html', _me_form_context(form, request.user, inspection))
+
+
+# กลุ่มอะไหล่หลักที่นับใน dashboard (ตามฟอร์มเดิม): (ป้าย, ช่องการเปลี่ยนที่นับรวม)
+ME_SPARE_CATEGORIES = [
+    ('ลูกปืน DE/NDE', ['bearing_de_action', 'bearing_nde_action']),
+    ('ออยซีล DE/NDE', ['oil_seal_de_action', 'oil_seal_nde_action']),
+    ('แมคซีล/ปะเก็น', ['seal_device_action']),
+    ('ปลอกเพลา', ['sleeve_action']),
+    ('ใบพัดปั๊ม', ['impeller_action']),
+    ('เพลา', ['shaft_action']),
+]
+ME_DASHBOARD_MAX_DEPTS = 12  # เกินนี้รวมเป็น "อื่นๆ"
+ME_TREND_MOTOR_FIELDS = [f'vib_onload_motor_{end}_{ax}' for end in ('de', 'nde') for ax in 'hva']
+ME_TREND_PUMP_FIELDS = [f'vib_onload_pump_{end}_{ax}' for end in ('de', 'nde') for ax in 'hva']
+
+
+def _me_any_replaced(fields):
+    q = Q()
+    for f in fields:
+        q |= Q(**{f: 'replace'})
+    return q
+
+
+def _me_max_or_none(obj, fields):
+    values = [getattr(obj, f) for f in fields if getattr(obj, f) is not None]
+    return max(values) if values else None
+
+
+@login_required
+def me_inspection_dashboard(request):
+    qs, filters, bad_dates = _me_filtered(request)
+    if bad_dates:
+        messages.error(request, 'รูปแบบวันที่ในตัวกรองไม่ถูกต้อง: ' + ', '.join(bad_dates))
+    total = qs.count()
+    active_equipment = Equipment.objects.filter(is_active=True).count()
+    # นับเฉพาะเครื่องที่ยังใช้งาน ให้ตรงกับตัวหาร (ไม่งั้นเกิน 100% ได้เมื่อมีเครื่องปลดระวางที่เคยตรวจ)
+    inspected_equipment = qs.filter(equipment__is_active=True).values('equipment').distinct().count()
+    alert_q = Q(runout_result=ME_TOL_FAIL) | Q(vib_result=ME_TOL_FAIL)
+    for f in ME_ALIGN_FIELDS:
+        if '_after_' in f:
+            alert_q |= Q(**{f'{f}_result': ME_TOL_FAIL})
+    kpis = {
+        'total': total,
+        'coverage': round(inspected_equipment * 100 / active_equipment, 1) if active_equipment else None,
+        'inspected_equipment': inspected_equipment,
+        'active_equipment': active_equipment,
+        'approved': qs.filter(status=ME_STATUS_APPROVED).count(),
+        # ใบงานที่เปลี่ยนอะไหล่อย่างน้อย 1 รายการ — นับทุกช่องการเปลี่ยน ไม่ใช่แค่ 6 กลุ่มในกราฟ
+        'replaced': qs.filter(_me_any_replaced(ME_PART_ACTION_FIELDS)).count(),
+        'cbm_alert': qs.filter(alert_q).count(),
+    }
+
+    dept_rows = [((r['department'] or 'ไม่ระบุ'), r['n'])
+                 for r in qs.values('department').annotate(n=Count('id')).order_by('-n', 'department')]
+    if len(dept_rows) > ME_DASHBOARD_MAX_DEPTS:
+        head = dept_rows[:ME_DASHBOARD_MAX_DEPTS - 1]
+        dept_rows = head + [('อื่นๆ', sum(n for _, n in dept_rows[ME_DASHBOARD_MAX_DEPTS - 1:]))]
+    group_counts = dict(qs.values_list('repair_group').annotate(n=Count('id')))
+    group_rows = [(label, group_counts.get(code, 0)) for code, label in ME_REPAIR_GROUP_CHOICES]
+    if group_counts.get(None):
+        group_rows.append(('ไม่ระบุ', group_counts[None]))
+    spare_rows = [(label, qs.filter(_me_any_replaced(fields)).count()) for label, fields in ME_SPARE_CATEGORIES]
+
+    # แนวโน้ม vibration on-load ของเครื่องที่เลือก — ค่าสูงสุดของ H/V/A ทั้ง DE/NDE ต่อใบงาน
+    trend_equipment = Equipment.objects.filter(pk=request.GET.get('equipment')).first() if request.GET.get('equipment') else None
+    trend_rows = []
+    if trend_equipment:
+        for obj in qs.filter(equipment=trend_equipment).order_by('record_date', 'id'):
+            motor, pump = _me_max_or_none(obj, ME_TREND_MOTOR_FIELDS), _me_max_or_none(obj, ME_TREND_PUMP_FIELDS)
+            if motor is not None or pump is not None:
+                trend_rows.append((obj.record_date, motor, pump))
+    return render(request, 'myapp/me_inspection_dashboard.html', {
+        'filters': filters,
+        'kpis': kpis,
+        'bar_charts': [
+            ('meDeptChart', 'ใบตรวจเช็คตามแผนก', dept_rows),
+            ('meGroupChart', 'ใบตรวจเช็คตามกลุ่มซ่อม', group_rows),
+            ('meSpareChart', 'ใบตรวจเช็คที่เปลี่ยนอะไหล่ (แยกชนิด)', spare_rows),
+        ],
+        'trend_equipment': trend_equipment,
+        'trend_rows': trend_rows,
+        'trend_choices': Equipment.objects.filter(me_inspections__isnull=False).distinct().order_by('name'),
+    })
+
+
+def _me_display(obj, name):
+    """ค่าของช่องสำหรับหน้าพิมพ์: ป้ายภาษาไทยของ choice, ตัวเลขตัดศูนย์ท้าย, วันที่ d/m/Y, ว่าง = '-'"""
+    value = getattr(obj, name)
+    if value is None or value == '':
+        return '-'
+    if obj._meta.get_field(name).choices:
+        return getattr(obj, f'get_{name}_display')()
+    if isinstance(value, Decimal):
+        return f'{value.normalize():f}'
+    if isinstance(value, date):
+        return value.strftime('%d/%m/%Y')
+    return str(value)
+
+
+def _me_print_sections(obj):
+    """หัวข้อในหน้าพิมพ์แบบรายการ: [(หัวข้อ, [(ป้าย, ค่า, ผล pass/warn/fail หรือ None)])]"""
+    d = lambda name: _me_display(obj, name)
+    by_cbm = lambda inspector, when: f'ผู้ตรวจ: {d(inspector)} · วันที่: {d(when)}'
+    parts = [(title, ' · '.join(f'{label} {d(name)}' for name, label in fields), None) for title, fields in ME_PART_GROUPS]
+    parts += [(label, f'{d(f"{key}_action")} · สาเหตุ: {d(f"{key}_reason")}', None) for key, label in ME_CONDITION_PARTS]
+    fits = [(by_cbm('fit_inspector', 'fit_date'), '', None)]
+    for prefix, code in ME_ISO_FIT_POINTS:
+        fits.append((f'{ME_FIT_TITLES[prefix]} ({code})',
+                     f'ขนาด {d(prefix + "_nominal")} · 0°–180° {d(prefix + "_m1")} · 90°–270° {d(prefix + "_m2")}',
+                     getattr(obj, f'{prefix}_result')))
+    fits += [
+        (f'เพลา & ลิ่ม ({ME_SHAFT_KEY_FIT})',
+         f'ขนาด {d("shaft_key_nominal")} · 0°–180° {d("shaft_key_m1")} · 90°–270° {d("shaft_key_m2")} · สาเหตุ: {d("shaft_key_reason")}',
+         obj.shaft_key_result),
+        ('ขนาดลิ่ม', f'h {d("key_h")} · L {d("key_l")} · b {d("key_b")} · t1 {d("key_t1")} · b1 {d("key_b1")}', None),
+        ('รูสวม', f'{d("bore_type")} · ขนาด {d("bore_nominal")} · t2 {d("bore_t2")} · b2 {d("bore_b2")} · สาเหตุ: {d("bore_reason")}',
+         obj.bore_result),
+    ]
+    pressure = [(by_cbm('pressure_inspector', 'pressure_date'), '', None)] + [
+        (f'ครั้งที่ {i}', f'สาเหตุ: {d(f"pressure_{i}_reason")}', getattr(obj, f'pressure_{i}_result')) for i in (1, 2, 3)]
+    align = [(by_cbm('align_inspector', 'align_date'), '', None)] + [
+        (f'{"ก่อน" if "_before_" in f else "หลัง"}ปรับตั้ง {f.split("_")[2].upper()} {f.split("_")[3].capitalize()}',
+         d(f), getattr(obj, f'{f}_result'))
+        for f in ME_ALIGN_FIELDS]
+    readiness = [(f'{i}. {title}', d(name), None) for i, (name, title, _) in enumerate(ME_READINESS_ITEMS, start=1)]
+    return [
+        ('1. อะไหล่และสภาพชิ้นส่วน', parts),
+        ('2. พิกัดงานสวม (ISO 286)', fits),
+        ('4. ทดสอบแรงดัน', pressure),
+        ('5. Alignment (เกณฑ์ ±0.06)', align),
+        ('7. ความพร้อมเครื่องจักร', readiness),
+    ]
+
+
+@login_required
+def me_inspection_print(request, inspection_id):
+    obj = get_object_or_404(MEInspection.objects.select_related('equipment'), pk=inspection_id)
+    sections = _me_print_sections(obj)
+    return render(request, 'myapp/me_inspection_print.html', {
+        'inspection': obj,
+        # ข้อมูลพื้นฐานแถวละ 2 คู่ (ป้าย, ค่า)
+        'basic_pairs': [
+            [(obj._meta.get_field(name).verbose_name, _me_display(obj, name)) for name in ME_BASIC_FIELDS[i:i + 2]]
+            for i in range(0, len(ME_BASIC_FIELDS), 2)
+        ],
+        'sections_before_runout': sections[:2],
+        'sections_after_runout': sections[2:4],
+        'readiness_section': sections[4],
+        'runout_rows': [(deg, [_me_display(obj, f'runout_{deg}_p{p}') for p in range(1, 5)]) for deg in ME_RUNOUT_ANGLES],
+        'runout_by': f'ผู้ตรวจ: {_me_display(obj, "runout_inspector")} · วันที่: {_me_display(obj, "runout_date")}',
+        'vib_by': f'ผู้ตรวจ: {_me_display(obj, "vib_inspector")} · วันที่: {_me_display(obj, "vib_date")}',
+        'vib_sections': [
+            (title, _me_display(obj, current), [
+                (label, [_me_display(obj, f'{prefix}_{ax}') for ax in 'hva'],
+                 _me_display(obj, f'{prefix}_temp') if has_temp else '')
+                for label, prefix, has_temp in rows])
+            for title, current, rows in ME_VIB_SECTIONS
+        ],
+        'signatures': [(ME_SIGNATURE_LABELS[role], _me_display(obj, f'{role}_name'), getattr(obj, f'{role}_signature'))
+                       for role in ME_SIGNATURE_ROLES],
+    })
+
+
+@login_required
+@superuser_required
+@require_POST
+def me_inspection_delete(request, inspection_id):
+    inspection = get_object_or_404(MEInspection, pk=inspection_id)
+    label = f'ME-{inspection.pk} ({inspection.equipment_id})'
+    inspection.delete()
+    messages.success(request, f'ลบใบตรวจเช็ค {label} เรียบร้อย')
+    return redirect('me_inspection_list')
+
+
+@login_required
+def me_equipment_search_api(request):
+    """ค้นหาเครื่องจักร active สำหรับช่องเลือกเครื่องจักรในฟอร์ม ME (ตามรหัสหรือชื่อ + กรองตามกระบวนการ)"""
+    q = request.GET.get('q', '').strip()
+    process = request.GET.get('process', '').strip()
+    qs = Equipment.objects.filter(is_active=True)
+    if q:
+        qs = qs.filter(Q(equipment_id__icontains=q) | Q(name__icontains=q))
+    if process:
+        qs = qs.filter(process=process)
+    data = []
+    for eq in qs.order_by('name', 'equipment_id')[:ME_EQUIPMENT_SEARCH_LIMIT]:
+        snap = _me_equipment_snapshot(eq)
+        data.append({
+            'id': eq.equipment_id,
+            'name': eq.name,
+            'process': eq.process or '',
+            'location': eq.location or '',
+            'department': snap['department'],
+            'brand': snap['brand'],
+            'model': snap['model_no'],
+            'flow': str(snap['flow_m3h']) if snap['flow_m3h'] is not None else '',
+            'head': str(snap['head_m']) if snap['head_m'] is not None else '',
+            'kw': str(snap['motor_kw']) if snap['motor_kw'] is not None else '',
+            'rpm': str(snap['rpm']) if snap['rpm'] is not None else '',
+        })
+    return JsonResponse({'data': data})
+
+
+def _me_replaced_parts(inspection):
+    """รายการอะไหล่หลักที่ใบงานนี้เปลี่ยน (ใช้ใน banner smart memory)"""
+    replaced = []
+    if inspection.bearing_de_action == 'replace':
+        replaced.append('ลูกปืน DE')
+    if inspection.bearing_nde_action == 'replace':
+        replaced.append('ลูกปืน NDE')
+    if 'replace' in (inspection.oil_seal_de_action, inspection.oil_seal_nde_action):
+        replaced.append('ออยซีล')
+    if inspection.seal_device_action == 'replace':
+        replaced.append(inspection.get_seal_device_type_display() if inspection.seal_device_type else 'แมคซีล/ปะเก็น')
+    if inspection.sleeve_action == 'replace':
+        replaced.append('ปลอกเพลา')
+    if inspection.impeller_action == 'replace':
+        replaced.append('ใบพัดปั๊ม')
+    return replaced
+
+
+@login_required
+def me_inspection_last_api(request, eq_id):
+    """Smart memory: สเปคอะไหล่/ขนาดพิกัดจากใบงานล่าสุดของเครื่องจักรเดียวกัน ({"data": null} ถ้ายังไม่เคยมี)"""
+    qs = MEInspection.objects.filter(equipment_id=eq_id)
+    exclude_id = request.GET.get('exclude', '')
+    if exclude_id.isdigit():
+        qs = qs.exclude(pk=int(exclude_id))
+    last = qs.order_by('-record_date', '-id').first()
+    if last is None:
+        return JsonResponse({'data': None})
+    fields = {}
+    for name in ME_MEMORY_FIELDS:
+        value = getattr(last, name)
+        if value not in (None, ''):
+            fields[name] = str(value)
+    return JsonResponse({'data': {
+        'inspection_id': last.pk,
+        'record_date': last.record_date.isoformat(),
+        'repair_group': last.repair_group or '',
+        'replaced': _me_replaced_parts(last),
+        'fields': fields,
+    }})
+
+
+
+# ===== นำเข้ารายชื่อเครื่องจักรจาก Excel (ชีต PUMP / GEAR ของฟอร์ม ME เดิม) เข้า Equipment =====
+
+ME_IMPORT_SESSION_KEY = 'me_equipment_import'
+ME_IMPORT_MAX_BYTES = 5 * 1024 * 1024
+ME_IMPORT_MAX_ROWS = 3000
+ME_IMPORT_PREVIEW_LIMIT = 300  # แสดงในตารางตัวอย่างไม่เกินนี้ต่อกลุ่ม (ยืนยันแล้วนำเข้าครบทุกแถว)
+ME_IMPORT_LINES = ('ราง A', 'ราง B')
+# คอลัมน์ในไฟล์ "รายการเครื่องจักรแผนก.xlsx" → field ของ Equipment (ต่อชีต)
+ME_IMPORT_SHEETS = {
+    'PUMP': {'equipment_id': 'รหัสทรัพย์สิน', 'name': 'List', 'location': 'แผนก', 'manufacturer': 'ยี่ห้อ',
+             'model': 'รุ่น', 'capacity': 'Flow [m3/hr.]', 'head_size': 'Head [m.]', 'power_kw': 'Motor [kW]',
+             'rpm': 'รอบมอเตอร์ [RPM]'},
+    'GEAR': {'equipment_id': 'Code.', 'name': 'List', 'location': 'Location', 'manufacturer': 'ยี่ห้อ',
+             'model': 'รุ่น', 'power_kw': 'Motor [kW]'},
+}
+ME_IMPORT_FIELDS = ['name', 'process', 'location', 'manufacturer', 'model', 'capacity', 'head_size', 'power_kw', 'rpm']
+
+
+class _MEImportError(Exception):
+    pass
+
+
+def _me_import_cell(value):
+    """ค่าในเซลล์เป็นข้อความ: '-', 'nan', ว่าง = ''; ตัวเลขจำนวนเต็มไม่มี .0"""
+    if value is None:
+        return ''
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    text = str(value).strip()
+    return '' if text in ('-', '') or text.lower() == 'nan' else text
+
+
+def _me_import_process(location):
+    """แผนกหลักจากข้อความตำแหน่ง เช่น 'ลูกหีบ ราง A' → 'ลูกหีบ'"""
+    for line in ME_IMPORT_LINES:
+        if line in location:
+            return location.replace(line, '').strip()
+    return location
+
+
+def _me_parse_equipment_workbook(upload):
+    """อ่านไฟล์ .xlsx → (rows, skipped) — rows เป็น dict ที่เก็บใน session ได้ (ค่าเป็นข้อความทั้งหมด)"""
+    from openpyxl import load_workbook
+    try:
+        wb = load_workbook(upload, read_only=True, data_only=True)
+    except Exception as exc:  # ไฟล์เสีย / ไม่ใช่ xlsx: openpyxl โยน exception ได้หลายชนิด
+        raise _MEImportError('อ่านไฟล์ไม่ได้ ต้องเป็นไฟล์ Excel (.xlsx)') from exc
+    sheets = [name for name in ME_IMPORT_SHEETS if name in wb.sheetnames]
+    if not sheets:
+        raise _MEImportError('ไม่พบชีต PUMP หรือ GEAR ในไฟล์')
+    rows, skipped, seen = [], [], set()
+    for sheet in sheets:
+        it = wb[sheet].iter_rows(values_only=True)
+        header = [_me_import_cell(h) for h in next(it, ())]
+        columns = {field: header.index(col) for field, col in ME_IMPORT_SHEETS[sheet].items() if col in header}
+        if 'equipment_id' not in columns or 'name' not in columns:
+            raise _MEImportError(f'ชีต {sheet} ไม่มีคอลัมน์ "{ME_IMPORT_SHEETS[sheet]["equipment_id"]}" หรือ "List"')
+        for line_no, values in enumerate(it, start=2):
+            data = {f: _me_import_cell(values[i]) if i < len(values) else '' for f, i in columns.items()}
+            if not any(data.values()):
+                continue
+            where = f'{sheet} แถว {line_no}'
+            eq_id, name = data.get('equipment_id', ''), data.get('name', '')
+            if not eq_id or not name:
+                skipped.append((where, eq_id or '-', 'ไม่มีรหัสทรัพย์สินหรือชื่อเครื่อง'))
+                continue
+            if len(eq_id) > 50:
+                skipped.append((where, eq_id[:20] + '…', 'รหัสยาวเกิน 50 ตัวอักษร'))
+                continue
+            if eq_id in seen:
+                skipped.append((where, eq_id, 'รหัสซ้ำในไฟล์ (ใช้แถวแรก)'))
+                continue
+            seen.add(eq_id)
+            if data.get('power_kw'):
+                try:
+                    data['power_kw'] = str(Decimal(data['power_kw'].replace(',', '')).quantize(Decimal('0.01')))
+                except InvalidOperation:
+                    data['power_kw'] = ''  # กำลังมอเตอร์ไม่ใช่ตัวเลข ไม่นำเข้าช่องนี้
+            data['process'] = _me_import_process(data.get('location', ''))
+            for f in ME_IMPORT_FIELDS:  # ตัดให้พอดีความยาวช่องใน Equipment
+                max_length = Equipment._meta.get_field(f).max_length
+                if max_length and data.get(f):
+                    data[f] = data[f][:max_length]
+            data['sheet'] = where
+            rows.append(data)
+            if len(rows) > ME_IMPORT_MAX_ROWS:
+                raise _MEImportError(f'จำนวนเครื่องจักรในไฟล์เกิน {ME_IMPORT_MAX_ROWS} รายการ')
+    return rows, skipped
+
+
+def _me_import_value(field, text):
+    return Decimal(text) if field == 'power_kw' else text
+
+
+def _me_classify_import(rows):
+    """เทียบกับ Equipment ปัจจุบัน → (new_rows, update_rows) โดย update_rows มีรายการช่องที่จะเปลี่ยน
+    fill = ช่องเดิมว่าง (เติมเสมอ), overwrite = ช่องเดิมมีค่าต่างจากไฟล์ (เปลี่ยนเฉพาะเมื่อติ๊กเขียนทับ)"""
+    existing = Equipment.objects.in_bulk([r['equipment_id'] for r in rows])
+    new_rows, update_rows = [], []
+    for r in rows:
+        eq = existing.get(r['equipment_id'])
+        if eq is None:
+            new_rows.append(r)
+            continue
+        changes = []
+        for f in ME_IMPORT_FIELDS:
+            text = r.get(f, '')
+            if not text:
+                continue
+            new_value, old_value = _me_import_value(f, text), getattr(eq, f)
+            if old_value in (None, ''):
+                changes.append((f, '', text, 'fill'))
+            elif old_value != new_value:
+                changes.append((f, str(old_value), text, 'overwrite'))
+        if changes:
+            update_rows.append((r, changes))
+    return new_rows, update_rows
+
+
+def _me_apply_import(rows, overwrite, username):
+    new_rows, update_rows = _me_classify_import(rows)
+    with transaction.atomic():
+        Equipment.objects.bulk_create([
+            Equipment(equipment_id=r['equipment_id'], updated_by=username,
+                      **{f: _me_import_value(f, r[f]) for f in ME_IMPORT_FIELDS if r.get(f)})
+            for r in new_rows
+        ])
+        updated = 0
+        for r, changes in update_rows:
+            applied = [(f, new) for f, _, new, kind in changes if kind == 'fill' or overwrite]
+            if not applied:
+                continue
+            eq = Equipment.objects.get(pk=r['equipment_id'])
+            for f, new in applied:
+                setattr(eq, f, _me_import_value(f, new))
+            eq.updated_by = username
+            eq.save(update_fields=[f for f, _ in applied] + ['updated_by', 'updated_at'])
+            updated += 1
+    return len(new_rows), updated
+
+
+@login_required
+@module_required('equipment')
+def me_equipment_import(request):
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'upload':
+            upload = request.FILES.get('file')
+            if not upload or not upload.name.lower().endswith('.xlsx'):
+                messages.error(request, 'กรุณาเลือกไฟล์ Excel (.xlsx)')
+            elif upload.size > ME_IMPORT_MAX_BYTES:
+                messages.error(request, 'ไฟล์ใหญ่เกิน 5 MB')
+            else:
+                try:
+                    rows, skipped = _me_parse_equipment_workbook(upload)
+                except _MEImportError as exc:
+                    messages.error(request, str(exc))
+                else:
+                    request.session[ME_IMPORT_SESSION_KEY] = {'file': upload.name, 'rows': rows, 'skipped': skipped}
+        elif action == 'confirm' and ME_IMPORT_SESSION_KEY in request.session:
+            data = request.session.pop(ME_IMPORT_SESSION_KEY)
+            created, updated = _me_apply_import(data['rows'], request.POST.get('overwrite') == '1', request.user.username)
+            messages.success(request, f'นำเข้าเครื่องจักรเรียบร้อย: เพิ่มใหม่ {created} รายการ, อัปเดต {updated} รายการ')
+        elif action == 'cancel':
+            request.session.pop(ME_IMPORT_SESSION_KEY, None)
+        return redirect('me_equipment_import')
+
+    preview = None
+    data = request.session.get(ME_IMPORT_SESSION_KEY)
+    if data:
+        new_rows, update_rows = _me_classify_import(data['rows'])
+        labels = {f: Equipment._meta.get_field(f).verbose_name for f in ME_IMPORT_FIELDS}
+        preview = {
+            'file': data['file'],
+            'new_count': len(new_rows),
+            'update_count': len(update_rows),
+            'overwrite_count': sum(1 for _, changes in update_rows if any(c[3] == 'overwrite' for c in changes)),
+            'unchanged_count': len(data['rows']) - len(new_rows) - len(update_rows),
+            'skipped': data['skipped'],
+            'new_rows': new_rows[:ME_IMPORT_PREVIEW_LIMIT],
+            'update_rows': [(r, [(labels[f], old, new, kind) for f, old, new, kind in changes])
+                            for r, changes in update_rows[:ME_IMPORT_PREVIEW_LIMIT]],
+            'limit': ME_IMPORT_PREVIEW_LIMIT,
+        }
+    return render(request, 'myapp/me_equipment_import.html', {'preview': preview})

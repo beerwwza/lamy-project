@@ -1,0 +1,168 @@
+{% extends 'myapp/base.html' %}
+{% block title %}ใบตรวจเช็คซ่อม (ME){% endblock title %}
+
+{% block content %}
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <header
+        class="min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 px-4 md:px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-300">
+            <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+        </div>
+        <div class="min-w-0">
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">ใบตรวจเช็คซ่อมบำรุงเครื่องจักร (ME)</h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">{% if querystring %}พบ{% else %}ทั้งหมด{% endif %} {{ page_obj.paginator.count }} ใบงาน</p>
+        </div>
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+            <a href="{% url 'me_inspection_dashboard' %}"
+                class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+                <i data-lucide="chart-pie" class="w-4 h-4"></i> Dashboard
+            </a>
+            {% if can_import %}
+            <a href="{% url 'me_equipment_import' %}"
+                class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> นำเข้าเครื่องจักร (Excel)
+            </a>
+            {% endif %}
+            {% if can_write %}
+            <a href="{% url 'me_inspection_add' %}"
+                class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold flex items-center gap-2">
+                <i data-lucide="plus" class="w-4 h-4"></i> สร้างใบตรวจเช็ค
+            </a>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+        {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+        {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+        {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <form method="GET" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 flex flex-wrap items-end gap-3">
+            <div class="w-full sm:w-64">
+                <label for="me-f-q" class="block text-xs font-semibold text-slate-500 mb-1">ค้นหา</label>
+                <input id="me-f-q" type="text" name="q" value="{{ filters.q }}" placeholder="รหัส/ชื่อเครื่อง, ชื่อช่าง, หมายเหตุ"
+                    class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="me-f-process" class="block text-xs font-semibold text-slate-500 mb-1">แผนก</label>
+                <div class="relative">
+                    <select id="me-f-process" name="process" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white sm:w-auto appearance-none pr-8">
+                        <option value="">ทุกแผนก</option>
+                        {% for name in process_choices %}<option value="{{ name }}" {% if filters.process == name %}selected{% endif %}>{{ name }}</option>{% endfor %}
+                    </select>
+                    <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                </div>
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="me-f-group" class="block text-xs font-semibold text-slate-500 mb-1">กลุ่มซ่อม</label>
+                <div class="relative">
+                    <select id="me-f-group" name="group" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white sm:w-auto appearance-none pr-8">
+                        <option value="">ทุกกลุ่ม</option>
+                        {% for code, label in group_choices %}<option value="{{ code }}" {% if filters.group == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                    <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                </div>
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="me-f-status" class="block text-xs font-semibold text-slate-500 mb-1">สถานะ</label>
+                <div class="relative">
+                    <select id="me-f-status" name="status" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white sm:w-auto appearance-none pr-8">
+                        <option value="">ทุกสถานะ</option>
+                        {% for code, label in status_choices %}<option value="{{ code }}" {% if filters.status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                    <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                </div>
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="me-f-from" class="block text-xs font-semibold text-slate-500 mb-1">ตั้งแต่วันที่</label>
+                <input id="me-f-from" type="date" name="date_from" value="{{ filters.date_from }}" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white sm:w-auto">
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="me-f-to" class="block text-xs font-semibold text-slate-500 mb-1">ถึงวันที่</label>
+                <input id="me-f-to" type="date" name="date_to" value="{{ filters.date_to }}" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white sm:w-auto">
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button type="submit" class="px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold flex items-center gap-2">
+                    <i data-lucide="search" class="w-4 h-4"></i> กรอง
+                </button>
+                {% if querystring %}
+                <a href="{% url 'me_inspection_list' %}" class="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-600 dark:text-slate-300">ล้างตัวกรอง</a>
+                {% endif %}
+            </div>
+        </form>
+
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <!-- relative: ให้ sr-only (position:absolute) ในหัวตารางถูกตัดในกรอบเลื่อนนี้ ไม่ดันความกว้างทั้งหน้าบนมือถือ -->
+            <div class="relative overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-900/50 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-semibold">เลขที่</th>
+                            <th class="px-4 py-3 text-left font-semibold">วันที่</th>
+                            <th class="px-4 py-3 text-left font-semibold">เครื่องจักร</th>
+                            <th class="px-4 py-3 text-left font-semibold">แผนก</th>
+                            <th class="px-4 py-3 text-left font-semibold">กลุ่มซ่อม</th>
+                            <th class="px-4 py-3 text-left font-semibold">สถานะ</th>
+                            <th class="px-4 py-3 text-left font-semibold">ผู้แก้ไขล่าสุด</th>
+                            <th class="px-4 py-3 text-left font-semibold"><span class="sr-only">การทำงาน</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                        {% for item in page_obj %}
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40">
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <a href="{% url 'me_inspection_edit' item.pk %}" class="font-semibold text-blue-700 dark:text-blue-400 hover:underline">ME-{{ item.pk }}</a>
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-slate-600 dark:text-slate-300">{{ item.record_date|date:"d/m/Y" }}</td>
+                            <td class="px-4 py-3 text-slate-800 dark:text-slate-100">
+                                <div class="font-medium">{{ item.equipment.name }}</div>
+                                <div class="text-xs text-slate-500">{{ item.equipment.equipment_id }}</div>
+                            </td>
+                            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ item.department|default:"-" }}</td>
+                            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ item.repair_group|default:"-" }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                {% include 'myapp/includes/me_status_badge.html' with obj=item %}
+                            </td>
+                            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ item.updated_by|default:"-" }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <div class="flex items-center gap-1">
+                                    <a href="{% url 'me_inspection_edit' item.pk %}" title="{% if can_write %}เปิด / แก้ไข{% else %}ดูรายละเอียด{% endif %}"
+                                        class="p-2 rounded-lg text-slate-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-slate-700">
+                                        <i data-lucide="{% if can_write %}pencil{% else %}eye{% endif %}" class="w-4 h-4"></i>
+                                    </a>
+                                    <a href="{% url 'me_inspection_print' item.pk %}" title="พิมพ์"
+                                        class="p-2 rounded-lg text-slate-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-slate-700">
+                                        <i data-lucide="printer" class="w-4 h-4"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="px-4 py-10 text-center text-slate-500 dark:text-slate-400">{% if querystring %}ไม่พบใบตรวจเช็คตามตัวกรอง{% else %}ยังไม่มีใบตรวจเช็ค{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+        <div class="flex flex-wrap items-center justify-center gap-2 text-sm">
+            {% if page_obj.has_previous %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.previous_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">ก่อนหน้า</a>{% endif %}
+            <span class="text-slate-500">หน้า {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ page_obj.next_page_number }}" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600">ถัดไป</a>{% endif %}
+        </div>
+        {% endif %}
+    </div>
+</main>
+{% endblock content %}

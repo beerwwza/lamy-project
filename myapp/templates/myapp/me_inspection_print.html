@@ -1,0 +1,131 @@
+{% extends 'myapp/base.html' %}
+{% block title %}พิมพ์ใบตรวจเช็ค ME-{{ inspection.pk }}{% endblock title %}
+
+{% block content %}
+<style>
+    @page { size: A4; margin: 10mm; }
+    @media print {
+        #sidebar, #sidebar-overlay, .no-print, button[aria-label="เปิดเมนู"] { display: none !important; }
+        main { height: auto !important; overflow: visible !important; }
+        .print-area { border: 0 !important; box-shadow: none !important; padding: 0 !important; max-width: none !important; }
+        body { background: #fff !important; }
+        .print-avoid-break { break-inside: avoid; }
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+    .me-print th, .me-print td { border: 1px solid #94a3b8; padding: 4px 6px; vertical-align: top; }
+    .me-print th { background: #f1f5f9; text-align: left; font-weight: 600; }
+    .me-print .me-head th { background: #1e293b; color: #fff; }
+</style>
+<main class="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
+
+    <header
+        class="no-print min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 px-4 md:px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="flex items-center gap-3">
+            <a href="{% url 'me_inspection_edit' inspection.pk %}"
+                class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100">พิมพ์ใบตรวจเช็ค ME-{{ inspection.pk }}</h1>
+        </div>
+        <button type="button" onclick="window.print()"
+            class="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg shadow-md font-medium text-sm">
+            <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์ / บันทึกเป็น PDF
+        </button>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-4 md:p-6 print:overflow-visible print:p-0">
+        <div class="print-area max-w-4xl mx-auto bg-white text-slate-900 border border-slate-300 rounded shadow-sm p-4 md:p-8 text-xs space-y-3">
+
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold">ใบตรวจเช็คซ่อมบำรุงเครื่องจักร (ME)</h2>
+                    <p class="text-slate-600">Smart Maintenance &amp; CBM — แผนกซ่อมบำรุง</p>
+                </div>
+                <div class="text-right">
+                    <p class="font-bold text-base">ME-{{ inspection.pk }}</p>
+                    <p>สถานะ: {{ inspection.get_status_display }}</p>
+                    {% if inspection.approved_at %}<p>อนุมัติ: {{ inspection.approved_at|date:"d/m/Y H:i" }}</p>{% endif %}
+                </div>
+            </div>
+
+            <div class="overflow-x-auto print-avoid-break">
+                <table class="me-print w-full border-collapse">
+                    <tr class="me-head"><th colspan="4">ข้อมูลเครื่องจักร</th></tr>
+                    <tr>
+                        <th class="w-1/5">เครื่องจักร</th>
+                        <td colspan="3">{{ inspection.equipment.equipment_id }} — {{ inspection.equipment.name }}</td>
+                    </tr>
+                    {% for pair in basic_pairs %}
+                    <tr>
+                        {% for label, value in pair %}<th class="w-1/5">{{ label }}</th><td>{{ value }}</td>{% endfor %}
+                        {% if pair|length == 1 %}<td colspan="2"></td>{% endif %}
+                    </tr>
+                    {% endfor %}
+                    <tr><th>บันทึกเพิ่มเติม</th><td colspan="3">{{ inspection.remark|default:"-"|linebreaksbr }}</td></tr>
+                </table>
+            </div>
+
+            {% for title, rows in sections_before_runout %}
+            {% include 'myapp/includes/me_print_section.html' %}
+            {% endfor %}
+
+            <div class="overflow-x-auto print-avoid-break">
+                <table class="me-print w-full border-collapse">
+                    <tr class="me-head"><th colspan="5">3. ความสมมาตรเพลา (Runout, เกณฑ์ ±0.05 mm) — ผล: {{ inspection.get_runout_result_display|default:"-" }}</th></tr>
+                    <tr><td colspan="5">{{ runout_by }}</td></tr>
+                    <tr><th>มุม</th><th>ตำแหน่ง 1</th><th>ตำแหน่ง 2</th><th>ตำแหน่ง 3</th><th>ตำแหน่ง 4</th></tr>
+                    {% for deg, values in runout_rows %}
+                    <tr><th>{{ deg }}°</th>{% for v in values %}<td>{{ v }}</td>{% endfor %}</tr>
+                    {% endfor %}
+                </table>
+            </div>
+
+            {% for title, rows in sections_after_runout %}
+            {% include 'myapp/includes/me_print_section.html' %}
+            {% endfor %}
+
+            <div class="overflow-x-auto print-avoid-break">
+                <table class="me-print w-full border-collapse">
+                    <tr class="me-head"><th colspan="5">6. Vibration ISO 10816 (mm/s) — ผล: {{ inspection.get_vib_result_display|default:"-" }}</th></tr>
+                    <tr><td colspan="5">{{ vib_by }}</td></tr>
+                    {% for title, current, rows in vib_sections %}
+                    <tr><th colspan="5">{{ title }} — กระแส {{ current }} A</th></tr>
+                    <tr><th>จุดวัด</th><th>H</th><th>V</th><th>A</th><th>อุณหภูมิ (°C)</th></tr>
+                    {% for label, values, temp in rows %}
+                    <tr><th>{{ label }}</th>{% for v in values %}<td>{{ v }}</td>{% endfor %}<td>{{ temp|default:"-" }}</td></tr>
+                    {% endfor %}
+                    {% endfor %}
+                </table>
+            </div>
+
+            {% with title=readiness_section.0 rows=readiness_section.1 %}
+            {% include 'myapp/includes/me_print_section.html' %}
+            {% endwith %}
+
+            {% if inspection.photo_before or inspection.photo_after %}
+            <div class="overflow-x-auto print-avoid-break">
+                <table class="me-print w-full border-collapse">
+                    <tr class="me-head"><th colspan="2">8. รูปถ่ายหน้างาน</th></tr>
+                    <tr>
+                        <td class="w-1/2 text-center"><b>ก่อนซ่อม</b><br>{% if inspection.photo_before %}<img src="{{ inspection.photo_before.url }}" alt="รูปก่อนซ่อม" class="mx-auto my-1 max-h-40">{% else %}-{% endif %}</td>
+                        <td class="w-1/2 text-center"><b>หลังซ่อม</b><br>{% if inspection.photo_after %}<img src="{{ inspection.photo_after.url }}" alt="รูปหลังซ่อม" class="mx-auto my-1 max-h-40">{% else %}-{% endif %}</td>
+                    </tr>
+                </table>
+            </div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-3 pt-2 print-avoid-break">
+                {% for label, name, image in signatures %}
+                <div class="border border-slate-400 rounded p-2 text-center">
+                    <div class="h-16 flex items-center justify-center">
+                        {% if image %}<img src="{{ image.url }}" alt="ลายเซ็น{{ label }}" class="max-h-16">{% endif %}
+                    </div>
+                    <div class="border-t border-slate-400 pt-1">({{ name }})</div>
+                    <div class="font-semibold">{{ label }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock content %}

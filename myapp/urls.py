@@ -47,6 +47,17 @@ urlpatterns = [
     path('lathe/export/', lathe_export, name='lathe_export'),
     path('lathe/import/', lathe_import, name='lathe_import'),
 
+    # ME Inspection — ใบตรวจเช็คซ่อมบำรุงเครื่องจักร
+    path('me-inspection/', me_inspection_list, name='me_inspection_list'),
+    path('me-inspection/add/', me_inspection_add, name='me_inspection_add'),
+    path('me-inspection/dashboard/', me_inspection_dashboard, name='me_inspection_dashboard'),
+    path('me-inspection/import-equipment/', me_equipment_import, name='me_equipment_import'),
+    path('me-inspection/<int:inspection_id>/edit/', me_inspection_edit, name='me_inspection_edit'),
+    path('me-inspection/<int:inspection_id>/delete/', me_inspection_delete, name='me_inspection_delete'),
+    path('me-inspection/<int:inspection_id>/print/', me_inspection_print, name='me_inspection_print'),
+    path('me-inspection/api/equipment-search/', me_equipment_search_api, name='me_equipment_search_api'),
+    path('me-inspection/api/last/<path:eq_id>/', me_inspection_last_api, name='me_inspection_last_api'),
+
     # Equipment Data
     path('equipment/', equipment_data, name='equipment_data'),
     path('equipment/list/', equipment_list, name='equipment_list'),

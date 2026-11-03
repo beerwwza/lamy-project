@@ -1,0 +1,214 @@
+{% extends 'myapp/base.html' %}
+{% block title %}Dashboard ใบตรวจเช็ค ME{% endblock title %}
+
+{% block content %}
+<style>
+    /* สีกราฟ (reference palette ของ dataviz: slot 1 = blue, slot 2 = orange) */
+    .me-viz { --me-series-1: #2a78d6; --me-series-2: #eb6834; --me-axis: #64748b; --me-grid: #e2e8f0; }
+    .dark .me-viz { --me-series-1: #3987e5; --me-series-2: #d95926; --me-axis: #94a3b8; --me-grid: #334155; }
+</style>
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <header
+        class="min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 px-4 md:px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <a href="{% url 'me_inspection_list' %}"
+            class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div class="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg text-indigo-700 dark:text-indigo-300">
+            <i data-lucide="chart-pie" class="w-5 h-5"></i>
+        </div>
+        <div class="min-w-0">
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">Dashboard ใบตรวจเช็คซ่อม (ME)</h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+                {% if filters.date_from or filters.date_to %}ช่วง {{ filters.date_from|default:"เริ่มต้น" }} ถึง {{ filters.date_to|default:"ปัจจุบัน" }}{% else %}ข้อมูลทั้งหมด{% endif %}
+            </p>
+        </div>
+    </header>
+
+    <div class="me-viz flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+
+        <form method="GET" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 flex flex-wrap items-end gap-3">
+            {% if trend_equipment %}<input type="hidden" name="equipment" value="{{ trend_equipment.equipment_id }}">{% endif %}
+            <div class="w-full sm:w-auto">
+                <label for="me-d-from" class="block text-xs font-semibold text-slate-500 mb-1">ตั้งแต่วันที่</label>
+                <input id="me-d-from" type="date" name="date_from" value="{{ filters.date_from }}"
+                    class="w-full sm:w-auto p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="me-d-to" class="block text-xs font-semibold text-slate-500 mb-1">ถึงวันที่</label>
+                <input id="me-d-to" type="date" name="date_to" value="{{ filters.date_to }}"
+                    class="w-full sm:w-auto p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button type="submit" class="px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold flex items-center gap-2">
+                    <i data-lucide="calendar-search" class="w-4 h-4"></i> แสดงผล
+                </button>
+                {% if filters.date_from or filters.date_to %}
+                <a href="{% url 'me_inspection_dashboard' %}{% if trend_equipment %}?equipment={{ trend_equipment.equipment_id|urlencode }}{% endif %}"
+                    class="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-600 dark:text-slate-300">ทั้งหมด</a>
+                {% endif %}
+            </div>
+        </form>
+
+        <!-- KPI -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">ใบตรวจเช็คทั้งหมด</p>
+                <p class="text-3xl font-bold text-slate-800 dark:text-slate-100 mt-1">{{ kpis.total }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">ใบงาน</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">ความครอบคลุมเครื่องจักร</p>
+                <p class="text-3xl font-bold text-slate-800 dark:text-slate-100 mt-1">{% if kpis.coverage is not None %}{{ kpis.coverage }}%{% else %}-{% endif %}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ kpis.inspected_equipment }} จาก {{ kpis.active_equipment }} เครื่องที่ใช้งาน</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">อนุมัติแล้ว</p>
+                <p class="text-3xl font-bold text-slate-800 dark:text-slate-100 mt-1">{{ kpis.approved }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">ใบงาน</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">มีการเปลี่ยนอะไหล่หลัก</p>
+                <p class="text-3xl font-bold text-slate-800 dark:text-slate-100 mt-1">{{ kpis.replaced }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">ใบงาน</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border p-4 {% if kpis.cbm_alert %}border-red-300 dark:border-red-700{% else %}border-slate-200 dark:border-slate-700{% endif %}">
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    {% if kpis.cbm_alert %}<i data-lucide="triangle-alert" class="w-4 h-4 text-red-600"></i>{% endif %} CBM alert
+                </p>
+                <p class="text-3xl font-bold mt-1 {% if kpis.cbm_alert %}text-red-700 dark:text-red-400{% else %}text-slate-800 dark:text-slate-100{% endif %}">{{ kpis.cbm_alert }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">ใบงานที่ Alignment หลัง, Runout หรือ Vibration ไม่ผ่าน</p>
+            </div>
+        </div>
+
+        {% if kpis.total %}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {% for chart_id, title, rows in bar_charts %}
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">{{ title }}</h2>
+                <div class="relative" style="height: {{ rows|length|add:2 }}rem; min-height: 12rem;">
+                    <canvas id="{{ chart_id }}" role="img" aria-label="{{ title }}"></canvas>
+                </div>
+                <details class="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                    <summary class="cursor-pointer text-slate-500">ดูเป็นตาราง</summary>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="w-full text-sm">
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                {% for label, n in rows %}<tr><td class="py-1 pr-4">{{ label }}</td><td class="py-1 text-right font-semibold">{{ n }}</td></tr>{% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            </div>
+            {% endfor %}
+
+            <!-- แนวโน้ม vibration ของเครื่องที่เลือก -->
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div class="flex flex-wrap items-end justify-between gap-3 mb-3">
+                    <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">แนวโน้ม Vibration On-load (ค่าสูงสุดต่อใบงาน, mm/s)</h2>
+                    <form method="GET" class="w-full sm:w-auto">
+                        {% if filters.date_from %}<input type="hidden" name="date_from" value="{{ filters.date_from }}">{% endif %}
+                        {% if filters.date_to %}<input type="hidden" name="date_to" value="{{ filters.date_to }}">{% endif %}
+                        <label for="me-d-eq" class="sr-only">เลือกเครื่องจักร</label>
+                        <div class="relative">
+                            <select id="me-d-eq" name="equipment" onchange="this.form.submit()"
+                                class="w-full sm:w-64 p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white appearance-none pr-8">
+                                <option value="">-- เลือกเครื่องจักร --</option>
+                                {% for eq in trend_choices %}<option value="{{ eq.equipment_id }}" {% if trend_equipment and eq.pk == trend_equipment.pk %}selected{% endif %}>{{ eq.equipment_id }} - {{ eq.name }}</option>{% endfor %}
+                            </select>
+                            <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                        </div>
+                    </form>
+                </div>
+                {% if trend_rows %}
+                <div class="relative h-64"><canvas id="meTrendChart" role="img" aria-label="แนวโน้ม vibration ของ {{ trend_equipment.name }}"></canvas></div>
+                <details class="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                    <summary class="cursor-pointer text-slate-500">ดูเป็นตาราง</summary>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="w-full text-sm">
+                            <thead><tr class="text-slate-500"><th class="text-left py-1">วันที่</th><th class="text-right py-1">มอเตอร์</th><th class="text-right py-1">ปั๊ม</th></tr></thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                {% for day, motor, pump in trend_rows %}<tr><td class="py-1">{{ day|date:"d/m/Y" }}</td><td class="py-1 text-right">{{ motor|default:"-" }}</td><td class="py-1 text-right">{{ pump|default:"-" }}</td></tr>{% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+                {% elif trend_equipment %}
+                <p class="text-sm text-slate-500 dark:text-slate-400 py-10 text-center">เครื่องนี้ยังไม่มีค่า vibration on-load ในช่วงที่เลือก</p>
+                {% else %}
+                <p class="text-sm text-slate-500 dark:text-slate-400 py-10 text-center">เลือกเครื่องจักรเพื่อดูแนวโน้ม</p>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center text-sm text-slate-500 dark:text-slate-400">
+            ยังไม่มีใบตรวจเช็คในช่วงที่เลือก
+        </div>
+        {% endif %}
+    </div>
+</main>
+
+{% if kpis.total %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+    // รอฟอนต์ไทยโหลดเสร็จก่อนวาด ไม่งั้น Chart.js วัดความกว้างป้ายผิด (ป้ายแกนถูกตัด, legend ทับข้อความ)
+    document.fonts.ready.then(function () {
+        const css = getComputedStyle(document.querySelector('.me-viz'));
+        const color = name => css.getPropertyValue(name).trim();
+        Chart.defaults.font.family = "'IBM Plex Sans Thai', sans-serif";
+        Chart.defaults.color = color('--me-axis');
+
+        // แท่งแนวนอนชุดเดียว: ไม่ต้องมี legend, ชื่อกราฟบอกว่าเป็นอะไร
+        const bars = {
+            {% for chart_id, title, rows in bar_charts %}
+            "{{ chart_id }}": { labels: [{% for label, n in rows %}"{{ label|escapejs }}"{% if not forloop.last %}, {% endif %}{% endfor %}],
+                                values: [{% for label, n in rows %}{{ n }}{% if not forloop.last %}, {% endif %}{% endfor %}] },
+            {% endfor %}
+        };
+        Object.entries(bars).forEach(([id, d]) => {
+            new Chart(document.getElementById(id), {
+                type: 'bar',
+                data: { labels: d.labels, datasets: [{ data: d.values, backgroundColor: color('--me-series-1'),
+                    borderRadius: 4, borderSkipped: 'start', barThickness: 14 }] },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.parsed.x + ' ใบงาน' } } },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: color('--me-grid') } },
+                        y: { grid: { display: false } },
+                    },
+                },
+            });
+        });
+
+        {% if trend_rows %}
+        new Chart(document.getElementById('meTrendChart'), {
+            type: 'line',
+            data: {
+                labels: [{% for day, motor, pump in trend_rows %}"{{ day|date:'d/m/Y' }}"{% if not forloop.last %}, {% endif %}{% endfor %}],
+                datasets: [
+                    { label: 'มอเตอร์', data: [{% for day, motor, pump in trend_rows %}{% if motor is None %}null{% else %}{{ motor|stringformat:"s" }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                      borderColor: color('--me-series-1'), backgroundColor: color('--me-series-1'), borderWidth: 2, pointRadius: 4, spanGaps: true },
+                    { label: 'ปั๊ม', data: [{% for day, motor, pump in trend_rows %}{% if pump is None %}null{% else %}{{ pump|stringformat:"s" }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                      borderColor: color('--me-series-2'), backgroundColor: color('--me-series-2'), borderWidth: 2, pointRadius: 4, spanGaps: true },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'top', align: 'start', labels: { usePointStyle: true, boxWidth: 8, boxHeight: 8 } } },
+                scales: { y: { beginAtZero: true, grid: { color: color('--me-grid') } }, x: { grid: { display: false } } },
+            },
+        });
+        {% endif %}
+    });
+</script>
+{% endif %}
+{% endblock content %}

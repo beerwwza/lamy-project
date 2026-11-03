@@ -1,0 +1,844 @@
+{% extends 'myapp/base.html' %}
+{% block title %}{% if is_edit %}ใบตรวจเช็ค ME-{{ inspection.pk }}{% else %}สร้างใบตรวจเช็คซ่อม (ME){% endif %}{% endblock title %}
+
+{% block content %}
+<style>
+    /* ช่องที่ smart memory เติมให้จากใบงานครั้งก่อน */
+    .me-autofill { background-color: #eff6ff !important; border-color: #60a5fa !important; }
+    /* สีผลตรวจค่าวัด (ผ่าน / เฝ้าระวัง / ไม่ผ่าน) */
+    .me-tol-pass { background-color: #dcfce7 !important; border-color: #16a34a !important; color: #14532d !important; }
+    .me-tol-warn { background-color: #fef9c3 !important; border-color: #ca8a04 !important; color: #713f12 !important; }
+    .me-tol-fail { background-color: #fee2e2 !important; border-color: #dc2626 !important; color: #7f1d1d !important; }
+</style>
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <header
+        class="min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 px-4 md:px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <a href="{% url 'me_inspection_list' %}"
+            class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div class="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-300">
+            <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+        </div>
+        <div class="min-w-0">
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">
+                {% if is_edit %}ใบตรวจเช็ค ME-{{ inspection.pk }}{% else %}สร้างใบตรวจเช็คซ่อม (ME){% endif %}
+            </h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">ใบตรวจเช็คซ่อมบำรุงเครื่องจักรหมุน (Smart Maintenance &amp; CBM)</p>
+        </div>
+        {% if is_edit %}
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+            {% include 'myapp/includes/me_status_badge.html' with obj=inspection %}
+            <a href="{% url 'me_inspection_print' inspection.pk %}"
+                class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5">
+                <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์
+            </a>
+        </div>
+        {% endif %}
+    </header>
+
+    <!-- แท็บ 7 ส่วนของใบตรวจเช็ค -->
+    <nav class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+        <div class="flex whitespace-nowrap px-2 text-xs md:text-sm font-medium">
+            {% for label in tab_labels %}
+            <button type="button" data-tab="{{ forloop.counter }}" onclick="meShowTab({{ forloop.counter }})"
+                class="me-tab-btn px-3 py-3 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-blue-700">
+                {{ forloop.counter }}. {{ label }}
+            </button>
+            {% endfor %}
+        </div>
+    </nav>
+
+    <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+        {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+        {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+        {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+            <i data-lucide="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% else %}info{% endif %}"
+                class="w-4 h-4 flex-shrink-0"></i>
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if not can_edit %}
+        <div class="px-4 py-3 rounded-lg text-sm bg-slate-100 border border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 flex items-center gap-2">
+            <i data-lucide="eye" class="w-4 h-4 flex-shrink-0"></i> คุณดูใบงานนี้ได้อย่างเดียว (ไม่มีสิทธิ์แก้ไข)
+        </div>
+        {% endif %}
+
+        <form method="POST" id="meInspectionForm" enctype="multipart/form-data"
+            action="{% if is_edit %}{% url 'me_inspection_edit' inspection.pk %}{% else %}{% url 'me_inspection_add' %}{% endif %}">
+            {% csrf_token %}
+            {{ form.equipment }}
+            {% if form.non_field_errors %}<div class="text-red-600 text-sm mb-3">{{ form.non_field_errors }}</div>{% endif %}
+
+            <!-- min-w-0: fieldset มี min-width: min-content โดยปริยาย ตารางค่าวัดจะดันจนล้นจอมือถือแทนที่จะเลื่อนในกรอบ -->
+            <fieldset {% if not can_edit %}disabled{% endif %} class="space-y-5 min-w-0">
+
+            <!-- ==================== TAB 1: ข้อมูลพื้นฐาน ==================== -->
+            <section id="me-tab-1" class="me-tab-content space-y-5">
+                <!-- Smart memory: แจ้งเมื่อเติมสเปคอะไหล่จากใบงานครั้งก่อนของเครื่องเดียวกัน -->
+                <div id="meMemoryBanner" class="hidden px-4 py-3 rounded-lg border-l-4 border-blue-600 bg-blue-50 dark:bg-blue-900/30 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <div class="text-xs text-blue-950 dark:text-blue-100 space-y-0.5">
+                        <div class="font-bold text-sm text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+                            <i data-lucide="history" class="w-4 h-4"></i> เติมเบอร์อะไหล่และขนาดพิกัดจากใบงานครั้งก่อนให้แล้ว (ช่องสีฟ้า)
+                        </div>
+                        <div id="meMemoryDetail" class="text-slate-700 dark:text-slate-300"></div>
+                    </div>
+                    <button type="button" onclick="document.getElementById('meMemoryBanner').classList.add('hidden')"
+                        class="text-xs font-semibold text-blue-700 dark:text-blue-300 hover:underline whitespace-nowrap self-start md:self-auto">รับทราบ</button>
+                </div>
+
+                <!-- ไม่ใส่ overflow-hidden ที่การ์ดนี้ ไม่งั้นรายการผลค้นหาเครื่องจักร (absolute) จะถูกตัด -->
+                <div class="relative z-10 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div class="px-5 py-3 rounded-t-xl bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/40 flex flex-wrap items-center gap-3">
+                        <div class="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">
+                            <i data-lucide="search" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">เลือกเครื่องจักร</h4>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">ค้นหาจากรหัสหรือชื่อ ระบบจะเติมสเปคจากทะเบียนเครื่องจักรให้ (แก้ได้)</p>
+                        </div>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label for="meProcessFilter" class="block text-xs font-semibold text-slate-500 mb-1">กรองตามแผนก/กระบวนการ</label>
+                            <div class="relative">
+                                <select id="meProcessFilter" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white appearance-none pr-8">
+                                    <option value="">-- ทุกแผนก --</option>
+                                    {% for name in process_choices %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+                                </select>
+                                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                            </div>
+                        </div>
+                        <div class="md:col-span-2 relative">
+                            <label for="meEquipmentSearch" class="block text-xs font-semibold text-slate-500 mb-1">เครื่องจักร <span class="text-red-500">*</span></label>
+                            <input type="text" id="meEquipmentSearch" autocomplete="off" placeholder="พิมพ์รหัสหรือชื่อเครื่องจักร..."
+                                value="{% if selected_equipment %}{{ selected_equipment.equipment_id }} - {{ selected_equipment.name }}{% endif %}"
+                                class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                            <div id="meEquipmentResults"
+                                class="hidden absolute left-0 right-0 z-20 mt-1 max-h-72 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg"></div>
+                            {% for e in form.equipment.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-sky-50 dark:bg-sky-900/20 border-b border-sky-100 dark:border-sky-900/40 flex flex-wrap items-center gap-3">
+                        <div class="p-2 rounded-lg bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400">
+                            <i data-lucide="info" class="w-4 h-4"></i>
+                        </div>
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">ข้อมูลพื้นฐานเครื่องจักร</h4>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {% for field in basic_fields %}
+                        <div>
+                            <label for="{{ field.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ field.label }}{% if field.field.required %} <span class="text-red-500">*</span>{% endif %}</label>
+                            {% if field.name == 'repair_group' %}
+                            <div class="relative">
+                                {{ field }}
+                                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                            </div>
+                            {% else %}
+                            {{ field }}
+                            {% endif %}
+                            {% for e in field.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                        </div>
+                        {% endfor %}
+                        <div class="sm:col-span-2 lg:col-span-4">
+                            <label for="{{ form.remark.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.remark.label }}</label>
+                            {{ form.remark }}
+                            {% for e in form.remark.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- อะไหล่ + แผนผังปั๊ม NDE/DE -->
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-900/40 flex flex-wrap items-center gap-3">
+                        <div class="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400">
+                            <i data-lucide="wrench" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">รายการตรวจเช็คและการเปลี่ยนอะไหล่</h4>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">NDE = ฝั่งใบพัดปั๊ม · DE = ฝั่งปลายเพลาต่อคัปปลิ้ง/มอเตอร์</p>
+                        </div>
+                    </div>
+                    <div class="p-5 space-y-4">
+                        <div class="flex justify-center bg-white rounded-lg border border-slate-200 dark:border-slate-700 p-2">
+                            {% include 'myapp/includes/me_svg_pump.html' %}
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                            {% for title, fields in part_groups %}
+                            <div class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                                <p class="text-xs font-bold text-slate-700 dark:text-slate-200 mb-2">{{ title }}</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {% for field, label in fields %}
+                                    <div>
+                                        <label for="{{ field.id_for_label }}" class="block text-[11px] font-semibold text-slate-500 mb-1">{{ label }}</label>
+                                        {% if field.field.widget.input_type == 'select' %}
+                                        <div class="relative">
+                                            {{ field }}
+                                            <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                                        </div>
+                                        {% else %}
+                                        {{ field }}
+                                        {% endif %}
+                                        {% for e in field.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wide pt-2">สภาพชิ้นส่วนปั๊ม</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {% for label, action, reason in condition_parts %}
+                            <div class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                                <div>
+                                    <label for="{{ action.id_for_label }}" class="block text-[11px] font-semibold text-slate-500 mb-1">{{ label }}</label>
+                                    <div class="relative">
+                                        {{ action }}
+                                        <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                                    </div>
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label for="{{ reason.id_for_label }}" class="block text-[11px] font-semibold text-slate-500 mb-1">สาเหตุ</label>
+                                    {{ reason }}
+                                </div>
+                                {% for e in action.errors %}<p class="text-xs text-red-600 sm:col-span-3">{{ e }}</p>{% endfor %}
+                                {% for e in reason.errors %}<p class="text-xs text-red-600 sm:col-span-3">{{ e }}</p>{% endfor %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- รูปถ่ายหน้างาน Before / After -->
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-900/40 flex flex-wrap items-center gap-3">
+                        <div class="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400">
+                            <i data-lucide="camera" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">รูปถ่ายหน้างาน (Before / After)</h4>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">ถ่ายจากมือถือได้ ระบบย่อรูปให้ก่อนส่ง</p>
+                        </div>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {% for field, current, label in photo_fields %}
+                        <div class="p-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40">
+                            <label for="{{ field.id_for_label }}" class="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1.5">{{ label }}</label>
+                            {{ field }}
+                            {% for e in field.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                            <img id="{{ field.id_for_label }}_preview" src="{% if current %}{{ current.url }}{% endif %}" alt="{{ label }}"
+                                class="{% if not current %}hidden {% endif %}mt-2 h-40 w-full object-contain rounded-lg border border-slate-200 bg-white">
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 2: พิกัดงานสวม ISO Fits ==================== -->
+            <section id="me-tab-2" class="me-tab-content hidden space-y-5">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    {% include 'myapp/includes/me_section_header.html' with icon='ruler' title='พิกัดงานสวม (ISO 286)' subtitle='กรอกขนาดพื้นฐานแล้วระบบแสดงช่วงที่ยอมรับ วัด 2 ทิศเพื่อดูค่าเฉลี่ยและความกลม' inspector=form.fit_inspector date=form.fit_date %}
+                    <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {% for card in fit_cards %}
+                        <div class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                <p class="text-xs font-bold text-slate-700 dark:text-slate-200">{{ card.title }} — พิกัด {{ card.code }}</p>
+                                <span id="me-fit-hint-{{ card.key }}" data-code="{{ card.code }}" class="text-[11px] px-2 py-0.5 rounded border border-slate-200 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300">กรอกขนาดพื้นฐาน</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                {% include 'myapp/includes/me_field.html' with field=card.fields.0 label='ขนาดพื้นฐาน (mm)' %}
+                                {% include 'myapp/includes/me_field.html' with field=card.fields.1 label='วัด 0°–180° (mm)' %}
+                                {% include 'myapp/includes/me_field.html' with field=card.fields.2 label='วัด 90°–270° (mm)' %}
+                            </div>
+                            <p id="me-fit-result-{{ card.key }}" class="mt-1.5 text-xs font-semibold"></p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="px-5 pb-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 space-y-3">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <p class="text-xs font-bold text-slate-700 dark:text-slate-200">เพลา &amp; ลิ่ม (Shaft &amp; Keyway) — พิกัด {{ tol.key_fit }}</p>
+                                <span id="me-fit-hint-shaft_key" data-code="{{ tol.key_fit }}" class="text-[11px] px-2 py-0.5 rounded border border-slate-200 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300">กรอกขนาดพื้นฐาน</span>
+                            </div>
+                            <div class="flex justify-center bg-white rounded-lg border border-slate-200 p-2">{% include 'myapp/includes/me_svg_shaft_key.html' %}</div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                {% include 'myapp/includes/me_field.html' with field=form.shaft_key_nominal label='ขนาดพื้นฐาน (mm)' %}
+                                {% include 'myapp/includes/me_field.html' with field=form.shaft_key_m1 label='วัด 0°–180° (mm)' %}
+                                {% include 'myapp/includes/me_field.html' with field=form.shaft_key_m2 label='วัด 90°–270° (mm)' %}
+                            </div>
+                            <p id="me-fit-result-shaft_key" class="text-xs font-semibold"></p>
+                            <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                                {% for f in key_dims %}{% include 'myapp/includes/me_field.html' with field=f %}{% endfor %}
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                {% include 'myapp/includes/me_field.html' with field=form.shaft_key_result label='ผลการตรวจ (วัดครบ 2 ทิศ ระบบตัดสินเอง)' %}
+                                <div class="sm:col-span-2">{% include 'myapp/includes/me_field.html' with field=form.shaft_key_reason label='สาเหตุ (ถ้าไม่ผ่าน)' %}</div>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 space-y-3">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <p class="text-xs font-bold text-slate-700 dark:text-slate-200">รูสวม (คัปปลิ้ง / สป๊อกเก็ต / พูลเลย์)</p>
+                                <span id="me-fit-hint-bore" data-code="{{ tol.bore_fit }}" class="text-[11px] px-2 py-0.5 rounded border border-slate-200 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300">พิกัดควบคุม {{ tol.bore_fit }} / JS9</span>
+                            </div>
+                            <div class="flex justify-center bg-white rounded-lg border border-slate-200 p-2">{% include 'myapp/includes/me_svg_bore.html' %}</div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {% include 'myapp/includes/me_field.html' with field=form.bore_type label='ชนิด' %}
+                                {% include 'myapp/includes/me_field.html' with field=form.bore_nominal label='ขนาดรู (mm)' %}
+                                {% include 'myapp/includes/me_field.html' with field=form.bore_t2 label='t2' %}
+                                {% include 'myapp/includes/me_field.html' with field=form.bore_b2 label='b2' %}
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                {% include 'myapp/includes/me_field.html' with field=form.bore_result label='ผลการตรวจ' %}
+                                <div class="sm:col-span-2">{% include 'myapp/includes/me_field.html' with field=form.bore_reason label='สาเหตุ (ถ้าไม่ผ่าน)' %}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 3: ความสมมาตรเพลา & แรงดัน ==================== -->
+            <section id="me-tab-3" class="me-tab-content hidden space-y-5">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    {% include 'myapp/includes/me_section_header.html' with icon='rotate-cw' title='ความสมมาตรเพลา (Runout)' subtitle='เกณฑ์ ไม่เกิน ±0.05 mm ต่อจุด' inspector=form.runout_inspector date=form.runout_date %}
+                    <div class="p-5 space-y-4">
+                        <div class="bg-white rounded-lg border border-slate-200 p-2">{% include 'myapp/includes/me_svg_runout.html' %}</div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                    <tr>
+                                        <th class="px-2 py-2 text-left font-semibold">มุม</th>
+                                        {% for p in '1234' %}<th class="px-2 py-2 text-left font-semibold">ตำแหน่ง {{ p }} (mm)</th>{% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for deg, fields in runout_rows %}
+                                    <tr>
+                                        <td class="px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">{{ deg }}°</td>
+                                        {% for f in fields %}<td class="px-1 py-1.5 min-w-[6rem]">{{ f }}{% for e in f.errors %}<p class="text-xs text-red-600">{{ e }}</p>{% endfor %}</td>{% endfor %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    {% include 'myapp/includes/me_section_header.html' with icon='gauge' title='ทดสอบแรงดัน' subtitle='บันทึกได้สูงสุด 3 ครั้ง (ทดสอบซ้ำ)' inspector=form.pressure_inspector date=form.pressure_date %}
+                    <div class="p-5 space-y-3">
+                        {% for result_label, result, reason in pressure_rows %}
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                            {% include 'myapp/includes/me_field.html' with field=result label=result_label %}
+                            <div class="sm:col-span-2">{% include 'myapp/includes/me_field.html' with field=reason label='สาเหตุ' %}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 4: Alignment ==================== -->
+            <section id="me-tab-4" class="me-tab-content hidden space-y-5">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    {% include 'myapp/includes/me_section_header.html' with icon='move-horizontal' title='ค่า Alignment' subtitle='เกณฑ์ ไม่เกิน ±0.06 — ระบบตัดสินผลให้อัตโนมัติ' inspector=form.align_inspector date=form.align_date %}
+                    <div class="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {% for phase_label, cells in align_phases %}
+                        <div class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                            <p class="text-xs font-bold text-slate-700 dark:text-slate-200 mb-2">{{ phase_label }}</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {% for label, f in cells %}
+                                <div>
+                                    {% include 'myapp/includes/me_field.html' with field=f label=label %}
+                                    <p data-me-badge-for="{{ f.id_for_label }}" class="mt-1 text-xs font-semibold"></p>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 5: Vibration ISO 10816 ==================== -->
+            <section id="me-tab-5" class="me-tab-content hidden space-y-5">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    {% include 'myapp/includes/me_section_header.html' with icon='activity' title='ค่า Vibration (ISO 10816) — mm/s' subtitle='เกณฑ์ขึ้นกับกำลังมอเตอร์ในแท็บ 1 · อุณหภูมิลูกปืน: เกิน 70 °C เฝ้าระวัง, เกิน 85 °C ไม่ผ่าน' inspector=form.vib_inspector date=form.vib_date %}
+                    <div class="p-5 space-y-5">
+                        <p id="me-vib-limit-text" class="text-xs text-slate-600 dark:text-slate-300"></p>
+                        {% for title, current, rows in vib_sections %}
+                        <div class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 space-y-2">
+                            <p class="text-xs font-bold text-slate-700 dark:text-slate-200">{{ title }}</p>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                        <tr>
+                                            <th class="px-2 py-2 text-left font-semibold">จุดวัด</th>
+                                            <th class="px-2 py-2 text-left font-semibold">H</th>
+                                            <th class="px-2 py-2 text-left font-semibold">V</th>
+                                            <th class="px-2 py-2 text-left font-semibold">A</th>
+                                            <th class="px-2 py-2 text-left font-semibold">อุณหภูมิ (°C)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for label, fields, temp in rows %}
+                                        <tr>
+                                            <td class="px-2 py-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">{{ label }}</td>
+                                            {% for f in fields %}<td class="px-1 py-1.5 min-w-[6rem]">{{ f }}{% for e in f.errors %}<p class="text-xs text-red-600">{{ e }}</p>{% endfor %}</td>{% endfor %}
+                                            <td class="px-1 py-1.5 min-w-[6rem]">{% if temp %}{{ temp }}{% for e in temp.errors %}<p class="text-xs text-red-600">{{ e }}</p>{% endfor %}{% else %}<span class="text-slate-400">-</span>{% endif %}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="w-full sm:w-48">{% include 'myapp/includes/me_field.html' with field=current label='กระแส (A)' %}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 6: ความพร้อมเครื่องจักร 10 ข้อ ==================== -->
+            <section id="me-tab-6" class="me-tab-content hidden space-y-5">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-900/40 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300">
+                                <i data-lucide="list-checks" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">ความพร้อมเครื่องจักร (10 ข้อ)</h4>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">อุปกรณ์ประกอบภายนอก แท่นเครื่อง น็อตตั้งศูนย์ และระดับสารหล่อลื่น</p>
+                            </div>
+                        </div>
+                        <button type="button" id="meReadyAllNormal"
+                            class="self-start md:self-auto px-3 py-2 rounded-lg border border-emerald-300 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 text-xs font-bold flex items-center gap-1.5">
+                            <i data-lucide="check-check" class="w-4 h-4"></i> ปกติทั้งหมด
+                        </button>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {% for title, field, svg, normal in readiness_cards %}
+                        <fieldset class="min-w-0 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 space-y-3" data-me-ready-normal="{{ normal }}">
+                            <legend class="sr-only">{{ title }}</legend>
+                            <p class="text-sm font-bold text-slate-800 dark:text-slate-100">{{ forloop.counter }}. {{ title }}</p>
+                            <div class="flex justify-center bg-white rounded-lg border border-slate-200 p-2">
+                                {% include 'myapp/includes/me_svg_readiness.html' with svg=svg %}
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                {% for radio in field %}
+                                <label for="{{ radio.id_for_label }}"
+                                    class="flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer hover:border-blue-400 has-[:checked]:border-blue-700 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-900 dark:has-[:checked]:bg-blue-900/40 dark:has-[:checked]:text-blue-100">
+                                    {{ radio.tag }} {{ radio.choice_label }}
+                                </label>
+                                {% endfor %}
+                            </div>
+                            {% for e in field.errors %}<p class="text-xs text-red-600">{{ e }}</p>{% endfor %}
+                        </fieldset>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 7: สถานะใบงาน & ลายเซ็นดิจิทัล ==================== -->
+            <section id="me-tab-7" class="me-tab-content hidden space-y-5">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-5">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">ขั้นตอนใบงาน</p>
+                    <ol class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                        {% for code, label, current in status_steps %}
+                        <li class="px-3 py-2 rounded-lg border text-sm {% if current %}border-amber-500 bg-amber-50 text-amber-900 font-bold dark:bg-amber-900/30 dark:text-amber-200{% else %}border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400{% endif %}">
+                            {{ forloop.counter }}. {{ label }}
+                        </li>
+                        {% endfor %}
+                    </ol>
+                    {% if inspection.approved_at %}
+                    <p class="mt-3 text-xs text-emerald-700 dark:text-emerald-300">อนุมัติเมื่อ {{ inspection.approved_at|date:"d/m/Y H:i" }} น.</p>
+                    {% endif %}
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {% for role, title, name_field, data_field, clear_field, current, signable in signature_cards %}
+                    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 space-y-3">
+                        <p class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <i data-lucide="pen-line" class="w-4 h-4 text-amber-500"></i> {{ title }}
+                        </p>
+                        {% include 'myapp/includes/me_field.html' with field=name_field label='ชื่อ-นามสกุล' %}
+                        {% if current %}
+                        <div>
+                            <p class="text-[11px] font-semibold text-slate-500 mb-1">ลายเซ็นปัจจุบัน</p>
+                            <img src="{{ current.url }}" alt="ลายเซ็น{{ title }}" class="h-20 w-full object-contain rounded-lg border border-slate-200 bg-white">
+                        </div>
+                        {% endif %}
+                        {% if signable %}
+                        <div>
+                            <p class="text-[11px] font-semibold text-slate-500 mb-1">{% if current %}เซ็นใหม่ (ถ้าต้องการเปลี่ยน){% else %}เซ็นชื่อด้วยนิ้วหรือเมาส์{% endif %}</p>
+                            <canvas data-me-sig="{{ role }}" width="560" height="200"
+                                class="w-full h-auto rounded-lg border-2 border-dashed border-slate-300 bg-white cursor-crosshair touch-none"></canvas>
+                            {{ data_field }}{{ clear_field }}
+                            {% for e in data_field.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                            <button type="button" data-me-sig-clear="{{ role }}"
+                                class="mt-1 text-xs font-semibold text-red-600 hover:underline">ล้างลายเซ็น</button>
+                        </div>
+                        {% elif not current %}
+                        <p class="text-xs text-slate-400">ยังไม่ได้เซ็น</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            </fieldset>
+
+            {% if can_edit %}
+            <div class="flex flex-wrap justify-end gap-2 pt-5">
+                <!-- ปุ่มบันทึกต้องเป็น submit ตัวแรกในฟอร์ม: กด Enter ในช่องกรอกจะได้แค่ "บันทึก" ไม่เผลอส่งต่อ/อนุมัติ (แสดงท้ายแถวด้วย order-last) -->
+                <button type="submit" name="action" value="save"
+                    class="order-last px-5 py-2.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold flex items-center gap-2">
+                    <i data-lucide="save" class="w-4 h-4"></i> บันทึก
+                </button>
+                <a href="{% url 'me_inspection_list' %}"
+                    class="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">ยกเลิก</a>
+                {% for action, label, signature in workflow_actions %}
+                <button type="submit" name="action" value="{{ action }}"
+                    class="px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 {% if action == 'forward' %}bg-emerald-600 hover:bg-emerald-700 text-white{% else %}border border-amber-400 text-amber-800 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-200{% endif %}">
+                    <i data-lucide="{% if action == 'forward' %}send{% elif action == 'back' %}undo-2{% else %}lock-open{% endif %}" class="w-4 h-4"></i> {{ label }}
+                </button>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </form>
+
+        {% if can_delete %}
+        <form method="POST" action="{% url 'me_inspection_delete' inspection.pk %}" class="flex justify-end"
+            onsubmit="return confirm('ลบใบตรวจเช็ค ME-{{ inspection.pk }} ถาวร? ย้อนกลับไม่ได้');">
+            {% csrf_token %}
+            <button type="submit" class="px-4 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> ลบใบตรวจเช็ค
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</main>
+
+<script>
+    function meShowTab(n) {
+        document.querySelectorAll('.me-tab-content').forEach(el => el.classList.toggle('hidden', el.id !== 'me-tab-' + n));
+        document.querySelectorAll('.me-tab-btn').forEach(btn => {
+            const active = btn.dataset.tab === String(n);
+            btn.classList.toggle('border-blue-700', active);
+            btn.classList.toggle('text-blue-700', active);
+            btn.classList.toggle('border-transparent', !active);
+        });
+    }
+    meShowTab(1);
+
+    // ===== ค้นหาเครื่องจักร (Equipment) แล้วเติม snapshot สเปค =====
+    (function () {
+        const searchUrl = "{% url 'me_equipment_search_api' %}";
+        const input = document.getElementById('meEquipmentSearch');
+        const results = document.getElementById('meEquipmentResults');
+        const processFilter = document.getElementById('meProcessFilter');
+        const hidden = document.getElementById('{{ form.equipment.id_for_label }}');
+        const snapshotFields = {
+            department: 'department', brand: 'brand', model: 'model_no',
+            flow: 'flow_m3h', head: 'head_m', kw: 'motor_kw', rpm: 'rpm',
+        };
+        let timer = null;
+
+        function hideResults() { results.classList.add('hidden'); }
+
+        function selectEquipment(eq) {
+            hidden.value = eq.id;
+            input.value = eq.id + ' - ' + eq.name;
+            Object.entries(snapshotFields).forEach(([key, field]) => {
+                const el = document.getElementById('id_' + field);
+                if (el) el.value = eq[key] || '';
+            });
+            hideResults();
+            document.dispatchEvent(new CustomEvent('me:equipment-selected', { detail: eq }));
+        }
+
+        function render(list) {
+            results.innerHTML = '';
+            if (!list.length) {
+                results.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">ไม่พบเครื่องจักร</div>';
+            }
+            list.forEach(eq => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'block w-full text-left px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700';
+                const title = document.createElement('div');
+                title.className = 'font-semibold text-slate-800 dark:text-slate-100';
+                title.textContent = eq.id + ' - ' + eq.name;
+                const sub = document.createElement('div');
+                sub.className = 'text-xs text-slate-500';
+                sub.textContent = [eq.department, eq.brand, eq.model, eq.kw ? eq.kw + ' kW' : ''].filter(Boolean).join(' · ');
+                btn.append(title, sub);
+                btn.addEventListener('click', () => selectEquipment(eq));
+                results.appendChild(btn);
+            });
+            results.classList.remove('hidden');
+        }
+
+        function search() {
+            const params = new URLSearchParams({ q: input.value.trim(), process: processFilter.value });
+            fetch(searchUrl + '?' + params.toString(), { headers: { 'Accept': 'application/json' } })
+                .then(r => r.ok ? r.json() : { data: [] })
+                .then(res => render(res.data || []))
+                .catch(() => hideResults());
+        }
+
+        input.addEventListener('input', () => {
+            hidden.value = '';  // พิมพ์ใหม่ = ยังไม่ได้เลือก ต้องกดเลือกจากรายการ
+            clearTimeout(timer);
+            timer = setTimeout(search, 250);
+        });
+        input.addEventListener('focus', search);
+        processFilter.addEventListener('change', search);
+        document.addEventListener('click', e => {
+            if (!results.contains(e.target) && e.target !== input) hideResults();
+        });
+    })();
+
+    // ===== Smart memory: เติมสเปคอะไหล่/ขนาดพิกัดจากใบงานล่าสุดของเครื่องเดียวกัน (เฉพาะใบงานใหม่ และเฉพาะช่องที่ยังว่าง) =====
+    const meIsNewInspection = {{ is_edit|yesno:"false,true" }};
+    const meLastApiTemplate = "{% url 'me_inspection_last_api' 'EQ_ID' %}";
+
+    function meApplyMemory(eqId) {
+        // เปลี่ยนเครื่อง: ล้างค่าที่เคยเติมจากเครื่องก่อนหน้า (ยกเว้นช่องที่ผู้ใช้แก้เองไปแล้ว) ไม่ให้สเปคเครื่องเก่าค้าง
+        const previous = document.querySelectorAll('.me-autofill');
+        previous.forEach(el => {
+            if (el.value === el.dataset.meAutofillValue) el.value = '';
+            el.classList.remove('me-autofill');
+            delete el.dataset.meAutofillValue;
+        });
+        document.getElementById('meMemoryBanner').classList.add('hidden');
+        if (previous.length) meEvaluateAll();  // ตอนโหลดหน้ายังไม่มีช่องที่เติมไว้ (และ ME_TOL ยังไม่ถูกประกาศ)
+        if (!meIsNewInspection || !eqId) return;
+        fetch(meLastApiTemplate.replace('EQ_ID', encodeURIComponent(eqId)), { headers: { 'Accept': 'application/json' } })
+            .then(r => r.ok ? r.json() : { data: null })
+            .then(res => {
+                const last = res.data;
+                if (!last) return;
+                let filled = 0;
+                Object.entries(last.fields).forEach(([name, value]) => {
+                    const el = document.getElementById('id_' + name);
+                    if (el && !el.value) {
+                        el.value = value;
+                        el.dataset.meAutofillValue = el.value;  // ค่าหลัง browser normalize (select/number)
+                        el.classList.add('me-autofill');
+                        filled++;
+                    }
+                });
+                if (!filled) return;
+                meEvaluateAll();
+                const replaced = last.replaced.length ? 'รายการที่เปลี่ยนครั้งก่อน: ' + last.replaced.join(', ') : 'ครั้งก่อนไม่มีการเปลี่ยนอะไหล่หลัก';
+                const [y, m, d] = last.record_date.split('-');
+                document.getElementById('meMemoryDetail').textContent =
+                    'อ้างอิงใบงาน ME-' + last.inspection_id + ' วันที่ ' + d + '/' + m + '/' + y +
+                    ' (กลุ่มซ่อม ' + (last.repair_group || '-') + ') | ' + replaced;
+                document.getElementById('meMemoryBanner').classList.remove('hidden');
+            })
+            .catch(() => {});
+    }
+    document.addEventListener('me:equipment-selected', e => meApplyMemory(e.detail.id));
+    if (meIsNewInspection) meApplyMemory(document.getElementById('{{ form.equipment.id_for_label }}').value);
+
+    // ===== ย่อรูปบนมือถือก่อนส่ง (ด้านยาวสุด 1000px, JPEG 0.78) แล้วใส่กลับเข้า input เดิม =====
+    const ME_PHOTO_MAX_DIM = 1000;
+    const ME_PHOTO_QUALITY = 0.78;
+    document.querySelectorAll('input[data-me-photo]').forEach(input => {
+        input.addEventListener('change', () => {
+            const file = input.files && input.files[0];
+            if (!file || !file.type.startsWith('image/')) return;
+            const preview = document.getElementById(input.id + '_preview');
+            const img = new Image();
+            img.onload = () => {
+                URL.revokeObjectURL(img.src);
+                const scale = Math.min(1, ME_PHOTO_MAX_DIM / Math.max(img.width, img.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(img.width * scale);
+                canvas.height = Math.round(img.height * scale);
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob(blob => {
+                    if (!blob) return;
+                    const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+                    try {
+                        const dt = new DataTransfer();
+                        dt.items.add(new File([blob], name, { type: 'image/jpeg' }));
+                        input.files = dt.files;  // เบราว์เซอร์เก่าที่ไม่รองรับจะส่งไฟล์ต้นฉบับ (server จำกัด 5 MB)
+                    } catch (err) { /* ส่งไฟล์ต้นฉบับแทน */ }
+                    preview.src = URL.createObjectURL(blob);
+                    preview.classList.remove('hidden');
+                }, 'image/jpeg', ME_PHOTO_QUALITY);
+            };
+            img.src = URL.createObjectURL(file);
+        });
+    });
+
+    // ===== ระบายสีผลตรวจค่าวัดทันทีตอนพิมพ์ — เกณฑ์ชุดเดียวกับ models.py (server คำนวณซ้ำตอนบันทึก) =====
+    const ME_TOL = {
+        runout: {{ tol.runout|stringformat:"s" }},
+        align: {{ tol.align|stringformat:"s" }},
+        vibKw: {{ tol.vib_kw|stringformat:"s" }},
+        vibLarge: [{{ tol.vib_large.0|stringformat:"s" }}, {{ tol.vib_large.1|stringformat:"s" }}],
+        vibSmall: [{{ tol.vib_small.0|stringformat:"s" }}, {{ tol.vib_small.1|stringformat:"s" }}],
+        temp: [{{ tol.temp.0|stringformat:"s" }}, {{ tol.temp.1|stringformat:"s" }}],
+        slack: {{ tol.slack|stringformat:"s" }},
+        bands: [{% for limit, codes in tol.bands %}[{{ limit }}, { {% for code, rng in codes.items %}"{{ code }}": [{{ rng.0 }}, {{ rng.1 }}]{% if not forloop.last %}, {% endif %}{% endfor %} }]{% if not forloop.last %}, {% endif %}{% endfor %}],
+    };
+    const ME_STATUS_TEXT = { pass: 'ผ่าน', warn: 'เฝ้าระวัง', fail: 'ไม่ผ่าน' };
+
+    function meNum(el) {
+        if (!el || el.value === '') return null;
+        const v = parseFloat(el.value);
+        return Number.isFinite(v) ? v : null;
+    }
+    function meMark(el, status) {
+        el.classList.remove('me-tol-pass', 'me-tol-warn', 'me-tol-fail');
+        if (status) el.classList.add('me-tol-' + status);
+    }
+    function meThreeLevel(v, limits) {
+        return v <= limits[0] ? 'pass' : (v <= limits[1] ? 'warn' : 'fail');
+    }
+    function meVibLimits() {
+        const kw = meNum(document.getElementById('id_motor_kw')) || 0;
+        return kw > ME_TOL.vibKw ? ME_TOL.vibLarge : ME_TOL.vibSmall;
+    }
+    function meTolStatus(kind, v) {
+        if (v === null) return null;
+        if (kind === 'runout') return Math.abs(v) <= ME_TOL.runout ? 'pass' : 'fail';
+        if (kind === 'align') return Math.abs(v) <= ME_TOL.align ? 'pass' : 'fail';
+        if (kind === 'vib') return meThreeLevel(v, meVibLimits());
+        if (kind === 'temp') return meThreeLevel(v, ME_TOL.temp);
+        return null;
+    }
+    function meEvaluateTol(el) {
+        const status = meTolStatus(el.dataset.meTol, meNum(el));
+        meMark(el, status);
+        const badge = document.querySelector('[data-me-badge-for="' + el.id + '"]');
+        if (badge) {
+            badge.textContent = status ? ME_STATUS_TEXT[status] : '';
+            badge.className = 'mt-1 text-xs font-semibold ' + (status === 'pass' ? 'text-emerald-700' : 'text-red-600');
+        }
+    }
+    function meIsoTolerance(d, code) {
+        if (d === null || d <= 0) return null;
+        const band = ME_TOL.bands.find(b => d <= b[0]) || ME_TOL.bands[ME_TOL.bands.length - 1];
+        return band[1][code] || null;
+    }
+    function meSigned(n) { return (n >= 0 ? '+' : '') + n; }
+    function meEvaluateFit(key) {
+        const hint = document.getElementById('me-fit-hint-' + key);
+        const code = hint.dataset.code;
+        const nominal = document.getElementById('id_' + key + '_nominal');
+        const d = meNum(nominal);
+        const tol = meIsoTolerance(d, code);
+        if (key === 'bore') {
+            hint.textContent = tol ? code + ' (' + meSigned(tol[0]) + '/' + meSigned(tol[1]) + ' µm): ' + (d + tol[0] / 1000).toFixed(3) + ' – ' + (d + tol[1] / 1000).toFixed(3) + ' mm' : 'พิกัดควบคุม ' + code + ' / JS9';
+            return;
+        }
+        const readings = ['m1', 'm2'].map(part => document.getElementById('id_' + key + '_' + part));
+        const result = document.getElementById('me-fit-result-' + key);
+        readings.forEach(el => meMark(el, null));
+        result.textContent = '';
+        if (!tol) { hint.textContent = 'กรอกขนาดพื้นฐาน'; return; }
+        const min = d + tol[0] / 1000, max = d + tol[1] / 1000;
+        hint.textContent = code + ' (' + meSigned(tol[0]) + '/' + meSigned(tol[1]) + ' µm): ' + min.toFixed(3) + ' – ' + max.toFixed(3) + ' mm';
+        const values = readings.map(meNum);
+        const statuses = values.map((v, i) => {
+            if (v === null) return null;
+            const ok = v >= min - ME_TOL.slack && v <= max + ME_TOL.slack;
+            meMark(readings[i], ok ? 'pass' : 'fail');
+            return ok ? 'pass' : 'fail';
+        });
+        if (values[0] === null || values[1] === null) return;
+        const allOk = statuses.every(st => st === 'pass');
+        const avg = ((values[0] + values[1]) / 2).toFixed(3), ovality = Math.abs(values[0] - values[1]).toFixed(3);
+        result.textContent = (allOk ? 'ผ่านเกณฑ์ ' + code : 'นอกพิกัด ' + code) + ' | เฉลี่ย ' + avg + ' mm | ความกลม (Ovality) ' + ovality + ' mm';
+        result.className = 'mt-1.5 text-xs font-semibold ' + (allOk ? 'text-emerald-700' : 'text-red-600');
+        if (key === 'shaft_key') document.getElementById('id_shaft_key_result').value = allOk ? 'pass' : 'fail';
+    }
+    function meUpdateVibLimitText() {
+        const lim = meVibLimits();
+        document.getElementById('me-vib-limit-text').textContent =
+            'เกณฑ์ที่ใช้ (มอเตอร์ ' + ((meNum(document.getElementById('id_motor_kw')) || 0) > ME_TOL.vibKw ? 'เกิน' : 'ไม่เกิน') + ' ' + ME_TOL.vibKw +
+            ' kW): ผ่าน ≤ ' + lim[0] + ' · เฝ้าระวัง ≤ ' + lim[1] + ' · เกินนั้นไม่ผ่าน (mm/s)';
+    }
+    function meEvaluateAll() {
+        document.querySelectorAll('[data-me-tol]').forEach(meEvaluateTol);
+        new Set([...document.querySelectorAll('[data-me-fit]')].map(el => el.dataset.meFit)).forEach(meEvaluateFit);
+        meUpdateVibLimitText();
+    }
+    document.addEventListener('input', e => {
+        const el = e.target;
+        if (el.dataset && el.dataset.meTol) meEvaluateTol(el);
+        if (el.dataset && el.dataset.meFit) meEvaluateFit(el.dataset.meFit);
+        if (el.id === 'id_motor_kw') {
+            document.querySelectorAll('[data-me-tol="vib"]').forEach(meEvaluateTol);
+            meUpdateVibLimitText();
+        }
+    });
+    meEvaluateAll();
+
+    // ===== ความพร้อมเครื่องจักร: ปุ่ม "ปกติทั้งหมด" เลือกค่าแรก (ค่าปกติ) ของทุกข้อ =====
+    document.getElementById('meReadyAllNormal').addEventListener('click', () => {
+        document.querySelectorAll('[data-me-ready-normal]').forEach(group => {
+            const radio = group.querySelector('input[type="radio"][value="' + group.dataset.meReadyNormal + '"]');
+            if (radio) radio.checked = true;
+        });
+    });
+
+    // ===== ลายเซ็นดิจิทัลบน canvas → data URL ใน hidden input ตอนกดบันทึก =====
+    document.querySelectorAll('canvas[data-me-sig]').forEach(canvas => {
+        const role = canvas.dataset.meSig;
+        const dataInput = document.getElementById('id_' + role + '_signature_data');
+        const clearInput = document.getElementById('id_' + role + '_signature_clear');
+        const ctx = canvas.getContext('2d');
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#0f172a';
+        let drawing = false;
+        canvas.dataset.dirty = '';
+
+        function point(e) {
+            const rect = canvas.getBoundingClientRect();
+            return [(e.clientX - rect.left) * canvas.width / rect.width, (e.clientY - rect.top) * canvas.height / rect.height];
+        }
+        canvas.addEventListener('pointerdown', e => {
+            drawing = true;
+            canvas.setPointerCapture(e.pointerId);
+            ctx.beginPath();
+            ctx.moveTo(...point(e));
+        });
+        canvas.addEventListener('pointermove', e => {
+            if (!drawing) return;
+            ctx.lineTo(...point(e));
+            ctx.stroke();
+            canvas.dataset.dirty = '1';
+            clearInput.value = 'False';
+        });
+        ['pointerup', 'pointercancel'].forEach(type => canvas.addEventListener(type, () => { drawing = false; }));
+        document.querySelector('[data-me-sig-clear="' + role + '"]').addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.dataset.dirty = '';
+            dataInput.value = '';
+            clearInput.value = 'True';
+        });
+    });
+    document.getElementById('meInspectionForm').addEventListener('submit', () => {
+        document.querySelectorAll('canvas[data-me-sig]').forEach(canvas => {
+            if (canvas.dataset.dirty) {
+                document.getElementById('id_' + canvas.dataset.meSig + '_signature_data').value = canvas.toDataURL('image/png');
+            }
+        });
+    });
+</script>
+{% endblock content %}

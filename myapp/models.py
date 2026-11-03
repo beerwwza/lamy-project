@@ -2361,3 +2361,402 @@ def electricity_usage_series(meters_qs, start_date, end_date):
             daily_totals[r.date] = daily_totals.get(r.date, 0) + usage
     return daily_totals
 
+
+
+# ==========================================
+# ME Inspection — ใบตรวจเช็คซ่อมบำรุงเครื่องจักรหมุน (ย้ายจากฟอร์ม ME V.2 บน Google Apps Script)
+# ==========================================
+
+ME_TOL_PASS, ME_TOL_WARN, ME_TOL_FAIL = 'pass', 'warn', 'fail'
+ME_TOL_STATUS_CHOICES = [
+    (ME_TOL_PASS, 'ผ่าน'),
+    (ME_TOL_WARN, 'เฝ้าระวัง'),
+    (ME_TOL_FAIL, 'ไม่ผ่าน'),
+]
+ME_PASS_FAIL_CHOICES = [(ME_TOL_PASS, 'ผ่าน'), (ME_TOL_FAIL, 'ไม่ผ่าน')]
+ME_PART_ACTION_CHOICES = [('keep', 'ไม่เปลี่ยน'), ('replace', 'เปลี่ยน')]
+ME_PART_ACTION_OR_NONE_CHOICES = ME_PART_ACTION_CHOICES + [('none', 'ไม่มี')]
+ME_REPAIR_GROUP_CHOICES = [('G1', 'G1'), ('G2', 'G2'), ('G3', 'G3'), ('G4', 'G4'), ('CBM', 'CBM')]
+ME_SEAL_DEVICE_CHOICES = [('gasket', 'ปะเก็น'), ('mech_seal', 'แมคซีล')]
+ME_LUBE_TYPE_CHOICES = [('grease', 'จาระบี'), ('oil', 'น้ำมัน')]
+ME_COUPLING_TYPE_CHOICES = [
+    ('disc', 'ดิสคัปปลิ้ง'), ('bush', 'บูชคัปปลิ้ง'), ('chain', 'โซ่คัปปลิ้ง'),
+    ('jaw', 'จอว์คัปปลิ้ง'), ('flex', 'เฟล็กคัปปลิ้ง'),
+]
+ME_BORE_TYPE_CHOICES = [('coupling', 'คัปปลิ้ง'), ('sprocket', 'สป๊อกเก็ต'), ('pulley', 'พูลเลย์')]
+
+ME_STATUS_REPAIRING, ME_STATUS_WAIT_CBM, ME_STATUS_WAIT_APPROVAL, ME_STATUS_APPROVED = (
+    'repairing', 'wait_cbm', 'wait_approval', 'approved')
+ME_STATUS_CHOICES = [
+    (ME_STATUS_REPAIRING, 'กำลังซ่อม (G1-G4)'),
+    (ME_STATUS_WAIT_CBM, 'รอตรวจ CBM'),
+    (ME_STATUS_WAIT_APPROVAL, 'รอหัวหน้าอนุมัติ'),
+    (ME_STATUS_APPROVED, 'เสร็จสมบูรณ์ (อนุมัติแล้ว)'),
+]
+
+# ความพร้อมเครื่องจักร 10 ข้อ — ค่าแรกของแต่ละชุดคือค่า "ปกติ" (ใช้กับปุ่ม "ปกติทั้งหมด")
+ME_READY_ADJUST_BOLT_CHOICES = [('ok', 'มี แบบถูกต้อง'), ('wrong', 'มี แบบไม่ถูกต้อง'), ('none', 'ไม่มี')]
+ME_READY_BASE_CHOICES = [('ok', 'ปกติ'), ('damaged', 'ไม่ปกติ/ชำรุด')]
+ME_READY_YES_NO_CHOICES = [('yes', 'มี'), ('no', 'ไม่มี')]
+ME_READY_COUPLING_GUARD_CHOICES = [('yes', 'มี'), ('no', 'ไม่มี'), ('not_installed', 'มี แต่ยังไม่ติดตั้ง')]
+ME_READY_AIR_BREATHER_CHOICES = [('blue', 'มี สีน้ำเงิน'), ('pink', 'มี สีชมพู'), ('none', 'ไม่มี')]
+ME_READY_OIL_SEAL_CHOICES = [('no_leak', 'ไม่รั่ว'), ('leak', 'รั่ว')]
+ME_READY_OIL_LEVEL_GAUGE_CHOICES = [('yes', 'มี'), ('no', 'ไม่มี'), ('grease', 'จาระบี')]
+ME_READY_OIL_LEVEL_CHOICES = [('ok', 'ปกติ'), ('abnormal', 'ผิดปกติ')]
+
+# เกณฑ์เดียวกับฟอร์มเดิม (JS) — ต้องแก้คู่กับ JS ในหน้าฟอร์ม ME ทุกครั้ง
+ME_RUNOUT_LIMIT_MM = 0.05
+ME_ALIGNMENT_LIMIT = 0.06
+ME_VIB_LARGE_MOTOR_KW = 15          # มอเตอร์ > 15 kW ใช้เกณฑ์ของเครื่องขนาดกลาง
+ME_VIB_LIMITS_LARGE = (2.8, 4.5)    # (pass ไม่เกิน, warn ไม่เกิน) mm/s
+ME_VIB_LIMITS_SMALL = (1.8, 2.8)
+ME_TEMP_LIMITS_C = (70, 85)
+ME_ISO_FIT_SLACK_MM = 0.0001        # เผื่อปัดเศษทศนิยมแบบเดียวกับฟอร์มเดิม
+
+# ISO 286 — ค่าเบี่ยง (µm) ต่อช่วงขนาด nominal (mm); เกิน 400 mm ใช้ช่วงสุดท้าย (ยกมาจากฟอร์มเดิมตรง ๆ)
+ME_ISO_FIT_BANDS = [
+    (18,  {'K7': (-12, 6),  'H7': (0, 18), 'j7': (-5, 13), 'k7': (1, 19), 'm7': (7, 25),  'h7': (-18, 0), 'g7': (-24, -6)}),
+    (30,  {'K7': (-15, 6),  'H7': (0, 21), 'j7': (-5, 16), 'k7': (2, 23), 'm7': (8, 29),  'h7': (-21, 0), 'g7': (-28, -7)}),
+    (50,  {'K7': (-18, 7),  'H7': (0, 25), 'j7': (-5, 20), 'k7': (2, 27), 'm7': (9, 34),  'h7': (-25, 0), 'g7': (-34, -9)}),
+    (80,  {'K7': (-21, 9),  'H7': (0, 30), 'j7': (-6, 24), 'k7': (2, 32), 'm7': (11, 41), 'h7': (-30, 0), 'g7': (-40, -10)}),
+    (120, {'K7': (-25, 10), 'H7': (0, 35), 'j7': (-6, 29), 'k7': (3, 38), 'm7': (13, 48), 'h7': (-35, 0), 'g7': (-47, -12)}),
+    (180, {'K7': (-28, 12), 'H7': (0, 40), 'j7': (-7, 33), 'k7': (3, 43), 'm7': (15, 55), 'h7': (-40, 0), 'g7': (-54, -14)}),
+    (250, {'K7': (-33, 13), 'H7': (0, 46), 'j7': (-7, 39), 'k7': (4, 50), 'm7': (17, 63), 'h7': (-46, 0), 'g7': (-61, -15)}),
+    (315, {'K7': (-36, 16), 'H7': (0, 52), 'j7': (-7, 45), 'k7': (4, 56), 'm7': (20, 72), 'h7': (-52, 0), 'g7': (-69, -17)}),
+    (400, {'K7': (-40, 17), 'H7': (0, 57), 'j7': (-7, 50), 'k7': (4, 61), 'm7': (21, 78), 'h7': (-57, 0), 'g7': (-75, -18)}),
+]
+
+
+def _me_num(value):
+    """แปลง Decimal/float/str เป็น float; ว่างหรือแปลงไม่ได้คืน None"""
+    if value is None or value == '':
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def me_runout_status(value):
+    v = _me_num(value)
+    if v is None:
+        return None
+    return ME_TOL_PASS if abs(v) <= ME_RUNOUT_LIMIT_MM else ME_TOL_FAIL
+
+
+def me_alignment_status(value):
+    v = _me_num(value)
+    if v is None:
+        return None
+    return ME_TOL_PASS if abs(v) <= ME_ALIGNMENT_LIMIT else ME_TOL_FAIL
+
+
+def _me_three_level(v, limits):
+    pass_max, warn_max = limits
+    if v <= pass_max:
+        return ME_TOL_PASS
+    if v <= warn_max:
+        return ME_TOL_WARN
+    return ME_TOL_FAIL
+
+
+def me_vibration_status(value, motor_kw):
+    v = _me_num(value)
+    if v is None:
+        return None
+    kw = _me_num(motor_kw) or 0
+    return _me_three_level(v, ME_VIB_LIMITS_LARGE if kw > ME_VIB_LARGE_MOTOR_KW else ME_VIB_LIMITS_SMALL)
+
+
+def me_temp_status(value):
+    v = _me_num(value)
+    if v is None:
+        return None
+    return _me_three_level(v, ME_TEMP_LIMITS_C)
+
+
+def me_iso_tolerance_um(nominal_mm, fit_code):
+    """คืน (ค่าเบี่ยงล่าง, ค่าเบี่ยงบน) หน่วย µm ของพิกัด ISO 286; nominal ว่างหรือ ≤ 0 หรือรหัสไม่รู้จักคืน None"""
+    d = _me_num(nominal_mm)
+    if d is None or d <= 0:
+        return None
+    band = next((b for limit, b in ME_ISO_FIT_BANDS if d <= limit), ME_ISO_FIT_BANDS[-1][1])
+    return band.get(fit_code)
+
+
+def me_iso_fit(nominal_mm, m1, m2, fit_code):
+    """ประเมินขนาดที่วัดได้ 2 ทิศ (0-180°, 90-270°) เทียบพิกัด ISO
+    คืน None ถ้าประเมินไม่ได้ ไม่งั้นคืน dict: min_mm, max_mm, average, ovality (None ถ้าวัดไม่ครบ 2 ค่า), status"""
+    tol = me_iso_tolerance_um(nominal_mm, fit_code)
+    if tol is None:
+        return None
+    d = _me_num(nominal_mm)
+    min_mm, max_mm = d + tol[0] / 1000, d + tol[1] / 1000
+    readings = [v for v in (_me_num(m1), _me_num(m2)) if v is not None]
+    statuses = [
+        ME_TOL_PASS if min_mm - ME_ISO_FIT_SLACK_MM <= v <= max_mm + ME_ISO_FIT_SLACK_MM else ME_TOL_FAIL
+        for v in readings
+    ]
+    both = len(readings) == 2
+    return {
+        'min_mm': min_mm,
+        'max_mm': max_mm,
+        'average': (readings[0] + readings[1]) / 2 if both else None,
+        'ovality': abs(readings[0] - readings[1]) if both else None,
+        'status': me_worst_status(statuses),
+    }
+
+
+def me_worst_status(statuses):
+    """ผลรวมของกลุ่ม = แย่สุด (fail > warn > pass); ไม่นับค่าว่าง, ไม่มีค่าเลยคืน None"""
+    found = {s for s in statuses if s}
+    for s in (ME_TOL_FAIL, ME_TOL_WARN, ME_TOL_PASS):
+        if s in found:
+            return s
+    return None
+
+
+# กลุ่มช่องค่าวัดที่ระบบคำนวณผลเอง (ใช้ทั้งฝั่ง server และส่งให้ JS ในหน้าฟอร์ม)
+ME_ISO_FIT_POINTS = [('housing_de', 'K7'), ('housing_nde', 'K7'), ('shaft_de', 'k7'), ('shaft_nde', 'k7')]
+ME_SHAFT_KEY_FIT = 'h7'
+ME_BORE_FIT = 'H7'  # แสดงเป็นคำแนะนำเท่านั้น ผลรูสวมกรอกเอง
+ME_RUNOUT_ANGLES = (0, 90, 180, 270)
+ME_RUNOUT_FIELDS = [f'runout_{deg}_p{p}' for deg in ME_RUNOUT_ANGLES for p in range(1, 5)]
+ME_ALIGN_FIELDS = [f'align_{phase}_{axis}_{kind}'
+                   for phase in ('before', 'after') for axis in ('v', 'h') for kind in ('offset', 'angle')]
+ME_VIB_FIELDS = (
+    [f'vib_noload_motor_{end}_{ax}' for end in ('de', 'nde') for ax in 'hva']
+    + [f'vib_onload_motor_{end}_{ax}' for end in ('de', 'nde') for ax in 'hva']
+    + [f'vib_onload_pump_{end}_{ax}' for end in ('de', 'nde') for ax in 'hva']
+)
+ME_TEMP_FIELDS = ['vib_onload_pump_de_temp', 'vib_onload_pump_nde_temp']
+
+
+def _me_dec3(label):
+    """ขนาดเชิงกล (mm) ต้องละเอียดระดับ µm สำหรับพิกัด ISO จึงใช้ 3 ตำแหน่ง"""
+    return models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True, verbose_name=label)
+
+
+def _me_dec2(label):
+    return models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name=label)
+
+
+def _me_ready(label, choices):
+    return models.CharField(max_length=20, choices=choices, null=True, blank=True, verbose_name=label)
+
+
+class MEInspection(models.Model):
+    # --- A. ข้อมูลพื้นฐาน (Tab 1) — สเปคเป็น snapshot ณ วันตรวจ แก้ได้โดยไม่กระทบทะเบียนเครื่องจักร ---
+    equipment = models.ForeignKey(Equipment, on_delete=models.PROTECT, related_name='me_inspections', verbose_name='เครื่องจักร')
+    department = models.CharField(max_length=255, null=True, blank=True, verbose_name='แผนก')
+    record_date = models.DateField(default=timezone.localdate, verbose_name='วันที่บันทึก')
+    repair_group = models.CharField(max_length=10, choices=ME_REPAIR_GROUP_CHOICES, null=True, blank=True, verbose_name='กลุ่มซ่อม')
+    status = models.CharField(max_length=20, choices=ME_STATUS_CHOICES, default=ME_STATUS_REPAIRING, verbose_name='สถานะใบงาน')
+    brand = models.CharField(max_length=100, null=True, blank=True, verbose_name='ยี่ห้อ')
+    model_no = models.CharField(max_length=100, null=True, blank=True, verbose_name='รุ่น')
+    flow_m3h = _me_dec2('Flow (m³/hr)')
+    head_m = _me_dec2('Head (m)')
+    motor_kw = _me_dec2('Motor (kW)')
+    rpm = _me_dec2('รอบ (rpm)')
+    remark = models.TextField(null=True, blank=True, verbose_name='บันทึกเพิ่มเติม')
+    photo_before = models.ImageField(upload_to='me_inspection/photos/', null=True, blank=True, verbose_name='รูปก่อนซ่อม')
+    photo_after = models.ImageField(upload_to='me_inspection/photos/', null=True, blank=True, verbose_name='รูปหลังซ่อม')
+
+    # --- B. อะไหล่ (Tab 1) ---
+    bearing_de_no = models.CharField(max_length=100, null=True, blank=True, verbose_name='ลูกปืน DE เบอร์')
+    bearing_de_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='ลูกปืน DE')
+    bearing_nde_no = models.CharField(max_length=100, null=True, blank=True, verbose_name='ลูกปืน NDE เบอร์')
+    bearing_nde_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='ลูกปืน NDE')
+    oil_seal_de_no = models.CharField(max_length=100, null=True, blank=True, verbose_name='ออยซีล DE เบอร์')
+    oil_seal_de_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='ออยซีล DE')
+    oil_seal_nde_no = models.CharField(max_length=100, null=True, blank=True, verbose_name='ออยซีล NDE เบอร์')
+    oil_seal_nde_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='ออยซีล NDE')
+    seal_device_type = models.CharField(max_length=20, choices=ME_SEAL_DEVICE_CHOICES, null=True, blank=True, verbose_name='อุปกรณ์กันรั่ว ชนิด')
+    seal_device_model = models.CharField(max_length=100, null=True, blank=True, verbose_name='อุปกรณ์กันรั่ว รุ่น')
+    seal_device_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='อุปกรณ์กันรั่ว')
+    lube_type = models.CharField(max_length=20, choices=ME_LUBE_TYPE_CHOICES, null=True, blank=True, verbose_name='สารหล่อลื่น ชนิด')
+    lube_grade = models.CharField(max_length=100, null=True, blank=True, verbose_name='สารหล่อลื่น เบอร์')
+    lube_volume = models.CharField(max_length=50, null=True, blank=True, verbose_name='สารหล่อลื่น ปริมาตร')
+    lube_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='สารหล่อลื่น')
+    sleeve_od_mm = _me_dec3('ปลอก OD (mm)')
+    sleeve_id_mm = _me_dec3('ปลอก ID (mm)')
+    sleeve_len_mm = _me_dec3('ปลอก L (mm)')
+    sleeve_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='ปลอก')
+    coupling_type = models.CharField(max_length=20, choices=ME_COUPLING_TYPE_CHOICES, null=True, blank=True, verbose_name='คัปปลิ้ง ชนิด')
+    coupling_model = models.CharField(max_length=100, null=True, blank=True, verbose_name='คัปปลิ้ง รุ่น')
+    coupling_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='คัปปลิ้ง')
+    sight_glass_size = models.CharField(max_length=50, null=True, blank=True, verbose_name='ตาแมว ขนาด')
+    sight_glass_action = models.CharField(max_length=10, choices=ME_PART_ACTION_OR_NONE_CHOICES, null=True, blank=True, verbose_name='ตาแมว')
+    impeller_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='ใบพัดปั๊ม')
+    impeller_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='ใบพัดปั๊ม สาเหตุ')
+    cover_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='ฝาชน')
+    cover_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='ฝาชน สาเหตุ')
+    casing_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='เสื้อปั๊ม')
+    casing_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='เสื้อปั๊ม สาเหตุ')
+    bearing_housing_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='เสื้อลูกปืน')
+    bearing_housing_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='เสื้อลูกปืน สาเหตุ')
+    shaft_action = models.CharField(max_length=10, choices=ME_PART_ACTION_CHOICES, null=True, blank=True, verbose_name='เพลา')
+    shaft_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='เพลา สาเหตุ')
+
+    # --- C. พิกัดงานสวม ISO Fits (Tab 2) ---
+    fit_inspector = models.CharField(max_length=100, null=True, blank=True, verbose_name='CBM งานสวม ผู้ตรวจสอบ')
+    fit_date = models.DateField(null=True, blank=True, verbose_name='CBM งานสวม วันที่')
+    housing_de_nominal = _me_dec3('เสื้อลูกปืน DE ขนาดพื้นฐาน (mm)')
+    housing_de_m1 = _me_dec3('เสื้อลูกปืน DE 0-180 (mm)')
+    housing_de_m2 = _me_dec3('เสื้อลูกปืน DE 90-270 (mm)')
+    housing_de_result = models.CharField(max_length=10, choices=ME_TOL_STATUS_CHOICES, null=True, blank=True, verbose_name='เสื้อลูกปืน DE ผล K7')
+    housing_nde_nominal = _me_dec3('เสื้อลูกปืน NDE ขนาดพื้นฐาน (mm)')
+    housing_nde_m1 = _me_dec3('เสื้อลูกปืน NDE 0-180 (mm)')
+    housing_nde_m2 = _me_dec3('เสื้อลูกปืน NDE 90-270 (mm)')
+    housing_nde_result = models.CharField(max_length=10, choices=ME_TOL_STATUS_CHOICES, null=True, blank=True, verbose_name='เสื้อลูกปืน NDE ผล K7')
+    shaft_de_nominal = _me_dec3('เพลา DE ขนาดพื้นฐาน (mm)')
+    shaft_de_m1 = _me_dec3('เพลา DE 0-180 (mm)')
+    shaft_de_m2 = _me_dec3('เพลา DE 90-270 (mm)')
+    shaft_de_result = models.CharField(max_length=10, choices=ME_TOL_STATUS_CHOICES, null=True, blank=True, verbose_name='เพลา DE ผล k7')
+    shaft_nde_nominal = _me_dec3('เพลา NDE ขนาดพื้นฐาน (mm)')
+    shaft_nde_m1 = _me_dec3('เพลา NDE 0-180 (mm)')
+    shaft_nde_m2 = _me_dec3('เพลา NDE 90-270 (mm)')
+    shaft_nde_result = models.CharField(max_length=10, choices=ME_TOL_STATUS_CHOICES, null=True, blank=True, verbose_name='เพลา NDE ผล k7')
+    shaft_key_nominal = _me_dec3('เพลาและลิ่ม ขนาดพื้นฐาน (mm)')
+    shaft_key_m1 = _me_dec3('เพลาและลิ่ม 0-180 (mm)')
+    shaft_key_m2 = _me_dec3('เพลาและลิ่ม 90-270 (mm)')
+    shaft_key_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='เพลาและลิ่ม ผลการตรวจ')
+    shaft_key_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='เพลาและลิ่ม สาเหตุ')
+    key_h = _me_dec3('ลิ่ม h')
+    key_l = _me_dec3('ลิ่ม L')
+    key_b = _me_dec3('ลิ่ม b')
+    key_t1 = _me_dec3('ลิ่ม t1')
+    key_b1 = _me_dec3('ลิ่ม b1')
+    bore_type = models.CharField(max_length=20, choices=ME_BORE_TYPE_CHOICES, null=True, blank=True, verbose_name='รูสวม ชนิด')
+    bore_nominal = _me_dec3('รูสวม ขนาด (mm)')
+    bore_t2 = _me_dec3('รูสวม t2')
+    bore_b2 = _me_dec3('รูสวม b2')
+    bore_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='รูสวม ผลการตรวจ')
+    bore_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='รูสวม สาเหตุ')
+
+    # --- D. ความสมมาตรเพลา & แรงดัน (Tab 3) ---
+    runout_inspector = models.CharField(max_length=100, null=True, blank=True, verbose_name='CBM สมมาตรเพลา ผู้ตรวจสอบ')
+    runout_date = models.DateField(null=True, blank=True, verbose_name='CBM สมมาตรเพลา วันที่')
+    runout_0_p1 = _me_dec3('สมมาตร 0° ตำแหน่ง 1 (mm)')
+    runout_0_p2 = _me_dec3('สมมาตร 0° ตำแหน่ง 2 (mm)')
+    runout_0_p3 = _me_dec3('สมมาตร 0° ตำแหน่ง 3 (mm)')
+    runout_0_p4 = _me_dec3('สมมาตร 0° ตำแหน่ง 4 (mm)')
+    runout_90_p1 = _me_dec3('สมมาตร 90° ตำแหน่ง 1 (mm)')
+    runout_90_p2 = _me_dec3('สมมาตร 90° ตำแหน่ง 2 (mm)')
+    runout_90_p3 = _me_dec3('สมมาตร 90° ตำแหน่ง 3 (mm)')
+    runout_90_p4 = _me_dec3('สมมาตร 90° ตำแหน่ง 4 (mm)')
+    runout_180_p1 = _me_dec3('สมมาตร 180° ตำแหน่ง 1 (mm)')
+    runout_180_p2 = _me_dec3('สมมาตร 180° ตำแหน่ง 2 (mm)')
+    runout_180_p3 = _me_dec3('สมมาตร 180° ตำแหน่ง 3 (mm)')
+    runout_180_p4 = _me_dec3('สมมาตร 180° ตำแหน่ง 4 (mm)')
+    runout_270_p1 = _me_dec3('สมมาตร 270° ตำแหน่ง 1 (mm)')
+    runout_270_p2 = _me_dec3('สมมาตร 270° ตำแหน่ง 2 (mm)')
+    runout_270_p3 = _me_dec3('สมมาตร 270° ตำแหน่ง 3 (mm)')
+    runout_270_p4 = _me_dec3('สมมาตร 270° ตำแหน่ง 4 (mm)')
+    runout_result = models.CharField(max_length=10, choices=ME_TOL_STATUS_CHOICES, null=True, blank=True, verbose_name='สมมาตรเพลา ผลรวม')
+    pressure_inspector = models.CharField(max_length=100, null=True, blank=True, verbose_name='CBM แรงดัน ผู้ตรวจสอบ')
+    pressure_date = models.DateField(null=True, blank=True, verbose_name='CBM แรงดัน วันที่')
+    pressure_1_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='แรงดัน ครั้งที่ 1 ผล')
+    pressure_1_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='แรงดัน ครั้งที่ 1 สาเหตุ')
+    pressure_2_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='แรงดัน ครั้งที่ 2 ผล')
+    pressure_2_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='แรงดัน ครั้งที่ 2 สาเหตุ')
+    pressure_3_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='แรงดัน ครั้งที่ 3 ผล')
+    pressure_3_reason = models.CharField(max_length=255, null=True, blank=True, verbose_name='แรงดัน ครั้งที่ 3 สาเหตุ')
+
+    # --- E. Alignment (Tab 4) ---
+    align_inspector = models.CharField(max_length=100, null=True, blank=True, verbose_name='CBM Alignment ผู้ตรวจสอบ')
+    align_date = models.DateField(null=True, blank=True, verbose_name='CBM Alignment วันที่')
+    align_before_v_offset = _me_dec3('Alignment ก่อน V Offset')
+    align_before_v_offset_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='Alignment ก่อน V Offset ผล')
+    align_before_v_angle = _me_dec3('Alignment ก่อน V Angle')
+    align_before_v_angle_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='Alignment ก่อน V Angle ผล')
+    align_before_h_offset = _me_dec3('Alignment ก่อน H Offset')
+    align_before_h_offset_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='Alignment ก่อน H Offset ผล')
+    align_before_h_angle = _me_dec3('Alignment ก่อน H Angle')
+    align_before_h_angle_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='Alignment ก่อน H Angle ผล')
+    align_after_v_offset = _me_dec3('Alignment หลัง V Offset')
+    align_after_v_offset_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='Alignment หลัง V Offset ผล')
+    align_after_v_angle = _me_dec3('Alignment หลัง V Angle')
+    align_after_v_angle_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='Alignment หลัง V Angle ผล')
+    align_after_h_offset = _me_dec3('Alignment หลัง H Offset')
+    align_after_h_offset_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='Alignment หลัง H Offset ผล')
+    align_after_h_angle = _me_dec3('Alignment หลัง H Angle')
+    align_after_h_angle_result = models.CharField(max_length=10, choices=ME_PASS_FAIL_CHOICES, null=True, blank=True, verbose_name='Alignment หลัง H Angle ผล')
+
+    # --- F. Vibration ISO 10816 (Tab 5) — mm/s, °C, A ---
+    vib_inspector = models.CharField(max_length=100, null=True, blank=True, verbose_name='CBM Vibration ผู้ตรวจสอบ')
+    vib_date = models.DateField(null=True, blank=True, verbose_name='CBM Vibration วันที่')
+    vib_noload_motor_de_h = _me_dec2('No-load มอเตอร์ DE H')
+    vib_noload_motor_de_v = _me_dec2('No-load มอเตอร์ DE V')
+    vib_noload_motor_de_a = _me_dec2('No-load มอเตอร์ DE A')
+    vib_noload_motor_nde_h = _me_dec2('No-load มอเตอร์ NDE H')
+    vib_noload_motor_nde_v = _me_dec2('No-load มอเตอร์ NDE V')
+    vib_noload_motor_nde_a = _me_dec2('No-load มอเตอร์ NDE A')
+    vib_noload_current = _me_dec2('No-load กระแส (A)')
+    vib_onload_motor_de_h = _me_dec2('On-load มอเตอร์ DE H')
+    vib_onload_motor_de_v = _me_dec2('On-load มอเตอร์ DE V')
+    vib_onload_motor_de_a = _me_dec2('On-load มอเตอร์ DE A')
+    vib_onload_motor_nde_h = _me_dec2('On-load มอเตอร์ NDE H')
+    vib_onload_motor_nde_v = _me_dec2('On-load มอเตอร์ NDE V')
+    vib_onload_motor_nde_a = _me_dec2('On-load มอเตอร์ NDE A')
+    vib_onload_pump_de_h = _me_dec2('On-load ปั๊ม DE H')
+    vib_onload_pump_de_v = _me_dec2('On-load ปั๊ม DE V')
+    vib_onload_pump_de_a = _me_dec2('On-load ปั๊ม DE A')
+    vib_onload_pump_de_temp = _me_dec2('On-load ปั๊ม DE อุณหภูมิ (°C)')
+    vib_onload_pump_nde_h = _me_dec2('On-load ปั๊ม NDE H')
+    vib_onload_pump_nde_v = _me_dec2('On-load ปั๊ม NDE V')
+    vib_onload_pump_nde_a = _me_dec2('On-load ปั๊ม NDE A')
+    vib_onload_pump_nde_temp = _me_dec2('On-load ปั๊ม NDE อุณหภูมิ (°C)')
+    vib_onload_current = _me_dec2('On-load กระแส (A)')
+    vib_result = models.CharField(max_length=10, choices=ME_TOL_STATUS_CHOICES, null=True, blank=True, verbose_name='Vibration ผลรวม')
+
+    # --- G. ความพร้อมเครื่องจักร 10 ข้อ (Tab 6) ---
+    ready_adjust_bolt_pump = _me_ready('Adjust bolt ปั๊ม/เกียร์', ME_READY_ADJUST_BOLT_CHOICES)
+    ready_adjust_bolt_motor = _me_ready('Adjust bolt มอเตอร์', ME_READY_ADJUST_BOLT_CHOICES)
+    ready_base = _me_ready('แท่นเครื่องจักร', ME_READY_BASE_CHOICES)
+    ready_bolt_mark = _me_ready('น็อตยึดแท่นทำมาร์ค', ME_READY_YES_NO_CHOICES)
+    ready_rotation_mark = _me_ready('สัญลักษณ์ทิศทางหมุน', ME_READY_YES_NO_CHOICES)
+    ready_coupling_guard = _me_ready('ฝาครอบคัปปลิ้ง', ME_READY_COUPLING_GUARD_CHOICES)
+    ready_air_breather = _me_ready('Air breather', ME_READY_AIR_BREATHER_CHOICES)
+    ready_oil_seal = _me_ready('Oil seal', ME_READY_OIL_SEAL_CHOICES)
+    ready_oil_level_gauge = _me_ready('Oil level gauge', ME_READY_OIL_LEVEL_GAUGE_CHOICES)
+    ready_oil_level = _me_ready('ระดับน้ำมันเครื่องจักร', ME_READY_OIL_LEVEL_CHOICES)
+
+    # --- H. ลายเซ็น & audit (Tab 7) ---
+    tech_name = models.CharField(max_length=100, null=True, blank=True, verbose_name='ชื่อผู้บันทึก (ช่าง)')
+    tech_signature = models.ImageField(upload_to='me_inspection/signatures/', null=True, blank=True, verbose_name='ลายเซ็นช่าง')
+    cbm_name = models.CharField(max_length=100, null=True, blank=True, verbose_name='ชื่อผู้ตรวจ CBM')
+    cbm_signature = models.ImageField(upload_to='me_inspection/signatures/', null=True, blank=True, verbose_name='ลายเซ็น CBM')
+    head_name = models.CharField(max_length=100, null=True, blank=True, verbose_name='ชื่อผู้อนุมัติ (หัวหน้า)')
+    head_signature = models.ImageField(upload_to='me_inspection/signatures/', null=True, blank=True, verbose_name='ลายเซ็นหัวหน้า')
+    created_by = models.CharField(max_length=100, null=True, blank=True, verbose_name='ผู้สร้าง')
+    updated_by = models.CharField(max_length=100, null=True, blank=True, verbose_name='ผู้แก้ไขล่าสุด')
+    approved_at = models.DateTimeField(null=True, blank=True, verbose_name='วันเวลาที่อนุมัติ')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-record_date', '-id']
+        verbose_name = 'ใบตรวจเช็คซ่อมบำรุงเครื่องจักร (ME)'
+        verbose_name_plural = 'ใบตรวจเช็คซ่อมบำรุงเครื่องจักร (ME)'
+
+    def __str__(self):
+        return f'ME-{self.pk} {self.equipment_id} ({self.record_date})'
+
+    def apply_computed_results(self):
+        """คำนวณผลผ่าน/ไม่ผ่านจากค่าวัดด้วยเกณฑ์กลาง — เรียกก่อน save ทุกครั้ง (ค่าที่ client ส่งมาไม่นับ)"""
+        for prefix, code in ME_ISO_FIT_POINTS:
+            fit = me_iso_fit(getattr(self, f'{prefix}_nominal'), getattr(self, f'{prefix}_m1'),
+                             getattr(self, f'{prefix}_m2'), code)
+            setattr(self, f'{prefix}_result', fit['status'] if fit else None)
+        # เพลาและลิ่ม: วัดครบ 2 ทิศเมื่อไหร่ระบบตัดสินเอง ไม่ครบให้ใช้ผลที่ผู้ตรวจเลือก
+        if self.shaft_key_m1 is not None and self.shaft_key_m2 is not None:
+            fit = me_iso_fit(self.shaft_key_nominal, self.shaft_key_m1, self.shaft_key_m2, ME_SHAFT_KEY_FIT)
+            if fit and fit['status']:
+                self.shaft_key_result = fit['status']
+        self.runout_result = me_worst_status(me_runout_status(getattr(self, f)) for f in ME_RUNOUT_FIELDS)
+        for f in ME_ALIGN_FIELDS:
+            setattr(self, f'{f}_result', me_alignment_status(getattr(self, f)))
+        self.vib_result = me_worst_status(
+            [me_vibration_status(getattr(self, f), self.motor_kw) for f in ME_VIB_FIELDS]
+            + [me_temp_status(getattr(self, f)) for f in ME_TEMP_FIELDS])

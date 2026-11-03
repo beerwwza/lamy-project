@@ -1,0 +1,19 @@
+{# หัวข้อหนึ่งในหน้าพิมพ์ใบงาน ME: title + rows [(ป้าย, ค่า, ผล pass/warn/fail หรือ None)] #}
+<div class="overflow-x-auto print-avoid-break">
+    <table class="me-print w-full border-collapse">
+        <tr class="me-head"><th colspan="3">{{ title }}</th></tr>
+        {% for label, value, result in rows %}
+        <tr>
+            {% if value %}
+            <th class="w-1/3">{{ label }}</th>
+            <td>{{ value }}</td>
+            <td class="w-20 text-center font-semibold {% if result == 'pass' %}text-emerald-700{% elif result == 'warn' %}text-amber-700{% elif result == 'fail' %}text-red-700{% endif %}">
+                {% if result == 'pass' %}ผ่าน{% elif result == 'warn' %}เฝ้าระวัง{% elif result == 'fail' %}ไม่ผ่าน{% endif %}
+            </td>
+            {% else %}
+            <td colspan="3">{{ label }}</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+</div>

@@ -1,6 +1,12 @@
+import base64
+import binascii
+import io
 from decimal import Decimal
 
+from PIL import Image
 from django import forms
+from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import UploadedFile
 from django.forms import inlineformset_factory
 from .models import employee  # เรียกใช้ Model ที่เราสร้างไว้
 from .models import BoilerOperationLog, ChengchenLog, TakumaLog, YoshimineLog, Banpong1Log,  Banpong2Log, MaintenanceLog, KPIMetric, RepairDocument
@@ -21,6 +27,7 @@ from .models import Vehicle, VehicleBooking
 from .models import ElectricityMeter, ElectricityReading
 from .models import ProcessCategory
 from .models import LatheJob, LATHE_JOB_TYPE_CHOICES
+from .models import MEInspection, ME_ISO_FIT_POINTS, ME_RUNOUT_FIELDS, ME_ALIGN_FIELDS, ME_VIB_FIELDS, ME_TEMP_FIELDS
 
 class EmployeeForm(forms.ModelForm):
     class Meta:
@@ -1380,3 +1387,150 @@ class LatheJobForm(forms.ModelForm):
         if any(v is not None and v > 0 for v in factors):
             cleaned['job_value'] = sum((v for v in factors if v is not None), Decimal('0'))
         return cleaned
+
+
+# ===== ME Inspection — ใบตรวจเช็คซ่อมบำรุงเครื่องจักร =====
+
+ME_SIGNATURE_ROLES = ('tech', 'cbm', 'head')  # ลายเซ็น ช่าง / CBM / หัวหน้า → field <role>_signature
+ME_SIGNATURE_PREFIX = 'data:image/png;base64,'
+ME_SIGNATURE_MAX_BYTES = 500 * 1024
+ME_PHOTO_MAX_BYTES = 5 * 1024 * 1024  # รูปถูกย่อฝั่ง client แล้ว (~ไม่กี่ร้อย KB) กันไฟล์ใหญ่ที่หลุดมาจากเบราว์เซอร์ที่ย่อไม่ได้
+
+# ตาราง B ใน spec — อะไหล่และสภาพชิ้นส่วน (Tab 1)
+ME_PART_FIELDS = [
+    'bearing_de_no', 'bearing_de_action', 'bearing_nde_no', 'bearing_nde_action',
+    'oil_seal_de_no', 'oil_seal_de_action', 'oil_seal_nde_no', 'oil_seal_nde_action',
+    'seal_device_type', 'seal_device_model', 'seal_device_action',
+    'lube_type', 'lube_grade', 'lube_volume', 'lube_action',
+    'sleeve_od_mm', 'sleeve_id_mm', 'sleeve_len_mm', 'sleeve_action',
+    'coupling_type', 'coupling_model', 'coupling_action',
+    'sight_glass_size', 'sight_glass_action',
+    'impeller_action', 'impeller_reason', 'cover_action', 'cover_reason',
+    'casing_action', 'casing_reason', 'bearing_housing_action', 'bearing_housing_reason',
+    'shaft_action', 'shaft_reason',
+]
+
+# ตาราง C–F ใน spec — ค่าวัด (Tab 2–5); ช่องผลที่ระบบคำนวณเอง (*_result ส่วนใหญ่) ไม่อยู่ในฟอร์ม
+ME_MEASURE_FIELDS = [
+    'fit_inspector', 'fit_date',
+    *[f'{prefix}_{part}' for prefix, _ in ME_ISO_FIT_POINTS for part in ('nominal', 'm1', 'm2')],
+    'shaft_key_nominal', 'shaft_key_m1', 'shaft_key_m2', 'shaft_key_result', 'shaft_key_reason',
+    'key_h', 'key_l', 'key_b', 'key_t1', 'key_b1',
+    'bore_type', 'bore_nominal', 'bore_t2', 'bore_b2', 'bore_result', 'bore_reason',
+    'runout_inspector', 'runout_date', *ME_RUNOUT_FIELDS,
+    'pressure_inspector', 'pressure_date',
+    *[f'pressure_{i}_{part}' for i in (1, 2, 3) for part in ('result', 'reason')],
+    'align_inspector', 'align_date', *ME_ALIGN_FIELDS,
+    'vib_inspector', 'vib_date', *ME_VIB_FIELDS, *ME_TEMP_FIELDS, 'vib_noload_current', 'vib_onload_current',
+]
+
+# ตาราง G ใน spec — ความพร้อมเครื่องจักร 10 ข้อ (Tab 6) แสดงเป็นการ์ด radio
+ME_READINESS_FIELDS = [
+    'ready_adjust_bolt_pump', 'ready_adjust_bolt_motor', 'ready_base', 'ready_bolt_mark', 'ready_rotation_mark',
+    'ready_coupling_guard', 'ready_air_breather', 'ready_oil_seal', 'ready_oil_level_gauge', 'ready_oil_level',
+]
+
+
+class MEInspectionForm(forms.ModelForm):
+    # เลือกเครื่องจักรผ่านช่องค้นหา (JS) แล้วเก็บรหัสไว้ใน hidden input
+    equipment = forms.ModelChoiceField(
+        queryset=Equipment.objects.all(), widget=forms.HiddenInput,
+        error_messages={'required': 'กรุณาเลือกเครื่องจักร', 'invalid_choice': 'ไม่พบเครื่องจักรที่เลือก'})
+
+    class Meta:
+        model = MEInspection
+        fields = ['equipment', 'department', 'record_date', 'repair_group',
+                  'brand', 'model_no', 'flow_m3h', 'head_m', 'motor_kw', 'rpm', 'remark',
+                  *ME_PART_FIELDS, 'photo_before', 'photo_after', *ME_MEASURE_FIELDS,
+                  *ME_READINESS_FIELDS, 'tech_name', 'cbm_name', 'head_name']
+        widgets = {
+            'department': forms.TextInput(attrs={'class': _TW_TASK}),
+            'record_date': forms.DateInput(attrs={'type': 'date', 'class': _TW_TASK}, format='%Y-%m-%d'),
+            'repair_group': forms.Select(attrs={'class': _TW_TASK_SELECT}),
+            'brand': forms.TextInput(attrs={'class': _TW_TASK}),
+            'model_no': forms.TextInput(attrs={'class': _TW_TASK}),
+            'flow_m3h': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01'}),
+            'head_m': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01'}),
+            'motor_kw': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01'}),
+            'rpm': forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01'}),
+            'remark': forms.Textarea(attrs={'class': _TW_TASK, 'rows': 3}),
+            'photo_before': forms.FileInput(attrs={'class': _TW_TASK, 'accept': 'image/*', 'data-me-photo': 'before'}),
+            'photo_after': forms.FileInput(attrs={'class': _TW_TASK, 'accept': 'image/*', 'data-me-photo': 'after'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # ลายเซ็นจาก canvas มาเป็น data URL (PNG) — ค่าว่าง = คงลายเซ็นเดิม, <role>_signature_clear = ลบลายเซ็น
+        for role in ME_SIGNATURE_ROLES:
+            self.fields[f'{role}_signature_data'] = forms.CharField(required=False, widget=forms.HiddenInput)
+            self.fields[f'{role}_signature_clear'] = forms.BooleanField(required=False, widget=forms.HiddenInput)
+            self.fields[f'{role}_name'].widget.attrs['class'] = _TW_TASK
+        # radio ไม่ต้องมีตัวเลือก "---------" (ไม่เลือก = ว่าง ตาม null=True)
+        for name in ME_READINESS_FIELDS:
+            field = self.fields[name]
+            field.choices = list(field.choices)[1:]
+            field.widget = forms.RadioSelect(choices=field.choices, attrs={'class': 'w-4 h-4 accent-blue-700'})
+        self.fields['repair_group'].choices = [('', '-- เลือกกลุ่มซ่อม --')] + list(self.fields['repair_group'].choices)[1:]
+        # ช่องอะไหล่และค่าวัดมีกว่าร้อยช่อง ใช้ class ร่วมแบบเดียวกับช่องด้านบน (select ใช้ _TW_TASK_SELECT ให้สูงเท่า input)
+        for name in ME_PART_FIELDS + ME_MEASURE_FIELDS:
+            field = self.fields[name]
+            if isinstance(field.widget, forms.Select):
+                field.widget.attrs['class'] = _TW_TASK_SELECT
+                field.choices = [('', '--')] + list(field.choices)[1:]
+            elif isinstance(field, forms.DecimalField):
+                step = '0.001' if field.decimal_places == 3 else '0.01'
+                field.widget = forms.NumberInput(attrs={'class': _TW_TASK, 'step': step, 'inputmode': 'decimal'})
+            elif isinstance(field, forms.DateField):
+                field.widget = forms.DateInput(attrs={'type': 'date', 'class': _TW_TASK}, format='%Y-%m-%d')
+            else:
+                field.widget.attrs['class'] = _TW_TASK
+        # ให้ JS ในหน้าฟอร์มรู้ว่าช่องไหนใช้เกณฑ์ใด (ระบายสีผ่าน/เฝ้าระวัง/ไม่ผ่านทันทีตอนพิมพ์)
+        for names, kind in ((ME_RUNOUT_FIELDS, 'runout'), (ME_ALIGN_FIELDS, 'align'),
+                            (ME_VIB_FIELDS, 'vib'), (ME_TEMP_FIELDS, 'temp')):
+            for name in names:
+                self.fields[name].widget.attrs['data-me-tol'] = kind
+        for prefix in [p for p, _ in ME_ISO_FIT_POINTS] + ['shaft_key']:
+            for part in ('nominal', 'm1', 'm2'):
+                self.fields[f'{prefix}_{part}'].widget.attrs['data-me-fit'] = prefix
+        self.fields['bore_nominal'].widget.attrs['data-me-fit'] = 'bore'
+
+    def _clean_signature(self, role):
+        """แปลง data URL เป็นไฟล์ PNG (ContentFile) หรือ None ถ้าไม่ได้เซ็นใหม่"""
+        data = (self.cleaned_data.get(f'{role}_signature_data') or '').strip()
+        if not data:
+            return None
+        if not data.startswith(ME_SIGNATURE_PREFIX):
+            raise forms.ValidationError('รูปแบบลายเซ็นไม่ถูกต้อง')
+        try:
+            raw = base64.b64decode(data[len(ME_SIGNATURE_PREFIX):], validate=True)
+        except (binascii.Error, ValueError):
+            raise forms.ValidationError('รูปแบบลายเซ็นไม่ถูกต้อง')
+        if len(raw) > ME_SIGNATURE_MAX_BYTES:
+            raise forms.ValidationError('ไฟล์ลายเซ็นใหญ่เกิน 500 KB')
+        try:
+            Image.open(io.BytesIO(raw)).verify()
+        except Exception:
+            raise forms.ValidationError('รูปแบบลายเซ็นไม่ถูกต้อง')
+        return ContentFile(raw, name=f'{role}.png')
+
+    def clean_tech_signature_data(self):
+        return self._clean_signature('tech')
+
+    def clean_cbm_signature_data(self):
+        return self._clean_signature('cbm')
+
+    def clean_head_signature_data(self):
+        return self._clean_signature('head')
+
+    def _clean_photo(self, name):
+        photo = self.cleaned_data.get(name)
+        # ตรวจเฉพาะไฟล์ที่เพิ่งอัปโหลด — รูปเดิมของใบงานไม่ต้องเปิดอ่าน (ไฟล์อาจไม่อยู่บนดิสก์แล้ว)
+        if isinstance(photo, UploadedFile) and photo.size > ME_PHOTO_MAX_BYTES:
+            raise forms.ValidationError('ไฟล์รูปใหญ่เกิน 5 MB')
+        return photo
+
+    def clean_photo_before(self):
+        return self._clean_photo('photo_before')
+
+    def clean_photo_after(self):
+        return self._clean_photo('photo_after')

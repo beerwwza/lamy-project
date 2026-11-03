@@ -417,3 +417,14 @@ class ElectricityReadingAdmin(admin.ModelAdmin):
     list_filter = ['meter', 'is_meter_reset']
     search_fields = ['meter__meter_code', 'meter__name']
     ordering = ['-date']
+
+
+# ===== ME Inspection — ใบตรวจเช็คซ่อมบำรุงเครื่องจักร =====
+
+@admin.register(MEInspection)
+class MEInspectionAdmin(admin.ModelAdmin):
+    list_display = ['id', 'record_date', 'equipment', 'department', 'repair_group', 'status', 'updated_by']
+    list_filter = ['status', 'repair_group', 'record_date']
+    search_fields = ['equipment__equipment_id', 'equipment__name', 'department']
+    raw_id_fields = ['equipment']
+    ordering = ['-record_date', '-id']

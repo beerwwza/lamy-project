@@ -30,6 +30,7 @@ LAMY is a web-based industrial operations management system built for a large-sc
 - **Maintenance Management** — Failure logging, root cause analysis, downtime categorization, spare parts tracking, and KPI scoring.
 - **Mill Production Reporting** — Daily production KPIs for Line A/B covering extraction rates, purity, bagasse moisture, and throughput.
 - **Equipment Registry** — Master inventory of all plant equipment with technical specifications, maintenance history, spare parts (BOM), criticality levels, and image storage.
+- **ME Inspection (ใบตรวจเช็คซ่อมบำรุงเครื่องจักร)** (`/me-inspection/`) — Rotating-equipment repair/inspection record migrated from the former Google Apps Script "ฟอร์ม ME V.2" into LAMY, linked to the `Equipment` registry. A 7-tab form (basic info & spare parts with photos, ISO 286 fits, shaft runout & pressure test, alignment, vibration ISO 10816, 10-item readiness checklist, on-screen signatures), pass/warn/fail colouring while typing with results recomputed server-side on save, "smart memory" that pre-fills spare-part specs from the machine's last inspection, a 4-step approval workflow (repairing → CBM review → head approval → approved) gated per step by `write_maintenance` / `write_cbm` / superuser, a filtered history list, an A4 print view, a KPI/chart dashboard, and an Excel (PUMP/GEAR sheets) import into `Equipment`.
 - **Lathe Job Tracking** — Server-rendered machine-shop job orders (one page with KPIs + charts + filtered list, add/edit forms, status change, printable job order, CSV/JSON import & export). Writes need `write_general`; delete is superuser-only.
 - **Tools Module** — Dedicated hand-tool tracking (`/tools/`) separate from general Inventory, with per-physical-unit status (so identical tools like 5 impact wrenches are tracked individually), borrow/return history with due dates, and an integrated tool-readiness checklist.
 - **Manual Library** (`/manuals/`) — Structured machine operation & maintenance manuals (cover info, safety precautions, part names, pre-use checklist, operating steps, daily/periodic maintenance, troubleshooting, specifications), built via a multi-section form with dynamic add/remove rows.
@@ -374,6 +375,23 @@ Each equipment item can have multiple CBM records of 5 types:
 - Priority level: 1-CRITICAL / 2-IMPORTANT / 3-GENERAL
 - Image: local file or Google Drive file ID
 
+### ME Inspection (ใบตรวจเช็คซ่อมบำรุงเครื่องจักร)
+
+Replaces the Google Apps Script form "ระบบบันทึกการตรวจเช็คเครื่องจักร V.2 & CBM Suite" (Google Sheet storage). No legacy data was migrated.
+
+- **Model:** a single flat `MEInspection` row per inspection (~170 fields), with an FK to `Equipment` (`PROTECT`). Nameplate fields (brand, model, flow, head, kW, rpm) are a snapshot taken on the inspection, and editing them does not change the registry. Mechanical dimensions use `DecimalField(8,3)` (µm precision for ISO fits), while vibration, temperature and current use `(8,2)`.
+- **Tolerance rules** live as module-level pure functions in `models.py` (`me_runout_status`, `me_alignment_status`, `me_vibration_status`, `me_temp_status`, `me_iso_fit`, `me_worst_status`) with the ISO 286 band table `ME_ISO_FIT_BANDS`:
+  - runout ≤ ±0.05 mm
+  - alignment ≤ ±0.06
+  - vibration 1.8 / 2.8 mm/s, or 2.8 / 4.5 when the motor is > 15 kW
+  - bearing temperature 70 / 85 °C
+  - ISO fits K7 for housings, k7 for shafts, h7 for shaft & key
+
+  `MEInspection.apply_computed_results()` recomputes every `*_result` field on each save, and client-sent values are ignored. The form page renders the same constants into its JS, so the live colours always match the stored result.
+- **Workflow:** the tables `ME_STAGE_EDIT_MODULES`, `ME_STAGE_SIGNATURE` and `ME_TRANSITIONS` in `views.py` define who may edit each status and which button moves it where. A forward move requires that stage's signature. Approval sets `approved_at`, and an approved record is locked to superusers until it is reopened. Signatures are drawn on a canvas, posted as PNG data URLs, validated (≤ 500 KB) and stored as `ImageField`s. Each role can only sign its own stage.
+- **Smart memory:** `/me-inspection/api/last/<eq_id>/` returns the spare-part numbers and fit sizes from the machine's latest inspection. JS fills only the fields that are still empty, and only on new inspections.
+- **Excel import:** the PUMP and GEAR sheets are matched by `รหัสทรัพย์สิน` / `Code.` = `equipment_id`. You get a preview first and then confirm. Fill-blanks is the default, overwrite is opt-in, and the import never deletes equipment or changes `is_active`. Gear ratio and lubricant are not imported because `Equipment` has no fields for them.
+
 ### Tools Module (เครื่องมือ)
 
 Standalone module at `/tools/`, separated from the general Inventory module (`InventoryItem` category `tools` is excluded from `/inventory/` views). Solves per-unit tracking for identical tools (e.g. 5 impact wrenches of the same SKU):
@@ -524,6 +542,11 @@ Task Manager — ทดสอบเป่าแป๊ป Flushing (/flushing/, �
     └── FlushingRound      (child, แถวเพิ่ม/ลบได้ไม่จำกัด: round_no, has_copper_plate, start_time, end_time,
                              blow_pressure_bar, oversized_spot_count; property `passed` เทียบกับ OVERSIZED_SPOT_LIMIT=3)
 
+ME Inspection (ใบตรวจเช็คซ่อมบำรุงเครื่องจักร — /me-inspection/, ผูก Equipment)
+└── MEInspection           (equipment FK PROTECT; snapshot สเปค; อะไหล่ *_no/*_action/*_reason; ค่าวัด ISO fit / runout /
+                             pressure / alignment / vibration + *_result ที่ระบบคำนวณ; ready_* 10 ข้อ; status: repairing → wait_cbm →
+                             wait_approval → approved; tech/cbm/head _name + _signature (ImageField); photo_before/after; approved_at)
+
 Energy Tracking — Electricity (Phase 1) (ระบบติดตามการใช้พลังงาน — /electricity/, plant: ESC-A/ESC-B ผ่าน PLANT_CHOICES)
 └── ElectricityMeter       (meter_code, name, plant, location, equipment: M2M→Equipment, assumed_operating_hours, target_kwh_override)
     └── ElectricityReading (meter FK, date, reading_kwh: เลขมิเตอร์สะสม, is_meter_reset, note; unique per meter+date)
@@ -532,7 +555,7 @@ Energy Tracking — Electricity (Phase 1) (ระบบติดตามกา�
 
 Google Drive uploads (`RepairDocument` and Lathe job attachments → `LAMY/Lathe/<year>/<job_no>`; Drive files are not deleted when a record is removed/replaced) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
-Database migrations: **100 migration files** in `myapp/migrations/`.
+Database migrations: **108 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -628,6 +651,20 @@ Database migrations: **100 migration files** in `myapp/migrations/`.
 | POST | `/lathe/import/` | Import CSV/JSON, upsert by `job_no` (`write_general`) |
 
 The old `/api/lathe/` JSON endpoint was removed.
+
+### ME Inspection
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/me-inspection/` | History list with filters `q`, `process`, `group`, `status`, `date_from`, `date_to` (any logged-in user) |
+| GET/POST | `/me-inspection/add/` | New inspection (`write_maintenance` or `write_cbm`); `?equipment=<id>` pre-selects a machine |
+| GET/POST | `/me-inspection/<id>/edit/` | View (anyone) / edit and change status (per-status rights, `action` = `save` / `forward` / `back` / `reopen`) |
+| POST | `/me-inspection/<id>/delete/` | Delete (superuser) |
+| GET | `/me-inspection/<id>/print/` | A4 printable report |
+| GET | `/me-inspection/dashboard/` | KPIs and charts, `?date_from=&date_to=&equipment=` |
+| GET/POST | `/me-inspection/import-equipment/` | Excel PUMP/GEAR → `Equipment`: upload → preview → confirm (`write_equipment`) |
+| GET | `/me-inspection/api/equipment-search/` | JSON `{"data": [...]}` — active equipment search, `?q=&process=` (max 30) |
+| GET | `/me-inspection/api/last/<eq_id>/` | JSON — latest inspection's spare-part/fit specs for smart memory (`?exclude=<id>`) |
 
 ### Inventory
 

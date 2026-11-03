@@ -48,6 +48,10 @@ AUTHENTICATED_URL_NAMES = [
     'training_gap',
     'manual_list',
     'machine_task_list',
+    'me_inspection_list',
+    'me_inspection_add',
+    'me_inspection_dashboard',
+    'me_equipment_import',
 ]
 
 
@@ -285,3 +289,969 @@ class LatheModuleTests(TestCase):
         self.LatheJob.objects.create(job_no='F2', maker='วิภา', pieces=Decimal('3'), machine='M2')
         resp = self._client(self.reader).get(reverse('lathe_list'), {'machine': 'M2'})
         self.assertEqual([r['name'] for r in resp.context['maker_ranking']], ['วิภา'])
+
+
+class METoleranceTests(TestCase):
+    """ME Inspection: เกณฑ์ผ่าน/เฝ้าระวัง/ไม่ผ่าน ต้องตรงกับฟอร์ม ME เดิม (JS) ที่ขอบทุกเกณฑ์"""
+
+    def test_runout_limit_is_inclusive_and_symmetric(self):
+        from .models import me_runout_status
+        self.assertEqual(me_runout_status(Decimal('0.05')), 'pass')
+        self.assertEqual(me_runout_status('-0.05'), 'pass')
+        self.assertEqual(me_runout_status(0.0501), 'fail')
+        self.assertIsNone(me_runout_status(None))
+        self.assertIsNone(me_runout_status(''))
+
+    def test_alignment_limit(self):
+        from .models import me_alignment_status
+        self.assertEqual(me_alignment_status(Decimal('-0.06')), 'pass')
+        self.assertEqual(me_alignment_status(Decimal('0.061')), 'fail')
+
+    def test_vibration_limits_depend_on_motor_kw(self):
+        from .models import me_vibration_status
+        # มอเตอร์ไม่เกิน 15 kW (หรือไม่ระบุ): 1.8 / 2.8
+        self.assertEqual(me_vibration_status('1.8', Decimal('15')), 'pass')
+        self.assertEqual(me_vibration_status('2.8', Decimal('15')), 'warn')
+        self.assertEqual(me_vibration_status('2.81', Decimal('15')), 'fail')
+        self.assertEqual(me_vibration_status('2.0', None), 'warn')
+        # มอเตอร์เกิน 15 kW: 2.8 / 4.5
+        self.assertEqual(me_vibration_status('2.8', Decimal('15.01')), 'pass')
+        self.assertEqual(me_vibration_status('4.5', Decimal('15.01')), 'warn')
+        self.assertEqual(me_vibration_status('4.51', Decimal('15.01')), 'fail')
+
+    def test_temperature_limits(self):
+        from .models import me_temp_status
+        self.assertEqual(me_temp_status(70), 'pass')
+        self.assertEqual(me_temp_status(70.01), 'warn')
+        self.assertEqual(me_temp_status(85), 'warn')
+        self.assertEqual(me_temp_status(85.01), 'fail')
+
+    def test_iso_tolerance_band_boundaries(self):
+        from .models import me_iso_tolerance_um
+        self.assertEqual(me_iso_tolerance_um(18, 'K7'), (-12, 6))
+        self.assertEqual(me_iso_tolerance_um(18.001, 'K7'), (-15, 6))
+        self.assertEqual(me_iso_tolerance_um(18, 'k7'), (1, 19))  # ตัวพิมพ์ต่างกัน = คนละพิกัด
+        self.assertEqual(me_iso_tolerance_um(500, 'h7'), (-57, 0))  # เกิน 400 ใช้ช่วงสุดท้าย
+        self.assertIsNone(me_iso_tolerance_um(0, 'H7'))
+        self.assertIsNone(me_iso_tolerance_um(None, 'H7'))
+        self.assertIsNone(me_iso_tolerance_um(50, 'X9'))
+
+    def test_iso_fit_evaluates_readings_with_slack(self):
+        from .models import me_iso_fit
+        # 50 h7 → 49.975 – 50.000 (เผื่อ 0.0001)
+        res = me_iso_fit(Decimal('50'), Decimal('49.975'), Decimal('50.000'), 'h7')
+        self.assertAlmostEqual(res['min_mm'], 49.975)
+        self.assertAlmostEqual(res['max_mm'], 50.0)
+        self.assertEqual(res['status'], 'pass')
+        self.assertAlmostEqual(res['average'], 49.9875)
+        self.assertAlmostEqual(res['ovality'], 0.025)
+        self.assertEqual(me_iso_fit(50, 50.0001, None, 'h7')['status'], 'pass')
+        self.assertEqual(me_iso_fit(50, 50.0002, None, 'h7')['status'], 'fail')
+        self.assertIsNone(me_iso_fit(50, 50.0002, None, 'h7')['ovality'])
+        self.assertIsNone(me_iso_fit(50, None, None, 'h7')['status'])
+        self.assertIsNone(me_iso_fit(None, 50, 50, 'h7'))
+
+    def test_worst_status_ignores_blanks(self):
+        from .models import me_worst_status
+        self.assertEqual(me_worst_status(['pass', None, 'warn']), 'warn')
+        self.assertEqual(me_worst_status(['warn', 'fail', 'pass']), 'fail')
+        self.assertIsNone(me_worst_status([None, '']))
+
+
+
+class MEInspectionModuleTests(TestCase):
+    """ME Inspection: สิทธิ์ (write_maintenance / write_cbm / superuser), สร้าง-แก้ใบงาน และ API ค้นหาเครื่องจักร"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, MEInspection
+        cls.MEInspection = MEInspection
+        cls.superuser = User.objects.create_superuser('me_admin', 'me@example.com', 'pass-12345-x')
+        cls.tech = User.objects.create_user('me_tech', password='pass-12345-x', is_staff=True)
+        cls.tech.user_permissions.add(Permission.objects.get(codename='write_maintenance'))
+        cls.cbm = User.objects.create_user('me_cbm', password='pass-12345-x', is_staff=True)
+        cls.cbm.user_permissions.add(Permission.objects.get(codename='write_cbm'))
+        cls.staff_no_perm = User.objects.create_user('me_staff', password='pass-12345-x', is_staff=True)
+        cls.reader = User.objects.create_user('me_reader', password='pass-12345-x')
+        cls.pump = Equipment.objects.create(
+            equipment_id='P-101', name='ปั๊มน้ำดิบ', process='ระบบน้ำ', manufacturer='Grundfos',
+            model='NK 80', capacity='120', head_size='35 m', power_kw=Decimal('22'), rpm='2950')
+        Equipment.objects.create(equipment_id='P-102', name='ปั๊มสำรอง (ปลดระวาง)', process='ระบบน้ำ', is_active=False)
+        cls.inspection = MEInspection.objects.create(equipment=cls.pump, created_by='me_tech')
+
+    def _client(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
+
+    def _payload(self, **extra):
+        data = {'equipment': 'P-101', 'record_date': '2026-11-03', 'repair_group': 'G2',
+                'department': 'ระบบน้ำ', 'brand': 'Grundfos', 'model_no': 'NK 80',
+                'flow_m3h': '120', 'head_m': '35', 'motor_kw': '22', 'rpm': '2950', 'remark': 'เปลี่ยนลูกปืน'}
+        data.update(extra)
+        return data
+
+    def test_writers_can_create_and_are_redirected_to_edit(self):
+        for user in (self.tech, self.cbm, self.superuser):
+            with self.subTest(user=user.username):
+                resp = self._client(user).post(reverse('me_inspection_add'), self._payload())
+                created = self.MEInspection.objects.latest('id')
+                self.assertRedirects(resp, reverse('me_inspection_edit', args=[created.pk]))
+                self.assertEqual(created.created_by, user.username)
+                self.assertEqual(created.updated_by, user.username)
+                self.assertEqual(created.status, 'repairing')
+                self.assertEqual(created.motor_kw, Decimal('22'))
+
+    def test_users_without_write_permission_cannot_create_or_edit(self):
+        for user in (self.reader, self.staff_no_perm):
+            with self.subTest(user=user.username):
+                c = self._client(user)
+                self.assertEqual(c.post(reverse('me_inspection_add'), self._payload()).status_code, 403)
+                self.assertEqual(c.get(reverse('me_inspection_add')).status_code, 403)
+                resp = c.post(reverse('me_inspection_edit', args=[self.inspection.pk]), self._payload(remark='แอบแก้'))
+                self.assertEqual(resp.status_code, 403)
+        self.inspection.refresh_from_db()
+        self.assertIsNone(self.inspection.remark)
+
+    def test_any_logged_in_user_can_view_list_and_inspection_read_only(self):
+        c = self._client(self.reader)
+        self.assertContains(c.get(reverse('me_inspection_list')), f'ME-{self.inspection.pk}')
+        resp = c.get(reverse('me_inspection_edit', args=[self.inspection.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.context['can_edit'])
+        self.assertEqual(Client().get(reverse('me_inspection_list')).status_code, 302)  # ต้อง login
+
+    def test_edit_updates_record_and_updated_by(self):
+        resp = self._client(self.cbm).post(reverse('me_inspection_edit', args=[self.inspection.pk]), self._payload(remark='ตรวจซ้ำ'))
+        self.assertRedirects(resp, reverse('me_inspection_edit', args=[self.inspection.pk]))
+        self.inspection.refresh_from_db()
+        self.assertEqual(self.inspection.remark, 'ตรวจซ้ำ')
+        self.assertEqual(self.inspection.updated_by, 'me_cbm')
+        self.assertEqual(self.inspection.created_by, 'me_tech')
+
+    def test_missing_or_unknown_equipment_is_a_form_error(self):
+        c = self._client(self.tech)
+        before = self.MEInspection.objects.count()
+        for value in ('', 'NOPE-999'):
+            with self.subTest(equipment=value):
+                resp = c.post(reverse('me_inspection_add'), self._payload(equipment=value))
+                self.assertEqual(resp.status_code, 200)
+                self.assertTrue(resp.context['form'].errors['equipment'])
+        self.assertEqual(self.MEInspection.objects.count(), before)
+
+    def test_add_prefills_snapshot_from_equipment(self):
+        resp = self._client(self.tech).get(reverse('me_inspection_add'), {'equipment': 'P-101'})
+        initial = resp.context['form'].initial
+        self.assertEqual(initial['brand'], 'Grundfos')
+        self.assertEqual(initial['flow_m3h'], Decimal('120'))
+        self.assertIsNone(initial['head_m'])  # '35 m' แปลงเป็นตัวเลขไม่ได้ ปล่อยว่างให้ช่างกรอก
+        self.assertEqual(initial['rpm'], Decimal('2950'))
+
+    def test_record_date_defaults_to_thai_local_date(self):
+        from datetime import datetime, timezone as dt_timezone
+        from django.utils import timezone
+        # 17:30 UTC = 00:30 ของวันถัดไปตามเวลาไทย
+        utc_now = datetime(2026, 11, 2, 17, 30, tzinfo=dt_timezone.utc)
+        with mock.patch.object(timezone, 'now', return_value=utc_now):
+            resp = self._client(self.tech).get(reverse('me_inspection_add'))
+            obj = self.MEInspection.objects.create(equipment=self.pump)
+        self.assertEqual(str(resp.context['form'].initial['record_date']), '2026-11-03')
+        self.assertEqual(str(obj.record_date), '2026-11-03')
+
+    def test_equipment_search_returns_active_matches_only(self):
+        c = self._client(self.reader)
+        data = c.get(reverse('me_equipment_search_api'), {'q': 'ปั๊ม'}).json()['data']
+        self.assertEqual([d['id'] for d in data], ['P-101'])
+        self.assertEqual(data[0]['kw'], '22.00')
+        self.assertEqual(data[0]['department'], 'ระบบน้ำ')
+        self.assertEqual(c.get(reverse('me_equipment_search_api'), {'process': 'ลูกหีบ'}).json()['data'], [])
+
+    def test_equipment_search_is_limited(self):
+        from .models import Equipment
+        Equipment.objects.bulk_create([Equipment(equipment_id=f'X-{i:03d}', name=f'เกียร์ {i}') for i in range(40)])
+        data = self._client(self.reader).get(reverse('me_equipment_search_api'), {'q': 'เกียร์'}).json()['data']
+        self.assertEqual(len(data), 30)
+
+
+class MEInspectionPartsAndMemoryTests(TestCase):
+    """ME Inspection ticket 03: ช่องอะไหล่, รูปก่อน/หลัง และ smart memory API"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, MEInspection
+        cls.MEInspection = MEInspection
+        cls.tech = User.objects.create_user('me3_tech', password='pass-12345-x', is_staff=True)
+        cls.tech.user_permissions.add(Permission.objects.get(codename='write_maintenance'))
+        cls.reader = User.objects.create_user('me3_reader', password='pass-12345-x')
+        cls.pump = Equipment.objects.create(equipment_id='P-201', name='ปั๊มป้อนหม้อน้ำ', process='หม้อน้ำ 20 Bar')
+        cls.other = Equipment.objects.create(equipment_id='P/202', name='ปั๊มรหัสมีทับ', process='หม้อน้ำ 20 Bar')
+        cls.older = MEInspection.objects.create(
+            equipment=cls.pump, record_date='2026-09-01', repair_group='G1', bearing_de_no='6205')
+        cls.latest = MEInspection.objects.create(
+            equipment=cls.pump, record_date='2026-10-15', repair_group='G3',
+            bearing_de_no='6306-2RS', bearing_de_action='replace', oil_seal_nde_action='replace',
+            seal_device_type='mech_seal', seal_device_action='replace',
+            sleeve_od_mm=Decimal('45.000'), shaft_de_nominal=Decimal('30.000'), impeller_action='keep')
+        MEInspection.objects.create(equipment=cls.other, record_date='2026-12-01', bearing_de_no='9999')
+
+    def setUp(self):
+        import shutil, tempfile
+        from django.test import override_settings
+        self._media = tempfile.mkdtemp()
+        self._override = override_settings(MEDIA_ROOT=self._media)
+        self._override.enable()
+        self.addCleanup(self._override.disable)
+        self.addCleanup(shutil.rmtree, self._media, ignore_errors=True)
+
+    def _client(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
+
+    def _api(self, eq_id, **params):
+        return self._client(self.reader).get(reverse('me_inspection_last_api', args=[eq_id]), params)
+
+    def test_last_api_returns_latest_inspection_of_that_machine(self):
+        data = self._api('P-201').json()['data']
+        self.assertEqual(data['inspection_id'], self.latest.pk)
+        self.assertEqual(data['record_date'], '2026-10-15')
+        self.assertEqual(data['repair_group'], 'G3')
+        self.assertEqual(data['fields']['bearing_de_no'], '6306-2RS')
+        self.assertEqual(data['fields']['sleeve_od_mm'], '45.000')
+        self.assertEqual(data['fields']['shaft_de_nominal'], '30.000')
+        self.assertNotIn('bearing_de_action', data['fields'])  # ไม่ดึงผลการเปลี่ยน มาเฉพาะสเปค
+        self.assertNotIn('lube_grade', data['fields'])  # ช่องว่างไม่ส่ง
+        self.assertEqual(data['replaced'], ['ลูกปืน DE', 'ออยซีล', 'แมคซีล'])
+
+    def test_last_api_exclude_and_empty_and_slash_ids(self):
+        self.assertEqual(self._api('P-201', exclude=self.latest.pk).json()['data']['inspection_id'], self.older.pk)
+        self.assertIsNone(self._api('NO-SUCH').json()['data'])
+        self.assertEqual(self._api('P/202').json()['data']['fields']['bearing_de_no'], '9999')
+
+    def test_last_api_requires_login(self):
+        self.assertEqual(Client().get(reverse('me_inspection_last_api', args=['P-201'])).status_code, 302)
+
+    def _png_bytes(self):
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new('RGB', (20, 10), 'red').save(buf, format='PNG')
+        return buf.getvalue()
+
+    def _payload(self, **extra):
+        data = {'equipment': 'P-201', 'record_date': '2026-11-03', 'bearing_de_no': '6306',
+                'bearing_de_action': 'replace', 'impeller_action': 'keep', 'impeller_reason': '',
+                'sleeve_od_mm': '45.125', 'coupling_type': 'jaw', 'sight_glass_action': 'none'}
+        data.update(extra)
+        return data
+
+    def test_create_saves_parts_and_photos(self):
+        photo = SimpleUploadedFile('before.png', self._png_bytes(), content_type='image/png')
+        resp = self._client(self.tech).post(reverse('me_inspection_add'), self._payload(photo_before=photo))
+        created = self.MEInspection.objects.latest('id')
+        self.assertRedirects(resp, reverse('me_inspection_edit', args=[created.pk]))
+        self.assertEqual(created.bearing_de_action, 'replace')
+        self.assertEqual(created.sleeve_od_mm, Decimal('45.125'))
+        self.assertEqual(created.coupling_type, 'jaw')
+        self.assertEqual(created.sight_glass_action, 'none')
+        self.assertTrue(created.photo_before.name.startswith('me_inspection/photos/'))
+        self.assertFalse(created.photo_after)
+
+    def test_edit_without_new_photo_keeps_existing(self):
+        photo = SimpleUploadedFile('after.png', self._png_bytes(), content_type='image/png')
+        self._client(self.tech).post(reverse('me_inspection_edit', args=[self.latest.pk]), self._payload(photo_after=photo))
+        self.latest.refresh_from_db()
+        saved = self.latest.photo_after.name
+        self.assertTrue(saved)
+        self._client(self.tech).post(reverse('me_inspection_edit', args=[self.latest.pk]), self._payload(remark='แก้ข้อความ'))
+        self.latest.refresh_from_db()
+        self.assertEqual(self.latest.photo_after.name, saved)
+
+    def test_non_image_or_oversized_photo_is_form_error(self):
+        c = self._client(self.tech)
+        before = self.MEInspection.objects.count()
+        fake = SimpleUploadedFile('x.jpg', b'not an image', content_type='image/jpeg')
+        resp = c.post(reverse('me_inspection_add'), self._payload(photo_before=fake))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context['form'].errors['photo_before'])
+        with mock.patch('myapp.forms.ME_PHOTO_MAX_BYTES', 10):
+            big = SimpleUploadedFile('big.png', self._png_bytes(), content_type='image/png')
+            resp = c.post(reverse('me_inspection_add'), self._payload(photo_after=big))
+        self.assertIn('ไฟล์รูปใหญ่เกิน 5 MB', resp.context['form'].errors['photo_after'])
+        self.assertEqual(self.MEInspection.objects.count(), before)
+
+    def test_invalid_part_choice_is_form_error(self):
+        resp = self._client(self.tech).post(reverse('me_inspection_add'), self._payload(bearing_de_action='เปลี่ยน'))
+        self.assertTrue(resp.context['form'].errors['bearing_de_action'])
+
+    def test_new_form_defaults_parts_to_keep(self):
+        form = self._client(self.tech).get(reverse('me_inspection_add')).context['form']
+        self.assertEqual(form.initial['bearing_de_action'], 'keep')
+        self.assertEqual(form.initial['shaft_action'], 'keep')
+        self.assertNotIn('seal_device_type', form.initial)
+
+
+class MEInspectionMeasurementTests(TestCase):
+    """ME Inspection ticket 04: ค่าวัด Tab 2–5 — server คำนวณผลเองและไม่เชื่อค่าที่ client ส่งมา"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, MEInspection
+        cls.MEInspection = MEInspection
+        cls.cbm = User.objects.create_user('me4_cbm', password='pass-12345-x', is_staff=True)
+        cls.cbm.user_permissions.add(Permission.objects.get(codename='write_cbm'))
+        cls.pump = Equipment.objects.create(equipment_id='P-301', name='ปั๊มน้ำเย็น')
+
+    def _post(self, **fields):
+        data = {'equipment': 'P-301', 'record_date': '2026-11-03', **fields}
+        c = Client()
+        c.force_login(self.cbm)
+        resp = c.post(reverse('me_inspection_add'), data)
+        self.assertEqual(resp.status_code, 302, getattr(resp, 'context', None) and resp.context['form'].errors)
+        return self.MEInspection.objects.latest('id')
+
+    def test_iso_fit_results_are_computed_and_spoofed_values_ignored(self):
+        obj = self._post(
+            # 50 K7 → 49.982 – 50.007: ผ่าน
+            housing_de_nominal='50', housing_de_m1='49.990', housing_de_m2='50.000',
+            # 30 k7 → 30.002 – 30.023: 30.030 ไม่ผ่าน
+            shaft_de_nominal='30', shaft_de_m1='30.010', shaft_de_m2='30.030',
+            housing_de_result='fail', shaft_de_result='pass')  # ค่าปลอมจาก client
+        self.assertEqual(obj.housing_de_result, 'pass')
+        self.assertEqual(obj.shaft_de_result, 'fail')
+        self.assertIsNone(obj.housing_nde_result)  # ไม่กรอก = ไม่ประเมิน
+
+    def test_shaft_key_result_is_overridden_only_when_both_readings_present(self):
+        auto = self._post(shaft_key_nominal='40', shaft_key_m1='39.990', shaft_key_m2='40.000', shaft_key_result='fail')
+        self.assertEqual(auto.shaft_key_result, 'pass')  # 40 h7 → 39.975 – 40.000
+        manual = self._post(shaft_key_nominal='40', shaft_key_m1='39.990', shaft_key_result='fail')
+        self.assertEqual(manual.shaft_key_result, 'fail')  # วัดไม่ครบ ใช้ผลที่ผู้ตรวจเลือก
+
+    def test_runout_result_is_worst_point(self):
+        ok = self._post(runout_0_p1='0.02', runout_90_p4='-0.05', runout_result='fail')
+        self.assertEqual(ok.runout_result, 'pass')
+        bad = self._post(runout_0_p1='0.02', runout_270_p3='0.051')
+        self.assertEqual(bad.runout_result, 'fail')
+        self.assertIsNone(self._post().runout_result)
+
+    def test_alignment_results_per_reading(self):
+        obj = self._post(align_before_v_offset='0.12', align_after_v_offset='-0.06', align_after_h_angle='0.061',
+                         align_after_v_offset_result='fail')
+        self.assertEqual(obj.align_before_v_offset_result, 'fail')
+        self.assertEqual(obj.align_after_v_offset_result, 'pass')
+        self.assertEqual(obj.align_after_h_angle_result, 'fail')
+        self.assertIsNone(obj.align_before_h_angle_result)
+
+    def test_vibration_result_depends_on_motor_kw_and_includes_temperature(self):
+        small = self._post(motor_kw='11', vib_onload_pump_de_h='2.5')
+        self.assertEqual(small.vib_result, 'warn')  # ≤15 kW: 1.8 / 2.8
+        large = self._post(motor_kw='22', vib_onload_pump_de_h='2.5')
+        self.assertEqual(large.vib_result, 'pass')  # >15 kW: 2.8 / 4.5
+        hot = self._post(motor_kw='22', vib_onload_pump_de_h='2.5', vib_onload_pump_nde_temp='86', vib_result='pass')
+        self.assertEqual(hot.vib_result, 'fail')
+
+    def test_manual_results_and_section_metadata_are_saved(self):
+        obj = self._post(bore_result='fail', bore_reason='รูหลวม', pressure_2_result='pass',
+                         vib_inspector='สมชาย', vib_date='2026-11-02', vib_onload_current='35.5',
+                         key_h='8', bore_type='pulley')
+        self.assertEqual(obj.bore_result, 'fail')
+        self.assertEqual(obj.pressure_2_result, 'pass')
+        self.assertEqual(obj.vib_inspector, 'สมชาย')
+        self.assertEqual(str(obj.vib_date), '2026-11-02')
+        self.assertEqual(obj.vib_onload_current, Decimal('35.50'))
+        self.assertEqual(obj.key_h, Decimal('8.000'))
+        self.assertEqual(obj.bore_type, 'pulley')
+
+    def test_edit_recomputes_results(self):
+        obj = self._post(align_after_h_offset='0.10')
+        self.assertEqual(obj.align_after_h_offset_result, 'fail')
+        c = Client()
+        c.force_login(self.cbm)
+        c.post(reverse('me_inspection_edit', args=[obj.pk]),
+               {'equipment': 'P-301', 'record_date': '2026-11-03', 'align_after_h_offset': '0.03'})
+        obj.refresh_from_db()
+        self.assertEqual(obj.align_after_h_offset_result, 'pass')
+
+    def test_form_page_renders_all_measurement_tabs(self):
+        c = Client()
+        c.force_login(self.cbm)
+        html = c.get(reverse('me_inspection_add')).content.decode()
+        for marker in ('id="me-tab-2"', 'id="me-tab-5"', 'name="runout_270_p4"', 'name="vib_onload_pump_nde_temp"',
+                       'data-me-tol="align"', 'id="me-fit-hint-shaft_key"', '"K7": [-12, 6]'):
+            self.assertIn(marker, html)
+        self.assertNotIn('name="housing_de_result"', html)  # ช่องผลที่ระบบคำนวณไม่ให้กรอก
+
+    def test_edit_succeeds_when_existing_photo_file_is_missing_on_disk(self):
+        # ไฟล์รูปเดิมหายจากดิสก์ (เช่น ย้ายเซิร์ฟเวอร์) ต้องยังแก้ใบงานได้ ไม่ใช่ error 500
+        obj = self._post()
+        self.MEInspection.objects.filter(pk=obj.pk).update(photo_before='me_inspection/photos/missing.jpg')
+        c = Client()
+        c.force_login(self.cbm)
+        resp = c.post(reverse('me_inspection_edit', args=[obj.pk]),
+                      {'equipment': 'P-301', 'record_date': '2026-11-03', 'remark': 'แก้ไข'})
+        self.assertEqual(resp.status_code, 302)
+        obj.refresh_from_db()
+        self.assertEqual(obj.photo_before.name, 'me_inspection/photos/missing.jpg')
+
+
+class MEInspectionWorkflowTests(TestCase):
+    """ME Inspection ticket 06: ลายเซ็น, ขั้นตอนอนุมัติ (สิทธิ์ตามสถานะ), การล็อก, เปิดกลับ และการลบ"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, MEInspection
+        cls.MEInspection = MEInspection
+        cls.su = User.objects.create_superuser('me6_head', 'h@example.com', 'pass-12345-x')
+        cls.tech = User.objects.create_user('me6_tech', password='pass-12345-x', is_staff=True)
+        cls.tech.user_permissions.add(Permission.objects.get(codename='write_maintenance'))
+        cls.cbm = User.objects.create_user('me6_cbm', password='pass-12345-x', is_staff=True)
+        cls.cbm.user_permissions.add(Permission.objects.get(codename='write_cbm'))
+        cls.reader = User.objects.create_user('me6_reader', password='pass-12345-x')
+        cls.pump = Equipment.objects.create(equipment_id='P-601', name='ปั๊มน้ำมันเตา')
+
+    def setUp(self):
+        import shutil, tempfile
+        from django.test import override_settings
+        media = tempfile.mkdtemp()
+        override = override_settings(MEDIA_ROOT=media)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+
+    def _signature(self, size=(40, 20)):
+        import base64, io
+        from PIL import Image
+        buf = io.BytesIO()
+        Image.new('RGB', size, 'white').save(buf, format='PNG')
+        return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode()
+
+    def _make(self, status='repairing', **sigs):
+        obj = self.MEInspection.objects.create(equipment=self.pump, status=status, **sigs)
+        return obj
+
+    def _post(self, user, obj, action='save', **extra):
+        c = Client()
+        c.force_login(user)
+        data = {'equipment': 'P-601', 'record_date': '2026-11-03', 'action': action, **extra}
+        return c.post(reverse('me_inspection_edit', args=[obj.pk]), data)
+
+    def _status_after(self, user, status, action, sigs=None, **extra):
+        obj = self._make(status, **(sigs or {}))
+        resp = self._post(user, obj, action, **extra)
+        obj.refresh_from_db()
+        return resp.status_code, obj.status
+
+    def test_allowed_transitions(self):
+        sig = {'tech_signature': 'me_inspection/signatures/t.png', 'cbm_signature': 'me_inspection/signatures/c.png',
+               'head_signature': 'me_inspection/signatures/h.png'}
+        cases = [
+            (self.tech, 'repairing', 'forward', 'wait_cbm'),
+            (self.cbm, 'wait_cbm', 'forward', 'wait_approval'),
+            (self.cbm, 'wait_cbm', 'back', 'repairing'),
+            (self.su, 'wait_approval', 'forward', 'approved'),
+            (self.su, 'wait_approval', 'back', 'wait_cbm'),
+            (self.su, 'approved', 'reopen', 'wait_approval'),
+            (self.su, 'repairing', 'forward', 'wait_cbm'),
+        ]
+        for user, start, action, expected in cases:
+            with self.subTest(user=user.username, start=start, action=action):
+                code, status = self._status_after(user, start, action, sig)
+                self.assertEqual(code, 302)
+                self.assertEqual(status, expected)
+
+    def test_disallowed_transitions_do_not_change_status(self):
+        sig = {'tech_signature': 'me_inspection/signatures/t.png', 'cbm_signature': 'me_inspection/signatures/c.png'}
+        cases = [
+            # (ผู้ใช้, สถานะเริ่ม, ปุ่ม, status code ที่คาด)
+            (self.cbm, 'repairing', 'forward', 200),      # แก้ได้ แต่ส่งต่อได้เฉพาะ write_maintenance
+            (self.tech, 'repairing', 'back', 200),        # ไม่มี transition นี้
+            (self.tech, 'repairing', 'approve', 200),     # ปุ่มที่ไม่มีอยู่จริง
+            (self.tech, 'wait_cbm', 'forward', 403),      # ช่างแก้ใบที่รอ CBM ไม่ได้
+            (self.cbm, 'wait_approval', 'forward', 403),  # อนุมัติได้เฉพาะ superuser
+            (self.reader, 'repairing', 'forward', 403),
+        ]
+        for user, start, action, expected_code in cases:
+            with self.subTest(user=user.username, start=start, action=action):
+                code, status = self._status_after(user, start, action, sig)
+                self.assertEqual(code, expected_code)
+                self.assertEqual(status, start)
+
+    def test_forward_requires_signature_of_that_stage(self):
+        for user, start in ((self.tech, 'repairing'), (self.cbm, 'wait_cbm'), (self.su, 'wait_approval')):
+            with self.subTest(start=start):
+                obj = self._make(start)
+                resp = self._post(user, obj, 'forward')
+                self.assertEqual(resp.status_code, 200)
+                self.assertTrue(resp.context['form'].non_field_errors())
+                obj.refresh_from_db()
+                self.assertEqual(obj.status, start)
+                self.assertFalse(obj.tech_signature)
+
+    def test_sign_and_forward_in_one_submit(self):
+        obj = self._make()
+        resp = self._post(self.tech, obj, 'forward', tech_name='สมชาย', tech_signature_data=self._signature())
+        self.assertEqual(resp.status_code, 302)
+        obj.refresh_from_db()
+        self.assertEqual(obj.status, 'wait_cbm')
+        self.assertEqual(obj.tech_name, 'สมชาย')
+        self.assertTrue(obj.tech_signature.name.startswith('me_inspection/signatures/'))
+
+    def test_signature_blank_keeps_clear_removes_and_wrong_stage_ignored(self):
+        obj = self._make()
+        self._post(self.tech, obj, tech_signature_data=self._signature())
+        obj.refresh_from_db()
+        saved = obj.tech_signature.name
+        self._post(self.tech, obj, tech_signature_data='')
+        obj.refresh_from_db()
+        self.assertEqual(obj.tech_signature.name, saved)
+        # ช่างเซ็นแทนหัวหน้าไม่ได้ (ไม่ใช่ขั้นของตัวเอง) — ระบบไม่นำไปใช้
+        self._post(self.tech, obj, head_signature_data=self._signature())
+        obj.refresh_from_db()
+        self.assertFalse(obj.head_signature)
+        self._post(self.tech, obj, tech_signature_clear='True')
+        obj.refresh_from_db()
+        self.assertFalse(obj.tech_signature)
+
+    def test_cbm_cannot_sign_as_technician(self):
+        # write_cbm แก้ใบสถานะ "กำลังซ่อม" ได้ แต่ลายเซ็นช่องช่างต้องเป็นผู้มี write_maintenance
+        obj = self._make()
+        resp = self._post(self.cbm, obj, tech_signature_data=self._signature())
+        self.assertEqual(resp.status_code, 302)
+        obj.refresh_from_db()
+        self.assertFalse(obj.tech_signature)
+        c = Client()
+        c.force_login(self.cbm)
+        cards = c.get(reverse('me_inspection_edit', args=[obj.pk])).context['signature_cards']
+        self.assertFalse(any(signable for *_, signable in cards))
+
+    def test_invalid_signature_is_form_error(self):
+        import base64
+        bad_cases = [
+            'data:image/jpeg;base64,AAAA',
+            'data:image/png;base64,@@not-base64@@',
+            'data:image/png;base64,' + base64.b64encode(b'not a png').decode(),
+        ]
+        obj = self._make()
+        for data in bad_cases:
+            with self.subTest(data=data[:30]):
+                resp = self._post(self.tech, obj, tech_signature_data=data)
+                self.assertEqual(resp.status_code, 200)
+                self.assertTrue(resp.context['form'].errors['tech_signature_data'])
+        with mock.patch('myapp.forms.ME_SIGNATURE_MAX_BYTES', 10):
+            resp = self._post(self.tech, obj, tech_signature_data=self._signature())
+        self.assertIn('ไฟล์ลายเซ็นใหญ่เกิน 500 KB', resp.context['form'].errors['tech_signature_data'])
+
+    def test_approve_sets_approved_at_and_reopen_clears_it(self):
+        obj = self._make('wait_approval')
+        self._post(self.su, obj, 'forward', head_signature_data=self._signature())
+        obj.refresh_from_db()
+        self.assertEqual(obj.status, 'approved')
+        self.assertIsNotNone(obj.approved_at)
+        self._post(self.su, obj, 'reopen')
+        obj.refresh_from_db()
+        self.assertEqual(obj.status, 'wait_approval')
+        self.assertIsNone(obj.approved_at)
+
+    def test_approved_is_locked_for_non_superusers(self):
+        obj = self._make('approved')
+        for user in (self.tech, self.cbm):
+            with self.subTest(user=user.username):
+                self.assertEqual(self._post(user, obj, remark='แอบแก้').status_code, 403)
+                c = Client()
+                c.force_login(user)
+                ctx = c.get(reverse('me_inspection_edit', args=[obj.pk])).context
+                self.assertFalse(ctx['can_edit'])
+                self.assertEqual(ctx['workflow_actions'], [])
+        obj.refresh_from_db()
+        self.assertIsNone(obj.remark)
+        self.assertEqual(self._post(self.su, obj, remark='แก้โดยหัวหน้า').status_code, 302)
+
+    def test_buttons_follow_permissions(self):
+        obj = self._make('wait_cbm')
+        c = Client()
+        c.force_login(self.cbm)
+        actions = [a for a, _, _ in c.get(reverse('me_inspection_edit', args=[obj.pk])).context['workflow_actions']]
+        self.assertEqual(sorted(actions), ['back', 'forward'])
+        c.force_login(self.tech)
+        self.assertEqual(c.get(reverse('me_inspection_edit', args=[obj.pk])).context['workflow_actions'], [])
+
+    def test_create_and_forward_from_add_page(self):
+        c = Client()
+        c.force_login(self.tech)
+        resp = c.post(reverse('me_inspection_add'), {'equipment': 'P-601', 'record_date': '2026-11-03',
+                                                     'action': 'forward', 'tech_signature_data': self._signature()})
+        created = self.MEInspection.objects.latest('id')
+        self.assertRedirects(resp, reverse('me_inspection_edit', args=[created.pk]))
+        self.assertEqual(created.status, 'wait_cbm')
+        self.assertEqual(created.created_by, 'me6_tech')
+
+    def test_delete_is_superuser_only_and_post_only(self):
+        obj = self._make()
+        url = reverse('me_inspection_delete', args=[obj.pk])
+        for user in (self.tech, self.cbm):
+            c = Client()
+            c.force_login(user)
+            self.assertEqual(c.post(url).status_code, 403)
+        c = Client()
+        c.force_login(self.su)
+        self.assertEqual(c.get(url).status_code, 405)
+        self.assertRedirects(c.post(url), reverse('me_inspection_list'))
+        self.assertFalse(self.MEInspection.objects.filter(pk=obj.pk).exists())
+
+
+class MEInspectionReadinessTests(TestCase):
+    """ME Inspection ticket 05: ความพร้อมเครื่องจักร 10 ข้อ (radio)"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, MEInspection
+        cls.MEInspection = MEInspection
+        cls.tech = User.objects.create_user('me5_tech', password='pass-12345-x', is_staff=True)
+        cls.tech.user_permissions.add(Permission.objects.get(codename='write_maintenance'))
+        cls.pump = Equipment.objects.create(equipment_id='P-501', name='ปั๊มน้ำทิ้ง')
+
+    def _client(self):
+        c = Client()
+        c.force_login(self.tech)
+        return c
+
+    def _post(self, **fields):
+        return self._client().post(reverse('me_inspection_add'),
+                                   {'equipment': 'P-501', 'record_date': '2026-11-03', **fields})
+
+    def test_valid_readiness_values_are_saved(self):
+        values = {
+            'ready_adjust_bolt_pump': 'wrong', 'ready_adjust_bolt_motor': 'none', 'ready_base': 'damaged',
+            'ready_bolt_mark': 'no', 'ready_rotation_mark': 'yes', 'ready_coupling_guard': 'not_installed',
+            'ready_air_breather': 'pink', 'ready_oil_seal': 'leak', 'ready_oil_level_gauge': 'grease',
+            'ready_oil_level': 'abnormal',
+        }
+        self.assertEqual(self._post(**values).status_code, 302)
+        obj = self.MEInspection.objects.latest('id')
+        for name, value in values.items():
+            self.assertEqual(getattr(obj, name), value, name)
+
+    def test_unanswered_items_stay_empty(self):
+        self.assertEqual(self._post(ready_base='ok').status_code, 302)
+        obj = self.MEInspection.objects.latest('id')
+        self.assertEqual(obj.ready_base, 'ok')
+        self.assertIsNone(obj.ready_oil_seal)
+
+    def test_value_outside_choices_is_form_error(self):
+        before = self.MEInspection.objects.count()
+        for name, value in (('ready_air_breather', 'green'), ('ready_oil_seal', 'ไม่รั่ว')):
+            with self.subTest(field=name):
+                resp = self._post(**{name: value})
+                self.assertEqual(resp.status_code, 200)
+                self.assertTrue(resp.context['form'].errors[name])
+        self.assertEqual(self.MEInspection.objects.count(), before)
+
+    def test_page_renders_ten_radio_groups_with_normal_values(self):
+        resp = self._client().get(reverse('me_inspection_add'))
+        cards = resp.context['readiness_cards']
+        self.assertEqual(len(cards), 10)
+        self.assertEqual([normal for _, _, _, normal in cards],
+                         ['ok', 'ok', 'ok', 'yes', 'yes', 'yes', 'blue', 'no_leak', 'yes', 'ok'])
+        html = resp.content.decode()
+        self.assertIn('type="radio" name="ready_coupling_guard" value="not_installed"', html)
+        self.assertNotIn('name="ready_base" value=""', html)  # ไม่มีตัวเลือกว่าง "---------"
+        self.assertIn('id="meReadyAllNormal"', html)
+
+
+class MEInspectionHistoryPrintTests(TestCase):
+    """ME Inspection ticket 07: ตัวกรองหน้าประวัติ และหน้าพิมพ์ A4"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, MEInspection
+        cls.reader = User.objects.create_user('me7_reader', password='pass-12345-x')
+        pump = Equipment.objects.create(equipment_id='P-701', name='ปั๊มน้ำอ้อย')
+        gear = Equipment.objects.create(equipment_id='G-702', name='เกียร์ลูกหีบ')
+        cls.a = MEInspection.objects.create(equipment=pump, record_date='2026-10-01', department='ลูกหีบ',
+                                            repair_group='G1', status='repairing', tech_name='สมชาย')
+        cls.b = MEInspection.objects.create(equipment=gear, record_date='2026-10-15', department='หม้อต้ม',
+                                            repair_group='G2', status='wait_cbm', remark='เปลี่ยนซีล')
+        cls.c = MEInspection.objects.create(equipment=pump, record_date='2026-11-01', department='ลูกหีบ',
+                                            repair_group='G2', status='approved',
+                                            bearing_de_no='6306', bearing_de_action='replace',
+                                            shaft_de_nominal=Decimal('30.000'), shaft_de_m1=Decimal('30.010'),
+                                            shaft_de_result='pass', runout_0_p1=Decimal('0.020'),
+                                            vib_onload_pump_de_h=Decimal('2.50'), ready_oil_seal='leak')
+
+    def _ids(self, **params):
+        c = Client()
+        c.force_login(self.reader)
+        resp = c.get(reverse('me_inspection_list'), params)
+        self.assertEqual(resp.status_code, 200)
+        return {obj.pk for obj in resp.context['page_obj']}, resp
+
+    def test_each_filter(self):
+        a, b, c = self.a.pk, self.b.pk, self.c.pk
+        self.assertEqual(self._ids()[0], {a, b, c})
+        self.assertEqual(self._ids(q='เกียร์')[0], {b})
+        self.assertEqual(self._ids(q='P-701')[0], {a, c})
+        self.assertEqual(self._ids(q='สมชาย')[0], {a})
+        self.assertEqual(self._ids(q='ซีล')[0], {b})
+        self.assertEqual(self._ids(process='ลูกหีบ')[0], {a, c})
+        self.assertEqual(self._ids(group='G2')[0], {b, c})
+        self.assertEqual(self._ids(status='approved')[0], {c})
+        self.assertEqual(self._ids(date_from='2026-10-15')[0], {b, c})
+        self.assertEqual(self._ids(date_to='2026-10-15')[0], {a, b})
+
+    def test_filters_combine_and_keep_querystring(self):
+        ids, resp = self._ids(process='ลูกหีบ', group='G2', date_from='2026-10-01', date_to='2026-11-30')
+        self.assertEqual(ids, {self.c.pk})
+        self.assertIn('process=', resp.context['querystring'])
+        self.assertEqual(resp.context['process_choices'], ['ลูกหีบ', 'หม้อต้ม'])
+
+    def test_bad_dates_are_ignored_with_message(self):
+        for bad in ('2026-13-01', '2026-02-30', 'abc'):
+            with self.subTest(date=bad):
+                ids, resp = self._ids(date_from=bad)
+                self.assertEqual(ids, {self.a.pk, self.b.pk, self.c.pk})
+                self.assertIn('รูปแบบวันที่', ' '.join(str(m) for m in resp.context['messages']))
+
+    def test_print_page_shows_values_with_thai_labels(self):
+        c = Client()
+        c.force_login(self.reader)
+        resp = c.get(reverse('me_inspection_print', args=[self.c.pk]))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        for text in ('ME-%d' % self.c.pk, 'เสร็จสมบูรณ์ (อนุมัติแล้ว)', '6306', 'เปลี่ยน', 'ปั๊มน้ำอ้อย',
+                     'ขนาด 30 · 0°–180° 30.01', '0.02', '2.5', 'รั่ว', 'ผ่าน'):
+            self.assertIn(text, html)
+
+    def test_print_page_without_photos_or_signatures(self):
+        c = Client()
+        c.force_login(self.reader)
+        resp = c.get(reverse('me_inspection_print', args=[self.a.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn('รูปถ่ายหน้างาน', resp.content.decode())
+        self.assertEqual(Client().get(reverse('me_inspection_print', args=[self.a.pk])).status_code, 302)
+
+    def test_print_page_with_photo_and_signature(self):
+        import shutil, tempfile
+        from django.test import override_settings
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        with override_settings(MEDIA_ROOT=media):
+            self.b.photo_after = SimpleUploadedFile('a.png', b'x', content_type='image/png')
+            self.b.tech_signature = SimpleUploadedFile('t.png', b'x', content_type='image/png')
+            self.b.save()
+            c = Client()
+            c.force_login(self.reader)
+            html = c.get(reverse('me_inspection_print', args=[self.b.pk])).content.decode()
+        self.assertIn('รูปถ่ายหน้างาน', html)
+        self.assertIn(self.b.photo_after.url, html)
+        self.assertIn(self.b.tech_signature.url, html)
+
+
+
+class MEInspectionDashboardTests(TestCase):
+    """ME Inspection ticket 08: KPI, ข้อมูลกราฟ และกรองช่วงวันที่"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, MEInspection
+        cls.reader = User.objects.create_user('me8_reader', password='pass-12345-x')
+        cls.pump = Equipment.objects.create(equipment_id='P-801', name='ปั๊ม A')
+        cls.gear = Equipment.objects.create(equipment_id='G-802', name='เกียร์ B')
+        Equipment.objects.create(equipment_id='X-803', name='ยังไม่เคยตรวจ')
+        Equipment.objects.create(equipment_id='X-804', name='ปลดระวาง', is_active=False)
+        mk = MEInspection.objects.create
+        mk(equipment=cls.pump, record_date='2026-09-01', department='ลูกหีบ', repair_group='G1', status='approved',
+           bearing_de_action='replace', vib_onload_pump_de_h=Decimal('2.10'), vib_onload_motor_nde_a=Decimal('1.20'))
+        mk(equipment=cls.pump, record_date='2026-10-01', department='ลูกหีบ', repair_group='G1',
+           oil_seal_nde_action='replace', seal_device_action='replace', runout_result='fail',
+           vib_onload_pump_nde_v=Decimal('3.40'))
+        mk(equipment=cls.gear, record_date='2026-10-20', department='หม้อต้ม', repair_group='G3',
+           align_after_h_angle_result='fail', align_before_v_offset_result='fail', bearing_de_action='keep')
+        mk(equipment=cls.gear, record_date='2026-11-02', align_before_v_offset_result='fail')  # alignment "ก่อน" ไม่นับ alert
+
+    def _ctx(self, **params):
+        c = Client()
+        c.force_login(self.reader)
+        resp = c.get(reverse('me_inspection_dashboard'), params)
+        self.assertEqual(resp.status_code, 200)
+        return resp.context
+
+    def test_kpis(self):
+        k = self._ctx()['kpis']
+        self.assertEqual(k['total'], 4)
+        self.assertEqual((k['inspected_equipment'], k['active_equipment']), (2, 3))
+        self.assertEqual(k['coverage'], 66.7)
+        self.assertEqual(k['approved'], 1)
+        self.assertEqual(k['replaced'], 2)
+        self.assertEqual(k['cbm_alert'], 2)  # runout fail + alignment หลัง fail
+
+    def test_chart_rows(self):
+        charts = {chart_id: dict(rows) for chart_id, _, rows in self._ctx()['bar_charts']}
+        self.assertEqual(charts['meDeptChart'], {'ลูกหีบ': 2, 'หม้อต้ม': 1, 'ไม่ระบุ': 1})
+        self.assertEqual(charts['meGroupChart']['G1'], 2)
+        self.assertEqual(charts['meGroupChart']['G3'], 1)
+        self.assertEqual(charts['meGroupChart']['ไม่ระบุ'], 1)
+        self.assertEqual(charts['meSpareChart'],
+                         {'ลูกปืน DE/NDE': 1, 'ออยซีล DE/NDE': 1, 'แมคซีล/ปะเก็น': 1, 'ปลอกเพลา': 0, 'ใบพัดปั๊ม': 0, 'เพลา': 0})
+
+    def test_date_range_filters_everything(self):
+        ctx = self._ctx(date_from='2026-10-01', date_to='2026-10-31')
+        self.assertEqual(ctx['kpis']['total'], 2)
+        self.assertEqual(ctx['kpis']['approved'], 0)
+        self.assertEqual(dict(ctx['bar_charts'][0][2]), {'ลูกหีบ': 1, 'หม้อต้ม': 1})
+
+    def test_vibration_trend_uses_max_onload_value_per_inspection(self):
+        ctx = self._ctx(equipment='P-801')
+        rows = [(str(day), motor, pump) for day, motor, pump in ctx['trend_rows']]
+        self.assertEqual(rows, [('2026-09-01', Decimal('1.20'), Decimal('2.10')), ('2026-10-01', None, Decimal('3.40'))])
+        self.assertEqual(self._ctx(equipment='G-802')['trend_rows'], [])
+        self.assertIsNone(self._ctx(equipment='NOPE')['trend_equipment'])
+
+    def test_coverage_ignores_inactive_equipment_and_replaced_counts_any_part(self):
+        from .models import Equipment, MEInspection
+        retired = Equipment.objects.get(pk='X-804')
+        MEInspection.objects.create(equipment=retired, record_date='2026-10-05', lube_action='replace')
+        MEInspection.objects.create(equipment=self.gear, record_date='2026-10-06', cover_action='replace')
+        k = self._ctx()['kpis']
+        self.assertEqual((k['inspected_equipment'], k['active_equipment']), (2, 3))  # เครื่องปลดระวางไม่นับ
+        self.assertLessEqual(k['coverage'], 100)
+        self.assertEqual(k['replaced'], 4)  # + สารหล่อลื่น + ฝาชน (นอก 6 กลุ่มในกราฟ)
+
+    def test_empty_data_and_no_active_equipment(self):
+        from .models import Equipment, MEInspection
+        MEInspection.objects.all().delete()
+        Equipment.objects.update(is_active=False)
+        c = Client()
+        c.force_login(self.reader)
+        resp = c.get(reverse('me_inspection_dashboard'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context['kpis']['total'], 0)
+        self.assertIsNone(resp.context['kpis']['coverage'])
+        self.assertNotIn('chart.js@', resp.content.decode())  # ไม่มีข้อมูล = ไม่โหลดไลบรารีกราฟ
+        self.assertContains(resp, 'ยังไม่มีใบตรวจเช็คในช่วงที่เลือก')
+
+
+
+class MEEquipmentImportTests(TestCase):
+    """ME Inspection ticket 09: นำเข้ารายชื่อเครื่องจักรจาก Excel (ชีต PUMP/GEAR) เข้า Equipment"""
+
+    PUMP_HEADER = ['ลำดับ', 'รหัสทรัพย์สิน', 'แผนก', 'List', 'ยี่ห้อ', 'รุ่น', 'Flow [m3/hr.]', 'Head [m.]',
+                   'Motor [kW]', 'รอบมอเตอร์ [RPM]']
+    GEAR_HEADER = ['Code.', 'Location', 'List', 'ยี่ห้อ', 'รุ่น', 'Motor [kW]', 'I [ Ratio ]', 'สารหล่อลืน']
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment
+        cls.Equipment = Equipment
+        cls.admin = User.objects.create_user('me9_eq', password='pass-12345-x', is_staff=True)
+        cls.admin.user_permissions.add(Permission.objects.get(codename='write_equipment'))
+        cls.tech = User.objects.create_user('me9_tech', password='pass-12345-x', is_staff=True)
+        cls.tech.user_permissions.add(Permission.objects.get(codename='write_maintenance'))
+        Equipment.objects.create(equipment_id='P-002', name='ปั๊มเดิม', manufacturer='KSB', model='',
+                                 power_kw=Decimal('15.00'), is_active=False)
+
+    def _xlsx(self, pump_rows=(), gear_rows=(), sheets=('PUMP', 'GEAR')):
+        import io
+        from openpyxl import Workbook
+        wb = Workbook()
+        wb.remove(wb.active)
+        for name, header, rows in (('PUMP', self.PUMP_HEADER, pump_rows), ('GEAR', self.GEAR_HEADER, gear_rows)):
+            if name in sheets:
+                ws = wb.create_sheet(name)
+                ws.append(header)
+                for r in rows:
+                    ws.append(list(r))
+        if not wb.sheetnames:
+            wb.create_sheet('Sheet1')  # ไฟล์ Excel ต้องมีอย่างน้อย 1 ชีต
+        buf = io.BytesIO()
+        wb.save(buf)
+        return SimpleUploadedFile('รายการเครื่องจักรแผนก.xlsx', buf.getvalue(),
+                                  content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+    def _sample(self):
+        return self._xlsx(
+            pump_rows=[
+                (1, 'P-001', 'ลูกหีบ ราง A', 'ปั๊มน้ำอ้อย', 'Grundfos', 'NK80', 120, 35.5, 22.0, 2950),
+                (2, 'P-002', 'หม้อต้ม', 'ปั๊มเดิม (ชื่อใหม่)', 'Ebara', 'X1', '-', 'nan', 18.5, ''),
+                (3, '', 'หม้อต้ม', 'ไม่มีรหัส', '', '', '', '', '', ''),
+                (4, 'P-001', 'ลูกหีบ', 'แถวซ้ำ', '', '', '', '', '', ''),
+                (5, None, None, None, None, None, None, None, None, None),  # แถวว่างทั้งแถว ไม่นับ
+            ],
+            gear_rows=[('G-010', 'ลูกหีบ ราง B', 'เกียร์ลูกหีบ 1', 'Flender', 'H3', 'สามสิบ', '1:40', 'น้ำมันเบอร์ 320')],
+        )
+
+    def _client(self, user=None):
+        c = Client()
+        c.force_login(user or self.admin)
+        return c
+
+    def test_upload_shows_preview_without_saving(self):
+        c = self._client()
+        resp = c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': self._sample()})
+        self.assertRedirects(resp, reverse('me_equipment_import'))
+        self.assertFalse(self.Equipment.objects.filter(pk__in=['P-001', 'G-010']).exists())
+        preview = c.get(reverse('me_equipment_import')).context['preview']
+        self.assertEqual(preview['new_count'], 2)
+        self.assertEqual(preview['update_count'], 1)
+        self.assertEqual(preview['overwrite_count'], 1)
+        self.assertEqual([reason for _, _, reason in preview['skipped']],
+                         ['ไม่มีรหัสทรัพย์สินหรือชื่อเครื่อง', 'รหัสซ้ำในไฟล์ (ใช้แถวแรก)'])
+        new = {r['equipment_id']: r for r in preview['new_rows']}
+        self.assertEqual(new['P-001']['process'], 'ลูกหีบ')
+        self.assertEqual(new['P-001']['location'], 'ลูกหีบ ราง A')
+        self.assertEqual(new['P-001']['head_size'], '35.5')
+        self.assertEqual(new['P-001']['power_kw'], '22.00')
+        self.assertEqual(new['G-010']['power_kw'], '')  # 'สามสิบ' ไม่ใช่ตัวเลข
+
+    def test_confirm_fills_blanks_only_by_default(self):
+        c = self._client()
+        c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': self._sample()})
+        resp = c.post(reverse('me_equipment_import'), {'action': 'confirm'})
+        self.assertRedirects(resp, reverse('me_equipment_import'))
+        p1 = self.Equipment.objects.get(pk='P-001')
+        self.assertEqual((p1.name, p1.process, p1.manufacturer, p1.capacity, p1.power_kw, p1.rpm, p1.updated_by),
+                         ('ปั๊มน้ำอ้อย', 'ลูกหีบ', 'Grundfos', '120', Decimal('22.00'), '2950', 'me9_eq'))
+        self.assertTrue(p1.is_active)
+        self.assertEqual(self.Equipment.objects.get(pk='G-010').process, 'ลูกหีบ')
+        p2 = self.Equipment.objects.get(pk='P-002')
+        self.assertEqual(p2.name, 'ปั๊มเดิม')            # มีค่าอยู่แล้ว ไม่ทับ
+        self.assertEqual(p2.manufacturer, 'KSB')
+        self.assertEqual(p2.power_kw, Decimal('15.00'))
+        self.assertEqual(p2.model, 'X1')                 # ช่องว่าง เติมให้
+        self.assertEqual(p2.process, 'หม้อต้ม')
+        self.assertFalse(p2.is_active)                   # ไม่แตะสถานะใช้งาน
+        self.assertNotIn('me_equipment_import', c.session)
+
+    def test_confirm_with_overwrite(self):
+        c = self._client()
+        c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': self._sample()})
+        c.post(reverse('me_equipment_import'), {'action': 'confirm', 'overwrite': '1'})
+        p2 = self.Equipment.objects.get(pk='P-002')
+        self.assertEqual((p2.name, p2.manufacturer, p2.power_kw), ('ปั๊มเดิม (ชื่อใหม่)', 'Ebara', Decimal('18.50')))
+
+    def test_cancel_clears_preview(self):
+        c = self._client()
+        c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': self._sample()})
+        c.post(reverse('me_equipment_import'), {'action': 'cancel'})
+        self.assertIsNone(c.get(reverse('me_equipment_import')).context['preview'])
+        c.post(reverse('me_equipment_import'), {'action': 'confirm'})  # ไม่มี preview แล้ว ไม่นำเข้า
+        self.assertFalse(self.Equipment.objects.filter(pk='P-001').exists())
+
+    def test_requires_write_equipment(self):
+        for user in (self.tech,):
+            c = self._client(user)
+            self.assertEqual(c.get(reverse('me_equipment_import')).status_code, 403)
+            self.assertEqual(c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': self._sample()}).status_code, 403)
+
+    def test_bad_files_are_errors_not_500(self):
+        c = self._client()
+        cases = [
+            SimpleUploadedFile('list.csv', b'a,b', content_type='text/csv'),
+            SimpleUploadedFile('fake.xlsx', b'not a zip', content_type='application/octet-stream'),
+            self._xlsx(sheets=()),
+        ]
+        for upload in cases:
+            with self.subTest(name=upload.name):
+                resp = c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': upload}, follow=True)
+                self.assertEqual(resp.status_code, 200)
+                self.assertIsNone(resp.context['preview'])
+                self.assertTrue(any(m.level_tag == 'error' for m in resp.context['messages']))

@@ -1,0 +1,13 @@
+{# ช่องกรอกหนึ่งช่องของฟอร์ม ME: ป้าย + ช่อง (select มี chevron) + error #}
+<div>
+    <label for="{{ field.id_for_label }}" class="block text-[11px] font-semibold text-slate-500 mb-1">{{ label|default:field.label }}</label>
+    {% if field.field.widget.input_type == 'select' %}
+    <div class="relative">
+        {{ field }}
+        <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+    </div>
+    {% else %}
+    {{ field }}
+    {% endif %}
+    {% for e in field.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+</div>
