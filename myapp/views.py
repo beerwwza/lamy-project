@@ -61,6 +61,7 @@ from .forms import VehicleForm, VehicleBookingForm
 from .forms import LatheJobForm
 from .forms import MEInspectionForm, ME_SIGNATURE_ROLES
 from .forms import ElectricityMeterForm, ElectricityReadingForm
+from .forms import MaterialMasterForm
 
 
 def module_required(module_key):
@@ -8018,3 +8019,84 @@ def api_material_search(request):
          'uom': m.uom, 'material_type': m.material_type}
         for m in qs
     ]})
+
+
+def _normalize_material_desc(text):
+    """ตัวพิมพ์ใหญ่ ตัดจุด และยุบช่องว่าง เพื่อเทียบชื่อ"""
+    return ' '.join((text or '').upper().replace('.', '').split())
+
+
+def _find_similar_materials(desc, exclude_pk=None, limit=10):
+    """หา Material ที่ชื่อย่อคล้ายกับ desc — icontains คำสำคัญ 2-3 คำ (ผู้สมัครไม่เกิน 200) แล้วเรียงด้วย SequenceMatcher"""
+    from difflib import SequenceMatcher
+    norm = _normalize_material_desc(desc)
+    words = [w for w in norm.split() if len(w) >= 2][:3]
+    if not words:
+        return []
+    qs = MaterialMaster.objects.all()
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    for w in words:
+        qs = qs.filter(short_desc__icontains=w)
+    scored = []
+    for m in qs[:200]:
+        ratio = SequenceMatcher(None, norm, _normalize_material_desc(m.short_desc)).ratio()
+        if ratio >= 0.6:
+            scored.append((ratio, m))
+    scored.sort(key=lambda x: (-x[0], x[1].material_id))
+    return [m for _, m in scored[:limit]]
+
+
+@login_required
+def api_material_similar(request):
+    """ตัวช่วยตรวจชื่อคล้ายในฟอร์มเพิ่ม/แก้ Material"""
+    desc = request.GET.get('desc', '').strip()
+    exclude = request.GET.get('exclude')
+    exclude_pk = int(exclude) if exclude and exclude.isdigit() else None
+    return JsonResponse({'data': [
+        {'id': m.id, 'material_id': m.material_id, 'short_desc': m.short_desc, 'status': m.status}
+        for m in _find_similar_materials(desc, exclude_pk)
+    ]})
+
+
+def _material_form_view(request, material=None):
+    """ใช้ร่วมกันระหว่าง material_add / material_edit
+       ชื่อคล้ายรหัสเดิม -> แสดงคำเตือนและไม่บันทึก จนกว่าผู้ใช้ติ๊กยืนยัน (ไม่บล็อกถาวร)"""
+    is_edit = material is not None
+    similar = []
+    if request.method == 'POST':
+        form = MaterialMasterForm(request.POST, instance=material)
+        if form.is_valid():
+            desc = form.cleaned_data['short_desc']
+            desc_changed = not is_edit or _normalize_material_desc(desc) != _normalize_material_desc(material.short_desc)
+            confirmed = request.POST.get('confirm_similar') == '1'
+            if desc_changed:
+                similar = _find_similar_materials(desc, material.pk if is_edit else None)
+            if similar and not confirmed:
+                messages.warning(request, 'พบชื่อคล้ายรหัสที่มีอยู่แล้ว กรุณาตรวจสอบ แล้วติ๊กยืนยันก่อนบันทึก')
+            else:
+                obj = form.save(commit=False)
+                if not is_edit:
+                    obj.source = 'lamy_form'
+                    obj.created_by = request.user
+                obj.updated_by = request.user
+                obj.save()
+                messages.success(request, f'{"แก้ไข" if is_edit else "เพิ่ม"} Material {obj.material_id} เรียบร้อยแล้ว')
+                return redirect('material_detail', pk=obj.pk)
+    else:
+        form = MaterialMasterForm(instance=material)
+    return render(request, 'myapp/material_form.html', {
+        'form': form, 'material': material, 'is_edit': is_edit, 'similar': similar,
+    })
+
+
+@login_required
+@module_required('materials')
+def material_add(request):
+    return _material_form_view(request)
+
+
+@login_required
+@module_required('materials')
+def material_edit(request, pk):
+    return _material_form_view(request, get_object_or_404(MaterialMaster, pk=pk))

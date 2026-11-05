@@ -7,6 +7,13 @@
       <h1 class="text-xl font-bold text-slate-800 dark:text-slate-100">Material Master</h1>
       <p class="text-sm text-slate-500">รหัสวัสดุ/อะไหล่ SAP · พบ {{ total }} รายการ</p>
     </div>
+    {% if can_write %}
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="{% url 'material_add' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors">
+        <i data-lucide="plus" class="w-4 h-4"></i> เพิ่ม Material
+      </a>
+    </div>
+    {% endif %}
   </div>
 
   <form method="get" class="flex flex-wrap gap-3 mb-5">

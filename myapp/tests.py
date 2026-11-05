@@ -1373,3 +1373,84 @@ class MaterialMasterReadPagesTests(TestCase):
         self.assertEqual(set(data[0]), {'id', 'material_id', 'short_desc', 'po_text', 'uom', 'material_type'})
         self.assertNotIn('9999', [d['material_id'] for d in data])  # inactive ถูกซ่อน
         self.assertEqual(self.client.get(reverse('api_material_search'), {'q': 'b'}).json(), {'data': []})
+
+
+class MaterialMasterFormTests(TestCase):
+    """Step 3 — ฟอร์มเพิ่ม/แก้ Material, เลขซ้ำ, เตือนชื่อคล้าย, สิทธิ์"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import Group
+        cls.writer = User.objects.create_user('writer', password='pw', is_staff=True)
+        cls.writer.groups.add(Group.objects.get(name='Materials Staff'))
+        cls.plain_staff = User.objects.create_user('plain', password='pw', is_staff=True)
+        cls.reader = User.objects.create_user('reader2', password='pw')
+        cls.existing = MaterialMaster.objects.create(
+            material_id='40001177', short_desc='Bearing 6205 ZZ', material_type='ZSP', uom='EA')
+
+    def _login(self, name):
+        self.client.login(username=name, password='pw')
+
+    def _payload(self, **over):
+        data = {'material_id': '40009999', 'material_type': 'ZSP', 'uom': 'EA', 'material_group': '',
+                'purchasing_group': '', 'plant': '1010', 'short_desc': 'Hydraulic hose 1/2 inch',
+                'po_text': '', 'status': 'active'}
+        data.update(over)
+        return data
+
+    def test_permission_required(self):
+        url = reverse('material_add')
+        self.assertEqual(self.client.get(url).status_code, 302)  # ยังไม่ login
+        self._login('reader2')
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self._login('plain')
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self._login('writer')
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_add_new_material(self):
+        self._login('writer')
+        r = self.client.post(reverse('material_add'), self._payload())
+        m = MaterialMaster.objects.get(material_id='40009999')
+        self.assertRedirects(r, reverse('material_detail', args=[m.pk]))
+        self.assertEqual(m.source, 'lamy_form')
+        self.assertEqual(m.created_by, self.writer)
+        self.assertEqual(m.updated_by, self.writer)
+
+    def test_duplicate_or_blank_id_rejected(self):
+        self._login('writer')
+        r = self.client.post(reverse('material_add'), self._payload(material_id='40001177'))
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.context['form'].errors['material_id'])
+        r = self.client.post(reverse('material_add'), self._payload(material_id='  '))
+        self.assertTrue(r.context['form'].errors['material_id'])
+        self.assertEqual(MaterialMaster.objects.count(), 1)
+
+    def test_similar_name_warns_then_confirms(self):
+        self._login('writer')
+        data = self._payload(material_id='40008888', short_desc='BEARING 6205 ZZ.')
+        r = self.client.post(reverse('material_add'), data)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([m.material_id for m in r.context['similar']], ['40001177'])
+        self.assertFalse(MaterialMaster.objects.filter(material_id='40008888').exists())
+        data['confirm_similar'] = '1'
+        r = self.client.post(reverse('material_add'), data)
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(MaterialMaster.objects.filter(material_id='40008888').exists())
+
+    def test_edit_and_deactivate(self):
+        self._login('writer')
+        url = reverse('material_edit', args=[self.existing.pk])
+        r = self.client.post(url, self._payload(material_id='40001177', short_desc='Bearing 6205 ZZ', status='inactive'))
+        self.assertEqual(r.status_code, 302)  # ชื่อไม่เปลี่ยน -> ไม่เตือนตัวเอง
+        self.existing.refresh_from_db()
+        self.assertEqual(self.existing.status, 'inactive')
+        self.assertEqual(self.existing.updated_by, self.writer)
+
+    def test_similar_api(self):
+        self._login('reader2')
+        r = self.client.get(reverse('api_material_similar'), {'desc': 'bearing 6205 zz'})
+        self.assertEqual([d['material_id'] for d in r.json()['data']], ['40001177'])
+        r = self.client.get(reverse('api_material_similar'), {'desc': 'bearing 6205 zz', 'exclude': self.existing.pk})
+        self.assertEqual(r.json()['data'], [])
+        self.assertEqual(self.client.get(reverse('api_material_similar')).json(), {'data': []})

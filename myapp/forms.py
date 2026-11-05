@@ -1534,3 +1534,43 @@ class MEInspectionForm(forms.ModelForm):
 
     def clean_photo_after(self):
         return self._clean_photo('photo_after')
+
+
+# ===== Material Master =====
+from .models import MaterialMaster
+
+_TW_MATERIAL = ('w-full p-2.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm '
+                'bg-white dark:bg-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500')
+_TW_MATERIAL_SELECT = _TW_MATERIAL + ' appearance-none pr-8'
+
+
+class MaterialMasterForm(forms.ModelForm):
+    """ฟอร์มเพิ่ม/แก้ Material — Material ID ต้องเป็นเลข SAP จริง (ไม่มีระบบออกเลขชั่วคราว)"""
+
+    class Meta:
+        model = MaterialMaster
+        fields = ['material_id', 'material_type', 'uom', 'material_group', 'purchasing_group',
+                  'plant', 'short_desc', 'po_text', 'status']
+        widgets = {
+            'material_id': forms.TextInput(attrs={'class': _TW_MATERIAL + ' font-mono', 'placeholder': 'เลข SAP เช่น 40001177', 'autocomplete': 'off'}),
+            'material_type': forms.Select(attrs={'class': _TW_MATERIAL_SELECT}),
+            'uom': forms.TextInput(attrs={'class': _TW_MATERIAL, 'placeholder': 'เช่น EA, KG, L'}),
+            'material_group': forms.TextInput(attrs={'class': _TW_MATERIAL}),
+            'purchasing_group': forms.TextInput(attrs={'class': _TW_MATERIAL}),
+            'plant': forms.TextInput(attrs={'class': _TW_MATERIAL}),
+            'short_desc': forms.TextInput(attrs={'class': _TW_MATERIAL, 'placeholder': 'ชื่อย่อ (Material Description)', 'autocomplete': 'off'}),
+            'po_text': forms.Textarea(attrs={'class': _TW_MATERIAL, 'rows': 3, 'placeholder': 'ชื่อเต็ม (PO Text)'}),
+            'status': forms.Select(attrs={'class': _TW_MATERIAL_SELECT}),
+        }
+
+    def clean_material_id(self):
+        value = (self.cleaned_data.get('material_id') or '').strip()
+        if not value:
+            raise forms.ValidationError('กรุณากรอก Material ID')
+        return value
+
+    def clean_short_desc(self):
+        value = (self.cleaned_data.get('short_desc') or '').strip()
+        if not value:
+            raise forms.ValidationError('กรุณากรอกชื่อย่อ')
+        return value

@@ -238,8 +238,11 @@ urlpatterns = [
 
     # ===== Material Master Module =====
     path('materials/',                 material_list,       name='material_list'),
+    path('materials/new/',             material_add,        name='material_add'),
     path('materials/<int:pk>/',        material_detail,     name='material_detail'),
+    path('materials/<int:pk>/edit/',   material_edit,       name='material_edit'),
     path('api/materials/search/',      api_material_search, name='api_material_search'),
+    path('api/materials/similar/',     api_material_similar, name='api_material_similar'),
 
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]
