@@ -7949,3 +7949,72 @@ def me_equipment_import(request):
             'limit': ME_IMPORT_PREVIEW_LIMIT,
         }
     return render(request, 'myapp/me_equipment_import.html', {'preview': preview})
+
+
+# ===== Material Master — รหัสวัสดุ SAP =====
+
+def _material_filters(request):
+    """อ่านตัวกรองจาก query string -> (queryset, ค่าตัวกรอง)"""
+    q = request.GET.get('q', '').strip()
+    f_type = request.GET.get('type', '')
+    f_group = request.GET.get('group', '').strip()
+    f_uom = request.GET.get('uom', '').strip()
+    f_status = request.GET.get('status', '')
+    qs = MaterialMaster.objects.all()
+    if q:
+        qs = qs.filter(Q(material_id__icontains=q) | Q(short_desc__icontains=q) | Q(po_text__icontains=q))
+    if f_type:
+        qs = qs.filter(material_type=f_type)
+    if f_group:
+        qs = qs.filter(material_group=f_group)
+    if f_uom:
+        qs = qs.filter(uom=f_uom)
+    if f_status:
+        qs = qs.filter(status=f_status)
+    return qs, {'q': q, 'type': f_type, 'group': f_group, 'uom': f_uom, 'status': f_status}
+
+
+@login_required
+def material_list(request):
+    qs, filters = _material_filters(request)
+    page = Paginator(qs, 50).get_page(request.GET.get('page'))
+    query = request.GET.copy()
+    query.pop('page', None)
+    return render(request, 'myapp/material_list.html', {
+        'page': page,
+        'filters': filters,
+        'total': page.paginator.count,
+        'type_choices': MaterialMaster.TYPE_CHOICES,
+        'status_choices': MaterialMaster.STATUS_CHOICES,
+        'group_choices': MaterialMaster.objects.exclude(material_group='')
+                         .values_list('material_group', flat=True).distinct().order_by('material_group'),
+        'uom_choices': MaterialMaster.objects.exclude(uom='')
+                       .values_list('uom', flat=True).distinct().order_by('uom'),
+        'query_string': query.urlencode(),
+        'can_write': request.user.is_superuser or (request.user.is_staff and request.user.has_perm('myapp.write_materials')),
+    })
+
+
+@login_required
+def material_detail(request, pk):
+    material = get_object_or_404(MaterialMaster, pk=pk)
+    return render(request, 'myapp/material_detail.html', {
+        'material': material,
+        'can_write': request.user.is_superuser or (request.user.is_staff and request.user.has_perm('myapp.write_materials')),
+    })
+
+
+@login_required
+def api_material_search(request):
+    """ค้นหา Material สำหรับช่องค้นหาในฟอร์ม BOM / Inventory / เครื่องมือ — 20 อันดับแรก (เฉพาะที่ใช้งาน)"""
+    q = request.GET.get('q', '').strip()
+    if len(q) < 2:
+        return JsonResponse({'data': []})
+    qs = MaterialMaster.objects.filter(status='active').filter(
+        Q(material_id__icontains=q) | Q(short_desc__icontains=q) | Q(po_text__icontains=q)
+    ).order_by('material_id')[:20]
+    return JsonResponse({'data': [
+        {'id': m.id, 'material_id': m.material_id, 'short_desc': m.short_desc, 'po_text': m.po_text,
+         'uom': m.uom, 'material_type': m.material_type}
+        for m in qs
+    ]})

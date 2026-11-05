@@ -16,7 +16,7 @@ HEADER_ALIASES = {
     'material_group': ['materialgroup', 'matlgroup'],
     'purchasing_group': ['purchasinggroup', 'purchgroup', 'pgr'],
     'short_desc': ['materialdescription', 'shortdesc', 'description'],
-    'po_text': ['potexten', 'potext', 'fulldesc'],
+    'po_text': ['purchaseordertexten', 'potexten', 'potext', 'fulldesc'],
     'sap_last_change': ['lastchange', 'lastchangedate', 'changedon', 'saplastchange'],
 }
 REQUIRED = ['material_id', 'short_desc']

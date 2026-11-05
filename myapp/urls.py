@@ -236,5 +236,10 @@ urlpatterns = [
     path('electricity/reading/add/<int:meter_id>/',   electricity_reading_add,       name='electricity_reading_add_for_meter'),
     path('electricity/readings/',                     electricity_reading_list,      name='electricity_reading_list'),
 
+    # ===== Material Master Module =====
+    path('materials/',                 material_list,       name='material_list'),
+    path('materials/<int:pk>/',        material_detail,     name='material_detail'),
+    path('api/materials/search/',      api_material_search, name='api_material_search'),
+
     #EX. path('aboutus', AboutUs)@ localhost:8000/aboutus
 ]

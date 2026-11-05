@@ -1326,3 +1326,50 @@ class MaterialMasterImportTests(TestCase):
         from django.contrib.auth.models import Group
         group = Group.objects.get(name='Materials Staff')
         self.assertTrue(group.permissions.filter(codename='write_materials').exists())
+
+
+class MaterialMasterReadPagesTests(TestCase):
+    """Step 2 — หน้า list / detail / search API"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user('reader', password='pw')
+        for i in range(55):
+            MaterialMaster.objects.create(
+                material_id=f'4000{i:04d}', short_desc=f'BEARING {i}' if i % 2 == 0 else f'GREASE {i}',
+                material_type='ZSP' if i % 2 == 0 else 'ZOS', uom='EA', material_group='G1')
+        MaterialMaster.objects.create(material_id='9999', short_desc='OLD BEARING', status='inactive')
+
+    def setUp(self):
+        self.client.login(username='reader', password='pw')
+
+    def test_login_required(self):
+        self.client.logout()
+        for url in (reverse('material_list'), reverse('api_material_search')):
+            self.assertEqual(self.client.get(url).status_code, 302)
+
+    def test_list_paginates_50(self):
+        r = self.client.get(reverse('material_list'))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.context['page']), 50)
+        self.assertEqual(r.context['total'], 56)
+
+    def test_list_search_and_filters(self):
+        r = self.client.get(reverse('material_list'), {'q': 'grease', 'type': 'ZOS'})
+        self.assertEqual(r.context['total'], 27)
+        r = self.client.get(reverse('material_list'), {'status': 'inactive'})
+        self.assertEqual(r.context['total'], 1)
+
+    def test_detail_page(self):
+        m = MaterialMaster.objects.get(material_id='40000001')
+        r = self.client.get(reverse('material_detail', args=[m.pk]))
+        self.assertContains(r, '40000001')
+        self.assertEqual(self.client.get(reverse('material_detail', args=[999999])).status_code, 404)
+
+    def test_search_api_json(self):
+        r = self.client.get(reverse('api_material_search'), {'q': 'bearing'})
+        data = r.json()['data']
+        self.assertEqual(len(data), 20)
+        self.assertEqual(set(data[0]), {'id', 'material_id', 'short_desc', 'po_text', 'uom', 'material_type'})
+        self.assertNotIn('9999', [d['material_id'] for d in data])  # inactive ถูกซ่อน
+        self.assertEqual(self.client.get(reverse('api_material_search'), {'q': 'b'}).json(), {'data': []})
