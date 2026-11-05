@@ -1640,3 +1640,39 @@ class MaterialMasterInventoryTests(TestCase):
         self.assertEqual(a.material, self.zsp)
         self.assertIsNone(b.material)
         self.assertIn('NOPE', out.getvalue())
+
+
+class SidebarStockGroupTests(TestCase):
+    """Sidebar — Inventory / เครื่องมือ / Material Master รวมเป็นกลุ่ม 'คลัง & วัสดุ'"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import Group
+        cls.inv = User.objects.create_user('navinv', password='pw', is_staff=True)
+        cls.inv.groups.add(Group.objects.get(name='Inventory Staff'))
+        cls.boiler = User.objects.create_user('navboiler', password='pw', is_staff=True)
+        cls.boiler.groups.add(Group.objects.get(name='Boiler Staff'))
+        cls.plain = User.objects.create_user('navplain', password='pw')
+
+    def _get(self, user, name, *args):
+        self.client.login(username=user, password='pw')
+        return self.client.get(reverse(name, args=args)).content.decode()
+
+    def test_group_contains_children_for_inventory_user(self):
+        html = self._get('navinv', 'dashboard')
+        self.assertEqual(html.count('<details class="group"'), 1)
+        group = html[html.index('<details class="group"'):html.index('</details>')]
+        self.assertIn(reverse('inventory_dashboard'), group)
+        self.assertIn(reverse('material_list'), group)
+        self.assertNotIn(reverse('tools_dashboard'), group)  # ไม่มีสิทธิ์ tools
+        self.assertNotIn(' open>', group.split('</summary>')[0])  # หน้า dashboard -> พับอยู่
+
+    def test_group_hidden_without_any_stock_permission(self):
+        html = self._get('navboiler', 'dashboard')
+        self.assertNotIn('<details class="group"', html)
+        self.assertNotIn(reverse('material_list'), html)
+
+    def test_group_open_on_child_pages_only(self):
+        self.assertIn('group" open>', self._get('navinv', 'material_list'))
+        self.assertIn('group" open>', self._get('navinv', 'inventory_list'))
+        self.assertNotIn('group" open>', self._get('navinv', 'dashboard'))
