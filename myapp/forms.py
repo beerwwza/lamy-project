@@ -299,10 +299,14 @@ class EquipmentForm(forms.ModelForm):
 class EquipmentBOMForm(forms.ModelForm):
     class Meta:
         model = EquipmentBOM
-        fields = ['part_no', 'part_name', 'qty', 'location', 'stock_qty']
+        fields = ['material', 'part_no', 'part_name', 'qty', 'location', 'stock_qty']
+        widgets = {'material': forms.HiddenInput()}
 
     def __init__(self, *args, **kwargs):
         super(EquipmentBOMForm, self).__init__(*args, **kwargs)
+        # part_no/part_name เติมจาก Material Master อัตโนมัติเมื่อเลือก material — บังคับกรอกเองใน clean() เมื่อไม่ได้เลือก
+        self.fields['part_no'].required = False
+        self.fields['part_name'].required = False
         for field in self.fields:
             if field != 'qty' and field != 'stock_qty':
                 self.fields[field].widget.attrs.update({
@@ -314,6 +318,26 @@ class EquipmentBOMForm(forms.ModelForm):
                     'class': 'form-control',
                     'min': '0'
                 })
+
+    def clean_material(self):
+        material = self.cleaned_data.get('material')
+        current = self.instance.material_id if self.instance and self.instance.pk else None
+        if material and material.status != 'active' and material.pk != current:
+            raise forms.ValidationError('Material นี้เลิกใช้แล้ว เลือกผูกใหม่ไม่ได้')
+        return material
+
+    def clean(self):
+        cleaned = super().clean()
+        material = cleaned.get('material')
+        if material:
+            cleaned['part_no'] = material.material_id
+            cleaned['part_name'] = material.short_desc
+        else:
+            if not (cleaned.get('part_no') or '').strip():
+                self.add_error('part_no', 'กรุณากรอกรหัสอะไหล่ หรือค้นหาเลือกจาก Material Master')
+            if not (cleaned.get('part_name') or '').strip():
+                self.add_error('part_name', 'กรุณากรอกชื่ออะไหล่')
+        return cleaned
 
 class EquipmentLinkForm(forms.ModelForm):
     class Meta:

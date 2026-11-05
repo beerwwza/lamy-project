@@ -8001,6 +8001,7 @@ def material_detail(request, pk):
     material = get_object_or_404(MaterialMaster, pk=pk)
     return render(request, 'myapp/material_detail.html', {
         'material': material,
+        'bom_lines': material.bom_lines.select_related('equipment').order_by('equipment__equipment_id'),
         'can_write': request.user.is_superuser or (request.user.is_staff and request.user.has_perm('myapp.write_materials')),
     })
 

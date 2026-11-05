@@ -800,7 +800,7 @@
                         <tbody class="divide-y divide-slate-100">
                             {% for bom in boms %}
                             <tr id="bom-row-{{ bom.id }}" class="hover:bg-slate-50 transition-colors group">
-                                <td class="px-5 py-3 font-medium text-blue-600">{{ bom.part_no }}</td>
+                                <td class="px-5 py-3 font-medium text-blue-600">{% if bom.material_id %}<a href="{% url 'material_detail' bom.material_id %}" class="hover:underline" title="ดูใน Material Master">{{ bom.part_no }}</a>{% else %}{{ bom.part_no }}{% endif %}</td>
                                 <td class="px-5 py-3 text-slate-700">{{ bom.part_name }}</td>
                                 <td class="px-5 py-3 text-center text-slate-600">{{ bom.qty }}</td>
                                 <td class="px-5 py-3 text-center text-slate-600">{{ bom.location|default:"-" }}</td>
@@ -845,16 +845,24 @@
                                     <form method="POST" action="{% url 'bom_edit' bom.id %}"
                                         class="flex flex-wrap items-end gap-3">
                                         {% csrf_token %}
+                                        <div class="flex-[2] min-w-[220px] relative" data-material-picker>
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">ค้นหา Material (SAP)</label>
+                                            <input type="hidden" name="material" value="{{ bom.material_id|default:'' }}" data-mp-id>
+                                            <input type="text" data-mp-search autocomplete="off" placeholder="พิมพ์รหัส/ชื่อ อย่างน้อย 2 ตัวอักษร"
+                                                class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                            <div data-mp-results class="hidden absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-auto bg-white border border-slate-200 rounded-lg shadow-lg text-sm"></div>
+                                            <p data-mp-status class="hidden text-xs text-emerald-700 mt-1"></p>
+                                        </div>
                                         <div class="flex-1 min-w-[120px]">
                                             <label class="block text-xs font-semibold text-slate-500 mb-1">Mat ID.
                                                 *</label>
-                                            <input type="text" name="part_no" required value="{{ bom.part_no }}"
+                                            <input type="text" name="part_no" value="{{ bom.part_no }}"
                                                 class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
                                         </div>
                                         <div class="flex-[2] min-w-[200px]">
                                             <label class="block text-xs font-semibold text-slate-500 mb-1">Description
                                                 *</label>
-                                            <input type="text" name="part_name" required value="{{ bom.part_name }}"
+                                            <input type="text" name="part_name" value="{{ bom.part_name }}"
                                                 class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
                                         </div>
                                         <div class="w-20">
@@ -903,16 +911,24 @@
                                     <form method="POST" action="{% url 'bom_add' equipment.equipment_id %}"
                                         class="flex flex-wrap items-end gap-3">
                                         {% csrf_token %}
+                                        <div class="flex-[2] min-w-[220px] relative" data-material-picker>
+                                            <label class="block text-xs font-semibold text-slate-500 mb-1">ค้นหา Material (SAP)</label>
+                                            <input type="hidden" name="material" value="{{ ''|default:'' }}" data-mp-id>
+                                            <input type="text" data-mp-search autocomplete="off" placeholder="พิมพ์รหัส/ชื่อ อย่างน้อย 2 ตัวอักษร"
+                                                class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                                            <div data-mp-results class="hidden absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-auto bg-white border border-slate-200 rounded-lg shadow-lg text-sm"></div>
+                                            <p data-mp-status class="hidden text-xs text-emerald-700 mt-1"></p>
+                                        </div>
                                         <div class="flex-1 min-w-[120px]">
                                             <label class="block text-xs font-semibold text-slate-500 mb-1">Mat ID.
                                                 *</label>
-                                            <input type="text" name="part_no" required placeholder="เช่น BRG-6312-2Z"
+                                            <input type="text" name="part_no" placeholder="เช่น BRG-6312-2Z"
                                                 class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
                                         </div>
                                         <div class="flex-[2] min-w-[200px]">
                                             <label class="block text-xs font-semibold text-slate-500 mb-1">Description
                                                 *</label>
-                                            <input type="text" name="part_name" required placeholder="ชื่ออะไหล่"
+                                            <input type="text" name="part_name" placeholder="ชื่ออะไหล่"
                                                 class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
                                         </div>
                                         <div class="w-20">
@@ -2532,6 +2548,90 @@
         function openBomModal(action, partNo = '') {
             window.open(`{% url "equipment_bom" %}?action=${action}&partNo=${partNo}`, 'BOMWindow', 'width=700,height=500,left=250,top=150');
         }
+
+        // ===== Material Master picker (ช่องค้นหา Material ในฟอร์ม BOM) =====
+        function initMaterialPicker(root) {
+            var form = root.closest('form');
+            var idInput = root.querySelector('[data-mp-id]');
+            var search = root.querySelector('[data-mp-search]');
+            var results = root.querySelector('[data-mp-results]');
+            var status = root.querySelector('[data-mp-status]');
+            var partNo = form.querySelector('[name=part_no]');
+            var partName = form.querySelector('[name=part_name]');
+            var timer = null;
+
+            function lock(locked) {
+                [partNo, partName].forEach(function (el) {
+                    el.readOnly = locked;
+                    el.classList.toggle('bg-slate-100', locked);
+                });
+            }
+            function showLinked() {
+                status.innerHTML = '';
+                var t = document.createTextNode('ผูกกับ Material Master แล้ว: ' + partNo.value + ' ');
+                var clear = document.createElement('button');
+                clear.type = 'button';
+                clear.className = 'underline text-red-600';
+                clear.textContent = 'ล้างการผูก';
+                clear.addEventListener('click', function () {
+                    idInput.value = '';
+                    status.classList.add('hidden');
+                    lock(false);
+                });
+                status.appendChild(t);
+                status.appendChild(clear);
+                status.classList.remove('hidden');
+            }
+            function pick(m) {
+                idInput.value = m.id;
+                partNo.value = m.material_id;
+                partName.value = m.short_desc;
+                lock(true);
+                search.value = '';
+                results.classList.add('hidden');
+                showLinked();
+            }
+            if (idInput.value) { lock(true); showLinked(); }
+
+            search.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+            search.addEventListener('input', function () {
+                clearTimeout(timer);
+                var q = search.value.trim();
+                if (q.length < 2) { results.classList.add('hidden'); return; }
+                timer = setTimeout(function () {
+                    fetch('{% url "api_material_search" %}?q=' + encodeURIComponent(q))
+                        .then(function (r) { return r.json(); })
+                        .then(function (res) {
+                            results.innerHTML = '';
+                            if (!res.data.length) {
+                                var none = document.createElement('div');
+                                none.className = 'px-3 py-2 text-slate-400';
+                                none.textContent = 'ไม่พบ Material';
+                                results.appendChild(none);
+                            }
+                            res.data.forEach(function (m) {
+                                var b = document.createElement('button');
+                                b.type = 'button';
+                                b.className = 'block w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-100 last:border-0';
+                                var code = document.createElement('span');
+                                code.className = 'font-mono text-blue-600';
+                                code.textContent = m.material_id;
+                                b.appendChild(code);
+                                b.appendChild(document.createTextNode(' — ' + m.short_desc + (m.uom ? ' (' + m.uom + ')' : '')));
+                                b.addEventListener('click', function () { pick(m); });
+                                results.appendChild(b);
+                            });
+                            results.classList.remove('hidden');
+                        });
+                }, 250);
+            });
+            document.addEventListener('click', function (e) {
+                if (!root.contains(e.target)) results.classList.add('hidden');
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('[data-material-picker]').forEach(initMaterialPicker);
+        });
 
         function toggleBomEdit(bomId) {
             document.getElementById(`bom-row-${bomId}`).classList.toggle('hidden');

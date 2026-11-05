@@ -1454,3 +1454,84 @@ class MaterialMasterFormTests(TestCase):
         r = self.client.get(reverse('api_material_similar'), {'desc': 'bearing 6205 zz', 'exclude': self.existing.pk})
         self.assertEqual(r.json()['data'], [])
         self.assertEqual(self.client.get(reverse('api_material_similar')).json(), {'data': []})
+
+
+class MaterialMasterBOMTests(TestCase):
+    """Step 4 — ผูก BOM กับ Material Master, ใช้ที่ไหน, command ผูกย้อนหลัง"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import Group
+        from .models import Equipment, EquipmentBOM
+        cls.EquipmentBOM = EquipmentBOM
+        cls.user = User.objects.create_user('eqstaff', password='pw', is_staff=True)
+        cls.user.groups.add(Group.objects.get(name='Equipment Staff'))
+        cls.eq = Equipment.objects.create(equipment_id='EQ-001', name='ปั๊มทดสอบ')
+        cls.mat = MaterialMaster.objects.create(material_id='40001177', short_desc='BEARING 6205', uom='EA')
+        cls.inactive = MaterialMaster.objects.create(material_id='40000001', short_desc='OLD PART', status='inactive')
+
+    def setUp(self):
+        self.client.login(username='eqstaff', password='pw')
+
+    def _add(self, **data):
+        base = {'qty': 2, 'location': 'Store A', 'stock_qty': 0}
+        base.update(data)
+        return self.client.post(reverse('bom_add', args=['EQ-001']), base)
+
+    def test_add_bom_with_material_fills_part_fields(self):
+        self._add(material=self.mat.pk)
+        bom = self.EquipmentBOM.objects.get()
+        self.assertEqual(bom.material, self.mat)
+        self.assertEqual(bom.part_no, '40001177')
+        self.assertEqual(bom.part_name, 'BEARING 6205')
+
+    def test_add_bom_manual_still_works_and_requires_fields(self):
+        self._add(part_no='X-1', part_name='ของเดิม')
+        self.assertEqual(self.EquipmentBOM.objects.get().material, None)
+        self._add(part_no='', part_name='')
+        self.assertEqual(self.EquipmentBOM.objects.count(), 1)  # ไม่เลือก material และไม่กรอก -> ไม่บันทึก
+
+    def test_inactive_material_cannot_be_newly_linked(self):
+        self._add(material=self.inactive.pk)
+        self.assertEqual(self.EquipmentBOM.objects.count(), 0)
+
+    def test_edit_bom_relink_overrides_free_text(self):
+        bom = self.EquipmentBOM.objects.create(equipment=self.eq, part_no='old', part_name='old name')
+        self.client.post(reverse('bom_edit', args=[bom.pk]),
+                         {'material': self.mat.pk, 'part_no': 'old', 'part_name': 'old name', 'qty': 1, 'stock_qty': 0})
+        bom.refresh_from_db()
+        self.assertEqual((bom.material, bom.part_no), (self.mat, '40001177'))
+
+    def test_protect_blocks_material_delete(self):
+        from django.db.models import ProtectedError
+        self.EquipmentBOM.objects.create(equipment=self.eq, part_no='40001177', part_name='x', material=self.mat)
+        with self.assertRaises(ProtectedError):
+            self.mat.delete()
+
+    def test_detail_shows_where_used(self):
+        self.EquipmentBOM.objects.create(equipment=self.eq, part_no='40001177', part_name='x', material=self.mat)
+        r = self.client.get(reverse('material_detail', args=[self.mat.pk]))
+        self.assertContains(r, 'EQ-001')
+        self.assertEqual(len(r.context['bom_lines']), 1)
+
+    def test_link_command_matches_trimmed_exact_only(self):
+        from io import StringIO
+        from django.core.management import call_command
+        a = self.EquipmentBOM.objects.create(equipment=self.eq, part_no=' 40001177 ', part_name='a')
+        b = self.EquipmentBOM.objects.create(equipment=self.eq, part_no='40001177X', part_name='b')
+        out = StringIO()
+        call_command('link_material_master', '--dry-run', stdout=out)
+        a.refresh_from_db()
+        self.assertIsNone(a.material)
+        call_command('link_material_master', stdout=out)
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(a.material, self.mat)
+        self.assertIsNone(b.material)
+        self.assertIn('40001177X', out.getvalue())
+
+    def test_equipment_page_renders_material_picker(self):
+        self.EquipmentBOM.objects.create(equipment=self.eq, part_no='40001177', part_name='x', material=self.mat)
+        r = self.client.get(reverse('equipment_data_detail', args=['EQ-001']))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'relative" data-material-picker>', count=2)  # ฟอร์มแก้ไข 1 แถว + ฟอร์มเพิ่ม
+        self.assertContains(r, reverse('material_detail', args=[self.mat.pk]))

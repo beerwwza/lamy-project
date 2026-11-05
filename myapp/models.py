@@ -906,7 +906,11 @@ class EquipmentBOM(models.Model):
     qty = models.IntegerField(default=1, verbose_name="จำนวนที่ใช้ (Qty)")
     location = models.CharField(max_length=100, blank=True, null=True, verbose_name="สถานที่เก็บ (Store/Bin)")
     stock_qty = models.IntegerField(default=0, verbose_name="ยอดคงคลัง") # for demo
-    
+    material = models.ForeignKey(
+        'MaterialMaster', null=True, blank=True, on_delete=models.PROTECT,
+        related_name='bom_lines', verbose_name="Material Master",
+    )  # ว่างได้ = แถวเก่าที่ยังไม่ผูกรหัส SAP
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

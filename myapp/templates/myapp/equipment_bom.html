@@ -32,7 +32,7 @@
                 <form onsubmit="event.preventDefault(); alert('บันทึกรายการอะไหล่เรียบร้อยแล้ว'); window.close();">
 
                     <div class="row g-3 mb-4">
-                        {% for field in form %}
+                        {% for field in form.visible_fields %}
                         <div class="col-12 col-md-6">
                             <label class="form-label small mb-1">{{ field.label }} {% if field.field.required %}<span class="text-danger">*</span>{% endif %}</label>
                             {{ field }}
