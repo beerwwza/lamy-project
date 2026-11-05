@@ -81,6 +81,7 @@ class Profile(models.Model):
             ('write_training', 'เขียนข้อมูล: ศูนย์การเรียนรู้ (Training)'),
             ('write_general', 'เขียนข้อมูล: งานทั่วไป (คู่มือ/งานมอบหมาย/จองรถ/โรงกลึง)'),
             ('write_energy', 'เขียนข้อมูล: พลังงาน (ไฟฟ้า/ไอน้ำ)'),
+            ('write_materials', 'เขียนข้อมูล: Material Master (รหัสวัสดุ SAP)'),
         ]
 
 # ==========================================
@@ -2760,3 +2761,48 @@ class MEInspection(models.Model):
         self.vib_result = me_worst_status(
             [me_vibration_status(getattr(self, f), self.motor_kw) for f in ME_VIB_FIELDS]
             + [me_temp_status(getattr(self, f)) for f in ME_TEMP_FIELDS])
+
+
+# ===== Material Master — ตารางรหัสวัสดุกลาง (SAP Material ID) =====
+
+class MaterialMaster(models.Model):
+    """รหัสวัสดุ/อะไหล่จาก SAP — ให้ BOM, Inventory และเครื่องมือผูก FK เข้ามาใช้ร่วมกัน"""
+
+    STATUS_CHOICES = [
+        ('active', 'ใช้งาน'),
+        ('inactive', 'เลิกใช้'),
+    ]
+    TYPE_CHOICES = [
+        ('ZSP', 'ZSP อะไหล่'),
+        ('ZOS', 'ZOS วัสดุอื่น'),
+    ]
+    SOURCE_CHOICES = [
+        ('sap_import', 'นำเข้าจาก SAP (Excel)'),
+        ('lamy_form', 'เพิ่มผ่านฟอร์ม LAMY'),
+    ]
+
+    material_id = models.CharField(max_length=20, unique=True, db_index=True, verbose_name="Material ID (SAP)")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active', verbose_name="สถานะ")
+    plant = models.CharField(max_length=10, default='1010', verbose_name="Plant")
+    material_type = models.CharField(max_length=10, choices=TYPE_CHOICES, default='ZSP', verbose_name="ประเภท")
+    uom = models.CharField(max_length=20, blank=True, verbose_name="หน่วยนับ")
+    material_group = models.CharField(max_length=30, blank=True, verbose_name="Material Group")
+    purchasing_group = models.CharField(max_length=30, blank=True, verbose_name="Purchasing Group")
+    short_desc = models.CharField(max_length=100, verbose_name="ชื่อย่อ (Material Description)")
+    po_text = models.TextField(blank=True, verbose_name="ชื่อเต็ม (PO Text)")
+    sap_last_change = models.DateField(null=True, blank=True, verbose_name="SAP แก้ไขล่าสุด")
+    source = models.CharField(max_length=15, choices=SOURCE_CHOICES, default='lamy_form', verbose_name="แหล่งที่มา")
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='materials_created', verbose_name="ผู้เพิ่ม")
+    updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='materials_updated', verbose_name="ผู้แก้ไขล่าสุด")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Material Master"
+        verbose_name_plural = "Material Master"
+        ordering = ['material_id']
+
+    def __str__(self):
+        return f"{self.material_id} - {self.short_desc}"

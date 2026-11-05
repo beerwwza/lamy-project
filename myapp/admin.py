@@ -428,3 +428,13 @@ class MEInspectionAdmin(admin.ModelAdmin):
     search_fields = ['equipment__equipment_id', 'equipment__name', 'department']
     raw_id_fields = ['equipment']
     ordering = ['-record_date', '-id']
+
+
+# ===== Material Master — รหัสวัสดุ SAP =====
+
+@admin.register(MaterialMaster)
+class MaterialMasterAdmin(admin.ModelAdmin):
+    list_display = ['material_id', 'short_desc', 'material_type', 'uom', 'status', 'source']
+    list_filter = ['material_type', 'status', 'source']
+    search_fields = ['material_id', 'short_desc', 'po_text']
+    ordering = ['material_id']

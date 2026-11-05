@@ -7,6 +7,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from .models import MaterialMaster
+
 # หน้าเพจหลักที่ไม่ต้อง login — ต้องไม่ error 500 แม้ยังไม่มี session
 # (บั๊กจริงที่เจอ: login.html มี {% url 'register' %} แต่ path ถูก comment
 #  ออกจาก urls.py ทำให้ NoReverseMatch ตอน render หน้าแรกของเว็บ)
@@ -1255,3 +1257,72 @@ class MEEquipmentImportTests(TestCase):
                 self.assertEqual(resp.status_code, 200)
                 self.assertIsNone(resp.context['preview'])
                 self.assertTrue(any(m.level_tag == 'error' for m in resp.context['messages']))
+
+
+class MaterialMasterImportTests(TestCase):
+    """Step 1 ของ Material Master — model + command นำเข้าจาก Excel"""
+
+    HEADERS = ['Material', 'Plant', 'Material Type', 'Base Unit of Measure', 'Material Group',
+               'Purchasing Group', 'Material Description', 'PO Text EN', 'Last Change']
+
+    def _make_xlsx(self, rows, sheet_title='All Materials'):
+        import os
+        import tempfile
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = sheet_title
+        ws.append(self.HEADERS)
+        for r in rows:
+            ws.append(r)
+        fd, path = tempfile.mkstemp(suffix='.xlsx')
+        os.close(fd)
+        wb.save(path)
+        self.addCleanup(os.remove, path)
+        return path
+
+    def _run(self, path, *extra):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command('import_material_master', path, *extra, stdout=out)
+        return out.getvalue()
+
+    ROWS = [
+        ['000123', '1010', 'ZSP', 'EA', 'G01', 'P01', 'BEARING 6205', 'Bearing deep groove 6205', '05/01/2026'],
+        ['4000999', '1010', 'ZOS', 'KG', 'G02', 'P02', 'GREASE EP2', 'Grease EP2 18kg', '31/12/2025'],
+    ]
+
+    def test_import_creates_rows_and_keeps_leading_zero(self):
+        self._run(self._make_xlsx(self.ROWS))
+        self.assertEqual(MaterialMaster.objects.count(), 2)
+        m = MaterialMaster.objects.get(material_id='000123')
+        self.assertEqual(m.short_desc, 'BEARING 6205')
+        self.assertEqual(m.sap_last_change.isoformat(), '2026-01-05')
+        self.assertEqual(m.source, 'sap_import')
+        self.assertEqual(m.status, 'active')
+
+    def test_import_is_idempotent_and_updates(self):
+        path = self._make_xlsx(self.ROWS)
+        self._run(path)
+        self._run(path)
+        self.assertEqual(MaterialMaster.objects.count(), 2)
+        changed = [list(self.ROWS[0]), list(self.ROWS[1])]
+        changed[0][6] = 'BEARING 6205 2RS'
+        self._run(self._make_xlsx(changed))
+        self.assertEqual(MaterialMaster.objects.get(material_id='000123').short_desc, 'BEARING 6205 2RS')
+        self.assertEqual(MaterialMaster.objects.count(), 2)
+
+    def test_dry_run_writes_nothing(self):
+        self._run(self._make_xlsx(self.ROWS), '--dry-run')
+        self.assertEqual(MaterialMaster.objects.count(), 0)
+
+    def test_import_skips_blank_and_duplicate_ids(self):
+        rows = self.ROWS + [list(self.ROWS[0]), ['', '1010', 'ZSP', 'EA', '', '', 'NO ID', '', '']]
+        self._run(self._make_xlsx(rows))
+        self.assertEqual(MaterialMaster.objects.count(), 2)
+
+    def test_materials_permission_and_group_exist(self):
+        from django.contrib.auth.models import Group
+        group = Group.objects.get(name='Materials Staff')
+        self.assertTrue(group.permissions.filter(codename='write_materials').exists())
