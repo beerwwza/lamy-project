@@ -157,6 +157,7 @@
               class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
     </div>
     <div class="p-6 space-y-3">
+      {% include 'myapp/includes/material_picker_field.html' with prefix='ai' %}
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-xs font-medium text-slate-500 block mb-1">รหัสสินค้า *</label>
@@ -238,7 +239,18 @@
   </div>
 </div>
 
+{% include 'myapp/includes/material_picker_js.html' %}
 <script>
+// เลือก Material -> เติมรหัส/ชื่อ/หน่วย/หมวดเริ่มต้น (ZSP→อะไหล่, ZOS→วัสดุสิ้นเปลือง) แก้ไขต่อได้ ยกเว้นรหัส
+mpInit('ai', {
+  lockIds: ['ai_code'],
+  onPick: function (m) {
+    document.getElementById('ai_code').value = m.material_id;
+    document.getElementById('ai_name').value = m.short_desc;
+    if (m.uom) document.getElementById('ai_unit').value = m.uom;
+    document.getElementById('ai_cat').value = m.material_type === 'ZSP' ? 'spares' : 'consumables';
+  }
+});
 function submitAddItem() {
   const err = document.getElementById('ai_err');
   err.classList.add('hidden');
@@ -248,6 +260,7 @@ function submitAddItem() {
     body: JSON.stringify({
       code: document.getElementById('ai_code').value.trim(),
       name: document.getElementById('ai_name').value.trim(),
+      material: document.getElementById('ai_material').value,
       category: document.getElementById('ai_cat').value,
       department: document.getElementById('ai_dept').value,
       unit: document.getElementById('ai_unit').value,

@@ -1,0 +1,77 @@
+{# รวมไว้ครั้งเดียวต่อหน้า — เรียก mpInit(prefix, {onPick, onClear, lockIds, linkedLabel}) — ถ้า hidden มีค่าอยู่แล้วจะเริ่มในสถานะผูกแล้ว #}
+<script>
+function mpInit(prefix, opts) {
+  opts = opts || {};
+  var idInput = document.getElementById(prefix + '_material');
+  var search = document.getElementById(prefix + '_msearch');
+  var results = document.getElementById(prefix + '_mresults');
+  var status = document.getElementById(prefix + '_mstatus');
+  var lockEls = (opts.lockIds || []).map(function (i) { return document.getElementById(i); });
+  var timer = null;
+
+  function lock(locked) {
+    lockEls.forEach(function (el) { el.readOnly = locked; el.classList.toggle('bg-slate-100', locked); });
+  }
+  function showLinked(label) {
+    status.innerHTML = '';
+    status.appendChild(document.createTextNode('ผูกกับ Material Master แล้ว: ' + label + ' '));
+    var clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'underline text-red-600';
+    clear.textContent = 'ล้างการผูก';
+    clear.addEventListener('click', function () {
+      idInput.value = '';
+      status.classList.add('hidden');
+      lock(false);
+      if (opts.onClear) opts.onClear();
+    });
+    status.appendChild(clear);
+    status.classList.remove('hidden');
+  }
+  function pick(m) {
+    idInput.value = m.id;
+    lock(true);
+    search.value = '';
+    results.classList.add('hidden');
+    showLinked(m.material_id);
+    if (opts.onPick) opts.onPick(m);
+  }
+  if (idInput.value) { lock(true); showLinked(opts.linkedLabel || ''); }
+
+  search.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+  search.addEventListener('input', function () {
+    clearTimeout(timer);
+    var q = search.value.trim();
+    if (q.length < 2) { results.classList.add('hidden'); return; }
+    timer = setTimeout(function () {
+      fetch('{% url "api_material_search" %}?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          results.innerHTML = '';
+          if (!res.data.length) {
+            var none = document.createElement('div');
+            none.className = 'px-3 py-2 text-slate-400';
+            none.textContent = 'ไม่พบ Material';
+            results.appendChild(none);
+          }
+          res.data.forEach(function (m) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'block w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700 last:border-0';
+            var code = document.createElement('span');
+            code.className = 'font-mono text-indigo-600';
+            code.textContent = m.material_id;
+            b.appendChild(code);
+            b.appendChild(document.createTextNode(' — ' + m.short_desc + (m.uom ? ' (' + m.uom + ')' : '')));
+            b.addEventListener('click', function () { pick(m); });
+            results.appendChild(b);
+          });
+          results.classList.remove('hidden');
+        });
+    }, 250);
+  });
+  document.addEventListener('click', function (e) {
+    if (!search.parentNode.contains(e.target)) results.classList.add('hidden');
+  });
+}
+</script>

@@ -1,0 +1,9 @@
+{# ช่องค้นหา Material Master — ใช้กับ include ที่ส่ง prefix (เช่น ai / at / ei), material_id (ถ้าผูกอยู่แล้ว) #}
+<div class="relative">
+  <label class="text-xs font-medium text-slate-500 block mb-1">ค้นหา Material (SAP) — ไม่บังคับ</label>
+  <input type="hidden" id="{{ prefix }}_material" value="{{ material_pk|default:'' }}">
+  <input type="text" id="{{ prefix }}_msearch" autocomplete="off" placeholder="พิมพ์รหัส/ชื่อ อย่างน้อย 2 ตัวอักษร"
+    class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+  <div id="{{ prefix }}_mresults" class="hidden absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg text-sm"></div>
+  <p id="{{ prefix }}_mstatus" class="hidden text-xs text-emerald-700 mt-1"></p>
+</div>

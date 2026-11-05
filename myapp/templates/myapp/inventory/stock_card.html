@@ -311,6 +311,7 @@
               class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
     </div>
     <div class="p-6 space-y-3">
+      {% include 'myapp/includes/material_picker_field.html' with prefix='ei' material_pk=item.material_id %}
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-xs font-medium text-slate-500 block mb-1">รหัสสินค้า *</label>
@@ -381,7 +382,18 @@
   </div>
 </div>
 
+{% include 'myapp/includes/material_picker_js.html' %}
 <script>
+// แก้ไข: เลือก Material -> เติมรหัส/ชื่อ/หน่วย (ไม่เปลี่ยนหมวดของรายการเดิม)
+mpInit('ei', {
+  lockIds: ['ei_code'],
+  linkedLabel: '{% if item.material_id %}{{ item.material.material_id }}{% endif %}',
+  onPick: function (m) {
+    document.getElementById('ei_code').value = m.material_id;
+    document.getElementById('ei_name').value = m.short_desc;
+    if (m.uom) document.getElementById('ei_unit').value = m.uom;
+  }
+});
 function submitEditItem() {
   const err = document.getElementById('ei_err');
   err.classList.add('hidden');
@@ -391,6 +403,7 @@ function submitEditItem() {
     body: JSON.stringify({
       code: document.getElementById('ei_code').value.trim(),
       name: document.getElementById('ei_name').value.trim(),
+      material: document.getElementById('ei_material').value,
       category: document.getElementById('ei_cat').value,
       department: document.getElementById('ei_dept').value,
       unit: document.getElementById('ei_unit').value,

@@ -1535,3 +1535,108 @@ class MaterialMasterBOMTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'relative" data-material-picker>', count=2)  # ฟอร์มแก้ไข 1 แถว + ฟอร์มเพิ่ม
         self.assertContains(r, reverse('material_detail', args=[self.mat.pk]))
+
+
+class MaterialMasterInventoryTests(TestCase):
+    """Step 5 — ผูก Inventory/เครื่องมือกับ Material Master (1 Material = 1 รายการคลัง)"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import Group
+        from .models import InventoryItem
+        cls.InventoryItem = InventoryItem
+        cls.inv_user = User.objects.create_user('invstaff', password='pw', is_staff=True)
+        cls.inv_user.groups.add(Group.objects.get(name='Inventory Staff'))
+        cls.tool_user = User.objects.create_user('toolstaff', password='pw', is_staff=True)
+        cls.tool_user.groups.add(Group.objects.get(name='Tools Staff'))
+        cls.zsp = MaterialMaster.objects.create(material_id='40001177', short_desc='BEARING 6205', uom='EA', material_type='ZSP')
+        cls.zos = MaterialMaster.objects.create(material_id='40001180', short_desc='GREASE EP2', uom='KG', material_type='ZOS')
+        cls.old = MaterialMaster.objects.create(material_id='40000001', short_desc='OLD', status='inactive')
+
+    def _post(self, name, url_name, payload, args=()):
+        self.client.login(username=name, password='pw')
+        return self.client.post(reverse(url_name, args=args), json.dumps(payload), content_type='application/json')
+
+    def test_add_item_with_material_fills_code_name_unit_category(self):
+        r = self._post('invstaff', 'api_inventory_add_item', {'material': self.zsp.pk})
+        self.assertTrue(r.json()['success'])
+        item = self.InventoryItem.objects.get()
+        self.assertEqual((item.code, item.name, item.unit, item.category, item.material),
+                         ('40001177', 'BEARING 6205', 'EA', 'spares', self.zsp))
+        self._post('invstaff', 'api_inventory_add_item', {'material': self.zos.pk})
+        self.assertEqual(self.InventoryItem.objects.get(material=self.zos).category, 'consumables')
+
+    def test_code_forced_to_material_id_even_if_client_sends_other(self):
+        self._post('invstaff', 'api_inventory_add_item', {'material': self.zsp.pk, 'code': 'WRONG', 'name': 'ชื่อเอง', 'unit': 'ตัว'})
+        item = self.InventoryItem.objects.get()
+        self.assertEqual((item.code, item.name, item.unit), ('40001177', 'ชื่อเอง', 'ตัว'))
+
+    def test_one_material_one_item(self):
+        self._post('invstaff', 'api_inventory_add_item', {'material': self.zsp.pk})
+        r = self._post('invstaff', 'api_inventory_add_item', {'material': self.zsp.pk})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('ถูกใช้กับรายการคลัง', r.json()['error'])
+        self.assertEqual(self.InventoryItem.objects.count(), 1)
+
+    def test_inactive_or_missing_material_rejected(self):
+        self.assertEqual(self._post('invstaff', 'api_inventory_add_item', {'material': self.old.pk}).status_code, 400)
+        self.assertEqual(self._post('invstaff', 'api_inventory_add_item', {'material': 999999}).status_code, 400)
+        self.assertEqual(self._post('invstaff', 'api_inventory_add_item', {'material': 'abc'}).status_code, 400)
+
+    def test_legacy_add_without_material_unchanged(self):
+        r = self._post('invstaff', 'api_inventory_add_item', {'code': 'OLD-1', 'name': 'ของเดิม'})
+        self.assertTrue(r.json()['success'])
+        self.assertIsNone(self.InventoryItem.objects.get().material)
+
+    def test_update_item_link_keep_and_unlink(self):
+        item = self.InventoryItem.objects.create(code='OLD-1', name='ของเดิม')
+        url = ('invstaff', 'api_inventory_update_item')
+        # ผูก
+        self._post(*url, {'material': self.zsp.pk, 'name': 'ของเดิม', 'code': 'OLD-1'}, args=[item.pk])
+        item.refresh_from_db()
+        self.assertEqual((item.material, item.code), (self.zsp, '40001177'))
+        # ไม่ส่ง key material -> คงการผูกและคงรหัสตาม Material ID
+        self._post(*url, {'code': 'HACK', 'name': 'แก้ชื่อ'}, args=[item.pk])
+        item.refresh_from_db()
+        self.assertEqual((item.material, item.code, item.name), (self.zsp, '40001177', 'แก้ชื่อ'))
+        # ส่งค่าว่าง -> ล้างการผูก
+        self._post(*url, {'material': '', 'code': '40001177', 'name': 'แก้ชื่อ'}, args=[item.pk])
+        item.refresh_from_db()
+        self.assertIsNone(item.material)
+
+    def test_tools_type_add_with_material(self):
+        r = self._post('toolstaff', 'api_tools_type_add', {'material': self.zsp.pk, 'department': 'lathe'})
+        self.assertTrue(r.json()['success'])
+        item = self.InventoryItem.objects.get()
+        self.assertEqual((item.category, item.code, item.material, item.department), ('tools', '40001177', self.zsp, 'lathe'))
+
+    def test_protect_blocks_material_delete(self):
+        from django.db.models import ProtectedError
+        self.InventoryItem.objects.create(code='40001177', name='x', material=self.zsp)
+        with self.assertRaises(ProtectedError):
+            self.zsp.delete()
+
+    def test_detail_shows_inventory_and_pages_render(self):
+        item = self.InventoryItem.objects.create(code='40001177', name='BEARING 6205', material=self.zsp)
+        self.client.login(username='invstaff', password='pw')
+        self.assertContains(self.client.get(reverse('material_detail', args=[self.zsp.pk])), 'BEARING 6205')
+        r = self.client.get(reverse('inventory_stock_card', args=[item.pk]))
+        self.assertContains(r, 'id="ei_material" value="%d"' % self.zsp.pk)
+        self.assertContains(self.client.get(reverse('inventory_dashboard')), 'id="ai_msearch"')
+        self.client.login(username='toolstaff', password='pw')
+        self.assertContains(self.client.get(reverse('tools_type_list')), 'id="at_msearch"')
+
+    def test_link_command_covers_inventory(self):
+        from io import StringIO
+        from django.core.management import call_command
+        a = self.InventoryItem.objects.create(code=' 40001177 ', name='a')
+        b = self.InventoryItem.objects.create(code='NOPE', name='b')
+        out = StringIO()
+        call_command('link_material_master', '--dry-run', stdout=out)
+        a.refresh_from_db()
+        self.assertIsNone(a.material)
+        call_command('link_material_master', stdout=out)
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertEqual(a.material, self.zsp)
+        self.assertIsNone(b.material)
+        self.assertIn('NOPE', out.getvalue())

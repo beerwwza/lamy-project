@@ -59,6 +59,7 @@
       <button onclick="document.getElementById('addTypeModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
     </div>
     <div class="p-6 space-y-3">
+      {% include 'myapp/includes/material_picker_field.html' with prefix='at' %}
       <div>
         <label class="text-xs font-medium text-slate-500 block mb-1">รหัสเครื่องมือ *</label>
         <input id="at_code" class="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -88,7 +89,15 @@
   </div>
 </div>
 
+{% include 'myapp/includes/material_picker_js.html' %}
 <script>
+mpInit('at', {
+  lockIds: ['at_code'],
+  onPick: function (m) {
+    document.getElementById('at_code').value = m.material_id;
+    document.getElementById('at_name').value = m.short_desc;
+  }
+});
 function submitAddType() {
   const err = document.getElementById('at_err');
   err.textContent = '';
@@ -96,6 +105,7 @@ function submitAddType() {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
     body: JSON.stringify({
+      material: document.getElementById('at_material').value,
       code: document.getElementById('at_code').value.trim(),
       name: document.getElementById('at_name').value.trim(),
       department: document.getElementById('at_dept').value,

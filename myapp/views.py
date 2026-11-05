@@ -4388,19 +4388,56 @@ def api_inventory_loan(request):
     return JsonResponse({'success': True, 'new_stock': float(item.stock), 'tx_id': tx.id})
 
 
+def _resolve_inventory_material(data, current_item=None):
+    """อ่าน data['material'] (id ภายในของ MaterialMaster) -> (material, error)
+       คืน (None, None) เมื่อไม่ได้เลือก · 1 Material ผูกได้กับ 1 รายการคลังเท่านั้น"""
+    raw = data.get('material')
+    if raw in (None, '', 0, '0'):
+        return None, None
+    try:
+        pk = int(raw)
+    except (TypeError, ValueError):
+        return None, 'ข้อมูล Material ไม่ถูกต้อง'
+    material = MaterialMaster.objects.filter(pk=pk).first()
+    if not material:
+        return None, 'ไม่พบ Material ที่เลือก'
+    current_pk = current_item.material_id if current_item else None
+    if material.status != 'active' and material.pk != current_pk:
+        return None, f'Material {material.material_id} เลิกใช้แล้ว เลือกผูกใหม่ไม่ได้'
+    used = InventoryItem.objects.filter(material=material)
+    if current_item:
+        used = used.exclude(pk=current_item.pk)
+    existing = used.first()
+    if existing:
+        return None, f'Material {material.material_id} ถูกใช้กับรายการคลัง {existing.code} แล้ว (1 Material = 1 รายการคลัง)'
+    return material, None
+
+
+MATERIAL_TYPE_DEFAULT_CATEGORY = {'ZSP': 'spares', 'ZOS': 'consumables'}
+
+
 @login_required
 @module_required('inventory')
 @require_POST
 def api_inventory_add_item(request):
     """เพิ่มรายการใหม่เข้าคลัง + เปิดยอดตั้งต้น (ถ้ามี)"""
     data = json.loads(request.body or '{}')
+    material, mat_error = _resolve_inventory_material(data)
+    if mat_error:
+        return JsonResponse({'error': mat_error}, status=400)
+    if material:
+        # เลือก Material -> รหัสคลัง = Material ID เสมอ, ชื่อ/หน่วย/หมวดเติมให้ถ้าไม่ได้ส่งมา
+        data['code'] = material.material_id
+        data['name'] = data.get('name') or material.short_desc
+        data['unit'] = data.get('unit') or material.uom or 'ชิ้น'
+        data['category'] = data.get('category') or MATERIAL_TYPE_DEFAULT_CATEGORY.get(material.material_type, 'consumables')
     if not data.get('code') or not data.get('name'):
         return JsonResponse({'error': 'กรุณากรอกรหัสและชื่อรายการ'}, status=400)
     if InventoryItem.objects.filter(code=data['code']).exists():
         return JsonResponse({'error': 'รหัสสินค้านี้มีอยู่แล้ว'}, status=400)
 
     item = InventoryItem.objects.create(
-        code=data['code'], name=data['name'],
+        code=data['code'], name=data['name'], material=material,
         category=data.get('category', 'consumables'),
         department=data.get('department', 'maintenance'),
         unit=data.get('unit', 'ชิ้น'),
@@ -4428,13 +4465,24 @@ def api_inventory_update_item(request, pk):
     """แก้ไขข้อมูลรายการที่มีอยู่แล้ว (ไม่รวม stock — เปลี่ยนได้ผ่าน transaction เท่านั้น)"""
     item = get_object_or_404(InventoryItem, pk=pk)
     data = json.loads(request.body or '{}')
+    link_changed = 'material' in data  # ไม่ส่ง key = ไม่แตะการผูก · ส่งค่าว่าง = ล้างการผูก
+    material, mat_error = _resolve_inventory_material(data, current_item=item)
+    if mat_error:
+        return JsonResponse({'error': mat_error}, status=400)
     code = data.get('code', '').strip()
     name = data.get('name', '').strip()
+    if material:
+        code = material.material_id
+        name = name or material.short_desc
+    elif item.material_id and not link_changed:
+        code = item.material.material_id  # รายการที่ผูกอยู่ต้องคงรหัสตาม Material ID
     if not code or not name:
         return JsonResponse({'error': 'กรุณากรอกรหัสและชื่อรายการ'}, status=400)
     if InventoryItem.objects.exclude(pk=item.pk).filter(code=code).exists():
         return JsonResponse({'error': 'รหัสสินค้านี้มีอยู่แล้ว'}, status=400)
 
+    if link_changed:
+        item.material = material
     item.code = code
     item.name = name
     item.category = data.get('category', item.category)
@@ -4829,13 +4877,20 @@ def api_tools_return(request):
 def api_tools_type_add(request):
     """เพิ่มชนิดเครื่องมือใหม่ (InventoryItem หมวด 'tools') จากโมดูลเครื่องมือโดยตรง"""
     data = json.loads(request.body or '{}')
+    material, mat_error = _resolve_inventory_material(data)
+    if mat_error:
+        return JsonResponse({'error': mat_error}, status=400)
+    if material:
+        data['code'] = material.material_id
+        data['name'] = data.get('name') or material.short_desc
+        data['unit'] = data.get('unit') or material.uom or 'ชิ้น'
     if not data.get('code') or not data.get('name'):
         return JsonResponse({'error': 'กรุณากรอกรหัสและชื่อเครื่องมือ'}, status=400)
     if InventoryItem.objects.filter(code=data['code']).exists():
         return JsonResponse({'error': 'รหัสนี้มีอยู่แล้ว'}, status=400)
 
     item = InventoryItem.objects.create(
-        code=data['code'], name=data['name'], category='tools',
+        code=data['code'], name=data['name'], category='tools', material=material,
         department=data.get('department', 'maintenance'),
         unit=data.get('unit', 'ชิ้น'),
         location=data.get('location', ''),
@@ -8002,6 +8057,7 @@ def material_detail(request, pk):
     return render(request, 'myapp/material_detail.html', {
         'material': material,
         'bom_lines': material.bom_lines.select_related('equipment').order_by('equipment__equipment_id'),
+        'inventory_item': InventoryItem.objects.filter(material=material).first(),
         'can_write': request.user.is_superuser or (request.user.is_staff and request.user.has_perm('myapp.write_materials')),
     })
 

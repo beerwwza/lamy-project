@@ -1147,6 +1147,10 @@ class InventoryItem(models.Model):
     linked_bom  = models.ForeignKey('EquipmentBOM', null=True, blank=True, on_delete=models.SET_NULL,
                                     related_name='inventory_items', verbose_name="ผูกกับ BOM อะไหล่")
 
+    # ผูกกับรหัสวัสดุ SAP (optional — รายการเดิมที่ยังไม่ผูกใช้งานได้ตามปกติ) · 1 Material = 1 รายการคลัง
+    material    = models.OneToOneField('MaterialMaster', null=True, blank=True, on_delete=models.PROTECT,
+                                       related_name='inventory_item', verbose_name="Material Master")
+
     is_active   = models.BooleanField(default=True, verbose_name="สถานะใช้งาน")
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)

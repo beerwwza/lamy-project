@@ -62,6 +62,16 @@
         </tbody>
       </table>
     </div>
+    <div class="px-5 py-3 border-t border-slate-100 dark:border-slate-800 text-sm font-medium text-slate-600 dark:text-slate-300">รายการคลัง / เครื่องมือ</div>
+    {% if inventory_item %}
+    <div class="px-5 pb-4 text-sm flex flex-wrap items-center gap-x-6 gap-y-1">
+      <a href="{% if inventory_item.category == 'tools' %}{% url 'tools_type_detail' inventory_item.pk %}{% else %}{% url 'inventory_stock_card' inventory_item.pk %}{% endif %}" class="text-indigo-600 hover:underline">{{ inventory_item.code }} — {{ inventory_item.name }}</a>
+      <span class="text-slate-500">{{ inventory_item.get_category_display }} · {{ inventory_item.get_department_display }}</span>
+      <span class="text-slate-700 dark:text-slate-200">คงเหลือ {{ inventory_item.stock|floatformat:"-2" }} {{ inventory_item.unit }}</span>
+    </div>
+    {% else %}
+    <p class="px-5 pb-4 text-sm text-slate-400">ยังไม่มีรายการคลังหรือเครื่องมือผูกกับรหัสนี้</p>
+    {% endif %}
   </div>
 </div>
 <script>lucide.createIcons();</script>
