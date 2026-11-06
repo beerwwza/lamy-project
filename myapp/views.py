@@ -8157,3 +8157,9 @@ def material_add(request):
 @module_required('materials')
 def material_edit(request, pk):
     return _material_form_view(request, get_object_or_404(MaterialMaster, pk=pk))
+
+
+@login_required
+def training_p101_trainer(request):
+    """ต้นแบบบทเรียน P-101 Maintenance Trainer — เนื้อหาสถิตทั้งหมดอยู่ในเทมเพลต ไม่มีการอ่าน/เขียนฐานข้อมูล"""
+    return render(request, 'myapp/training/p101_trainer.html')

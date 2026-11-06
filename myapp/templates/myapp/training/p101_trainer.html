@@ -1,0 +1,1137 @@
+{% extends 'myapp/training/base.html' %}
+{% load static %}
+
+{% block title %}P-101 Maintenance Trainer{% endblock title %}
+{% block page_title %}P-101 Maintenance Trainer{% endblock %}
+
+{% block training_content %}
+<style>
+/* ต้นแบบบทเรียน P-101 — CSS ทั้งหมด scope ใต้ #p101 เพื่อไม่ทับ layout/sidebar ของ base.html
+   Layout ใช้ container query (ไม่ใช่ viewport) เพราะ sidebar กินพื้นที่ 256px ที่ md ขึ้นไป
+   ทุก grid เริ่มที่ 1 คอลัมน์ (mobile-first) แล้วขยายเมื่อ container กว้างพอ */
+#p101{
+  --bg:#0A1424; --panel:#0F1E35; --raised:#162A47; --line:#22406A; --line-soft:#1A3253;
+  --fg:#EEF3FA; --muted:#8FA0B8; --blue:#2F7DE1; --blue-soft:#9CC2F2;
+  --ok:#3FBF7F; --warn:#F2B33D; --crit:#E5484D; --safety:#F5C518;
+  --f-display:"IBM Plex Sans Thai",system-ui,sans-serif;
+  --f-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  container-type:inline-size;
+  background:var(--bg); color:var(--fg); color-scheme:dark;
+  font-size:14px; line-height:1.55; border-radius:12px; overflow:hidden;
+}
+#p101 *{box-sizing:border-box}
+#p101 [hidden]{display:none!important}
+#p101 button{font:inherit;color:inherit}
+#p101 :focus-visible{outline:2px solid var(--blue-soft);outline-offset:2px}
+#p101 .pad{padding-left:12px;padding-right:12px}
+
+/* header */
+#p101 .p-head{background:var(--panel);border-bottom:1px solid var(--line)}
+#p101 .hbar{display:flex;align-items:center;gap:8px 20px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+#p101 .brand{display:flex;align-items:baseline;gap:4px 10px;min-width:0;flex-wrap:wrap}
+#p101 .brand b{font-family:var(--f-display);font-size:20px;letter-spacing:.02em;font-weight:700}
+#p101 .brand span{color:var(--muted);font-size:12.5px}
+#p101 .tag{font-family:var(--f-mono);font-size:11px;border:1px solid var(--line);border-radius:3px;padding:1px 6px;color:var(--blue-soft)!important}
+#p101 .p-nav{display:flex;gap:2px;flex-wrap:wrap;margin-left:auto}
+#p101 .p-nav button{background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;cursor:pointer;color:var(--muted);font-family:var(--f-display);font-size:15px;letter-spacing:.03em;font-weight:600}
+#p101 .p-nav button:hover{color:var(--fg)}
+#p101 .p-nav button[aria-current="page"]{color:var(--fg);border-bottom-color:var(--blue)}
+
+#p101 h2{font-family:var(--f-display);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--blue-soft);margin:0 0 10px}
+#p101 h3{margin:0;font-size:15px;font-weight:600;text-wrap:balance}
+#p101 .panel{background:var(--panel);border:1px solid var(--line-soft);border-radius:6px;padding:14px;min-width:0}
+#p101 .muted{color:var(--muted)}
+#p101 ul.clean{margin:0;padding-left:18px;list-style:disc}
+#p101 ol.clean{margin:0;padding-left:20px;list-style:decimal}
+#p101 ul.clean li,#p101 ol.clean li{margin:2px 0}
+#p101 p{margin:0 0 8px}
+
+/* learn grid — 1 คอลัมน์เป็นฐาน */
+#p101 .learn{display:grid;gap:12px;padding-top:12px;padding-bottom:12px;grid-template-columns:minmax(0,1fr);grid-template-areas:"center" "left" "right" "bottom"}
+#p101 .left{grid-area:left}#p101 .center{grid-area:center}#p101 .right{grid-area:right}#p101 .bottom{grid-area:bottom}
+@container (min-width:640px){
+  #p101 .learn{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"center center" "left right" "bottom bottom"}
+}
+@container (min-width:1000px){
+  #p101 .learn{grid-template-columns:250px minmax(0,1fr) 310px;grid-template-areas:"left center right" "bottom bottom bottom"}
+}
+
+/* workflow rail */
+#p101 .steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+#p101 .steps button{width:100%;display:grid;grid-template-columns:30px 1fr;gap:8px;align-items:start;text-align:left;background:none;border:1px solid transparent;border-radius:4px;padding:7px 8px;cursor:pointer}
+#p101 .steps button:hover{background:var(--raised)}
+#p101 .steps button[aria-current="step"]{background:var(--raised);border-color:var(--blue)}
+#p101 .num{font-family:var(--f-mono);font-size:12px;width:26px;height:22px;display:grid;place-items:center;border-radius:3px;border:1px solid var(--line);color:var(--muted)}
+#p101 .done .num{background:#183B2C;border-color:var(--ok);color:var(--ok)}
+#p101 [aria-current="step"] .num{background:var(--blue);border-color:var(--blue);color:#fff}
+#p101 .steps .t1{display:block;font-weight:600;font-size:13.5px}
+#p101 .steps .t2{display:block;font-size:12px;color:var(--muted)}
+#p101 .stepnav{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+#p101 .btn{background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:7px 12px;cursor:pointer;font-size:13px}
+#p101 .btn:hover{border-color:var(--blue)}
+#p101 .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+#p101 .btn[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
+#p101 .btn:disabled{opacity:.4;cursor:default}
+
+/* viewport */
+#p101 .center{padding:0;overflow:hidden;position:relative;height:clamp(380px,62vh,680px)}
+#p101 #stage{position:absolute;inset:0}
+#p101 #stage canvas{display:block;width:100%;height:100%;touch-action:none}
+#p101 .toolbar{position:absolute;top:10px;left:10px;right:10px;display:flex;flex-wrap:wrap;gap:6px;z-index:2;pointer-events:none}
+#p101 .toolbar>*{pointer-events:auto}
+#p101 .toolbar .btn{background:rgba(15,30,53,.88);padding:6px 10px;font-size:12.5px}
+#p101 .toolbar .btn[aria-pressed="true"]{background:var(--blue)}
+#p101 .caption{position:absolute;left:10px;bottom:10px;right:10px;z-index:2;display:flex;gap:10px;align-items:flex-end;pointer-events:none}
+#p101 .caption div{background:rgba(10,20,36,.9);border:1px solid var(--line);border-left:3px solid var(--safety);border-radius:4px;padding:7px 10px;font-size:13px;max-width:62ch}
+#p101 .caption small{display:block;font-family:var(--f-mono);font-size:10.5px;color:var(--safety);letter-spacing:.06em}
+#p101 #partsMenu{position:absolute;top:48px;left:10px;z-index:3;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:grid;gap:4px;font-size:13px;max-height:calc(100% - 60px);overflow:auto}
+#p101 #partsMenu label{display:flex;gap:8px;align-items:center;cursor:pointer}
+#p101 #spectrum{position:absolute;top:50px;right:10px;width:min(340px,calc(100% - 20px));z-index:2;background:rgba(10,20,36,.93);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+#p101 #spectrum svg{width:100%;height:auto;display:block}
+#p101 .nogl{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+
+/* right rail */
+#p101 .right{display:flex;flex-direction:column;gap:12px;padding:0;background:none;border:0}
+#p101 .metric{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-soft)}
+#p101 .metric:last-of-type{border-bottom:0}
+#p101 .metric .v{font-family:var(--f-mono);font-size:18px;font-variant-numeric:tabular-nums}
+#p101 .metric .k{font-size:12.5px;color:var(--muted)}
+#p101 .pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid}
+#p101 .pill.crit{color:var(--crit);border-color:var(--crit)}#p101 .pill.warn{color:var(--warn);border-color:var(--warn)}#p101 .pill.ok{color:var(--ok);border-color:var(--ok)}#p101 .pill.info{color:var(--blue-soft);border-color:var(--line)}
+#p101 .zonebar{grid-column:1/-1;position:relative;height:10px;border-radius:2px;display:grid;margin-top:6px}
+#p101 .zonebar .needle{position:absolute;top:-4px;width:2px;height:18px;background:var(--fg)}
+#p101 .zl{grid-column:1/-1;display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10px;color:var(--muted)}
+#p101 .cause{display:grid;grid-template-columns:1fr auto;gap:8px;padding:5px 0;border-bottom:1px solid var(--line-soft);font-size:13px}
+#p101 .cause:last-child{border-bottom:0}
+#p101 .chips{display:flex;flex-wrap:wrap;gap:6px}
+#p101 .chip{background:var(--raised);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer}
+#p101 .chip:hover{border-color:var(--blue)}
+#p101 #partCard dl{margin:0;display:grid;gap:6px}
+#p101 #partCard dt{color:var(--blue-soft);letter-spacing:.04em;text-transform:uppercase;font-family:var(--f-display);font-size:12px}
+#p101 #partCard dd{margin:0;font-size:13px}
+#p101 .cardhead{display:flex;justify-content:space-between;align-items:start;gap:8px;margin-bottom:8px}
+#p101 .x{background:none;border:0;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:2px 6px}
+
+/* bottom sheet */
+#p101 .sheethead{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+#p101 .sheethead h3{font-size:18px}
+#p101 .sheethead .eyebrow{font-family:var(--f-mono);font-size:11px;color:var(--blue-soft);letter-spacing:.08em}
+#p101 .tabs{display:flex;flex-wrap:wrap;gap:4px}
+#p101 .quad,#p101 .tech{display:grid;gap:14px 12px;grid-template-columns:minmax(0,1fr)}
+@container (min-width:520px){
+  #p101 .quad,#p101 .tech{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@container (min-width:900px){
+  #p101 .quad,#p101 .tech{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+#p101 .box{border-top:2px solid var(--line);padding-top:8px;min-width:0}
+#p101 .box h4{margin:0 0 6px;font-family:var(--f-display);font-size:14px;letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+#p101 .box.safety{border-top-color:var(--safety)}#p101 .box.safety h4{color:var(--safety)}
+#p101 .box.next{border-top-color:var(--blue)}
+#p101 .src{margin-top:12px;font-size:12px;color:var(--muted)}
+
+/* other views */
+#p101 .view{padding-top:16px;padding-bottom:16px;display:grid;gap:14px}
+#p101 .lead{max-width:72ch;color:var(--muted);margin:0}
+#p101 .grid2{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@container (min-width:720px){
+  #p101 .grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+#p101 .scen .badge{font-family:var(--f-mono);font-size:11px;color:var(--safety)}
+#p101 .opts{display:grid;gap:6px;margin-top:10px}
+#p101 .opt{display:block;width:100%;text-align:left;background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:8px 10px;cursor:pointer;font-size:13.5px}
+#p101 .opt:hover{border-color:var(--blue)}
+#p101 .opt.right-a{border-color:var(--ok);background:#143426}
+#p101 .opt.wrong-a{border-color:var(--crit);background:#3A1A20}
+#p101 .fb{margin-top:8px;font-size:13px;padding:8px 10px;border-radius:4px;background:var(--raised)}
+#p101 .fb.good{border-left:3px solid var(--ok)}#p101 .fb.bad{border-left:3px solid var(--crit)}
+#p101 .toolgrid{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(min(180px,100%),1fr));margin-top:10px}
+#p101 .tool{display:flex;gap:8px;align-items:flex-start;background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:8px 10px;cursor:pointer;font-size:13px}
+#p101 .tool.sel{border-color:var(--blue)}
+#p101 .tool.good{border-color:var(--ok)}#p101 .tool.bad{border-color:var(--crit)}
+#p101 .seqpool,#p101 .seqout{display:flex;flex-wrap:wrap;gap:6px;min-height:40px;margin-top:8px}
+#p101 .seqout{border:1px dashed var(--line);border-radius:4px;padding:8px;flex-direction:column}
+#p101 .seqitem{background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:6px 10px;cursor:pointer;font-size:13px;text-align:left}
+#p101 .seqitem.good{border-color:var(--ok)}#p101 .seqitem.bad{border-color:var(--crit)}
+#p101 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+#p101 .qcat{font-family:var(--f-mono);font-size:11px;color:var(--blue-soft);letter-spacing:.06em}
+#p101 .q{border-bottom:1px solid var(--line-soft);padding-top:12px;padding-bottom:12px}
+#p101 .q:last-of-type{border-bottom:0}
+#p101 .q label{display:flex;gap:8px;align-items:flex-start;padding:4px 0;cursor:pointer}
+#p101 .q .why{font-size:12.5px;margin-top:6px}
+#p101 .score{display:flex;gap:12px 24px;flex-wrap:wrap;align-items:center}
+#p101 .score .big{font-family:var(--f-display);font-size:48px;font-weight:700;line-height:1}
+#p101 .catbar{display:grid;grid-template-columns:minmax(0,150px) 1fr 48px;gap:10px;align-items:center;font-size:13px;margin:4px 0}
+#p101 .catbar .track{height:8px;background:var(--raised);border-radius:2px;overflow:hidden}
+#p101 .catbar .fill{height:100%;background:var(--blue)}
+#p101 .kcards{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr))}
+#p101 .kcard dl{margin:8px 0 0;display:grid;gap:6px;font-size:13px}
+#p101 .kcard dt{color:var(--blue-soft);font-size:12px}
+#p101 .kcard dd{margin:0}
+#p101 table{border-collapse:collapse;width:100%;font-size:13px}
+#p101 th,#p101 td{border-bottom:1px solid var(--line-soft);padding:6px 8px;text-align:left;vertical-align:top}
+#p101 th{color:var(--blue-soft);font-weight:600}
+#p101 .tw{overflow-x:auto}
+#p101 code,#p101 .mono{font-family:var(--f-mono);font-size:12.5px}
+#p101 .formula{background:var(--raised);border-radius:4px;padding:8px 10px;font-family:var(--f-mono);font-size:13px;overflow-x:auto}
+#p101 .p-foot{padding-top:14px;padding-bottom:20px;color:var(--muted);font-size:12px}
+@media (prefers-reduced-motion:reduce){
+  #p101 *{transition:none!important}
+}
+</style>
+
+<div id="p101">
+  <div class="p-head">
+    <div class="pad hbar">
+      <div class="brand"><b>P-101 Maintenance Trainer</b><span>Centrifugal Pump · Bearing Failure</span><span class="tag">PROTOTYPE</span></div>
+      <div class="p-nav" role="navigation" aria-label="เมนูบทเรียน P-101">
+        <button type="button" data-view="learn">Learn</button>
+        <button type="button" data-view="simulate">Simulate</button>
+        <button type="button" data-view="test">Test</button>
+        <button type="button" data-view="knowledge">Knowledge</button>
+        <button type="button" data-view="assessment">Assessment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEARN -->
+  <div id="view-learn" class="pad learn">
+    <section class="panel left" aria-label="Maintenance Workflow">
+      <h2>Maintenance Workflow</h2>
+      <ol class="steps" id="stepList"></ol>
+      <div class="stepnav">
+        <button type="button" class="btn" id="prevStep">← ก่อนหน้า</button>
+        <button type="button" class="btn primary" id="nextStep">ขั้นต่อไป →</button>
+      </div>
+    </section>
+
+    <section class="panel center" aria-label="3D Simulation">
+      <div id="stage"></div>
+      <div class="toolbar">
+        <button type="button" class="btn" id="tbParts" aria-expanded="false">ชิ้นส่วน ▾</button>
+        <button type="button" class="btn" id="tbCut" aria-pressed="false">Cutaway</button>
+        <button type="button" class="btn" id="tbExplode" aria-pressed="false">Exploded</button>
+        <button type="button" class="btn" id="tbSpin" aria-pressed="false">หมุน Shaft</button>
+        <button type="button" class="btn" id="tbReplay">↻ เล่นฉากนี้ซ้ำ</button>
+        <button type="button" class="btn" id="tbCam">มุมกล้องของขั้นตอน</button>
+      </div>
+      <div id="partsMenu" hidden></div>
+      <div id="spectrum" hidden></div>
+      <div class="caption"><div><small id="capTag">SCENE</small><span id="capText">กำลังโหลดโมเดล 3D…</span></div></div>
+    </section>
+
+    <aside class="right" aria-label="สภาพเครื่องและความรู้">
+      <section class="panel" id="partCard" hidden></section>
+      <section class="panel">
+        <h2>Current Condition</h2>
+        <div id="cond"></div>
+      </section>
+      <section class="panel">
+        <h2>Possible Cause</h2>
+        <div id="causes"></div>
+      </section>
+      <section class="panel">
+        <h2>Related Knowledge</h2>
+        <div class="chips" id="related"></div>
+      </section>
+    </aside>
+
+    <section class="panel bottom" aria-label="รายละเอียดขั้นตอน">
+      <div class="sheethead">
+        <div><div class="eyebrow" id="sheetEyebrow">STEP 1 / 11</div><h3 id="sheetTitle"></h3></div>
+        <div class="tabs" role="tablist">
+          <button type="button" class="btn" role="tab" id="tabSum" aria-pressed="true">สรุปขั้นตอน</button>
+          <button type="button" class="btn" role="tab" id="tabTech" aria-pressed="false">เนื้อหาเทคนิค 8 หัวข้อ</button>
+        </div>
+      </div>
+      <div id="sheetSum"></div>
+      <div id="sheetTech" hidden></div>
+    </section>
+  </div>
+
+  <!-- SIMULATE -->
+  <section id="view-simulate" class="pad view" hidden>
+    <div><h2>Decision Making</h2><p class="lead">สถานการณ์ตัดสินใจ 4 เรื่อง เลือกคำตอบที่ดีที่สุด ระบบจะอธิบายว่าทำไมถูกหรือผิด ทุกตัวเลือกมีคำอธิบาย ลองเลือกผิดดูได้</p></div>
+    <div class="grid2" id="scenarios"></div>
+  </section>
+
+  <!-- TEST -->
+  <section id="view-test" class="pad view" hidden>
+    <div><h2>Practice Drills</h2><p class="lead">ฝึกเลือกเครื่องมือและเรียงลำดับงานของ Step 7 Repair Execution ทำซ้ำได้ไม่จำกัด ไม่นับคะแนน</p></div>
+    <div class="grid2">
+      <section class="panel" id="drillTools"></section>
+      <section class="panel" id="drillSeq"></section>
+    </div>
+  </section>
+
+  <!-- KNOWLEDGE -->
+  <section id="view-knowledge" class="pad view" hidden>
+    <div><h2>Knowledge Base</h2><p class="lead">ข้อมูลชิ้นส่วน สูตรคำนวณ และเกณฑ์ที่ใช้ในบทเรียน ค่าที่เฉพาะกับเครื่อง เช่น torque, tolerance และเกณฑ์ alignment ต้องเอามาจากคู่มือผู้ผลิตของเครื่องจริง ระบบนี้ไม่ใส่ค่าเหล่านี้ให้</p></div>
+    <section class="panel" id="k-parts"><h2>ชิ้นส่วนเครื่องจักร (10 รายการ)</h2><div class="kcards" id="kParts"></div></section>
+    <div class="grid2">
+      <section class="panel" id="k-bearing-freq">
+        <h2>ความถี่ข้อบกพร่อง Bearing</h2>
+        <p class="muted" style="margin-top:0">fr = ความเร็วรอบเพลา (Hz) · n = จำนวนลูกกลิ้ง · d = เส้นผ่านศูนย์กลางลูกกลิ้ง · D = pitch diameter · φ = contact angle</p>
+        <div class="formula">BPFO = (n/2)·fr·(1 − (d/D)·cosφ)<br>BPFI = (n/2)·fr·(1 + (d/D)·cosφ)<br>BSF&nbsp; = (D/2d)·fr·(1 − ((d/D)·cosφ)²)<br>FTF&nbsp; = (fr/2)·(1 − (d/D)·cosφ)</div>
+        <p style="margin-bottom:0">Outer race defect มักเห็นเป็น peak ที่ BPFO พร้อม harmonics ส่วน inner race มักมี sideband ±1X รอบ BPFI เพราะแหวนในหมุนผ่านโซนรับภาระ ค่า geometry ให้ใช้ของ bearing part number จริง จากโปรแกรมของผู้ผลิตหรือฐานข้อมูลในซอฟต์แวร์วิเคราะห์</p>
+      </section>
+      <section class="panel" id="k-iso">
+        <h2>เกณฑ์ Vibration ที่ใช้ในบทเรียน</h2>
+        <div class="tw overflow-x-auto"><table>
+          <thead><tr><th>ISO 10816-3 · Group 3 (ปั๊ม &gt;15 kW, ต้นกำลังแยก)</th><th>ฐานแข็ง (Rigid)</th><th>ฐานยืดหยุ่น (Flexible)</th></tr></thead>
+          <tbody>
+            <tr><td>Zone A/B</td><td class="mono">2.3 mm/s</td><td class="mono">3.5 mm/s</td></tr>
+            <tr><td>Zone B/C</td><td class="mono">4.5 mm/s</td><td class="mono">7.1 mm/s</td></tr>
+            <tr><td>Zone C/D</td><td class="mono">7.1 mm/s</td><td class="mono">11.0 mm/s</td></tr>
+          </tbody></table></div>
+        <p style="margin-bottom:0">ค่า 12.8 mm/s RMS ในสถานการณ์นี้เกินขอบ C/D ของทั้งสองแบบฐาน จึงอยู่ใน Zone D <span class="muted">ตารางนี้มาจากความรู้ทั่วไปเรื่อง ISO 10816-3 ไม่ได้เปิดตรวจกับตัวมาตรฐาน ปัจจุบันถูกแทนด้วย ISO 20816-3 และสำหรับปั๊มมี ISO 10816-7 ต้องตรวจกับเอกสารฉบับจริงก่อนนำไปใช้ประเมินเครื่องจริง</span></p>
+      </section>
+      <section class="panel" id="k-loto">
+        <h2>Lockout / Tagout</h2>
+        <ul class="clean">
+          <li>ระบุแหล่งพลังงานทุกแหล่ง ได้แก่ ไฟฟ้า (MCC), แรงดันในระบบ (วาล์ว suction/discharge), พลังงานสะสม (ของไหลค้างในท่อ) และการหมุนย้อนจาก backflow</li>
+          <li>ทุกคนที่เข้าทำงานแขวนกุญแจและป้ายของตัวเอง ห้ามใช้กุญแจร่วมกัน</li>
+          <li>Zero Energy Verification ทำได้โดยลองกด Start (try-out), วัดว่าไม่มีแรงดันไฟ และดูเกจว่าความดันเป็นศูนย์</li>
+        </ul>
+        <p class="src">อ้างอิง: OSHA 29 CFR 1910.147 (Control of Hazardous Energy) · ใช้ร่วมกับขั้นตอน LOTO / PTW ของโรงงาน</p>
+      </section>
+      <section class="panel" id="k-mount">
+        <h2>การติดตั้ง Bearing</h2>
+        <ul class="clean">
+          <li>ส่งแรงผ่านแหวนที่สวมแน่น (ลงเพลาให้ดันที่ inner ring) ห้ามส่งแรงผ่านลูกกลิ้ง เพราะทำให้เกิดรอยบุ๋ม (brinelling)</li>
+          <li>ให้ความร้อนด้วย induction heater ประมาณ 110 °C และไม่เกิน 125 °C ห้ามใช้ไฟเปลว</li>
+          <li>เปิดซองเมื่อพร้อมติดตั้ง และไม่ล้างสารกันสนิมของ bearing ใหม่ (ยกเว้นคู่มือระบุ)</li>
+          <li>ปริมาณจาระบีเติมซ้ำโดยประมาณ G = 0.005·D·B (กรัม, D = เส้นผ่านศูนย์กลางนอก mm, B = ความกว้าง mm)</li>
+        </ul>
+        <p class="src">อ้างอิง: คำแนะนำการติดตั้งและหล่อลื่นของ SKF (ความรู้ทั่วไป ไม่ได้มาจากคู่มือในระบบ) · ใช้ค่าในคู่มือของปั๊มจริงเป็นหลัก</p>
+      </section>
+      <section class="panel" id="k-failure">
+        <h2>รูปแบบความเสียหายของ Bearing</h2>
+        <p style="margin-top:0">ISO 15243 แบ่งรูปแบบความเสียหายเป็น 6 กลุ่ม</p>
+        <ul class="clean">
+          <li><b>Fatigue</b>: ผิวหลุดร่อน (spalling) จากใต้ผิวหรือที่ผิว</li>
+          <li><b>Wear</b>: สึกจากสิ่งปนเปื้อนหรือการหล่อลื่นไม่พอ</li>
+          <li><b>Corrosion</b>: สนิมจากความชื้น หรือ fretting</li>
+          <li><b>Electrical erosion</b>: กระแสไหลผ่าน bearing เกิดร่องลาย (fluting) มักพบกับ VFD</li>
+          <li><b>Plastic deformation</b>: รอยบุ๋มจากแรงกระแทก (brinelling) หรือจากเศษสิ่งแปลกปลอม</li>
+          <li><b>Fracture and cracking</b>: แหวนแตก ร้าว</li>
+        </ul>
+      </section>
+      <section class="panel" id="k-rca">
+        <h2>5 Why ของสถานการณ์นี้ (จำลอง)</h2>
+        <ol class="clean">
+          <li>Bearing เสียหาย ← ผิว outer race หลุดร่อน</li>
+          <li>ผิวหลุดร่อนเร็ว ← ฟิล์มหล่อลื่นไม่พอ ร่วมกับภาระเกินจาก misalignment</li>
+          <li>ฟิล์มไม่พอ ← อัดจาระบีเลยรอบ / alignment เคลื่อนหลังซ่อมครั้งก่อน</li>
+          <li>เลยรอบ ← แผน PM ของ P-101 ไม่ได้กำหนดรอบอัดจาระบีชัดเจน</li>
+          <li>Alignment เคลื่อน ← ไม่มีขั้นตอนมาตรฐาน laser alignment หลังงานซ่อม</li>
+        </ol>
+        <p class="src">แนวทางแก้ไข: กำหนดรอบหล่อลื่นใน PM, ทำ SOP alignment พร้อมบันทึกค่า, เพิ่ม P-101 เข้า route CBM รายเดือน และติดตามผล 3 เดือน</p>
+      </section>
+    </div>
+    <section class="panel" id="k-about">
+      <h2>เกี่ยวกับต้นแบบนี้</h2>
+      <ul class="clean">
+        <li>ตัวเลขทุกค่าของ P-101 (12.8 mm/s, 95 °C, ค่าหลังซ่อม, สเปกตรัม) เป็นค่าจำลองเพื่อการเรียนรู้ <b>ไม่ใช่ผลการวัดเครื่องจักรจริง</b></li>
+        <li>โมเดล 3D สร้างจาก geometry พื้นฐานของ Three.js ไม่ได้ใช้ไฟล์ GLB/GLTF ของปั๊มจริง สัดส่วนและรายละเอียดภายใน (เช่น wear ring, labyrinth seal, ตัวล็อก impeller) จึงเป็นแบบง่ายและยังไม่ถูกต้องตามแบบจริง</li>
+        <li>คนในฉากเป็นหุ่นทรงเรขาคณิตที่เคลื่อนที่ตามสคริปต์ของแต่ละขั้นตอน ยังไม่ใช่ motion capture</li>
+        <li>ต้นแบบเขียนด้วย JavaScript + Three.js (เก็บไฟล์ไว้ในเซิร์ฟเวอร์เอง ไม่พึ่ง CDN) ไม่ใช้ React / component framework ข้อมูลขั้นตอน ชิ้นส่วน และข้อสอบแยกเป็นออบเจกต์ในสคริปต์ จึงเพิ่มเครื่องจักรชนิดอื่นได้</li>
+        <li>ไม่มีค่า torque, tolerance หรือเกณฑ์ alignment ที่แต่งขึ้นเอง ทุกจุดที่ต้องใช้ค่าเหล่านี้ระบุว่า "ตามคู่มือผู้ผลิต"</li>
+      </ul>
+    </section>
+  </section>
+
+  <!-- ASSESSMENT -->
+  <section id="view-assessment" class="pad view" hidden>
+    <div><h2>Assessment</h2><p class="lead">แบบทดสอบหลังเรียน 10 ข้อ ครอบคลุม 5 หมวด ตอบให้ครบแล้วกดส่ง ระบบจะคิดคะแนนแยกหมวดและบอกหัวข้อที่ควรกลับไปทบทวน</p></div>
+    <section class="panel" id="quizResult" hidden></section>
+    <section class="panel">
+      <!-- ฟอร์มนี้ทำงานฝั่ง browser ทั้งหมด (JS ตรวจคำตอบ ไม่ POST ไปเซิร์ฟเวอร์ ไม่เก็บคะแนน) จึงไม่มี csrf_token -->
+      <form id="quiz" novalidate onsubmit="return false"></form>
+    </section>
+  </section>
+
+  <div class="pad p-foot">ต้นแบบระบบฝึกอบรม · ค่าทุกค่าของเครื่อง P-101 เป็นค่าจำลองเพื่อการเรียนรู้ ไม่ใช่ผลการตรวจวัดเครื่องจักรจริง</div>
+</div>
+{% endblock training_content %}
+
+{% block extra_js %}
+<script src="{% static 'myapp/vendor/three/three.min.js' %}"></script>
+<script src="{% static 'myapp/vendor/three/OrbitControls.js' %}"></script>
+{% verbatim %}
+<script>
+(function(){
+"use strict";
+/* ================= DATA ================= */
+const PARTS = {
+  casing:{name:"Pump Casing (Volute)",fn:"ห่อหุ้ม impeller และแปลงความเร็วของของไหลที่ออกจาก impeller เป็นความดัน แล้วนำไปที่ discharge",how:"ช่องทางไหลแบบก้นหอย (volute) ค่อย ๆ ขยายพื้นที่หน้าตัด ความเร็วของของไหลจึงลดลงและความดันเพิ่มขึ้น",fail:"สึกกร่อนจากการกัดเซาะหรือสารเคมี, ผิวเป็นหลุมจาก cavitation ใกล้ cutwater, รั่วที่ gasket, ร้าว",check:"รั่วซึมที่รอยต่อ, ความหนาผนัง (UT), แรงจากท่อ (pipe strain) ที่ nozzle",care:"ปิดวาล์ว ระบายแรงดัน และ drain ก่อนคลายน็อต · ยกตามจุดยกที่กำหนด"},
+  impeller:{name:"Impeller",fn:"เพิ่มพลังงานให้ของไหลด้วยแรงเหวี่ยงหนีศูนย์",how:"ของไหลเข้าที่ตา (eye) แล้วถูกใบพัดเหวี่ยงออกด้านนอกด้วยความเร็วสูง",fail:"Cavitation pitting, สึกกร่อน, unbalance, ระยะ wear ring กว้างขึ้นทำให้ประสิทธิภาพตก, มีสิ่งอุดตัน",check:"ผิวใบพัด, ระยะ wear ring, การ balance",care:"ตัวล็อก impeller บางรุ่นเป็นเกลียวซ้าย ต้องตรวจคู่มือก่อนคลาย"},
+  shaft:{name:"Shaft",fn:"ส่งแรงบิดจากมอเตอร์ไปที่ impeller และเป็นที่ตั้งของ bearing กับ seal",how:"หมุนบน bearing 2 ชุด รับภาระ radial และ axial จาก impeller",fail:"เพลาคด, fretting ที่ bearing seat, ร้าวล้าที่ร่องลิ่มหรือบ่า, สึกกร่อนใต้ seal",check:"Runout ด้วย dial indicator, ขนาด bearing seat, ร่องลิ่ม",care:"วางบน V-block หรือแท่นรอง ห้ามวางกับพื้น · ปิดผิว seat กันกระแทก"},
+  bearing:{name:"Bearing (Inboard / Outboard)",fn:"รองรับเพลาให้หมุนด้วยแรงเสียดทานต่ำ และรับภาระ radial กับ axial",how:"ลูกกลิ้งกลิ้งระหว่างแหวนในและแหวนนอก มีฟิล์มน้ำมันหรือจาระบีคั่นผิวโลหะ",fail:"ตาม ISO 15243: fatigue (spalling), wear, corrosion, electrical erosion, plastic deformation, fracture",check:"Vibration (BPFO/BPFI/BSF/FTF), อุณหภูมิ, เสียง, สภาพสารหล่อลื่น",care:"สะอาดตลอดงาน · ห้ามตีค้อนตรง · ส่งแรงผ่านแหวนที่สวมแน่น · ให้ความร้อนด้วย induction heater"},
+  housing:{name:"Bearing Housing",fn:"ยึดตำแหน่ง bearing, เก็บสารหล่อลื่น และระบายความร้อน",how:"รูเจาะ (bore) รับแหวนนอกของ bearing มีซีลกันฝุ่นและน้ำ และช่องเติม/ระบายสารหล่อลื่น",fail:"Bore สึกหรือเบี้ยว (outer ring หมุนตาม), ซีลรั่ว, น้ำหรือฝุ่นปนเปื้อน",check:"ขนาดและความกลมของ bore, ระดับน้ำมัน, breather",care:"ทำเครื่องหมายทิศก่อนถอด · ระวังผิวร้อนหลังหยุดเครื่อง"},
+  seal:{name:"Mechanical Seal",fn:"กันของไหลรั่วตามแนวเพลา",how:"หน้าสัมผัสคู่หนึ่งหมุนและอีกคู่อยู่กับที่ สัมผัสกันโดยมีฟิล์มของเหลวบาง ๆ คั่น และใช้สปริงดันให้แนบกัน",fail:"หน้าสัมผัสสึกหรือร้าวจากการเดินแห้ง, O-ring เสียหาย, สปริงอุดตัน, รั่วจาก vibration หรือ misalignment",check:"อัตรารั่ว, อุณหภูมิที่ gland, ระบบ flush",care:"ห้ามเดินแห้ง · ห้ามแตะหน้า seal ด้วยมือสกปรก · cartridge seal ต้องถอด setting clip หลังติดตั้ง (ดู API 682 และคู่มือ seal)"},
+  coupling:{name:"Coupling",fn:"ส่งแรงบิดจากมอเตอร์ไปปั๊ม และรับ misalignment ได้เล็กน้อย",how:"Hub 2 ฝั่งต่อกันผ่านชิ้นยืดหยุ่น (spider/insert)",fail:"ชิ้นยืดหยุ่นสึกหรือแตก, hub หลวม, ลิ่มสึก",check:"สภาพ insert, ระยะห่างระหว่าง hub, alignment",care:"ทำ match mark ก่อนถอด · ใช้ puller ห้ามงัด"},
+  guard:{name:"Coupling Guard",fn:"ป้องกันคนสัมผัสชิ้นส่วนหมุน",how:"ฝาครอบยึดกับฐาน ปิดคลุมบริเวณ coupling",fail:"หาย, บุบ, ครูดกับ coupling",check:"ติดตั้งครบ ยึดแน่น ไม่ครูด coupling",care:"ห้ามเดินเครื่องโดยไม่มี guard"},
+  motor:{name:"Electric Motor",fn:"แปลงพลังงานไฟฟ้าเป็นแรงบิด",how:"สนามแม่เหล็กหมุนใน stator เหนี่ยวนำให้ rotor หมุน",fail:"Bearing มอเตอร์เสีย, ฉนวนขดลวดเสื่อม, electrical fluting (VFD), soft foot, พัดลมระบายความร้อนอุดตัน",check:"กระแส (Amp), ความต้านทานฉนวน (megger), vibration ฝั่ง DE/NDE, อุณหภูมิ",care:"LOTO ที่ MCC · ช่างไฟฟ้าเป็นผู้ปลดสาย"},
+  baseplate:{name:"Baseplate",fn:"รองรับและรักษาแนวระหว่างปั๊มกับมอเตอร์",how:"โครงเหล็กยึดกับฐานคอนกรีตด้วย anchor bolt และ grout",fail:"Grout ร่อน, soft foot, น็อตยึดหลวม, สนิม",check:"Soft foot (feeler gauge / dial), anchor bolt, grout",care:"แก้ soft foot ก่อนทำ alignment ทุกครั้ง"}
+};
+
+const KLINKS = {iso:["k-iso","เกณฑ์ ISO 10816-3"],freq:["k-bearing-freq","ความถี่ข้อบกพร่อง Bearing"],loto:["k-loto","Lockout / Tagout"],mount:["k-mount","การติดตั้ง Bearing"],failure:["k-failure","รูปแบบความเสียหาย (ISO 15243)"],rca:["k-rca","5 Why ของ P-101"],parts:["k-parts","ข้อมูลชิ้นส่วน"],about:["k-about","ข้อจำกัดของต้นแบบ"]};
+
+const STEPS = [
+ {en:"Machine Breakdown",th:"พบเครื่องผิดปกติ",cap:"Operator เดินตรวจพื้นที่ ได้ยินเสียงดังผิดปกติและรู้สึกถึงการสั่นที่ปั๊ม P-101",
+  key:["อาการ 3 อย่างพร้อมกัน (เสียง + vibration + ร้อน) ชี้ไปที่ bearing","ค่า 12.8 mm/s RMS อยู่ใน Zone D ตาม ISO 10816-3 จึงไม่ควรเดินต่อเนื่องนาน","ตัดสินใจทันทีว่าจะเดินต่อแบบเฝ้าระวังหรือสลับไปปั๊มสำรอง"],
+  safety:["ห้ามเข้าใกล้ชิ้นส่วนหมุนหรือถอด guard","สวม PPE: ที่ครอบหู แว่นนิรภัย รองเท้านิรภัย"],
+  obj:"ตรวจพบความผิดปกติเร็ว และประเมินว่าต้องหยุดเครื่องหรือไม่ ก่อนความเสียหายลุกลาม",
+  proc:["สังเกตเสียง การสั่น กลิ่น และความร้อนจากระยะปลอดภัย","ดูค่าที่หน้างาน: pressure, flow, กระแสมอเตอร์","ประเมินความเสี่ยง: ถ้าเสียงดังขึ้นเรื่อย ๆ มีควัน หรือร้อนจัด ให้หยุดตามขั้นตอน","แจ้งหัวหน้ากะ และเตรียมปั๊มสำรองถ้ามี"],
+  tools:["ประสาทสัมผัส + เกจหน้างาน","จอ DCS/SCADA (ถ้ามี)"],
+  insp:["เสียงที่ bearing housing","การสั่นที่ฐาน","รอยรั่วซึม","สีหรือกลิ่นไหม้"],
+  acc:["ได้ข้อสรุปชัด: เดินต่อแบบเฝ้าระวัง / หยุด / สลับปั๊มสำรอง ตามแผนการเดินเครื่อง"],
+  prec:["ห้ามใช้มือแตะผิวที่สงสัยว่าร้อน","ยืนนอกแนว coupling"],
+  mist:["ปล่อยเดินต่อจนเพลาหรือ housing เสียหายตาม","ไม่จดเวลาที่เริ่มมีอาการ"],
+  docs:["บันทึกอาการและเวลาในสมุดกะ"],
+  rel:["iso","parts"],cond:"before",causeStage:0},
+ {en:"Problem Notification",th:"แจ้งซ่อม",cap:"Operator เปิดใบแจ้งซ่อมที่สถานีควบคุม ระบุ Machine ID, อาการ และเวลา",
+  key:["ข้อมูลที่ดีช่วยลดเวลาวินิจฉัย","บอกว่าอาการเกิดทันทีหรือค่อย ๆ เพิ่มขึ้น","บอกว่าตอนนี้ใช้ปั๊มสำรองอยู่หรือไม่"],
+  safety:["ติดป้ายสถานะที่ตู้ควบคุมว่าเครื่องรอซ่อม (ยังไม่ใช่ LOTO)"],
+  obj:"ส่งข้อมูลให้ครบ เพื่อให้ทีมซ่อมเตรียมคน เครื่องมือ และอะไหล่ได้ถูกต้อง",
+  proc:["เปิด Work Request / Notification ในระบบ CMMS (เช่น SAP PM)","ระบุ Machine ID: P-101 และตำแหน่ง","บันทึกอาการ เวลาเริ่ม และสภาพการเดินเครื่อง","ระบุระดับความเร่งด่วน แล้วส่งให้ Maintenance Supervisor"],
+  tools:["CMMS / SAP PM","โทรศัพท์ / วิทยุสื่อสาร"],
+  insp:["ข้อมูลครบ: ใคร อะไร ที่ไหน เมื่อไหร่ ระดับความเร่งด่วน"],
+  acc:["Supervisor รับเรื่อง และกำหนดผู้รับผิดชอบ"],
+  prec:["อย่าให้ใครเดินเครื่องตัวที่รอซ่อมโดยไม่ประสานงาน"],
+  mist:["เขียนกว้าง ๆ ว่า 'ปั๊มเสีย'","ไม่บอกเวลาเริ่มมีอาการ"],
+  docs:["เลขที่ Work Request / Notification"],
+  rel:["parts"],cond:"before",causeStage:0},
+ {en:"Initial Inspection",th:"ตรวจสอบเบื้องต้น",cap:"Technician วัด vibration ที่ bearing housing 3 แนว แล้ววัดอุณหภูมิด้วย IR thermometer",
+  key:["ค่าก่อนซ่อมคือ baseline สำหรับพิสูจน์ผลการซ่อมใน Step 9","วัดจุดเดิมทุกครั้งเพื่อดูแนวโน้มได้","จดสภาพเดินเครื่องคู่กับค่าที่วัด"],
+  safety:["วัดขณะเครื่องเดิน: ระวังชิ้นส่วนหมุน","สายเครื่องมือห้ามห้อยใกล้ coupling"],
+  obj:"ยืนยันอาการด้วยค่าที่วัดจริง และเก็บค่า As-found ไว้เปรียบเทียบ",
+  proc:["วัด vibration ที่ bearing housing แนว H, V, A ทั้งฝั่ง inboard และ outboard","วัดอุณหภูมิ bearing housing ด้วย IR thermometer หรือกล้องความร้อน","ฟังเสียงด้วย stethoscope หรือ ultrasound","ตรวจระดับและสภาพน้ำมัน/จาระบี","ตรวจ coupling, ฐาน และน็อตยึด"],
+  tools:["Vibration meter / analyzer","IR thermometer / thermal camera","Stethoscope","ไฟฉาย"],
+  insp:["จุดวัดที่ทำเครื่องหมายไว้","ค่า overall velocity mm/s RMS","อุณหภูมิเทียบกับอีกฝั่งและ baseline"],
+  acc:["ได้ค่าครบทุกจุด พร้อมสภาพการเดินเครื่อง (flow, pressure, amp)"],
+  prec:["อย่าวัดในตำแหน่งที่ต้องเอื้อมข้าม coupling"],
+  mist:["วัดคนละจุดกับครั้งก่อน ทำให้เทียบแนวโน้มไม่ได้","ไม่จดสภาพการเดินเครื่อง"],
+  docs:["Inspection sheet / ค่า As-found"],
+  rel:["iso","parts"],cond:"before",causeStage:1},
+ {en:"Problem Diagnosis",th:"วิเคราะห์ปัญหา",cap:"Technician วิเคราะห์ spectrum บนแท็บเล็ต ภาพ cutaway แสดงตำแหน่ง bearing ที่สงสัย",
+  key:["อย่าสรุปจากค่า overall อย่างเดียว","ในสถานการณ์นี้ (จำลอง) พบ peak ที่ BPFO และ harmonics จึงสงสัย outer race","2X และแนวแกน (axial) สูง จึงสงสัย misalignment ร่วมด้วย"],
+  safety:["ถ้าต้องตรวจ alignment ต้องหยุดเครื่องและ LOTO ก่อน"],
+  obj:"หาว่าเสียที่ตำแหน่งไหนและเพราะอะไร ก่อนตัดสินใจซ่อม",
+  proc:["ดู spectrum และ envelope (demodulation) หา BPFO / BPFI / BSF / FTF","คำนวณความถี่ข้อบกพร่องจาก geometry ของ bearing ที่ใช้จริง","ดู 1X (unbalance), 2X และแนวแกน (misalignment)","ตรวจสภาพจาระบี และ alignment เบื้องต้น","สรุปสมมติฐาน root cause"],
+  tools:["Vibration analyzer + software","ข้อมูล bearing part number","Laser alignment / dial indicator"],
+  insp:["Peak ที่ตรงกับความถี่ข้อบกพร่อง + harmonics + sidebands","ความเร็วรอบจริง (fr)"],
+  acc:["มีหลักฐานอย่างน้อย 2 แหล่งชี้ไปทางเดียวกัน เช่น spectrum + อุณหภูมิ หรือสภาพจาระบี"],
+  prec:["ใช้ rpm จริงในการคำนวณ ไม่ใช้ค่าบน nameplate"],
+  mist:["เปลี่ยน bearing โดยไม่หาสาเหตุ ทำให้เสียซ้ำ","จับคู่ peak กับความถี่โดยไม่ตรวจ rpm"],
+  docs:["Diagnosis report + ภาพ spectrum"],
+  rel:["freq","failure","iso"],cond:"before",causeStage:2},
+ {en:"Work Planning",th:"วางแผนงาน",cap:"Technician กับ Supervisor ตรวจอะไหล่ที่รถเข็น และยืนยัน bearing part number ครบทุก suffix",
+  key:["เตรียมทุกอย่างให้พร้อมก่อนหยุดเครื่อง เพื่อลดเวลาหยุด","Suffix ของ bearing สำคัญ เช่น C3 คือ internal clearance มากกว่าปกติ","เปลี่ยน gasket / O-ring ที่ถอดออกมาทุกครั้ง"],
+  safety:["วางแผนงานยก และพื้นที่วางชิ้นส่วน"],
+  obj:"เตรียมอะไหล่ เครื่องมือ คน และเวลาให้พร้อมก่อนเริ่มงาน",
+  proc:["ตรวจ bearing part number จากตัวจริง, คู่มือ และ BOM (รวม clearance, cage, seal suffix)","เบิก bearing + gasket / O-ring / seal ที่ต้องเปลี่ยน","เตรียมเครื่องมือตามรายการ","กำหนดคน: ช่างกล, ช่างไฟฟ้าสำหรับ LOTO","ประมาณเวลา และจัดทำ Work Order"],
+  tools:["BOM / คู่มือปั๊ม","CMMS"],
+  insp:["เลข bearing ตรงทุก suffix","อะไหล่ครบตามรายการ"],
+  acc:["อะไหล่ครบ เครื่องมือพร้อม คนพร้อม ก่อนหยุดเครื่อง"],
+  prec:["จัดพื้นที่ทำงานให้สะอาด เพราะ bearing ไวต่อสิ่งสกปรก"],
+  mist:["สั่ง bearing ไม่ตรง suffix (เช่น C3 กับ CN)","ลืม gasket / O-ring"],
+  docs:["Work Order, Material list, Work plan"],
+  rel:["parts","mount"],cond:"before",causeStage:2},
+ {en:"Safety Preparation",th:"เตรียมความปลอดภัย",cap:"Technician ล็อกและแขวนป้ายที่ MCC แล้วทดสอบว่าเครื่องไม่ทำงาน (try-out) ส่วน Supervisor ถือใบ Permit",
+  key:["ล็อกทั้งไฟฟ้าและวาล์ว suction / discharge","ทุกคนแขวนกุญแจของตัวเอง","ต้องทดสอบ Zero Energy ทุกครั้งก่อนเริ่มงาน"],
+  safety:["ปิดวาล์วเพื่อกันปั๊มหมุนย้อนจาก backflow","ระบายแรงดันและของไหลก่อนเปิด casing"],
+  obj:"ควบคุมพลังงานทุกแหล่งให้เป็นศูนย์ก่อนเริ่มงานซ่อม",
+  proc:["ทำ Job Safety Analysis (JSA) และ Risk Assessment","ขอ Permit to Work","ตัดไฟที่ MCC แล้วแขวนกุญแจและป้าย (LOTO)","ปิดวาล์ว suction / discharge, ล็อก, ระบายแรงดันและ drain","Zero Energy Verification: try-out, วัดแรงดันไฟ, ดูเกจความดัน"],
+  tools:["กุญแจ + ป้ายส่วนตัว, hasp","Voltage tester","PPE"],
+  insp:["กุญแจครบทุกคน","เกจความดันเป็นศูนย์"],
+  acc:["Try-out แล้วเครื่องไม่เดิน ไม่มีแรงดันไฟ และความดันเป็นศูนย์"],
+  prec:["ตรวจว่าตัดถูกตู้ ถูก feeder ด้วยเลขอุปกรณ์"],
+  mist:["ล็อกแค่ไฟ ลืมล็อกวาล์ว","ไม่ทำ try-out"],
+  docs:["JSA, Permit to Work, LOTO log"],
+  rel:["loto"],cond:"locked",causeStage:2},
+ {en:"Repair Execution",th:"ดำเนินการซ่อม",cap:"ถอด guard → coupling → bearing housing → ถอด bearing → ตรวจเพลา → ติดตั้ง bearing ใหม่ → ประกอบกลับ",
+  key:["ส่งแรงผ่านแหวนที่สวมแน่น ห้ามส่งแรงผ่านลูกกลิ้ง","Induction heater ประมาณ 110 °C และไม่เกิน 125 °C","เก็บ bearing เก่าไว้วิเคราะห์ อย่าล้างก่อนตรวจ"],
+  safety:["ใช้ puller ห้ามงัดหรือตีด้วยค้อนเหล็ก","สวมถุงมือกันร้อนตอนจับ bearing ที่อุ่น"],
+  obj:"เปลี่ยน bearing อย่างถูกวิธี โดยไม่สร้างความเสียหายใหม่ให้เพลาหรือ housing",
+  proc:["ถอด coupling guard","ทำ match mark แล้วถอด coupling hub ด้วย puller","ถอดฝาและ bearing housing","ถอด bearing ด้วย puller แล้วเก็บไว้วิเคราะห์","วัดเพลา: ขนาด bearing seat, ความกลม, runout","วัด bore ของ housing","ติดตั้ง bearing ใหม่ด้วย induction heater หรือ press ที่ inner ring","เติมจาระบีตามปริมาณของผู้ผลิต แล้วประกอบกลับ ขัน torque ตามคู่มือ"],
+  tools:["Bearing puller","Induction heater","Micrometer / bore gauge","Dial indicator","Torque wrench","จาระบีเกรดที่กำหนด"],
+  insp:["Bearing seat และ housing bore","Runout ของเพลา","Bearing ชิดบ่าเพลา"],
+  acc:["ขนาด seat และ bore อยู่ใน tolerance ตามแบบหรือคู่มือผู้ผลิต","Bearing ชิดบ่า หมุนด้วยมือได้ลื่น"],
+  prec:["ห้ามใช้ไฟเปลวให้ความร้อน","ห้ามเติมจาระบีเกินกำหนด เพราะทำให้ร้อน"],
+  mist:["ตีค้อนบน outer ring ตอนลงเพลา (เกิด brinelling)","ลืมทำ match mark ของ coupling"],
+  docs:["ค่า As-found / As-left","รูปถ่าย bearing เก่า"],
+  rel:["mount","failure","parts"],cond:"locked",causeStage:2},
+ {en:"Quality Inspection",th:"ตรวจสอบคุณภาพ",cap:"Technician หมุนเพลาด้วยมือ ตรวจ coupling, torque mark และ guard ตาม checklist",
+  key:["หมุนด้วยมือต้องลื่น ไม่ติด ไม่มีเสียงขูด","ควรให้คนที่ไม่ได้ประกอบเป็นผู้ตรวจ","ตรวจไม่ให้มีเครื่องมือหรือผ้าค้างในเครื่อง"],
+  safety:["ยังอยู่ใต้ LOTO ห้ามปลดล็อกจนจบการตรวจ"],
+  obj:"ยืนยันว่างานประกอบครบและถูกต้องก่อนเดินเครื่อง",
+  proc:["หมุนเพลาด้วยมือ","ตรวจ endplay ตามคู่มือ","ตรวจ coupling และ insert","ตรวจ torque mark ของน็อตทุกตัว","ตรวจระดับน้ำมัน / จาระบี","ติดตั้ง guard กลับ"],
+  tools:["Torque wrench","Dial indicator","QC checklist"],
+  insp:["การหมุนของเพลา","Coupling","Fastener","สารหล่อลื่น"],
+  acc:["Checklist ผ่านทุกข้อ และลงชื่อผู้ตรวจ"],
+  prec:["ตรวจว่าเก็บเครื่องมือออกจากพื้นที่ครบ"],
+  mist:["ลืมติด guard","ลืมเติมน้ำมันหลังเปลี่ยน"],
+  docs:["QC checklist"],
+  rel:["parts"],cond:"locked",causeStage:2},
+ {en:"Testing & Commissioning",th:"ทดสอบและเดินเครื่อง",cap:"ทำ laser alignment → ปลด LOTO ตามลำดับ → เดินเครื่อง → วัด vibration และอุณหภูมิเทียบกับก่อนซ่อม",
+  key:["ห้ามเดินแห้ง ต้อง prime ปั๊มก่อนเพื่อป้องกัน mechanical seal","วัดจุดเดิมกับ Step 3 แล้วเทียบก่อน/หลัง","รอให้อุณหภูมิ bearing คงที่ก่อนสรุป"],
+  safety:["ปลด LOTO ตามขั้นตอน และแจ้งทุกคนก่อนสตาร์ท","ตรวจว่าทุกคนออกจากพื้นที่ชิ้นส่วนหมุนแล้ว"],
+  obj:"พิสูจน์ว่าการซ่อมแก้ปัญหาได้จริง และเครื่องพร้อมใช้งาน",
+  proc:["Laser alignment ตามเกณฑ์ของผู้ผลิต","ตรวจความพร้อม: guard, วาล์วเปิด, prime ปั๊มไล่อากาศ","ปลด LOTO ตามลำดับ แล้วเดินเครื่อง","วัด vibration จุดเดิม, อุณหภูมิ, pressure และ flow","ตรวจรั่วที่ seal","เปรียบเทียบค่าก่อนและหลังซ่อม"],
+  tools:["Laser alignment","Vibration meter","IR thermometer","เกจ pressure / flow"],
+  insp:["Alignment","Vibration H/V/A","อุณหภูมิ bearing","รั่วที่ seal"],
+  acc:["Vibration อยู่ใน Zone A/B ตามเกณฑ์ที่โรงงานใช้ หรือเทียบ baseline","อุณหภูมิคงที่","ไม่มีรั่ว"],
+  prec:["ทำ alignment โดยคำนึงถึง thermal growth ตามคู่มือ"],
+  mist:["เดินแห้ง","สรุปผลก่อนอุณหภูมิคงที่"],
+  docs:["Commissioning record + ค่าก่อน/หลังซ่อม"],
+  rel:["iso","parts"],cond:"after",causeStage:3},
+ {en:"Handover",th:"ส่งมอบงาน",cap:"Technician กับ Supervisor ส่งมอบเครื่องให้ Production พร้อมแจ้งข้อควรระวัง แล้ว Operator ลงชื่อรับ",
+  key:["บอกฝ่ายผลิตว่าซ่อมอะไรไปบ้าง","บอกสิ่งที่ต้องเฝ้าดูในช่วงแรกหลังซ่อม","ปิด Permit และ Work Order"],
+  safety:["ยืนยันว่าปลดกุญแจครบทุกคนแล้ว"],
+  obj:"คืนเครื่องให้ฝ่ายผลิตอย่างเป็นทางการ พร้อมข้อมูลที่ต้องรู้",
+  proc:["สรุปงานซ่อมให้ Production","แจ้งข้อควรระวังและสิ่งที่ต้องเฝ้าดู","บันทึกผลการทดสอบ","ปิด Permit to Work และ Work Order"],
+  tools:["CMMS","แบบฟอร์มส่งมอบ"],
+  insp:["เอกสารครบ","Production ลงชื่อรับ"],
+  acc:["Production รับเครื่องและลงชื่อ"],
+  prec:["อย่าปิดงานก่อนได้ค่าทดสอบครบ"],
+  mist:["ส่งมอบด้วยวาจาอย่างเดียว"],
+  docs:["ใบส่งมอบ, ปิด Work Order"],
+  rel:["parts"],cond:"after",causeStage:3},
+ {en:"RCA & Maintenance Record",th:"วิเคราะห์สาเหตุและบันทึกประวัติ",cap:"ทีมวิเคราะห์ 5 Why ที่กระดาน และกำหนด corrective action ปรับ PM และ CBM",
+  key:["แก้ที่ต้นเหตุ ไม่ใช่แค่เปลี่ยนชิ้นส่วน","ตรวจ bearing เก่าเทียบกับรูปแบบใน ISO 15243","ติดตามผลว่าป้องกันการเกิดซ้ำได้จริง"],
+  safety:["นำบทเรียนด้านความปลอดภัยของงานนี้เข้า JSA ครั้งต่อไป"],
+  obj:"ป้องกันไม่ให้ความเสียหายแบบเดิมเกิดซ้ำ",
+  proc:["บันทึกประวัติเครื่องใน CMMS","ตรวจ bearing เก่า: ตำแหน่งและรูปแบบรอย","ทำ 5 Why","กำหนด corrective action: รอบหล่อลื่น, SOP alignment, เข้า route CBM","ติดตามผล 3 เดือน"],
+  tools:["CMMS","ผล vibration ก่อน/หลัง","Bearing เก่า"],
+  insp:["รอยบนแหวนนอก / แหวนใน / ลูกกลิ้ง","สภาพจาระบีเก่า"],
+  acc:["มี corrective action ที่มีผู้รับผิดชอบและวันกำหนด"],
+  prec:["อย่าสรุป root cause จากความเคยชิน ต้องมีหลักฐาน"],
+  mist:["ข้ามขั้น RCA เพราะเครื่องกลับมาเดินแล้ว"],
+  docs:["RCA report, ประวัติเครื่อง, PM / CBM ที่ปรับแล้ว"],
+  rel:["rca","failure"],cond:"after",causeStage:4}
+];
+
+const CAUSES = [
+ {n:"Bearing เสียหาย (outer race)",s:["สงสัย","สงสัย","ยืนยัน: BPFO","ยืนยัน: BPFO","ยืนยันจากชิ้นงานจริง"],c:["warn","warn","crit","crit","crit"]},
+ {n:"การหล่อลื่นไม่พอ / จาระบีเสื่อม",s:["สงสัย","สงสัย","น่าจะใช่","น่าจะใช่","Root cause ร่วม"],c:["warn","warn","warn","warn","crit"]},
+ {n:"Misalignment",s:["ยังไม่ตรวจ","ยังไม่ตรวจ","น่าจะใช่: 2X/axial","แก้แล้ว","Root cause ร่วม"],c:["info","info","warn","ok","crit"]},
+ {n:"Unbalance",s:["ยังไม่ตรวจ","ยังไม่ตรวจ","ตัดออก: 1X ไม่เด่น","ตัดออก","ตัดออก"],c:["info","info","ok","ok","ok"]},
+ {n:"Cavitation",s:["ยังไม่ตรวจ","ยังไม่ตรวจ","ตัดออก: suction ปกติ","ตัดออก","ตัดออก"],c:["info","info","ok","ok","ok"]}
+];
+// causeStage: 0 = รายงานอาการ, 1 = ตรวจเบื้องต้น, 2 = หลังวินิจฉัย, 3 = หลังซ่อม, 4 = หลัง RCA
+
+const SCENARIOS = [
+ {id:"A",q:"Vibration สูง แต่อุณหภูมิ bearing ปกติ ควรตรวจอะไรเพิ่ม",
+  o:[["เปลี่ยน bearing ทันที เพราะ vibration สูง",0,"ยังไม่มีหลักฐานว่า bearing เสีย อุณหภูมิปกติบอกว่าอาจไม่ใช่ปัญหาการหล่อลื่นหรือ bearing ระยะท้าย"],
+     ["วิเคราะห์ spectrum และ phase เพื่อแยก unbalance (1X), misalignment (2X/axial) และ looseness แล้วตรวจ soft foot, pipe strain และ cavitation",1,"ถูกต้อง vibration สูงมีหลายสาเหตุ ต้องแยกด้วยรูปแบบความถี่ก่อนตัดสินใจ"],
+     ["เติมจาระบีเพิ่มเพื่อลด vibration",0,"จาระบีไม่แก้ unbalance หรือ misalignment และการเติมเกินทำให้ bearing ร้อนขึ้น"],
+     ["เดินต่อได้ เพราะอุณหภูมิยังปกติ",0,"ถ้า vibration อยู่ Zone C/D ต้องหาสาเหตุ อุณหภูมิปกติไม่ได้แปลว่าเครื่องปลอดภัย"]]},
+ {id:"B",q:"ถอดออกมาแล้ว bearing มีรอยไหม้และจาระบีเปลี่ยนสี สาเหตุที่เป็นไปได้คืออะไร",
+  o:[["Bearing หมดอายุตามปกติ ไม่ต้องหาสาเหตุ",0,"รอยไหม้และจาระบีเปลี่ยนสีบอกว่าร้อนเกิน ไม่ใช่การสึกตามอายุ"],
+     ["ร้อนเกินจากการหล่อลื่นผิดพลาด (น้อยเกิน มากเกิน หรือผิดเกรด) หรือภาระเกิน เช่น fit แน่นเกินจน clearance หาย หรือ misalignment",1,"ถูกต้อง ต้องตรวจปริมาณและเกรดจาระบี, fit ของเพลาและ housing, clearance class และ alignment"],
+     ["Impeller unbalance เพียงอย่างเดียว",0,"Unbalance ทำให้ภาระเพิ่ม แต่โดยลำพังไม่ใช่สาเหตุหลักของรอยไหม้ ต้องดูการหล่อลื่นและ fit ก่อน"],
+     ["Mechanical seal รั่ว",0,"Seal รั่วทำให้ของเหลวเข้า bearing ได้ (เกิดสนิม) แต่ไม่ได้อธิบายรอยไหม้โดยตรง"]]},
+ {id:"C",q:"เปลี่ยน bearing แล้ว แต่ vibration ยังสูง ควรตรวจอะไรต่อ",
+  o:[["เปลี่ยน bearing ใหม่อีกรอบ",0,"ถ้าสาเหตุไม่ใช่ตัว bearing การเปลี่ยนซ้ำจะไม่ช่วย และ bearing ใหม่จะเสียเร็วอีก"],
+     ["ตรวจ alignment, soft foot, pipe strain และ runout ของเพลา แล้ววิเคราะห์ spectrum ใหม่",1,"ถูกต้อง หลังซ่อม สาเหตุที่พบบ่อยคือการติดตั้ง เช่น alignment, soft foot และแรงจากท่อ"],
+     ["รอ run-in 1 สัปดาห์ แล้วค่าจะลดลงเอง",0,"Vibration จากปัญหาการติดตั้งไม่หายเอง และยิ่งทำให้ bearing ใหม่เสียหาย"],
+     ["ลดความเร็วรอบมอเตอร์",0,"เป็นการกลบอาการ ไม่ได้หาสาเหตุ"]]},
+ {id:"D",q:"ประกอบปั๊มแล้วพบ mechanical seal รั่ว ควรทำอย่างไร",
+  o:[["ขัน gland ให้แน่นขึ้น",0,"เป็นวิธีของ gland packing ไม่ใช่ mechanical seal การขันแน่นไม่ได้แก้หน้าสัมผัส seal และอาจทำให้เสียหาย"],
+     ["ปล่อยเดินไปก่อน รอให้ seal ปรับตัว",0,"ถ้ารั่วเป็นหยดหรือไหล การรอไม่ใช่วิธีแก้ และเสี่ยงให้ของเหลวเข้า bearing"],
+     ["หยุดเครื่อง ทำ LOTO แล้วตรวจการติดตั้ง seal: ระยะติดตั้ง, setting clip ของ cartridge seal, O-ring และผิวหน้า seal",1,"ถูกต้อง การรั่วหลังประกอบมักเกิดจากการติดตั้ง และต้องตรวจด้วยว่าไม่ได้เดินแห้ง"],
+     ["เปลี่ยนเป็น gland packing แทน",0,"เปลี่ยนแบบซีลโดยไม่หาสาเหตุ และต้องผ่านการพิจารณาทางวิศวกรรมก่อน"]]}
+];
+
+const TOOLS = [
+ ["Bearing puller",1,"ใช้ถอด bearing และ coupling hub โดยไม่ต้องงัด"],
+ ["Induction heater",1,"ให้ความร้อนสม่ำเสมอและควบคุมอุณหภูมิได้"],
+ ["Torque wrench",1,"ขันน็อตตามค่าในคู่มือ"],
+ ["Micrometer / bore gauge",1,"วัด bearing seat และ housing bore"],
+ ["Dial indicator",1,"วัด runout ของเพลา"],
+ ["ค้อนเหล็ก + สกัด",0,"ทำให้ bearing และเพลาเสียหาย"],
+ ["หัวเป่าไฟแก๊ส",0,"ร้อนไม่สม่ำเสมอ อาจเกิน 125 °C และทำให้เนื้อโลหะเสีย"],
+ ["ประแจจับแป๊บ",0,"ไม่ใช่เครื่องมือสำหรับงาน bearing และทำให้ผิวเพลาเป็นรอย"]
+];
+
+const SEQ = ["ถอด Coupling Guard","ถอด Coupling","ถอด Bearing Housing","ถอด Bearing","ตรวจสอบ Shaft","ตรวจสอบ Bearing Housing","ติดตั้ง Bearing ใหม่","ประกอบชิ้นส่วนกลับ"];
+
+const QUIZ = [
+ {cat:"Multiple Choice",q:"Peak ที่ BPFO พร้อม harmonics บ่งชี้ความเสียหายที่ส่วนใด",o:["Inner race","Outer race","Cage","Coupling insert"],a:1,why:"BPFO คือ Ball Pass Frequency Outer race",step:3,k:"freq"},
+ {cat:"Multiple Choice",q:"Suffix C3 ของ bearing หมายถึงอะไร",o:["Cage ทำจากทองเหลือง","Internal clearance มากกว่าปกติ","มีซีลยางสองด้าน","ความแม่นยำสูงพิเศษ"],a:1,why:"C3 คือกลุ่ม internal clearance ที่มากกว่าปกติ (CN)",step:4,k:"mount"},
+ {cat:"Problem Solving",q:"ปั๊ม Group 3 บนฐานแข็งวัดได้ 12.8 mm/s RMS ตาม ISO 10816-3 อยู่ Zone ใด",o:["Zone A","Zone B","Zone C","Zone D"],a:3,why:"ขอบ C/D ของฐานแข็งคือ 7.1 mm/s ค่า 12.8 จึงอยู่ใน Zone D",step:0,k:"iso"},
+ {cat:"Problem Solving",q:"หลังซ่อม พบ 2X สูงและ vibration แนวแกน (axial) สูง สงสัยอะไรมากที่สุด",o:["Unbalance","Misalignment","Cavitation","Bearing cage"],a:1,why:"2X และแนวแกนสูงเป็นรูปแบบเด่นของ misalignment",step:8,k:"iso"},
+ {cat:"Tool Selection",q:"วิธีที่เหมาะที่สุดในการให้ความร้อน bearing ก่อนสวมเพลาคืออะไร",o:["หัวเป่าไฟแก๊ส","Induction heater ไม่เกิน 125 °C","แช่น้ำมันเดือด","ไม่ต้องให้ความร้อน ใช้ค้อนตอก"],a:1,why:"Induction heater ให้ความร้อนสม่ำเสมอและควบคุมอุณหภูมิได้",step:6,k:"mount"},
+ {cat:"Tool Selection",q:"ใช้เครื่องมือใดวัดเส้นผ่านศูนย์กลาง bearing seat ของเพลา",o:["Feeler gauge","ตลับเมตร","Outside micrometer","Dial indicator"],a:2,why:"Micrometer วัดเส้นผ่านศูนย์กลางได้ละเอียดถึงระดับ tolerance ของ fit",step:6,k:"mount"},
+ {cat:"Safety",q:"หลังแขวนกุญแจที่ MCC แล้ว ก่อนเริ่มงานต้องทำอะไร",o:["เริ่มงานได้ทันที","Zero Energy Verification: try-out, วัดไฟ, ดูเกจความดัน","โทรแจ้งฝ่ายผลิตอย่างเดียว","ถอด guard ก่อนแล้วค่อยตรวจ"],a:1,why:"ต้องยืนยันว่าพลังงานทุกแหล่งเป็นศูนย์จริง",step:5,k:"loto"},
+ {cat:"Safety",q:"ใครต้องแขวนกุญแจ LOTO",o:["หัวหน้างานคนเดียว","ทุกคนที่เข้าทำงานกับเครื่อง","ช่างไฟฟ้าคนเดียว","Operator"],a:1,why:"ทุกคนที่ทำงานกับเครื่องต้องแขวนกุญแจของตัวเอง",step:5,k:"loto"},
+ {cat:"Repair Sequence",q:"หลัง LOTO แล้ว ขั้นแรกของการถอดคืออะไร",o:["ถอด bearing","ถอด coupling guard","ถอด bearing housing","ถอด impeller"],a:1,why:"ต้องเปิด guard ก่อนจึงเข้าถึง coupling ได้",step:6,k:"parts"},
+ {cat:"Repair Sequence",q:"ลำดับใดถูกต้องสำหรับช่วงท้ายงาน",o:["เดินเครื่อง → alignment → QC","QC → alignment + ตรวจความพร้อม (prime) → เดินเครื่องและวัดค่า","Alignment → เดินเครื่อง → QC","ส่งมอบ → เดินเครื่อง → QC"],a:1,why:"ตรวจคุณภาพก่อน แล้วทำ alignment และ prime ปั๊ม จากนั้นจึงเดินเครื่องและวัดค่า",step:8,k:"iso"}
+];
+
+/* ================= UI STATE ================= */
+// ทุก query จำกัดอยู่ใน #p101 เพื่อไม่ชนกับ DOM ของ base.html (sidebar ฯลฯ)
+const root = document.getElementById("p101");
+const $ = s => root.querySelector(s);
+const $$ = s => root.querySelectorAll(s);
+let cur = 0; const visited = new Set([0]);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const li = arr => "<ul class='clean'>" + arr.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>";
+
+function renderSteps(){
+  $("#stepList").innerHTML = STEPS.map((s,i)=>`<li><button type="button" data-i="${i}" class="${visited.has(i)&&i!==cur?'done':''}" ${i===cur?'aria-current="step"':''}><span class="num">${i+1}</span><span><span class="t1">${esc(s.en)}</span><span class="t2">${esc(s.th)}</span></span></button></li>`).join("");
+  $("#prevStep").disabled = cur===0;
+  $("#nextStep").disabled = cur===STEPS.length-1;
+}
+function renderCond(){
+  const s = STEPS[cur];
+  const after = s.cond==="after", locked = s.cond==="locked";
+  const vib = after?2.1:12.8, temp = after?62:95;
+  const pos = Math.min(vib/15,1)*100;
+  const status = after?["เดินปกติ หลังซ่อม","ok"]:locked?["หยุด · LOTO","info"]:["ผิดปกติ · กำลังเดิน","crit"];
+  $("#cond").innerHTML = `
+   <div class="metric"><span class="k">Machine ID</span><span><span class="mono">P-101</span> <span class="pill ${status[1]}">${status[0]}</span></span></div>
+   <div class="metric"><span class="k">Vibration (overall)${locked?" · ค่าก่อนซ่อม":""}</span><span class="v">${vib.toFixed(1)} <small class="muted">mm/s RMS</small></span>
+     <div class="zonebar" style="grid-template-columns:${2.3/15*100}% ${2.2/15*100}% ${2.6/15*100}% 1fr"><span style="background:#2E8B5E"></span><span style="background:#6FA84A"></span><span style="background:#C9962E"></span><span style="background:#B8383C"></span><span class="needle" style="left:calc(${pos}% - 1px)"></span></div>
+     <div class="zl"><span>0</span><span>A/B 2.3</span><span>B/C 4.5</span><span>C/D 7.1</span><span>15</span></div></div>
+   <div class="metric"><span class="k">Bearing Temperature${locked?" · ค่าก่อนซ่อม":""}</span><span class="v">${temp} <small class="muted">°C</small></span></div>
+   <div class="metric"><span class="k">Noise</span><span><span class="pill ${after?'ok':'crit'}">${after?"Normal":"High"}</span></span></div>
+   <div class="metric"><span class="k">Suspected Failure</span><span style="text-align:right;font-size:13px">${after?"แก้ไขแล้ว: เปลี่ยน bearing + alignment":"Bearing Wear / Damage"}</span></div>
+   <p class="src" style="margin-bottom:0">ค่าจำลองเพื่อการเรียนรู้ ไม่ใช่ผลการวัดเครื่องจริง · แถบสีใช้เกณฑ์ ISO 10816-3 Group 3 ฐานแข็ง</p>`;
+}
+function renderCauses(){
+  const st = STEPS[cur].causeStage;
+  $("#causes").innerHTML = CAUSES.map(c=>`<div class="cause"><span>${esc(c.n)}</span><span class="pill ${c.c[st]}">${esc(c.s[st])}</span></div>`).join("");
+}
+function renderRelated(){
+  $("#related").innerHTML = STEPS[cur].rel.concat(cur===0?["about"]:[]).map(k=>`<button type="button" class="chip" data-k="${k}">${esc(KLINKS[k][1])}</button>`).join("");
+}
+function renderSheet(){
+  const s = STEPS[cur];
+  $("#sheetEyebrow").textContent = `STEP ${cur+1} / ${STEPS.length}`;
+  $("#sheetTitle").textContent = `${s.en} · ${s.th}`;
+  const nx = STEPS[cur+1];
+  $("#sheetSum").innerHTML = `<div class="quad">
+    <div class="box"><h4>Current Step</h4><p style="margin:0 0 6px">${esc(s.obj)}</p>${li(s.proc.slice(0,4))}</div>
+    <div class="box"><h4>Key Points</h4>${li(s.key)}</div>
+    <div class="box safety"><h4>Safety First</h4>${li(s.safety)}</div>
+    <div class="box next"><h4>Next Step</h4>${nx?`<p style="margin:0 0 8px"><b>${cur+2}. ${esc(nx.en)}</b><br><span class="muted">${esc(nx.th)}</span></p><button type="button" class="btn primary" data-go="${cur+1}">ไปขั้นที่ ${cur+2} →</button>`:`<p style="margin:0 0 8px">จบ workflow แล้ว ลองทำแบบทดสอบได้เลย</p><button type="button" class="btn primary" data-view-go="assessment">ไป Assessment →</button>`}</div>
+  </div>`;
+  const f = [["Objective",[s.obj]],["Work Procedure",s.proc],["Tools & Equipment",s.tools],["Inspection Point",s.insp],["Acceptance Criteria",s.acc],["Safety Precaution",s.prec.concat(s.safety)],["Common Mistakes",s.mist],["Documentation",s.docs]];
+  $("#sheetTech").innerHTML = `<div class="tech">${f.map(([h,a])=>`<div class="box ${h==="Safety Precaution"?"safety":""}"><h4>${h}</h4>${li(a)}</div>`).join("")}</div><p class="src">ค่า torque, tolerance และเกณฑ์ alignment ต้องใช้ตามคู่มือผู้ผลิตของเครื่องจริง ระบบไม่ได้กำหนดค่าเอง</p>`;
+}
+function goStep(i){
+  cur = Math.max(0,Math.min(STEPS.length-1,i)); visited.add(cur);
+  renderSteps(); renderCond(); renderCauses(); renderRelated(); renderSheet();
+  if (window.Sim) Sim.playStep(cur, true);
+}
+
+/* views — hash เป็น #p101-<view> กันชนกับ anchor อื่นของระบบ */
+const VIEWS=["learn","simulate","test","knowledge","assessment"];
+const HASH_PREFIX="p101-";
+function goView(v){ location.hash = HASH_PREFIX+v; }
+function route(){
+  const h = location.hash.slice(1);
+  const name = h.startsWith(HASH_PREFIX) ? h.slice(HASH_PREFIX.length) : "learn";
+  const v = VIEWS.includes(name) ? name : "learn";
+  VIEWS.forEach(n=>{ document.getElementById("view-"+n).hidden = n!==v; });
+  $$(".p-nav button").forEach(b=>{ if(b.dataset.view===v) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
+  if (window.Sim) Sim.setActive(v==="learn");
+}
+
+$("#stepList").addEventListener("click",e=>{const b=e.target.closest("button[data-i]"); if(b) goStep(+b.dataset.i);});
+$("#prevStep").onclick=()=>goStep(cur-1);
+$("#nextStep").onclick=()=>goStep(cur+1);
+root.addEventListener("click",e=>{
+  const g=e.target.closest("[data-go]"); if(g){goStep(+g.dataset.go); $(".learn").scrollIntoView({behavior:"smooth"});}
+  const v=e.target.closest("[data-view-go]"); if(v) goView(v.dataset.viewGo);
+  const k=e.target.closest(".chip[data-k]"); if(k){ goView("knowledge"); setTimeout(()=>document.getElementById(KLINKS[k.dataset.k][0]).scrollIntoView({behavior:"smooth"}),60);}
+});
+function setTab(tech){ $("#tabSum").setAttribute("aria-pressed",!tech); $("#tabTech").setAttribute("aria-pressed",tech); $("#sheetSum").hidden=tech; $("#sheetTech").hidden=!tech; }
+$("#tabSum").onclick=()=>setTab(false); $("#tabTech").onclick=()=>setTab(true);
+
+$(".p-nav").addEventListener("click",e=>{const b=e.target.closest("button[data-view]"); if(b){ goView(b.dataset.view); }});
+window.addEventListener("hashchange",route);
+
+/* knowledge parts */
+$("#kParts").innerHTML = Object.entries(PARTS).map(([k,p])=>`<article class="kcard"><h3>${esc(p.name)}</h3><dl><dt>หน้าที่</dt><dd>${esc(p.fn)}</dd><dt>หลักการทำงาน</dt><dd>${esc(p.how)}</dd><dt>ความเสียหายที่พบบ่อย</dt><dd>${esc(p.fail)}</dd><dt>จุดตรวจสอบ</dt><dd>${esc(p.check)}</dd><dt>ข้อควรระวังในการถอดประกอบ</dt><dd>${esc(p.care)}</dd></dl></article>`).join("");
+
+/* part card (from 3D click) */
+function showPart(key){
+  const card=$("#partCard");
+  if(!key){card.hidden=true;return;}
+  const p=PARTS[key];
+  card.innerHTML=`<div class="cardhead"><div><h2 style="margin:0">ชิ้นส่วนที่เลือก</h2><h3>${esc(p.name)}</h3></div><button type="button" class="x" aria-label="ปิด" id="closePart">×</button></div>
+  <dl><dt>หน้าที่</dt><dd>${esc(p.fn)}</dd><dt>หลักการทำงาน</dt><dd>${esc(p.how)}</dd><dt>ความเสียหายที่พบบ่อย</dt><dd>${esc(p.fail)}</dd><dt>จุดตรวจสอบ</dt><dd>${esc(p.check)}</dd><dt>ข้อควรระวังในการถอดประกอบ</dt><dd>${esc(p.care)}</dd></dl>`;
+  card.hidden=false;
+  $("#closePart").onclick=()=>{ showPart(null); if(window.Sim) Sim.select(null); };
+}
+
+/* scenarios */
+$("#scenarios").innerHTML = SCENARIOS.map(s=>`<section class="panel scen" data-s="${s.id}"><div class="badge">สถานการณ์ ${s.id}</div><h3>${esc(s.q)}</h3><div class="opts">${s.o.map((o,i)=>`<button type="button" class="opt" data-o="${i}">${esc(o[0])}</button>`).join("")}</div><div class="fb" hidden></div></section>`).join("");
+$("#scenarios").addEventListener("click",e=>{
+  const b=e.target.closest(".opt"); if(!b) return;
+  const sec=b.closest(".scen"), s=SCENARIOS.find(x=>x.id===sec.dataset.s), o=s.o[+b.dataset.o];
+  sec.querySelectorAll(".opt").forEach(x=>x.classList.remove("right-a","wrong-a"));
+  b.classList.add(o[1]?"right-a":"wrong-a");
+  const fb=sec.querySelector(".fb"); fb.hidden=false; fb.className="fb "+(o[1]?"good":"bad");
+  fb.textContent=(o[1]?"✔ ถูกต้อง: ":"✘ ยังไม่ใช่: ")+o[2];
+});
+
+/* drills */
+$("#drillTools").addEventListener("change",e=>{const l=e.target.closest(".tool"); if(l) l.classList.toggle("sel",e.target.checked);});
+function drillTools(){
+  const order=TOOLS.map((t,i)=>i).sort((a,b)=>((a*7+3)%8)-((b*7+3)%8));
+  $("#drillTools").innerHTML=`<h2>Tool Selection</h2><h3>เลือกเครื่องมือที่ควรใช้ถอดและติดตั้ง bearing ใหม่ (Step 7)</h3>
+   <div class="toolgrid">${order.map(i=>`<label class="tool" data-t="${i}"><input type="checkbox" id="tool-${i}"><span>${esc(TOOLS[i][0])}<small class="muted" hidden style="display:block"></small></span></label>`).join("")}</div>
+   <div class="row"><button type="button" class="btn primary" id="checkTools">ตรวจคำตอบ</button><button type="button" class="btn" id="resetTools">เริ่มใหม่</button><span id="toolMsg" class="muted"></span></div>`;
+  $("#checkTools").onclick=()=>{
+    let ok=0;
+    $$(".tool").forEach(l=>{
+      const i=+l.dataset.t, picked=l.querySelector("input").checked, good=TOOLS[i][1]===1;
+      const right = picked===good; if(right) ok++;
+      l.classList.remove("good","bad"); l.classList.add(right?"good":"bad");
+      const sm=l.querySelector("small"); sm.hidden=false; sm.textContent=(good?"ควรใช้: ":"ไม่ควรใช้: ")+TOOLS[i][2];
+    });
+    $("#toolMsg").textContent=`ถูก ${ok} / ${TOOLS.length} รายการ`;
+  };
+  $("#resetTools").onclick=drillTools;
+}
+let seqPicked=[];
+function drillSeq(){
+  seqPicked=[];
+  const shuffled=SEQ.map((s,i)=>i).sort((a,b)=>((a*5+2)%8)-((b*5+2)%8));
+  $("#drillSeq").innerHTML=`<h2>Repair Sequence</h2><h3>คลิกเรียงลำดับงานถอดประกอบให้ถูกต้อง (หลัง LOTO)</h3>
+   <div class="seqpool" id="seqPool">${shuffled.map(i=>`<button type="button" class="seqitem" data-q="${i}">${esc(SEQ[i])}</button>`).join("")}</div>
+   <p class="muted" style="margin:10px 0 0">ลำดับของคุณ (คลิกรายการเพื่อเอาออก)</p>
+   <div class="seqout" id="seqOut"></div>
+   <div class="row"><button type="button" class="btn primary" id="checkSeq">ตรวจลำดับ</button><button type="button" class="btn" id="resetSeq">เริ่มใหม่</button><span id="seqMsg" class="muted"></span></div>`;
+  const draw=()=>{
+    $("#seqOut").innerHTML=seqPicked.map((i,n)=>`<button type="button" class="seqitem" data-r="${n}">${n+1}. ${esc(SEQ[i])}</button>`).join("");
+    $$("#seqPool .seqitem").forEach(b=>b.hidden=seqPicked.includes(+b.dataset.q));
+  };
+  $("#seqPool").onclick=e=>{const b=e.target.closest(".seqitem"); if(b){seqPicked.push(+b.dataset.q); draw();}};
+  $("#seqOut").onclick=e=>{const b=e.target.closest(".seqitem"); if(b){seqPicked.splice(+b.dataset.r,1); draw();}};
+  $("#checkSeq").onclick=()=>{
+    if(seqPicked.length<SEQ.length){$("#seqMsg").textContent=`เลือกให้ครบ ${SEQ.length} ขั้นก่อน`;return;}
+    let ok=0; $$("#seqOut .seqitem").forEach((b,n)=>{const r=seqPicked[n]===n; if(r) ok++; b.classList.add(r?"good":"bad");});
+    $("#seqMsg").textContent= ok===SEQ.length?"✔ ถูกทุกขั้น":`ถูกตำแหน่ง ${ok} / ${SEQ.length} · ลำดับที่ถูก: ${SEQ.join(" → ")}`;
+  };
+  $("#resetSeq").onclick=drillSeq;
+}
+drillTools(); drillSeq();
+
+/* assessment */
+$("#quiz").innerHTML = QUIZ.map((q,i)=>`<fieldset class="q" style="border:0;margin:0;padding-inline:0"><div class="qcat">${i+1} · ${esc(q.cat)}</div><legend style="padding:0"><h3>${esc(q.q)}</h3></legend>${q.o.map((o,j)=>`<label><input type="radio" name="q${i}" id="q${i}o${j}" value="${j}"> <span>${esc(o)}</span></label>`).join("")}<div class="why" hidden></div></fieldset>`).join("") + `<div class="row"><button class="btn primary" type="submit">ส่งคำตอบ</button><button class="btn" type="button" id="quizReset">ล้างคำตอบ</button><span id="quizMsg" class="muted"></span></div>`;
+$("#quiz").addEventListener("submit",e=>{
+  e.preventDefault();
+  const ans=QUIZ.map((q,i)=>{const r=$(`input[name=q${i}]:checked`); return r?+r.value:null;});
+  if(ans.includes(null)){$("#quizMsg").textContent=`ยังไม่ได้ตอบ ${ans.filter(a=>a===null).length} ข้อ`;return;}
+  $("#quizMsg").textContent="";
+  const cats={}; const wrong=[];
+  QUIZ.forEach((q,i)=>{
+    cats[q.cat]=cats[q.cat]||[0,0]; cats[q.cat][1]++;
+    const ok=ans[i]===q.a; if(ok) cats[q.cat][0]++; else wrong.push(q);
+    const w=$$(".q")[i].querySelector(".why"); w.hidden=false;
+    w.innerHTML=(ok?"<span style='color:var(--ok)'>✔ ถูก</span> ":"<span style='color:var(--crit)'>✘ ผิด</span> · คำตอบที่ถูก: "+esc(q.o[q.a])+" · ")+esc(q.why);
+  });
+  const total=QUIZ.length-wrong.length, pct=Math.round(total/QUIZ.length*100);
+  const level = pct>=80?["เข้าใจดี","ok"]:pct>=60?["พอใช้ ควรทบทวนบางหัวข้อ","warn"]:["ควรทบทวนก่อนลงหน้างาน","crit"];
+  const topics=[...new Map(wrong.map(q=>[q.step+"-"+q.k,q])).values()];
+  $("#quizResult").innerHTML=`<h2>ผลคะแนน</h2><div class="score"><div><div class="big">${pct}%</div><div class="muted">${total} / ${QUIZ.length} ข้อ</div></div><span class="pill ${level[1]}">${level[0]}</span></div>
+   <div style="margin-top:12px">${Object.entries(cats).map(([c,[a,b]])=>`<div class="catbar"><span>${esc(c)}</span><span class="track"><span class="fill" style="width:${a/b*100}%;display:block"></span></span><span class="mono">${a}/${b}</span></div>`).join("")}</div>
+   ${topics.length?`<h3 style="margin-top:12px">หัวข้อที่ควรทบทวน</h3><div class="chips" style="margin-top:8px">${topics.map(q=>`<button type="button" class="chip" data-go="${q.step}" data-view-go="learn">Step ${q.step+1}: ${esc(STEPS[q.step].en)}</button><button type="button" class="chip" data-k="${q.k}">${esc(KLINKS[q.k][1])}</button>`).join("")}</div>`:`<p>ตอบถูกทุกข้อ</p>`}`;
+  $("#quizResult").hidden=false; $("#quizResult").scrollIntoView({behavior:"smooth"});
+});
+$("#quizReset").onclick=()=>{ $("#quiz").reset(); $$(".q .why").forEach(w=>w.hidden=true); $("#quizResult").hidden=true; };
+
+/* ================= 3D SIMULATION ================= */
+(function(){
+  const stage=$("#stage");
+  if(!window.THREE || !THREE.OrbitControls){ stage.innerHTML='<div class="nogl">โหลดไลบรารี 3D ไม่สำเร็จ ลองรีเฟรชหน้า ส่วนเนื้อหาอื่นยังใช้งานได้ตามปกติ</div>'; $("#capText").textContent="ไม่มีภาพ 3D"; return; }
+  let renderer;
+  try{ renderer=new THREE.WebGLRenderer({antialias:true}); }catch(err){ stage.innerHTML='<div class="nogl">อุปกรณ์นี้ไม่รองรับ WebGL จึงแสดงภาพ 3D ไม่ได้</div>'; return; }
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.localClippingEnabled=true;
+  stage.appendChild(renderer.domElement);
+
+  const scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x0A1424);
+  scene.fog=new THREE.Fog(0x0A1424,28,60);
+  const camera=new THREE.PerspectiveCamera(40,1,0.1,200);
+  camera.position.set(8,6,11);
+  const controls=new THREE.OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true; controls.maxPolarAngle=1.47; controls.minDistance=3; controls.maxDistance=32;
+  controls.target.set(-1,1.6,0);
+
+  scene.add(new THREE.HemisphereLight(0xcfe0ff,0x1a2230,0.75));
+  const sun=new THREE.DirectionalLight(0xffffff,0.95); sun.position.set(6,12,8); sun.castShadow=true;
+  sun.shadow.mapSize.set(1024,1024); Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:1,far:40});
+  scene.add(sun);
+  const fill=new THREE.DirectionalLight(0x9cc2f2,0.35); fill.position.set(-8,5,-6); scene.add(fill);
+
+  // floor, wall, markings
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshStandardMaterial({color:0x1B2534,roughness:.95}));
+  floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+  const grid=new THREE.GridHelper(60,60,0x2A3A52,0x223047); grid.position.y=0.002; scene.add(grid);
+  const wall=new THREE.Mesh(new THREE.PlaneGeometry(60,14),new THREE.MeshStandardMaterial({color:0x142034,roughness:1}));
+  wall.position.set(0,7,-9); scene.add(wall);
+  const yellow=new THREE.MeshStandardMaterial({color:0xF5C518,roughness:.8});
+  [[0,4.2],[0,-3.6]].forEach(([x,z])=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(22,.12),yellow); m.rotation.x=-Math.PI/2; m.position.set(x,.004,z); scene.add(m);});
+
+  const Y=1.65; // shaft centre height
+  const mat=(color,o={})=>new THREE.MeshStandardMaterial(Object.assign({color,metalness:.35,roughness:.5},o));
+  const AX=(geo)=>{geo.rotateZ(Math.PI/2);return geo;}; // cylinder axis -> X
+  const cyl=(r,l,seg=32)=>AX(new THREE.CylinderGeometry(r,r,l,seg));
+  function mesh(geo,m,x=0,y=0,z=0){const o=new THREE.Mesh(geo,m); o.position.set(x,y,z); o.castShadow=true; o.receiveShadow=true; return o;}
+
+  const machine=new THREE.Group(); scene.add(machine);
+  const P={};
+  function addPart(key,group,base,explode,clip){
+    group.position.copy(base); machine.add(group);
+    const mats=[]; group.traverse(o=>{ if(o.isMesh){ o.userData.part=key; mats.push(o.material);} });
+    P[key]={g:group,base:base.clone(),off:new THREE.Vector3(),tgt:new THREE.Vector3(),exp:explode,clip,mats:[...new Set(mats)]};
+  }
+
+  // baseplate
+  { const g=new THREE.Group(), m=mat(0x55606E,{metalness:.5,roughness:.6});
+    g.add(mesh(new THREE.BoxGeometry(8.2,.3,2.1),m,0,.15,0));
+    const ped=mat(0x4A5462); g.add(mesh(new THREE.BoxGeometry(1.2,.7,.9),ped,-1.25,.65,0));
+    addPart("baseplate",g,new THREE.Vector3(0,0,0),new THREE.Vector3(0,-.6,0),false); }
+  // motor
+  { const g=new THREE.Group(), body=mat(0x24508A,{side:THREE.DoubleSide,metalness:.3,roughness:.45}), dark=mat(0x1C3150,{side:THREE.DoubleSide});
+    g.add(mesh(cyl(.8,2.3),body));
+    for(let i=0;i<9;i++) g.add(mesh(cyl(.86,.05),body,-0.95+i*.24,0,0));
+    g.add(mesh(cyl(.72,.45),dark,1.37,0,0));
+    g.add(mesh(cyl(.72,.1),dark,-1.18,0,0));
+    g.add(mesh(new THREE.BoxGeometry(.5,.38,.5),body,.1,.92,0));
+    const foot=mat(0x1C3150); [[-.7,.55],[.7,.55],[-.7,-.55],[.7,-.55]].forEach(([x,z])=>g.add(mesh(new THREE.BoxGeometry(.35,.55,.3),foot,x,-1.0,z)));
+    addPart("motor",g,new THREE.Vector3(2.45,Y,0),new THREE.Vector3(1.8,0,0),true); }
+  // coupling (spins)
+  { const g=new THREE.Group(), hub=mat(0x9AA6B4,{metalness:.7,roughness:.3}), ins=mat(0x7A1F24,{roughness:.8});
+    g.add(mesh(cyl(.27,.24),hub,.17,0,0)); g.add(mesh(cyl(.27,.24),hub,-.17,0,0)); g.add(mesh(cyl(.25,.1),ins,0,0,0));
+    g.add(mesh(cyl(.08,.45),hub,.4,0,0));
+    const mk=mat(0xF5C518); g.add(mesh(new THREE.BoxGeometry(.2,.04,.06),mk,.17,.27,0)); g.add(mesh(new THREE.BoxGeometry(.2,.04,.06),mk,-.17,.27,0));
+    addPart("coupling",g,new THREE.Vector3(.62,Y,0),new THREE.Vector3(0,0,1.3),false); }
+  // coupling guard
+  { const g=new THREE.Group(), m=mat(0xF5C518,{transparent:true,opacity:.5,depthWrite:false,side:THREE.DoubleSide,metalness:.1,roughness:.6});
+    const shell=new THREE.Mesh(AX(new THREE.CylinderGeometry(.5,.5,1.0,32,1,true)),m); g.add(shell);
+    const leg=mat(0xC9A214); g.add(mesh(new THREE.BoxGeometry(.06,Y-.3-.5,.5),leg,0,-(Y-.3-.5)/2-.5,0));
+    addPart("guard",g,new THREE.Vector3(.62,Y,0),new THREE.Vector3(0,1.7,0),true); }
+  // shaft (spins)
+  { const g=new THREE.Group(), m=mat(0xC6CFD9,{metalness:.85,roughness:.25});
+    g.add(mesh(cyl(.09,3.65),m)); g.add(mesh(new THREE.BoxGeometry(.3,.03,.05),mat(0x445066),1.45,.09,0));
+    addPart("shaft",g,new THREE.Vector3(-1.32,Y,0),new THREE.Vector3(0,0,0),false); }
+  // bearing housing
+  { const g=new THREE.Group(), m=mat(0x5E6B7C,{side:THREE.DoubleSide,metalness:.4,roughness:.55});
+    g.add(mesh(cyl(.46,1.5),m)); g.add(mesh(cyl(.32,.1),m,.8,0,0)); g.add(mesh(cyl(.32,.1),m,-.8,0,0));
+    const glass=mesh(new THREE.CylinderGeometry(.07,.07,.06,16),mat(0x9CC2F2,{metalness:.1,roughness:.1}),.2,-.12,.46); glass.rotation.x=Math.PI/2; g.add(glass);
+    g.add(mesh(new THREE.CylinderGeometry(.05,.05,.18,12),m,-.3,.52,0));
+    addPart("housing",g,new THREE.Vector3(-1.25,Y,0),new THREE.Vector3(0,0,-1.7),true); }
+  // bearings (two sets)
+  const bearingOuter=[];
+  { const g=new THREE.Group(), steel=mat(0xD7DEE6,{metalness:.9,roughness:.2}), ball=mat(0xEEF2F6,{metalness:.95,roughness:.15});
+    [-.6,.6].forEach((x,idx)=>{
+      const b=new THREE.Group(); b.position.x=x;
+      const om=idx===0?mat(0xD7DEE6,{metalness:.9,roughness:.2,emissive:0x000000}):steel;
+      const outer=new THREE.Mesh(new THREE.TorusGeometry(.22,.06,12,40),om); outer.rotation.y=Math.PI/2; b.add(outer);
+      if(idx===0) bearingOuter.push(om);
+      const inner=new THREE.Mesh(new THREE.TorusGeometry(.12,.04,10,32),steel); inner.rotation.y=Math.PI/2; b.add(inner);
+      for(let i=0;i<9;i++){const a=i/9*Math.PI*2; b.add(mesh(new THREE.SphereGeometry(.05,12,10),ball,0,Math.cos(a)*.17,Math.sin(a)*.17));}
+      g.add(b);
+    });
+    addPart("bearing",g,new THREE.Vector3(-1.25,Y,0),new THREE.Vector3(0,1.4,0),false); }
+  // mechanical seal
+  { const g=new THREE.Group(), face=mat(0xB87333,{side:THREE.DoubleSide,metalness:.6,roughness:.35}), gl=mat(0x6F7C8C,{side:THREE.DoubleSide});
+    g.add(mesh(cyl(.2,.14),face)); const sp=new THREE.Mesh(new THREE.TorusGeometry(.17,.025,8,32),mat(0xC6CFD9,{metalness:.8})); sp.rotation.y=Math.PI/2; sp.position.x=.12; g.add(sp);
+    g.add(mesh(cyl(.32,.07),gl,-.1,0,0));
+    addPart("seal",g,new THREE.Vector3(-2.3,Y,0),new THREE.Vector3(-.3,1.1,0),true); }
+  // casing
+  { const g=new THREE.Group(), m=mat(0x3A6EA5,{side:THREE.DoubleSide,metalness:.3,roughness:.5});
+    const vol=new THREE.Mesh(new THREE.TorusGeometry(.86,.33,20,56),m); vol.rotation.y=Math.PI/2; vol.castShadow=true; g.add(vol);
+    g.add(mesh(cyl(1.05,.16),m,.32,0,0));
+    g.add(mesh(cyl(.6,.12),m,-.3,0,0));
+    g.add(mesh(cyl(.28,.9),m,-.78,0,0)); g.add(mesh(cyl(.42,.08),m,-1.2,0,0));
+    g.add(mesh(new THREE.CylinderGeometry(.22,.22,.85,24),m,0,1.2,.32)); g.add(mesh(new THREE.CylinderGeometry(.36,.36,.08,24),m,0,1.62,.32));
+    g.add(mesh(new THREE.BoxGeometry(.45,.3,1.4),mat(0x2E5A88),0,-(Y-.3)+.15,0));
+    addPart("casing",g,new THREE.Vector3(-2.9,Y,0),new THREE.Vector3(-1.9,0,0),true); }
+  // impeller (spins)
+  { const g=new THREE.Group(), m=mat(0xB08D57,{metalness:.75,roughness:.3});
+    g.add(mesh(cyl(.5,.05),m,.1,0,0)); g.add(mesh(cyl(.15,.24),m,0,0,0));
+    for(let i=0;i<7;i++){ const v=new THREE.Mesh(new THREE.BoxGeometry(.14,.34,.03),m); const a=i/7*Math.PI*2;
+      const piv=new THREE.Group(); piv.rotation.x=a; v.position.set(0,.3,0); v.rotation.x=.45; piv.add(v); v.castShadow=true; g.add(piv);}
+    addPart("impeller",g,new THREE.Vector3(-2.9,Y,0),new THREE.Vector3(-1.0,0,0),false); }
+
+  // piping + valves
+  const pipeM=mat(0x6D7B8D,{metalness:.4,roughness:.6});
+  scene.add(mesh(cyl(.28,5),pipeM,-6.6,Y,0));
+  scene.add(mesh(new THREE.CylinderGeometry(.22,.22,2.6,24),pipeM,-2.9,Y+1.66+1.3,.32));
+  scene.add(mesh(new THREE.SphereGeometry(.24,20,16),pipeM,-2.9,Y+2.96,.32));
+  { const h=mesh(new THREE.CylinderGeometry(.22,.22,9,24),pipeM,-2.9,Y+2.96,-4.2); h.rotation.x=Math.PI/2; scene.add(h); }
+  const valveM=mat(0x8A2F2F,{metalness:.3});
+  scene.add(mesh(new THREE.BoxGeometry(.6,.7,.7),valveM,-5.2,Y,0));
+  { const w=new THREE.Mesh(new THREE.TorusGeometry(.3,.04,8,28),valveM); w.rotation.x=Math.PI/2; w.position.set(-5.2,Y+.75,0); scene.add(w); }
+  scene.add(mesh(new THREE.BoxGeometry(.7,.6,.7),valveM,-2.9,Y+2.2,.32));
+
+  // stations
+  const steelM=mat(0x7C8794), panelM=mat(0x2B3A50);
+  const station=new THREE.Group(); station.add(mesh(new THREE.BoxGeometry(.12,2.2,.12),steelM,0,1.1,0)); station.add(mesh(new THREE.BoxGeometry(1,.8,.3),panelM,0,2.3,0));
+  station.add(mesh(new THREE.SphereGeometry(.07,12,10),mat(0x3FBF7F,{emissive:0x0c3a22}),-.2,2.35,.16)); station.add(mesh(new THREE.SphereGeometry(.07,12,10),mat(0xE5484D,{emissive:0x3a0c0e}),.2,2.35,.16));
+  station.position.set(-6.5,0,-2.6); scene.add(station);
+  const mcc=new THREE.Group(); mcc.add(mesh(new THREE.BoxGeometry(1.2,2.6,.7),mat(0x8B96A3),0,1.3,0)); mcc.add(mesh(new THREE.BoxGeometry(.12,.4,.12),mat(0xE5484D),.35,1.5,.4));
+  mcc.position.set(6,0,-2.7); scene.add(mcc);
+  const loto=new THREE.Group(); { const lockM=mat(0xE5484D,{emissive:0x400a0c});
+    loto.add(mesh(new THREE.BoxGeometry(.2,.18,.08),lockM,.35,1.22,.48)); const sh=new THREE.Mesh(new THREE.TorusGeometry(.07,.02,8,20,Math.PI),lockM); sh.position.set(.35,1.31,.48); loto.add(sh);
+    const tagC=document.createElement("canvas"); tagC.width=128; tagC.height=200; const tx=tagC.getContext("2d"); tx.fillStyle="#E5484D"; tx.fillRect(0,0,128,200); tx.fillStyle="#fff"; tx.font="bold 30px sans-serif"; tx.textAlign="center"; tx.fillText("DANGER",64,50); tx.font="bold 22px sans-serif"; tx.fillText("DO NOT",64,105); tx.fillText("OPERATE",64,135); tx.font="16px monospace"; tx.fillText("P-101",64,175);
+    const tag=new THREE.Mesh(new THREE.PlaneGeometry(.32,.5),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(tagC),side:THREE.DoubleSide})); tag.position.set(.35,.9,.49); loto.add(tag); }
+  mcc.add(loto); loto.visible=false;
+  const cart=new THREE.Group(); cart.add(mesh(new THREE.BoxGeometry(1.8,.08,1),steelM,0,1.3,0)); cart.add(mesh(new THREE.BoxGeometry(1.8,.08,1),steelM,0,.4,0));
+  [[-.85,-.45],[.85,-.45],[-.85,.45],[.85,.45]].forEach(([x,z])=>cart.add(mesh(new THREE.BoxGeometry(.06,1.3,.06),steelM,x,.7,z)));
+  cart.add(mesh(new THREE.BoxGeometry(.5,.35,.5),mat(0xC89B5A,{metalness:0,roughness:.9}),-.4,1.52,0)); cart.add(mesh(new THREE.BoxGeometry(.5,.35,.5),mat(0xC89B5A,{metalness:0,roughness:.9}),.3,1.52,.1));
+  cart.position.set(-5.6,0,3.4); scene.add(cart);
+  // whiteboard
+  const board=new THREE.Group(); { const c=document.createElement("canvas"); c.width=1024; c.height=600; const x=c.getContext("2d");
+    x.fillStyle="#F4F6F9"; x.fillRect(0,0,1024,600); x.fillStyle="#1B3A66"; x.font="bold 48px sans-serif"; x.fillText("RCA · P-101  (5 WHY)",40,75);
+    x.font="32px sans-serif"; x.fillStyle="#222";
+    ["1  Bearing failed → outer race spalling","2  Spalling → poor lubrication + extra load","3  Grease overdue / misalignment after last repair","4  No relube interval in PM plan","5  No laser alignment SOP after repair"].forEach((t,i)=>x.fillText(t,40,150+i*62));
+    x.fillStyle="#B8383C"; x.font="bold 30px sans-serif"; x.fillText("Action: PM interval · Alignment SOP · CBM route",40,555);
+    board.add(mesh(new THREE.BoxGeometry(5.2,3.1,.08),mat(0x8B96A3),0,0,0)); const s=new THREE.Mesh(new THREE.PlaneGeometry(5,2.9),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c)})); s.position.z=.05; board.add(s);
+    board.add(mesh(new THREE.BoxGeometry(.08,2,.08),steelM,-2.2,-2.0,0)); board.add(mesh(new THREE.BoxGeometry(.08,2,.08),steelM,2.2,-2.0,0)); }
+  board.position.set(-1,3.05,-5.5); scene.add(board);
+  // laser alignment units
+  const laser=new THREE.Group(); { const u=mat(0x222A35), red=new THREE.MeshBasicMaterial({color:0xff3030});
+    laser.add(mesh(new THREE.BoxGeometry(.18,.24,.2),u,.05,Y+.42,0)); laser.add(mesh(new THREE.BoxGeometry(.18,.24,.2),u,1.25,Y+.42,0));
+    const beam=new THREE.Mesh(cyl(.012,1.1,8),red); beam.position.set(.65,Y+.45,0); laser.add(beam); }
+  laser.visible=false; scene.add(laser);
+
+  /* people */
+  function person(helmet,shirt){
+    const g=new THREE.Group(), skin=mat(0xC99A78,{metalness:0,roughness:.8}), cloth=mat(shirt,{metalness:0,roughness:.85}), pants=mat(0x2A3342,{metalness:0,roughness:.9}), hat=mat(helmet,{metalness:.1,roughness:.4});
+    const legs=[-.17,.17].map(x=>{const p=new THREE.Group(); p.position.set(x,1.7,0); p.add(mesh(new THREE.CylinderGeometry(.14,.12,1.65,12),pants,0,-.82,0)); p.add(mesh(new THREE.BoxGeometry(.24,.12,.4),mat(0x1a1a1a),0,-1.64,.07)); g.add(p); return p;});
+    g.add(mesh(new THREE.BoxGeometry(.78,1.25,.44),cloth,0,2.35,0));
+    g.add(mesh(new THREE.BoxGeometry(.8,.06,.46),mat(0xC6FF3D,{emissive:0x223300}),0,2.2,0));
+    const arms=[-.5,.5].map(x=>{const p=new THREE.Group(); p.position.set(x,2.9,0); p.add(mesh(new THREE.CylinderGeometry(.1,.09,1.1,10),cloth,0,-.55,0)); g.add(p); return p;});
+    g.add(mesh(new THREE.SphereGeometry(.27,18,14),skin,0,3.28,0));
+    g.add(mesh(new THREE.SphereGeometry(.31,18,10,0,Math.PI*2,0,Math.PI/2),hat,0,3.33,0));
+    g.add(mesh(new THREE.CylinderGeometry(.36,.36,.03,18),hat,0,3.33,.02));
+    const hand=new THREE.Group(); hand.position.set(0,-1.12,0); arms[1].add(hand);
+    g.scale.setScalar(.82);
+    return {g,legs,arms,hand,path:[],speed:2.4,pose:"idle",prop:null,face:null};
+  }
+  const props={
+    meter:()=>{const p=new THREE.Group(); p.add(mesh(new THREE.BoxGeometry(.22,.34,.1),mat(0xF5C518),0,-.1,.05)); p.add(mesh(new THREE.CylinderGeometry(.015,.015,.4,6),mat(0x222222),0,-.3,.25)); return p;},
+    tablet:()=>{const p=new THREE.Group(); p.add(mesh(new THREE.BoxGeometry(.42,.3,.03),mat(0x1a1f29),0,-.05,.12)); p.add(mesh(new THREE.BoxGeometry(.38,.26,.005),new THREE.MeshBasicMaterial({color:0x2F7DE1}),0,-.05,.137)); return p;},
+    thermo:()=>{const p=new THREE.Group(); p.add(mesh(new THREE.BoxGeometry(.1,.22,.32),mat(0xE07B2A),0,-.05,.1)); return p;},
+    puller:()=>{const p=new THREE.Group(); const m=mat(0x6b7685,{metalness:.8}); p.add(mesh(new THREE.CylinderGeometry(.03,.03,.5,8),m,0,-.1,.15)); p.add(mesh(new THREE.BoxGeometry(.4,.05,.05),m,0,-.32,.15)); return p;},
+    wrench:()=>{const p=new THREE.Group(); p.add(mesh(new THREE.BoxGeometry(.05,.5,.05),mat(0xA0AAB6,{metalness:.8}),0,-.2,.1)); return p;}
+  };
+  const A={op:person(0xFFFFFF,0x3F7FBF),tech:person(0xF5C518,0xE07B2A),sup:person(0x2F7DE1,0x5B6676)};
+  Object.values(A).forEach(a=>{scene.add(a.g); a.g.visible=false;});
+  function setProp(a,name){ if(a.prop){a.hand.remove(a.prop);a.prop=null;} if(name){a.prop=props[name](); a.hand.add(a.prop);} }
+  function place(a,x,z,face){ a.g.visible=true; a.g.position.set(x,0,z); a.path=[]; a.pose="idle"; setProp(a,null); if(face) lookAt(a,face[0],face[1]); }
+  function lookAt(a,x,z){ a.face=[x,z]; }
+  function walk(a,pts){ a.path=pts.map(p=>new THREE.Vector3(p[0],0,p[1])); }
+
+  /* labels */
+  const labels=[];
+  function label(text,x,y,z,color){
+    const c=document.createElement("canvas"), ctx=c.getContext("2d"), fs=40, font=`600 ${fs}px "IBM Plex Sans Thai", system-ui, sans-serif`;
+    ctx.font=font; const w=Math.ceil(ctx.measureText(text).width)+56; c.width=w; c.height=fs+40;
+    ctx.font=font; ctx.fillStyle="rgba(10,20,36,.92)"; ctx.strokeStyle=color||"#F5C518"; ctx.lineWidth=4;
+    const r=14; ctx.beginPath(); ctx.moveTo(r,2); ctx.lineTo(w-r,2); ctx.quadraticCurveTo(w-2,2,w-2,r); ctx.lineTo(w-2,c.height-r); ctx.quadraticCurveTo(w-2,c.height-2,w-r,c.height-2); ctx.lineTo(r,c.height-2); ctx.quadraticCurveTo(2,c.height-2,2,c.height-r); ctx.lineTo(2,r); ctx.quadraticCurveTo(2,2,r,2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle="#EEF3FA"; ctx.textBaseline="middle"; ctx.fillText(text,28,c.height/2+2);
+    const tex=new THREE.CanvasTexture(c); tex.minFilter=THREE.LinearFilter;
+    const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
+    const h=.42; s.scale.set(h*c.width/c.height,h,1); s.position.set(x,y,z); s.renderOrder=20; scene.add(s); labels.push(s); return s;
+  }
+  function clearLabels(){ labels.splice(0).forEach(s=>{scene.remove(s); s.material.map.dispose(); s.material.dispose();}); }
+
+  /* state */
+  let spinTarget=0, spinSpeed=0, shake=false, cut=false, explode=false, damaged=true, active=true, selected=null, hovered=null;
+  let stepT=0, events=[], evI=0, camTween=null;
+  const clipPlane=new THREE.Plane(new THREE.Vector3(0,0,-1),0);
+  function applyCut(){ Object.values(P).forEach(p=>{ if(p.clip) p.mats.forEach(m=>{ m.clippingPlanes=cut?[clipPlane]:[]; m.needsUpdate=true; }); }); $("#tbCut").setAttribute("aria-pressed",cut); }
+  function applyExplode(){ Object.values(P).forEach(p=>p.tgt.copy(explode?p.exp:new THREE.Vector3())); $("#tbExplode").setAttribute("aria-pressed",explode); }
+  function setSpin(v){ spinTarget=v; $("#tbSpin").setAttribute("aria-pressed",v>0); }
+  function setCaption(tag,text){ $("#capTag").textContent=tag; $("#capText").textContent=text; }
+  function camTo(pos,tgt,d=1.3){ camTween={p0:camera.position.clone(),t0:controls.target.clone(),p1:new THREE.Vector3(...pos),t1:new THREE.Vector3(...tgt),k:0,d}; }
+  controls.addEventListener("start",()=>{camTween=null;});
+
+  // spectrum overlay (step 4)
+  function spectrumSVG(){
+    const W=320,H=150,fr=24.7,max=400, peaks=[[fr,.7,"1X"],[2*fr,1.5,"2X"],[3.05*fr,3.1,"BPFO"],[6.1*fr,2.0,"2×BPFO"],[9.15*fr,1.1,"3×BPFO"],[3.05*fr-fr,.5],[3.05*fr+fr,.5],[6.1*fr-fr,.35],[6.1*fr+fr,.35]];
+    let d="M 30 "+(H-22);
+    for(let f=0;f<=max;f+=1){ let a=.06+.03*Math.abs(Math.sin(f*1.7)); peaks.forEach(p=>{a+=p[1]*Math.exp(-Math.pow((f-p[0])/1.6,2));}); d+=` L ${(30+f/max*(W-40)).toFixed(1)} ${(H-22-a/3.4*(H-40)).toFixed(1)}`; }
+    const lab=peaks.filter(p=>p[2]).map(p=>{const x=30+p[0]/max*(W-40), y=H-22-p[1]/3.4*(H-40)-6; return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" font-size="9" fill="${p[2].includes('BPFO')?'#E5484D':'#9CC2F2'}" font-family="ui-monospace,Menlo,Consolas,monospace">${p[2]}</text>`;}).join("");
+    return `<div style="display:flex;justify-content:space-between;font-size:11px"><b style="color:#9CC2F2">Velocity spectrum · Inboard H</b><span style="color:#F2B33D">ค่าจำลอง</span></div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="สเปกตรัมจำลอง มี peak ที่ BPFO และ harmonics"><line x1="30" y1="${H-22}" x2="${W-10}" y2="${H-22}" stroke="#22406A"/><line x1="30" y1="10" x2="30" y2="${H-22}" stroke="#22406A"/>
+    ${[0,100,200,300,400].map(f=>`<text x="${30+f/max*(W-40)}" y="${H-8}" font-size="9" fill="#8FA0B8" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace">${f}</text>`).join("")}
+    <text x="${W-10}" y="${H-26}" font-size="9" fill="#8FA0B8" text-anchor="end">Hz</text>
+    <path d="${d}" fill="none" stroke="#2F7DE1" stroke-width="1.3"/>${lab}</svg>
+    <div style="font-size:11px;color:#8FA0B8">สมมติ fr = 24.7 Hz (1,480 rpm), BPFO = 3.05×fr · sideband ±1X</div>`;
+  }
+
+  /* step scripts */
+  const SCN=[
+   ()=>{ cam([7,5.5,11],[-1.5,1.6,0]); setSpin(9); shake=true;
+     place(A.op,-9,5.5); walk(A.op,[[-6,4.6],[-3.4,2.9]]); lookAt(A.op,-2.6,0);
+     ev(3.6,()=>label("เสียงดังผิดปกติ · สั่นแรง",-1.25,3.0,0,"#E5484D")); ev(5,()=>label("Operator ประเมิน: แจ้งซ่อม + เตรียมปั๊มสำรอง",-3.4,4.3,2.9)); },
+   ()=>{ cam([-1.5,5,9],[-5.2,1.8,-1]); setSpin(9); shake=true;
+     place(A.op,-3.4,2.9); walk(A.op,[[-5.2,1.2],[-6.5,-1.6]]); lookAt(A.op,-6.5,-2.6); setProp(A.op,"tablet");
+     ev(3.4,()=>{A.op.pose="reach"; label("แจ้งซ่อม · P-101 · เสียงดัง / สั่น / ร้อน",-6.5,4.0,-2.4);}); ev(5,()=>label("ส่งถึง Maintenance Supervisor ✔",-6.5,3.45,-2.4,"#3FBF7F")); },
+   ()=>{ cam([2,3.6,6.5],[-1.3,1.7,0]); setSpin(9); shake=true;
+     place(A.tech,7,5); walk(A.tech,[[3,3.6],[-1.25,1.55]]); lookAt(A.tech,-1.25,0); setProp(A.tech,"meter");
+     ev(3.8,()=>{A.tech.pose="reach"; label("Vibration 12.8 mm/s RMS",-1.25,2.75,.4,"#E5484D");});
+     ev(5.4,()=>{setProp(A.tech,"thermo"); label("Bearing 95 °C",-.4,2.35,.4,"#E5484D");});
+     ev(6.8,()=>label("Noise: High · จาระบีสีคล้ำ",-2.2,2.35,.4,"#F2B33D")); },
+   ()=>{ cam([1,3.4,5.6],[-1.5,1.6,0]); setSpin(9); shake=true; setCut(true);
+     place(A.tech,-.2,2.1,[-1.25,0]); setProp(A.tech,"tablet"); A.tech.pose="reach";
+     $("#spectrum").innerHTML=spectrumSVG(); $("#spectrum").hidden=false;
+     ev(1.5,()=>label("Outer race defect · BPFO",-1.85,2.35,0,"#E5484D")); ev(3,()=>label("2X + axial สูง → ตรวจ alignment",.62,2.45,0,"#F2B33D")); },
+   ()=>{ cam([-1.5,5,9.5],[-5,1.4,2.5]); setSpin(9); shake=true;
+     place(A.tech,-3,6); walk(A.tech,[[-4.7,2.4]]); lookAt(A.tech,-5.6,3.4);
+     place(A.sup,-8,1.5); walk(A.sup,[[-6.6,2.4]]); lookAt(A.sup,-5.6,3.4); setProp(A.sup,"tablet");
+     ev(2.8,()=>label("Bearing P/N ตรงทุก suffix ✔",-5.6,2.4,3.4,"#3FBF7F")); ev(4,()=>label("Gasket · O-ring · จาระบี ✔",-5.6,2.95,3.4,"#3FBF7F")); ev(5.2,()=>label("Work Order + คน + เวลา ✔",-5.6,3.5,3.4,"#3FBF7F")); },
+   ()=>{ cam([9.5,4.8,5.5],[4.5,1.6,-1.6]); setSpin(9); shake=true;
+     place(A.tech,1.5,4); walk(A.tech,[[4.5,1.5],[6.35,-1.6]]); lookAt(A.tech,6.35,-2.7);
+     place(A.sup,3.4,-.5,[6,-2.7]); setProp(A.sup,"tablet");
+     ev(1,()=>label("JSA + Permit to Work ✔",3.4,3.4,-.5,"#3FBF7F"));
+     ev(3.4,()=>{A.tech.pose="reach"; setSpin(0); shake=false; loto.visible=true; label("Lock + Tag ที่ MCC",6,3.2,-2.4,"#E5484D");});
+     ev(4.8,()=>label("ปิดวาล์ว suction / discharge + ล็อก",-4,3.2,0,"#E5484D"));
+     ev(6.2,()=>label("Try-out: กด Start ไม่ทำงาน ✔",-6.5,3.5,-2.4,"#3FBF7F"));
+     ev(7.4,()=>label("Zero Energy Verified ✔",.5,4.2,0,"#3FBF7F")); },
+   ()=>{ cam([3.2,5,8.5],[-1,1.9,0]); setSpin(0); loto.visible=true; setCut(true);
+     place(A.tech,1.5,4.5); walk(A.tech,[[-1.25,2.1]]); lookAt(A.tech,-1.25,0); setProp(A.tech,"puller");
+     const S=(t,txt,fn)=>ev(t,()=>{fn&&fn(); setCaption("STEP 7 · กำลังทำ",txt);});
+     S(1.8,"ถอด Coupling Guard",()=>{P.guard.tgt.set(0,1.7,0); A.tech.pose="reach";});
+     S(3.6,"ทำ match mark แล้วถอด Coupling",()=>P.coupling.tgt.set(0,0,1.3));
+     S(5.4,"ถอด Bearing Housing",()=>P.housing.tgt.set(0,0,-1.7));
+     S(7.2,"ถอด Bearing ด้วย Puller · เก็บไว้วิเคราะห์",()=>P.bearing.tgt.set(0,1.4,0));
+     S(9.2,"ตรวจ Shaft: bearing seat, ความกลม, runout",()=>{setProp(A.tech,"meter"); flash("shaft");});
+     S(11,"ตรวจ Bearing Housing bore",()=>flash("housing"));
+     S(12.6,"ให้ความร้อน bearing ใหม่ด้วย Induction heater (≤125 °C)",()=>{damaged=false; label("Bearing ใหม่",-1.25,3.6,0,"#3FBF7F");});
+     S(14,"ติดตั้ง Bearing ใหม่ · ส่งแรงที่ inner ring",()=>{setProp(A.tech,"wrench"); P.bearing.tgt.set(0,0,0);});
+     S(15.8,"ประกอบ Bearing Housing กลับ",()=>P.housing.tgt.set(0,0,0));
+     S(17.4,"ประกอบ Coupling กลับ ตาม match mark",()=>P.coupling.tgt.set(0,0,0));
+     S(19,"ติดตั้ง Coupling Guard · ขัน torque ตามคู่มือ",()=>P.guard.tgt.set(0,0,0));
+     S(20.6,"งานซ่อมเสร็จ ส่งต่อ Quality Inspection",null); },
+   ()=>{ cam([3.4,3.6,6.2],[0,1.7,0]); setSpin(.8); loto.visible=true; damaged=false;
+     place(A.tech,1.2,1.9,[.62,0]); A.tech.pose="reach"; setProp(A.tech,"wrench");
+     ev(1.2,()=>label("✔ หมุนด้วยมือลื่น ไม่มีเสียงขูด",-1.25,2.6,0,"#3FBF7F"));
+     ev(2.6,()=>label("✔ Coupling + insert ครบ",.62,2.55,0,"#3FBF7F"));
+     ev(4,()=>label("✔ Torque mark ทุกตัว",2.45,2.85,0,"#3FBF7F"));
+     ev(5.4,()=>label("✔ ระดับน้ำมัน / จาระบี",-1.25,3.15,0,"#3FBF7F"));
+     ev(6.8,()=>label("✔ Guard ติดตั้ง · ไม่มีเครื่องมือค้าง",.62,3.45,0,"#3FBF7F")); },
+   ()=>{ cam([6,4.4,8.2],[-.6,1.7,0]); setSpin(0); loto.visible=true; damaged=false; laser.visible=true; P.guard.tgt.set(0,1.7,0);
+     place(A.tech,.62,2.2,[.62,0]); setProp(A.tech,"tablet"); A.tech.pose="reach";
+     ev(1.2,()=>label("Laser alignment ✔ ตามเกณฑ์ผู้ผลิต",.62,3.0,0,"#3FBF7F"));
+     ev(3,()=>{laser.visible=false; P.guard.tgt.set(0,0,0); label("Prime ปั๊ม · เปิดวาล์ว",-2.9,4.2,.3,"#9CC2F2");});
+     ev(4.4,()=>{loto.visible=false; label("ปลด LOTO ตามลำดับ",6,3.2,-2.4,"#9CC2F2");});
+     ev(5.6,()=>{setSpin(9); walk(A.tech,[[-1.25,1.55]]); lookAt(A.tech,-1.25,0); setProp(A.tech,"meter");});
+     ev(7.6,()=>label("Vibration 2.1 mm/s RMS (หลังซ่อม)",-1.25,2.75,.4,"#3FBF7F"));
+     ev(9,()=>label("Bearing 62 °C คงที่ · seal ไม่รั่ว",-1.25,3.25,.4,"#3FBF7F")); },
+   ()=>{ cam([0,4.4,10.5],[-2.6,2,2]); setSpin(9); damaged=false;
+     place(A.op,-7,6); walk(A.op,[[-4.2,3.2]]); lookAt(A.op,-2.6,3.2); setProp(A.op,"tablet");
+     place(A.sup,-1.8,3.3,[-4.2,3.2]); place(A.tech,-1.2,4.4,[-4.2,3.2]);
+     ev(2.6,()=>{A.op.pose="reach"; label("สรุปงาน + ข้อควรระวัง",-2.6,4.3,3.3);});
+     ev(4.2,()=>label("Production ลงชื่อรับ ✔ · ปิด Permit",-4.2,3.75,3.2,"#3FBF7F")); },
+   ()=>{ cam([2.6,4.2,4.5],[-1,2.6,-4.5]); setSpin(9); damaged=false;
+     place(A.sup,-4.6,-3.4,[-1,-5.5]); place(A.tech,2.4,-3.2,[-1,-5.5]); setProp(A.tech,"tablet");
+     ev(1.5,()=>{A.sup.pose="reach"; label("Root cause: หล่อลื่น + alignment",-1,5.1,-5.4,"#E5484D");});
+     ev(3,()=>label("Action: ปรับ PM · SOP alignment · route CBM",-1,1.25,-5.2,"#3FBF7F")); }
+  ];
+  let curStep=0;
+  function ev(t,fn){ events.push({t,fn}); }
+  let lastCam=null;
+  function cam(p,t){ lastCam=[p,t]; camTo(p,t); }
+  function setCut(v){ cut=v; applyCut(); }
+  const flashes={};
+  function flash(key){ flashes[key]=2.2; }
+
+  function playStep(i,moveCam){
+    curStep=i; stepT=0; events=[]; evI=0; clearLabels();
+    Object.values(A).forEach(a=>{a.g.visible=false; a.path=[]; a.pose="idle"; a.face=null; setProp(a,null);});
+    loto.visible=false; laser.visible=false; $("#spectrum").hidden=true; shake=false; damaged=i<=6; cut=false; explode=false; applyExplode(); applyCut();
+    const keep=camTween; SCN[i](); if(!moveCam) camTween=keep;
+    events.sort((a,b)=>a.t-b.t);
+    setCaption(`STEP ${i+1} · ${STEPS[i].en.toUpperCase()}`, STEPS[i].cap);
+  }
+
+  /* picking */
+  const ray=new THREE.Raycaster(), ptr=new THREE.Vector2();
+  function pick(ev){
+    const r=renderer.domElement.getBoundingClientRect(); ptr.set((ev.clientX-r.left)/r.width*2-1,-(ev.clientY-r.top)/r.height*2+1);
+    ray.setFromCamera(ptr,camera);
+    const hits=ray.intersectObject(machine,true);
+    for(const h of hits){ const k=h.object.userData.part; if(!k||!P[k].g.visible) continue; if(cut&&P[k].clip&&h.point.z>0.001) continue; return k; }
+    return null;
+  }
+  function tint(key,hex){ if(!key) return; P[key].mats.forEach(m=>{ if(m.emissive && !bearingOuter.includes(m)) m.emissive.setHex(hex); }); }
+  function select(key){ tint(selected,0); selected=key; tint(selected,0x1d4f8f); }
+  let down=null;
+  renderer.domElement.addEventListener("pointerdown",e=>{down=[e.clientX,e.clientY];});
+  renderer.domElement.addEventListener("pointerup",e=>{ if(!down) return; const moved=Math.hypot(e.clientX-down[0],e.clientY-down[1]); down=null; if(moved>5) return; const k=pick(e); select(k); showPart(k); });
+  renderer.domElement.addEventListener("pointermove",e=>{ if(e.pointerType!=="mouse") return; const k=pick(e); renderer.domElement.style.cursor=k?"pointer":"grab"; if(k!==hovered){ if(hovered&&hovered!==selected) tint(hovered,0); hovered=k; if(k&&k!==selected) tint(k,0x10263f);} });
+
+  /* toolbar */
+  $("#tbCut").onclick=()=>setCut(!cut);
+  $("#tbExplode").onclick=()=>{explode=!explode; applyExplode();};
+  $("#tbSpin").onclick=()=>setSpin(spinTarget>0?0:9);
+  $("#tbReplay").onclick=()=>playStep(curStep,true);
+  $("#tbCam").onclick=()=>{ if(lastCam) camTo(lastCam[0],lastCam[1]); };
+  const menu=$("#partsMenu");
+  menu.innerHTML=Object.entries(PARTS).map(([k,p])=>`<label><input type="checkbox" id="pv-${k}" data-pv="${k}" checked> ${esc(p.name)}</label>`).join("")+`<button type="button" class="btn" id="pvAll" style="margin-top:6px">แสดงทั้งหมด</button>`;
+  menu.addEventListener("change",e=>{const k=e.target.dataset.pv; if(k) P[k].g.visible=e.target.checked;});
+  $("#pvAll").onclick=()=>{ menu.querySelectorAll("input").forEach(c=>{c.checked=true; P[c.dataset.pv].g.visible=true;}); };
+  $("#tbParts").onclick=()=>{ menu.hidden=!menu.hidden; $("#tbParts").setAttribute("aria-expanded",!menu.hidden); };
+
+  /* resize */
+  function resize(){ const w=stage.clientWidth,h=stage.clientHeight; if(!w||!h) return; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+  new ResizeObserver(resize).observe(stage); resize();
+
+  /* loop */
+  const clock=new THREE.Clock(); const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const spinParts=["shaft","impeller","coupling","bearing"];
+  function animate(){
+    requestAnimationFrame(animate);
+    const dt=Math.min(clock.getDelta(),.05);
+    if(!active) return;
+    stepT+=dt; while(evI<events.length && events[evI].t<=stepT){ events[evI].fn(); evI++; }
+    spinSpeed+= (spinTarget-spinSpeed)*Math.min(1,dt*1.8);
+    spinParts.forEach(k=>{ P[k].g.rotation.x += spinSpeed*dt*(k==="bearing"?.4:1); });
+    Object.values(P).forEach(p=>{ p.off.lerp(p.tgt,Math.min(1,dt*3.2)); p.g.position.copy(p.base).add(p.off); });
+    machine.position.set(0,0,0);
+    if(shake && spinSpeed>2 && !reduce){ machine.position.set((Math.random()-.5)*.018,(Math.random()-.5)*.012,(Math.random()-.5)*.018); }
+    const pulse=damaged? (.45+.35*Math.sin(stepT*5)) : 0;
+    bearingOuter.forEach(m=>{ m.emissive.setRGB(pulse*.9,pulse*.12,pulse*.08); m.color.setHex(damaged?0x9A6A55:0xD7DEE6); });
+    Object.keys(flashes).forEach(k=>{ flashes[k]-=dt; const on=flashes[k]>0 && Math.floor(flashes[k]*4)%2===0; if(k!==selected) tint(k,on?0x2F7DE1:0); if(flashes[k]<=0) delete flashes[k]; });
+    Object.values(A).forEach(a=>{
+      if(!a.g.visible) return;
+      let moving=false;
+      if(a.path.length){ const t=a.path[0], d=t.clone().sub(a.g.position); const L=d.length();
+        if(L<.05){ a.path.shift(); } else { moving=true; d.normalize(); a.g.position.addScaledVector(d,Math.min(L,a.speed*dt)); a.g.rotation.y=Math.atan2(d.x,d.z); } }
+      if(!moving && a.face){ const want=Math.atan2(a.face[0]-a.g.position.x,a.face[1]-a.g.position.z); let df=want-a.g.rotation.y; df=Math.atan2(Math.sin(df),Math.cos(df)); a.g.rotation.y+=df*Math.min(1,dt*5); }
+      const sw=moving?Math.sin(stepT*8)*.5:0;
+      a.legs[0].rotation.x=sw; a.legs[1].rotation.x=-sw; a.arms[0].rotation.x=-sw*.8;
+      const reach=(!moving && a.pose==="reach")?-1.15:(a.prop?-.45:sw*.8);
+      a.arms[1].rotation.x+= (reach-a.arms[1].rotation.x)*Math.min(1,dt*6);
+    });
+    if(camTween){ camTween.k=Math.min(1,camTween.k+dt/camTween.d); const e=1-Math.pow(1-camTween.k,3);
+      camera.position.lerpVectors(camTween.p0,camTween.p1,e); controls.target.lerpVectors(camTween.t0,camTween.t1,e); if(camTween.k>=1) camTween=null; }
+    controls.update();
+    renderer.render(scene,camera);
+  }
+  animate();
+
+  window.Sim={ playStep, setActive:v=>{active=v; if(v){resize(); clock.getDelta();}}, select:k=>select(k) };
+  playStep(cur,true);
+})();
+
+renderSteps(); renderCond(); renderCauses(); renderRelated(); renderSheet(); route();
+})();
+</script>
+{% endverbatim %}
+{% endblock extra_js %}

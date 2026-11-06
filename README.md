@@ -473,6 +473,14 @@ Standalone module at `/electricity/`, first slice of a broader Energy module (st
 - `ElectricityReading` — one row per meter per day (`UniqueConstraint(meter, date)`), storing the **cumulative** meter reading (`reading_kwh`) as physically read off the dial. Property `usage_kwh` computes that day's consumption as the delta from the previous day's reading; returns `None` for the first-ever reading of a meter or when `is_meter_reset` is ticked (meter physically swapped/reset that day, so no delta is computed against the old meter's value). A negative delta without the reset flag ticked is kept (not hidden) and flagged via `is_anomalous` so a likely data-entry error surfaces in the UI instead of silently corrupting a chart. The module-level `electricity_usage_series(meters_qs, start, end)` function computes usage for many meters/days in one query pass (avoids N+1 queries in the dashboards).
 - Two dashboards: `electricity_plant_dashboard` (select `ESC-A`/`ESC-B`, aggregates target vs. actual kWh across all meters in that plant) and `electricity_meter_dashboard/<id>/` (same, scoped to one meter/process). Both share a `_electricity_period_comparison()` helper for the 6-month summary table and month-over-month/year-over-year % comparison, and follow the `boiler` view's existing `days`/`start`/`end` GET-param convention for the trend chart's date range. Alert/comparison booleans (e.g. `over_target`) are pre-computed in the view (Django templates can't do `>` comparisons), not in the template.
 
+### Knowledge Center — P-101 Maintenance Trainer (บทเรียน 3D)
+
+Static, read-only training prototype at `/training/trainer/p-101/` (sidebar of the Knowledge Center, template `training/p101_trainer.html`). 11-step maintenance workflow for pump P-101 (bearing failure) with a Three.js 3D scene, decision scenarios, practice drills, a knowledge base and a 10-question assessment. **No model, migration or form** — all content lives in the template and scores are not stored. View is `@login_required` only (no writes, so no `module_required`).
+
+- Three.js r128 + `OrbitControls` are **self-hosted** in `myapp/static/myapp/vendor/three/` (MIT, `LICENSE` alongside) and loaded only by this page through the `{% block extra_js %}` hook at the end of `base.html`; other pages do not load them. Run `collectstatic` on deploy so `/static/myapp/vendor/three/` resolves.
+- All CSS is scoped under `#p101` and uses container queries (sidebar width would otherwise skew viewport breakpoints); JS is wrapped in an IIFE and uses `#p101-<view>` URL hashes for its five in-page tabs.
+- All P-101 figures (12.8 mm/s, 95 °C, spectrum) are simulated for learning, not real measurements.
+
 ### Access Control (Module-level Write Permissions)
 
 Staff-level write access is scoped per module using Django's built-in Groups/Permissions, replacing the earlier all-or-nothing `is_staff` check:
@@ -813,6 +821,12 @@ The old `/api/lathe/` JSON endpoint was removed.
 | GET/POST | `/electricity/reading/add/` | Add a daily reading (meter chosen in the form) |
 | GET/POST | `/electricity/reading/add/<meter_id>/` | Add a daily reading for a specific meter |
 | GET | `/electricity/readings/` | Reading history (`?meter=`) |
+
+### Knowledge Center — P-101 Trainer
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/training/trainer/p-101/` | P-101 Maintenance Trainer (static 3D lesson, login required) |
 
 ### Admin
 

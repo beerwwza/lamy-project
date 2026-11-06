@@ -165,6 +165,7 @@ urlpatterns = [
     path('training/career/step/<int:step_id>/edit/',     training_career_step_edit,   name='training_career_step_edit'),
     path('training/career/step/<int:step_id>/delete/',   training_career_step_delete, name='training_career_step_delete'),
     path('training/gap/',                      training_gap,             name='training_gap'),
+    path('training/trainer/p-101/',            training_p101_trainer,    name='training_p101_trainer'),
 
     path('training/courses/<int:course_id>/edit/',                training_course_edit,             name='training_course_edit'),
     path('training/courses/<int:course_id>/materials/upload/',    training_course_material_upload,  name='training_course_material_upload'),
