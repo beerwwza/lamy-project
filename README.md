@@ -33,6 +33,7 @@ LAMY is a web-based industrial operations management system built for a large-sc
 - **ME Inspection (ใบตรวจเช็คซ่อมบำรุงเครื่องจักร)** (`/me-inspection/`) — Rotating-equipment repair/inspection record migrated from the former Google Apps Script "ฟอร์ม ME V.2" into LAMY, linked to the `Equipment` registry. A 7-tab form (basic info & spare parts with photos, ISO 286 fits, shaft runout & pressure test, alignment, vibration ISO 10816, 10-item readiness checklist, on-screen signatures), pass/warn/fail colouring while typing with results recomputed server-side on save, "smart memory" that pre-fills spare-part specs from the machine's last inspection, a 4-step approval workflow (repairing → CBM review → head approval → approved) gated per step by `write_maintenance` / `write_cbm` / superuser, a filtered history list, an A4 print view, a KPI/chart dashboard, and an Excel (PUMP/GEAR sheets) import into `Equipment`.
 - **Lathe Job Tracking** — Server-rendered machine-shop job orders (one page with KPIs + charts + filtered list, add/edit forms, status change, printable job order, CSV/JSON import & export). Writes need `write_general`; delete is superuser-only.
 - **Tools Module** — Dedicated hand-tool tracking (`/tools/`) separate from general Inventory, with per-physical-unit status (so identical tools like 5 impact wrenches are tracked individually), borrow/return history with due dates, and an integrated tool-readiness checklist.
+- **Material Master (รหัสวัสดุ SAP)** (`/materials/`) — Central table of SAP Material IDs (14,575 codes, plant 1010: ZSP spare parts / ZOS other materials) loaded once from Excel and then maintained through a web form. Equipment BOM lines, Inventory items and Tools link to it by FK (optional — legacy free-text rows keep working), so the same part is identified consistently across modules. Searchable list with filters, a detail page with a "used where" section (BOM lines per machine + the inventory/tool item), duplicate-ID rejection, and a similar-name warning before saving a new code. Sidebar groups it with Inventory and Tools under "คลัง & วัสดุ".
 - **Manual Library** (`/manuals/`) — Structured machine operation & maintenance manuals (cover info, safety precautions, part names, pre-use checklist, operating steps, daily/periodic maintenance, troubleshooting, specifications), built via a multi-section form with dynamic add/remove rows.
 - **Task Manager** (`/tasks/`) — A hub page linking to 4 equipment-readiness test types, each its own sub-module with its own list/form pages: **Rotating/Electrical/Control** (`/tasks/rotating/`) — pick equipment from the registry, track a task through Todo → Doing → Done, and record a full vibration measurement set (Amp, DE/NDE, Temp) for both the no-load and loaded run phases, compared side by side (each phase reading is also written into `CBMVibration` so it shows in the equipment's normal CBM history); **Water System Test (CIP)** (`/watercip/`) — pick a process, a start equipment and an end equipment along the tested water path, then log an unlimited number of pH readings (time + value); **Steam System Test (Leak Inspection)** (`/steamleak/`) — pick a process and a single piece of equipment, then work through a repeatable checklist (topic → item → standard → normal/abnormal; if abnormal, cause → corrective action → fix-due date); **Flushing Test** (`/flushing/`) — pick a process and a pipe/equipment, log unlimited blow rounds (round number, start/end time, blow pressure in bar, whether a copper plate was inserted, and — only when a plate was used — the count of spots larger than 0.3mm found), with pass/fail per round computed automatically (≤ 3 oversized spots/cm² passes). All 4 share the same task shell (title/assignee/status/note).
 - **Energy Tracking — Electricity** (`/electricity/`, Phase 1 of a broader Energy module; steam usage is a planned Phase 2) — Daily cumulative electricity-meter readings per plant (ESC-A / ESC-B), with each meter optionally linked to multiple pieces of equipment to auto-calculate a daily kWh(Max) target from their `power_kw`. Dashboards at plant level and per-meter/process level show actual vs. target kWh, a daily trend chart, a 6-month summary table, and month-over-month/year-over-year % comparisons.
@@ -157,6 +158,25 @@ python test_gdrive_upload.py
 python bind_cbm.py
 ```
 
+Management commands (`python manage.py <name>`):
+
+```bash
+# Material Master — one-time import of SAP Material IDs from Excel (sheet "All Materials");
+# idempotent (update_or_create semantics), keeps leading zeros, wrapped in one transaction
+python manage.py import_material_master <file.xlsx> --dry-run   # preview first
+python manage.py import_material_master <file.xlsx>
+
+# Link existing EquipmentBOM.part_no / InventoryItem.code to MaterialMaster by exact match
+# (whitespace trimmed); only touches rows with no material yet and prints what could not be linked
+python manage.py link_material_master --dry-run
+python manage.py link_material_master
+
+# Other backfills
+python manage.py backfill_tool_units          # --apply to write
+python manage.py backfill_skill_levels
+python manage.py recalculate_reliability
+```
+
 ---
 
 ## 4. Project Structure
@@ -182,7 +202,8 @@ lamy-project/
 │   ├── urls.py                     # App URL routing
 │   ├── forms.py                    # Django ModelForms (all modules)
 │   ├── admin.py                    # Django Admin configuration
-│   ├── migrations/                 # 81 database migration files
+│   ├── management/commands/        # import_material_master, link_material_master, backfills
+│   ├── migrations/                 # 112 database migration files
 │   └── templates/
 │       └── myapp/
 │           ├── base.html           # Master layout with navigation
@@ -401,6 +422,17 @@ Standalone module at `/tools/`, separated from the general Inventory module (`In
 - `ToolReadinessCheck` — the tool-readiness checklist now records against a specific `ToolUnit` (in addition to the legacy item-level `item` FK); the checkout flow shows a soft warning (not a hard block) if the unit's latest check is "not ready"
 - Checkout/return also writes an `InventoryTransaction` (linked via `tool_unit`) so the shared Inventory transaction ledger still reflects tool movement
 
+### Material Master (รหัสวัสดุ SAP)
+
+Module at `/materials/` — the single source of truth for SAP Material IDs, used by BOM, Inventory and Tools.
+
+- `MaterialMaster` — `material_id` (unique, indexed, the real SAP number; no temporary/pending IDs), `status` (`active`/`inactive` — codes are deactivated, never deleted), `plant` (default `1010`), `material_type` (`ZSP` spare / `ZOS` other), `uom`, `material_group`, `purchasing_group`, `short_desc` (Material Description), `po_text` (full name), `sap_last_change`, `source` (`sap_import`/`lamy_form`), `created_by`/`updated_by`.
+- **Linking (all optional, `on_delete=PROTECT`):** `EquipmentBOM.material` (many BOM lines → one material, `related_name='bom_lines'`) and `InventoryItem.material` (`OneToOneField`: **1 Material = 1 inventory item**, `related_name='inventory_item'`; tools are `InventoryItem` rows with category `tools`, so they get the link too). Choosing a material copies its data into the legacy columns: BOM `part_no`/`part_name` (done in `EquipmentBOMForm.clean()`), and for inventory/tools the code is forced to the Material ID, with name/unit filled when not supplied and the default category set from the type (ZSP → `spares`, ZOS → `consumables`). Inactive materials cannot be newly linked.
+- **Pages:** list (search by ID / short name / full name; filter by type, group, UoM, status; 50 per page), detail ("ใช้ที่ไหน": BOM lines per machine with Q'ty/Storeroom/Balance + the linked inventory or tool item), add/edit form. A live similar-name hint appears while typing, and on save a similar name (difflib `SequenceMatcher` ≥ 0.6 over keyword-filtered candidates) shows a warning list that must be ticked to confirm — warn, never hard-block. Duplicate or blank IDs are rejected.
+- **Search picker:** BOM form (`equipment_data.html`), the Inventory add/edit modals and the Tools "add type" modal share a vanilla-JS picker (`includes/material_picker_field.html` + `material_picker_js.html`) that calls `/api/materials/search/`.
+- **Permissions:** viewing needs only login; add/edit needs the new `write_materials` permission (`module_required('materials')`, Group "Materials Staff"). The sidebar entry is shown to anyone who can write materials, inventory, equipment or tools.
+- **Data loading:** one-time import with `import_material_master`, then `link_material_master` to attach existing BOM/Inventory rows by exact code match (see Utility Scripts). Run both with `--dry-run` first on production, after backing up the DB.
+
 ### Manual Library
 
 Standalone module at `/manuals/`, not linked to `Equipment` (machine name is free text) or to `RepairDocument`/`doc_repository` (which is a separate uploaded-file library). Categorized by department (`DEPARTMENT_CHOICES`).
@@ -445,8 +477,8 @@ Standalone module at `/electricity/`, first slice of a broader Energy module (st
 
 Staff-level write access is scoped per module using Django's built-in Groups/Permissions, replacing the earlier all-or-nothing `is_staff` check:
 
-- 11 synthetic permissions (`write_boiler`, `write_equipment`, `write_cbm`, `write_maintenance`, `write_mill`, `write_docs`, `write_inventory`, `write_tools`, `write_training`, `write_general`, `write_energy`) are declared on `Profile.Meta.permissions` and auto-created in `auth_permission` on `migrate`.
-- A matching Group per module (e.g. "Boiler Staff", "CBM Staff", "Energy Staff") is seeded by data migrations (`0095_seed_module_groups.py`, plus `0097_seed_energy_group.py` for the Energy module added later), which also grandfather all pre-existing `is_staff` users into every Group so no one loses access on deploy. New staff accounts start in zero Groups and must be assigned via Django Admin → Groups.
+- 12 synthetic permissions (`write_boiler`, `write_equipment`, `write_cbm`, `write_maintenance`, `write_mill`, `write_docs`, `write_inventory`, `write_tools`, `write_training`, `write_general`, `write_energy`, `write_materials`) are declared on `Profile.Meta.permissions` and auto-created in `auth_permission` on `migrate`.
+- A matching Group per module (e.g. "Boiler Staff", "CBM Staff", "Energy Staff") is seeded by data migrations (`0095_seed_module_groups.py`, plus `0097_seed_energy_group.py` for the Energy module and `0109_seed_materials_group.py` for Material Master, both added later), which also grandfather all pre-existing `is_staff` users into every Group so no one loses access on deploy. New staff accounts start in zero Groups and must be assigned via Django Admin → Groups.
 - The `module_required('<key>')` decorator (`myapp/views.py`, replaces the old `staff_required`) gates each module's add/edit views: requires `is_staff` **and** the matching `write_<key>` permission, or `is_superuser` (which bypasses all module checks). The separate `superuser_required` decorator for destructive/admin-only actions is unchanged.
 - Templates hide nav links and dashboard shortcut cards for modules a user can't write to via `{% if perms.myapp.write_<key> %}` (`base.html`, `dashboard.html`, and the CBM tab in `equipment_data.html`) — this affects visibility of the entry point, not read access to the underlying views, most of which remain open to any logged-in user.
 
@@ -478,7 +510,7 @@ Maintenance
 
 Equipment
 ├── Equipment
-├── EquipmentBOM           (spare parts)
+├── EquipmentBOM           (spare parts; optional material FK → MaterialMaster, part_no/part_name filled from it when linked)
 ├── EquipmentLink          (linked equipment, e.g. driving motor)
 ├── CBMVisualTest
 ├── CBMVibration
@@ -493,9 +525,14 @@ Shop
 └── LatheJob               (job_no auto-generated JOB-YYMM-NNN, unique; job_value = sum of labor/material/machine/service cost when any factor > 0; attachment = Drive file ID + attachment_name; free-text machine; Decimal hours/pieces/costs; created_at/updated_at/updated_by)
 
 Inventory
-├── InventoryItem          (stock item: tools/spares/consumables/lubricants; soft-delete via is_active; optional image)
+├── InventoryItem          (stock item: tools/spares/consumables/lubricants; soft-delete via is_active; optional image; optional material OneToOne → MaterialMaster)
 ├── InventoryTransaction   (receive/issue/return/adjust; auto-updates item.stock; optional tool_unit FK)
 └── ToolReadinessCheck     (readiness checklist for tools before checkout; optional tool_unit FK)
+
+Material Master (รหัสวัสดุ SAP — /materials/)
+└── MaterialMaster         (material_id unique, status active/inactive, plant, material_type ZSP/ZOS, uom, material_group, purchasing_group,
+                             short_desc, po_text, sap_last_change, source sap_import/lamy_form, created_by/updated_by;
+                             reverse: bom_lines (EquipmentBOM), inventory_item (InventoryItem))
 
 Tools (แยกจาก Inventory ทั่วไป — /tools/)
 ├── ToolUnit               (per-unit tracking for identical tools; FK to InventoryItem category='tools')
@@ -555,7 +592,7 @@ Energy Tracking — Electricity (Phase 1) (ระบบติดตามกา�
 
 Google Drive uploads (`RepairDocument` and Lathe job attachments → `LAMY/Lathe/<year>/<job_no>`; Drive files are not deleted when a record is removed/replaced) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
-Database migrations: **108 migration files** in `myapp/migrations/`.
+Database migrations: **112 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -682,9 +719,21 @@ The old `/api/lathe/` JSON endpoint was removed.
 | GET/POST | `/inventory/readiness/add/` | Record a new tool readiness check |
 | POST | `/api/inventory/checkout/` | JSON API: issue/return a transaction |
 | POST | `/api/inventory/receive/` | JSON API: receive stock with PO |
-| POST | `/api/inventory/add-item/` | JSON API: create new inventory item |
+| POST | `/api/inventory/add-item/` | JSON API: create new inventory item (optional `material` = MaterialMaster id → code forced to Material ID; one item per material) |
+| POST | `/api/inventory/item/<pk>/edit/` | JSON API: edit item (`material` key: absent = keep link, id = (re)link, empty = unlink) |
 | POST | `/api/inventory/item/<pk>/delete/` | JSON API: soft-delete item (sets `is_active=False`) |
 | POST | `/api/inventory/item/<pk>/upload-image/` | Multipart API: upload/replace item image |
+
+### Material Master
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/materials/` | Material list — search + filter (type/group/UoM/status), 50 per page |
+| GET | `/materials/<pk>/` | Material detail — master data + "used where" (BOM lines, inventory/tool item) |
+| GET/POST | `/materials/new/` | Add a material with a real SAP ID (`write_materials`); duplicate ID rejected, similar-name warning needs confirmation |
+| GET/POST | `/materials/<pk>/edit/` | Edit a material or set it inactive (`write_materials`) |
+| GET | `/api/materials/search/?q=` | JSON: top 20 active matches (min 2 chars) for the BOM / Inventory / Tools pickers |
+| GET | `/api/materials/similar/?desc=&exclude=` | JSON: up to 10 similarly named materials for the add/edit form hint |
 
 ### Tools (เครื่องมือ — แยกจาก Inventory ทั่วไป)
 
@@ -698,7 +747,7 @@ The old `/api/lathe/` JSON endpoint was removed.
 | GET/POST | `/tools/readiness/add/` | Record a readiness check against a specific tool unit |
 | POST | `/api/tools/checkout/` | JSON API: check out a unit (soft-warns if last readiness check was "not ready") |
 | POST | `/api/tools/return/` | JSON API: return a checked-out unit |
-| POST | `/api/tools/type/add/` | JSON API: create a new tool type (`InventoryItem` category `tools`) |
+| POST | `/api/tools/type/add/` | JSON API: create a new tool type (`InventoryItem` category `tools`; optional `material` id) |
 | POST | `/api/tools/unit/add/` | JSON API: add a new physical unit to a tool type |
 | POST | `/api/tools/unit/<pk>/edit/` | JSON API: change unit status/location/condition note |
 
