@@ -47,16 +47,24 @@ urlpatterns = [
     path('lathe/export/', lathe_export, name='lathe_export'),
     path('lathe/import/', lathe_import, name='lathe_import'),
 
-    # ME Inspection — ใบตรวจเช็คซ่อมบำรุงเครื่องจักร
+    # ME Inspection — ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน
     path('me-inspection/', me_inspection_list, name='me_inspection_list'),
     path('me-inspection/add/', me_inspection_add, name='me_inspection_add'),
     path('me-inspection/dashboard/', me_inspection_dashboard, name='me_inspection_dashboard'),
-    path('me-inspection/import-equipment/', me_equipment_import, name='me_equipment_import'),
     path('me-inspection/<int:inspection_id>/edit/', me_inspection_edit, name='me_inspection_edit'),
     path('me-inspection/<int:inspection_id>/delete/', me_inspection_delete, name='me_inspection_delete'),
     path('me-inspection/<int:inspection_id>/print/', me_inspection_print, name='me_inspection_print'),
     path('me-inspection/api/equipment-search/', me_equipment_search_api, name='me_equipment_search_api'),
     path('me-inspection/api/last/<path:eq_id>/', me_inspection_last_api, name='me_inspection_last_api'),
+
+    # Gear Trial Run — ใบตรวจสอบ Gear Box
+    path('gear-trial-run/', gear_trial_run_list, name='gear_trial_run_list'),
+    path('gear-trial-run/add/', gear_trial_run_add, name='gear_trial_run_add'),
+    path('gear-trial-run/dashboard/', gear_trial_run_dashboard, name='gear_trial_run_dashboard'),
+    path('gear-trial-run/<int:trial_id>/edit/', gear_trial_run_edit, name='gear_trial_run_edit'),
+    path('gear-trial-run/<int:trial_id>/delete/', gear_trial_run_delete, name='gear_trial_run_delete'),
+    path('gear-trial-run/<int:trial_id>/print/', gear_trial_run_print, name='gear_trial_run_print'),
+    path('gear-trial-run/api/last/<path:eq_id>/', gear_trial_run_last_api, name='gear_trial_run_last_api'),
 
     # Equipment Data
     path('equipment/', equipment_data, name='equipment_data'),

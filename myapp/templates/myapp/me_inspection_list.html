@@ -1,5 +1,5 @@
 {% extends 'myapp/base.html' %}
-{% block title %}ใบตรวจเช็คซ่อม (ME){% endblock title %}
+{% block title %}ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน{% endblock title %}
 
 {% block content %}
 <main class="flex-1 flex flex-col h-screen overflow-hidden">
@@ -10,7 +10,7 @@
             <i data-lucide="clipboard-check" class="w-5 h-5"></i>
         </div>
         <div class="min-w-0">
-            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">ใบตรวจเช็คซ่อมบำรุงเครื่องจักร (ME)</h1>
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน</h1>
             <p class="text-xs text-slate-500 dark:text-slate-400">{% if querystring %}พบ{% else %}ทั้งหมด{% endif %} {{ page_obj.paginator.count }} ใบงาน</p>
         </div>
         <div class="ml-auto flex flex-wrap items-center gap-2">
@@ -18,12 +18,6 @@
                 class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
                 <i data-lucide="chart-pie" class="w-4 h-4"></i> Dashboard
             </a>
-            {% if can_import %}
-            <a href="{% url 'me_equipment_import' %}"
-                class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
-                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> นำเข้าเครื่องจักร (Excel)
-            </a>
-            {% endif %}
             {% if can_write %}
             <a href="{% url 'me_inspection_add' %}"
                 class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold flex items-center gap-2">

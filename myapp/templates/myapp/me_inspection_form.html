@@ -1,5 +1,5 @@
 {% extends 'myapp/base.html' %}
-{% block title %}{% if is_edit %}ใบตรวจเช็ค ME-{{ inspection.pk }}{% else %}สร้างใบตรวจเช็คซ่อม (ME){% endif %}{% endblock title %}
+{% block title %}{% if is_edit %}ใบตรวจเช็ค ME-{{ inspection.pk }}{% else %}สร้างใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน{% endif %}{% endblock title %}
 
 {% block content %}
 <style>
@@ -23,9 +23,9 @@
         </div>
         <div class="min-w-0">
             <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">
-                {% if is_edit %}ใบตรวจเช็ค ME-{{ inspection.pk }}{% else %}สร้างใบตรวจเช็คซ่อม (ME){% endif %}
+                {% if is_edit %}ใบตรวจเช็ค ME-{{ inspection.pk }}{% else %}สร้างใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน{% endif %}
             </h1>
-            <p class="text-xs text-slate-500 dark:text-slate-400">ใบตรวจเช็คซ่อมบำรุงเครื่องจักรหมุน (Smart Maintenance &amp; CBM)</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน (Smart Maintenance &amp; CBM)</p>
         </div>
         {% if is_edit %}
         <div class="ml-auto flex flex-wrap items-center gap-2">

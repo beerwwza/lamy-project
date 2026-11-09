@@ -153,14 +153,6 @@
                         </a>
                     </li>
                     {% endif %}
-                    {% if perms.myapp.write_maintenance or perms.myapp.write_cbm %}
-                    <li>
-                        <a href="{% url 'me_inspection_list' %}"
-                            class="flex items-center gap-3 px-3 py-3 rounded-lg transition-colors {% if 'me_inspection' in request.resolver_match.url_name %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% else %}text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400{% endif %}">
-                            <i data-lucide="clipboard-check" class="w-5 h-5 flex-shrink-0"></i><span>ใบตรวจเช็คซ่อม (ME)</span>
-                        </a>
-                    </li>
-                    {% endif %}
                     {% if perms.myapp.write_docs %}
                     <li>
                         <a href="{% url 'doc_repository' %}"
@@ -220,17 +212,19 @@
                         </a>
                     </li>
                     {% endif %}
+                    {% if perms.myapp.write_general or perms.myapp.write_maintenance or perms.myapp.write_cbm %}
+                    <li>
+                        <a href="{% url 'task_manager_hub' %}"
+                            class="flex items-center gap-3 px-3 py-3 rounded-lg transition-colors {% if request.resolver_match.url_name == 'task_manager_hub' or 'machine_task' in request.resolver_match.url_name or 'water_cip_test' in request.resolver_match.url_name or 'steam_leak_test' in request.resolver_match.url_name or 'flushing_test' in request.resolver_match.url_name or 'me_inspection' in request.resolver_match.url_name or 'gear_trial_run' in request.resolver_match.url_name %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% else %}text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400{% endif %}">
+                            <i data-lucide="clipboard-check" class="w-5 h-5 flex-shrink-0"></i><span>Task Manager</span>
+                        </a>
+                    </li>
+                    {% endif %}
                     {% if perms.myapp.write_general %}
                     <li>
                         <a href="{% url 'manual_list' %}"
                             class="flex items-center gap-3 px-3 py-3 rounded-lg transition-colors {% if request.resolver_match.url_name == 'manual_list' %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% else %}text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400{% endif %}">
                             <i data-lucide="file-text" class="w-5 h-5 flex-shrink-0"></i><span>Manual List</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'task_manager_hub' %}"
-                            class="flex items-center gap-3 px-3 py-3 rounded-lg transition-colors {% if request.resolver_match.url_name == 'task_manager_hub' or 'machine_task' in request.resolver_match.url_name or 'water_cip_test' in request.resolver_match.url_name or 'steam_leak_test' in request.resolver_match.url_name or 'flushing_test' in request.resolver_match.url_name %}bg-brand-50 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 font-medium{% else %}text-slate-600 dark:text-slate-400 hover:bg-brand-50 dark:hover:bg-slate-800 hover:text-brand-600 dark:hover:text-brand-400{% endif %}">
-                            <i data-lucide="clipboard-check" class="w-5 h-5 flex-shrink-0"></i><span>Task Manager</span>
                         </a>
                     </li>
                     <li>

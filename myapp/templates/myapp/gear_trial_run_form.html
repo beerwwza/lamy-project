@@ -1,0 +1,463 @@
+{% extends 'myapp/base.html' %}
+{% block title %}{% if is_edit %}ใบตรวจสอบ Gear Box GT-{{ trial.pk }}{% else %}สร้างใบตรวจสอบ Gear Box{% endif %}{% endblock title %}
+
+{% block content %}
+<style>
+    /* ช่องที่ smart memory เติมให้จากใบตรวจสอบ Gear Boxครั้งก่อน */
+    .gt-autofill { background-color: #eff6ff !important; border-color: #60a5fa !important; }
+    /* สีผลประเมินค่าที่กรอก (ผ่าน / เฝ้าระวัง / เกินเกณฑ์) */
+    .gt-eval-pass { background-color: #dcfce7 !important; border-color: #16a34a !important; color: #14532d !important; }
+    .gt-eval-warn { background-color: #fef9c3 !important; border-color: #ca8a04 !important; color: #713f12 !important; }
+    .gt-eval-fail { background-color: #fee2e2 !important; border-color: #dc2626 !important; color: #7f1d1d !important; }
+</style>
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <header
+        class="min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 px-4 md:px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <a href="{% url 'gear_trial_run_list' %}"
+            class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div class="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg text-blue-700 dark:text-blue-300">
+            <i data-lucide="cog" class="w-5 h-5"></i>
+        </div>
+        <div class="min-w-0">
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">
+                {% if is_edit %}ใบตรวจสอบ Gear Box GT-{{ trial.pk }}{% else %}สร้างใบตรวจสอบ Gear Box{% endif %}
+            </h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">ใบตรวจเช็คและบันทึกผลการลองเครื่อง Gearbox &amp; Gearmotor (FM-MM-GB-2026)</p>
+        </div>
+        {% if is_edit %}
+        <div class="ml-auto flex flex-wrap items-center gap-2">
+            <a href="{% url 'gear_trial_run_print' trial.pk %}"
+                class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5">
+                <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์
+            </a>
+        </div>
+        {% endif %}
+    </header>
+
+    <nav class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+        <div class="flex whitespace-nowrap px-2 text-xs md:text-sm font-medium">
+            {% for label in tab_labels %}
+            <button type="button" data-tab="{{ forloop.counter }}" onclick="gtShowTab({{ forloop.counter }})"
+                class="gt-tab-btn px-3 py-3 border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-blue-700">
+                {{ forloop.counter }}. {{ label }}
+            </button>
+            {% endfor %}
+        </div>
+    </nav>
+
+    <div class="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+        {% if message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-300
+        {% elif message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300
+        {% else %}bg-blue-50 border border-blue-200 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% if not can_edit %}
+        <div class="px-4 py-3 rounded-lg text-sm bg-slate-100 border border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 flex items-center gap-2">
+            <i data-lucide="eye" class="w-4 h-4 flex-shrink-0"></i> คุณดูใบนี้ได้อย่างเดียว (ไม่มีสิทธิ์แก้ไข)
+        </div>
+        {% endif %}
+
+        <form method="POST" id="gearTrialRunForm"
+            action="{% if is_edit %}{% url 'gear_trial_run_edit' trial.pk %}{% else %}{% url 'gear_trial_run_add' %}{% endif %}">
+            {% csrf_token %}
+            {{ form.equipment }}
+            {% if form.non_field_errors %}<div class="text-red-600 text-sm mb-3">{{ form.non_field_errors }}</div>{% endif %}
+
+            <!-- min-w-0: fieldset มี min-width: min-content โดยปริยาย ตารางจะดันจนล้นจอมือถือแทนที่จะเลื่อนในกรอบ -->
+            <fieldset {% if not can_edit %}disabled{% endif %} class="space-y-5 min-w-0">
+
+            <!-- ==================== TAB 1: ข้อมูลทั่วไป & เนมเพลท ==================== -->
+            <section id="gt-tab-1" class="gt-tab-content space-y-5">
+                <div id="gtMemoryBanner" class="hidden px-4 py-3 rounded-lg border-l-4 border-blue-600 bg-blue-50 dark:bg-blue-900/30 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <div class="text-xs text-slate-700 dark:text-slate-300">
+                        <div class="font-bold text-sm text-blue-800 dark:text-blue-300">เติมเนมเพลทจากใบตรวจสอบ Gear Boxครั้งก่อนให้แล้ว (ช่องสีฟ้า)</div>
+                        <div id="gtMemoryDetail"></div>
+                    </div>
+                    <button type="button" onclick="document.getElementById('gtMemoryBanner').classList.add('hidden')"
+                        class="text-xs font-semibold text-blue-700 dark:text-blue-300 hover:underline whitespace-nowrap self-start md:self-auto">รับทราบ</button>
+                </div>
+                <div class="relative z-10 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div class="px-5 py-3 rounded-t-xl bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/40">
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">เลือกเครื่องจักร</h4>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">ค้นหาจากรหัสหรือชื่อเครื่องจากทะเบียนเครื่องจักร</p>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label for="gtProcessFilter" class="block text-xs font-semibold text-slate-500 mb-1">กรองตามแผนก/กระบวนการ</label>
+                            <div class="relative">
+                                <select id="gtProcessFilter" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white appearance-none pr-8">
+                                    <option value="">-- ทุกแผนก --</option>
+                                    {% for name in process_choices %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+                                </select>
+                                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                            </div>
+                        </div>
+                        <div class="md:col-span-2 relative">
+                            <label for="gtEquipmentSearch" class="block text-xs font-semibold text-slate-500 mb-1">เครื่องจักร <span class="text-red-500">*</span></label>
+                            <input type="text" id="gtEquipmentSearch" autocomplete="off" placeholder="พิมพ์รหัสหรือชื่อเครื่องจักร..."
+                                value="{% if selected_equipment %}{{ selected_equipment.equipment_id }} - {{ selected_equipment.name }}{% endif %}"
+                                class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+                            <div id="gtEquipmentResults"
+                                class="hidden absolute left-0 right-0 z-20 mt-1 max-h-72 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg"></div>
+                            {% for e in form.equipment.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-sky-50 dark:bg-sky-900/20 border-b border-sky-100 dark:border-sky-900/40">
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">ข้อมูลทั่วไป</h4>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {% for field in basic_fields %}
+                        <div>
+                            <label for="{{ field.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ field.label }}{% if field.name == 'test_date' or field.name == 'purpose' %} <span class="text-red-500">*</span>{% endif %}</label>
+                            {% if field.name == 'purpose' or field.name == 'status' %}
+                            <div class="relative">
+                                {{ field }}
+                                <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                            </div>
+                            {% else %}{{ field }}{% endif %}
+                            {% for e in field.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-900/40">
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">เนมเพลท (บันทึกเป็น snapshot ณ วันทดสอบ)</h4>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {% for field in nameplate_fields %}
+                        <div>
+                            <label for="{{ field.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ field.label }}{% if field.name == 'motor_fla' %} <span class="text-red-500">*</span>{% endif %}</label>
+                            {{ field }}
+                            {% for e in field.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 2: ตรวจก่อนเดินเครื่อง ==================== -->
+            <section id="gt-tab-2" class="gt-tab-content hidden space-y-5">
+                <div class="px-4 py-3 rounded-lg border-l-4 border-red-600 bg-red-50 dark:bg-red-900/30 text-sm text-red-900 dark:text-red-100">
+                    <div class="font-bold flex items-center gap-2"><i data-lucide="triangle-alert" class="w-4 h-4"></i> ความปลอดภัย (LOTO)</div>
+                    ล็อก/แท็กแหล่งพลังงานและยืนยันว่าไม่มีผู้ปฏิบัติงานอยู่ในพื้นที่เสี่ยงก่อนสตาร์ทเครื่องทุกครั้ง
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-700">
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">ส่วนที่ 2 ตรวจก่อนเดินเครื่อง</h4>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 dark:bg-slate-900/50 text-xs text-slate-500 whitespace-nowrap">
+                                <tr><th class="px-4 py-2 text-left">ข้อ</th><th class="px-4 py-2 text-left">ค่า / ผลตรวจ</th><th class="px-4 py-2 text-left">ผล</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                {% for i, value, status in pre_rows %}
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap font-semibold text-slate-600">2.{{ i }}</td>
+                                    <td class="px-4 py-2 min-w-[14rem]">{{ value }}</td>
+                                    <td class="px-4 py-2 min-w-[8rem]"><div class="relative">{{ status }}<i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i></div></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 3: ลองเดิน No-Load / Load ==================== -->
+            <section id="gt-tab-3" class="gt-tab-content hidden space-y-5">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-700">
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">ส่วนที่ 3.1 บันทึกค่าระหว่างลองเดิน</h4>
+                        <p class="text-xs text-slate-500">อุณหภูมิ °C · กรอกเฉพาะช่วงที่ทดสอบแล้ว</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 dark:bg-slate-900/50 text-xs text-slate-500 whitespace-nowrap">
+                                <tr>
+                                    <th class="px-4 py-2 text-left">รายการ</th>
+                                    {% for label, loaded in run_phases %}<th class="px-3 py-2 text-left">{{ label }}</th>{% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                {% for label, fields in run_rows %}
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap font-medium text-slate-600">{{ label }}</td>
+                                    {% for f in fields %}<td class="px-3 py-2 min-w-[7rem]">{{ f }}{% for e in f.errors %}<p class="text-xs text-red-600">{{ e }}</p>{% endfor %}</td>{% endfor %}
+                                </tr>
+                                {% endfor %}
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap font-medium text-slate-600">ผลช่วงนี้</td>
+                                    {% for f in run_status_row %}<td class="px-3 py-2 min-w-[7rem]"><div class="relative">{{ f }}<i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i></div></td>{% endfor %}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 4: Vibration ==================== -->
+            <section id="gt-tab-4" class="gt-tab-content hidden space-y-5">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-700">
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">ส่วนที่ 3.2 Vibration (mm/s)</h4>
+                        <p class="text-xs text-slate-500">V = แนวดิ่ง · H = แนวนอน · A = แนวแกน</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 dark:bg-slate-900/50 text-xs text-slate-500 whitespace-nowrap">
+                                <tr><th class="px-4 py-2 text-left">จุดวัด</th><th class="px-3 py-2 text-left">V</th><th class="px-3 py-2 text-left">H</th><th class="px-3 py-2 text-left">A</th><th class="px-3 py-2 text-left">gE</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                {% for label, axes, ge in vib_rows %}
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap font-medium text-slate-600">{{ label }}</td>
+                                    {% for f in axes %}<td class="px-3 py-2 min-w-[7rem]">{{ f }}{% for e in f.errors %}<p class="text-xs text-red-600">{{ e }}</p>{% endfor %}</td>{% endfor %}
+                                    <td class="px-3 py-2 min-w-[7rem]">{{ ge }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== TAB 5: ตรวจหลังหยุด & สรุปผล ==================== -->
+            <section id="gt-tab-5" class="gt-tab-content hidden space-y-5">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-700">
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">ส่วนที่ 4 ตรวจหลังหยุดเครื่อง</h4>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 dark:bg-slate-900/50 text-xs text-slate-500 whitespace-nowrap">
+                                <tr><th class="px-4 py-2 text-left">ข้อ</th><th class="px-4 py-2 text-left">ค่า / ผลตรวจ</th><th class="px-4 py-2 text-left">ผล</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                {% for i, value, status in post_rows %}
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap font-semibold text-slate-600">4.{{ i }}</td>
+                                    <td class="px-4 py-2 min-w-[14rem]">{{ value }}</td>
+                                    <td class="px-4 py-2 min-w-[8rem]"><div class="relative">{{ status }}<i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i></div></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div class="px-5 py-3 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-900/40">
+                        <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">ส่วนที่ 5 สรุปผลและลงชื่อ</h4>
+                    </div>
+                    <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {% for field in summary_fields %}
+                        <div>
+                            <label for="{{ field.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ field.label }}{% if field.name == 'final_result' %} <span class="text-red-500">*</span>{% endif %}</label>
+                            {% if field.name == 'final_result' %}
+                            <div class="relative">{{ field }}<i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i></div>
+                            {% else %}{{ field }}{% endif %}
+                            {% for e in field.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                        </div>
+                        {% endfor %}
+                        <div class="sm:col-span-2 lg:col-span-3">
+                            <label for="{{ form.remarks.id_for_label }}" class="block text-xs font-semibold text-slate-500 mb-1">{{ form.remarks.label }}</label>
+                            {{ form.remarks }}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            </fieldset>
+
+            {% if can_edit %}
+            <div class="flex flex-wrap items-center gap-2 pt-2">
+                <button type="submit" class="px-5 py-2.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold flex items-center gap-2">
+                    <i data-lucide="save" class="w-4 h-4"></i> บันทึก
+                </button>
+                <a href="{% url 'gear_trial_run_list' %}" class="px-5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-600 dark:text-slate-300">ยกเลิก</a>
+            </div>
+            {% endif %}
+        </form>
+
+        {% if can_delete %}
+        <form method="post" action="{% url 'gear_trial_run_delete' trial.pk %}" onsubmit="return confirm('ลบใบตรวจสอบ Gear Box GT-{{ trial.pk }} ถาวร?');">
+            {% csrf_token %}
+            <button type="submit" class="px-4 py-2 rounded-lg border border-red-300 text-red-700 hover:bg-red-50 text-sm font-semibold flex items-center gap-2">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> ลบใบนี้
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</main>
+
+<script>
+    function gtShowTab(n) {
+        document.querySelectorAll('.gt-tab-content').forEach(el => el.classList.toggle('hidden', el.id !== 'gt-tab-' + n));
+        document.querySelectorAll('.gt-tab-btn').forEach(btn => {
+            const active = btn.dataset.tab === String(n);
+            btn.classList.toggle('border-blue-700', active);
+            btn.classList.toggle('text-blue-700', active);
+            btn.classList.toggle('border-transparent', !active);
+        });
+    }
+    // ถ้ามี error ในแท็บใด เปิดแท็บแรกที่มี error ไม่งั้นเปิดแท็บ 1
+    (function () {
+        let first = 1;
+        document.querySelectorAll('.gt-tab-content').forEach((el, i) => {
+            if (first === 1 && el.querySelector('.text-red-600') && i > 0) first = i + 1;
+        });
+        gtShowTab(first);
+    })();
+
+    // ===== ค้นหาเครื่องจักร (Equipment) — ใช้ API ค้นหาเครื่องร่วมกับฟอร์ม ME =====
+    (function () {
+        const searchUrl = "{% url 'me_equipment_search_api' %}";
+        const input = document.getElementById('gtEquipmentSearch');
+        const results = document.getElementById('gtEquipmentResults');
+        const processFilter = document.getElementById('gtProcessFilter');
+        const hidden = document.getElementById('{{ form.equipment.id_for_label }}');
+        let timer = null;
+
+        function hideResults() { results.classList.add('hidden'); }
+
+        // key ของ API ค้นเครื่อง -> field ของฟอร์มนี้
+        const snapshotFields = { department: 'department', brand: 'gb_brand', model: 'gb_model', kw: 'motor_kw', rpm: 'motor_rpm' };
+        const isNew = {{ is_edit|yesno:"false,true" }};
+        const lastUrlTemplate = "{% url 'gear_trial_run_last_api' 'EQ_ID' %}";
+
+        function selectEquipment(eq) {
+            hidden.value = eq.id;
+            input.value = eq.id + ' - ' + eq.name;
+            Object.entries(snapshotFields).forEach(([key, field]) => {
+                const el = document.getElementById('id_' + field);
+                if (el) el.value = eq[key] || '';
+            });
+            hideResults();
+            if (isNew) applyLast(eq.id);
+            gtEvaluateAll();
+        }
+
+        // Smart memory: เนมเพลทจากใบล่าสุดของเครื่องเดียวกัน (เฉพาะใบใหม่) ทับค่าจากทะเบียน
+        function applyLast(eqId) {
+            document.getElementById('gtMemoryBanner').classList.add('hidden');
+            fetch(lastUrlTemplate.replace('EQ_ID', encodeURIComponent(eqId)), { headers: { 'Accept': 'application/json' } })
+                .then(r => r.ok ? r.json() : { data: null })
+                .then(res => {
+                    if (!res.data) return;
+                    let n = 0;
+                    Object.entries(res.data.fields).forEach(([name, value]) => {
+                        const el = document.getElementById('id_' + name);
+                        if (el) { el.value = value; el.classList.add('gt-autofill'); n++; }
+                    });
+                    if (!n) return;
+                    document.getElementById('gtMemoryDetail').textContent =
+                        'จากใบ GT-' + res.data.trial_id + ' วันที่ ' + res.data.test_date + ' (' + n + ' ช่อง) — แก้ได้ตามเนมเพลทจริง';
+                    document.getElementById('gtMemoryBanner').classList.remove('hidden');
+                    gtEvaluateAll();
+                })
+                .catch(() => {});
+        }
+
+        function render(list) {
+            results.innerHTML = '';
+            if (!list.length) {
+                results.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">ไม่พบเครื่องจักร</div>';
+            }
+            list.forEach(eq => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'block w-full text-left px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-slate-700 border-b border-slate-100 dark:border-slate-700';
+                const title = document.createElement('div');
+                title.className = 'font-semibold text-slate-800 dark:text-slate-100';
+                title.textContent = eq.id + ' - ' + eq.name;
+                const sub = document.createElement('div');
+                sub.className = 'text-xs text-slate-500';
+                sub.textContent = [eq.department, eq.brand, eq.model, eq.kw ? eq.kw + ' kW' : ''].filter(Boolean).join(' · ');
+                btn.append(title, sub);
+                btn.addEventListener('click', () => selectEquipment(eq));
+                results.appendChild(btn);
+            });
+            results.classList.remove('hidden');
+        }
+
+        function search() {
+            const params = new URLSearchParams({ q: input.value.trim(), process: processFilter.value });
+            fetch(searchUrl + '?' + params.toString(), { headers: { 'Accept': 'application/json' } })
+                .then(r => r.ok ? r.json() : { data: [] })
+                .then(res => render(res.data || []))
+                .catch(() => hideResults());
+        }
+
+        if (!input) return;
+        input.addEventListener('input', () => {
+            hidden.value = '';  // พิมพ์ใหม่ = ยังไม่ได้เลือก ต้องกดเลือกจากรายการ
+            clearTimeout(timer);
+            timer = setTimeout(search, 250);
+        });
+        input.addEventListener('focus', search);
+        processFilter.addEventListener('change', search);
+        document.addEventListener('click', e => {
+            if (!results.contains(e.target) && e.target !== input) hideResults();
+        });
+    })();
+
+    // ===== ระบายสีผลประเมินทันทีตอนกรอก — เกณฑ์ชุดเดียวกับฝั่ง server (ส่งผ่าน template) =====
+    const GT_LIMITS = {
+        temp: [{{ thresholds.temp_warn }}, {{ thresholds.temp_fail }}],
+        vib: [{{ thresholds.vib_warn }}, {{ thresholds.vib_fail }}],
+        ampWarn: {{ thresholds.amp_warn }}, ampFail: {{ thresholds.amp_fail }},
+    };
+
+    function gtNum(el) {
+        if (!el || el.value === '') return null;
+        const n = parseFloat(el.value);
+        return isNaN(n) ? null : n;
+    }
+
+    // ค่ามากกว่า warn = เฝ้าระวัง, มากกว่า fail = เกินเกณฑ์ (ตรงกับ helper ใน models.py)
+    function gtLevel(v, warn, fail) {
+        if (v === null) return null;
+        return v > fail ? 'fail' : (v > warn ? 'warn' : 'pass');
+    }
+
+    function gtEvaluate(el) {
+        const kind = el.dataset.gtEval;
+        const v = gtNum(el);
+        let level = null;
+        if (kind === 'temp') level = gtLevel(v, GT_LIMITS.temp[0], GT_LIMITS.temp[1]);
+        else if (kind === 'vib') level = gtLevel(v, GT_LIMITS.vib[0], GT_LIMITS.vib[1]);
+        else if (kind === 'amp') {
+            const fla = gtNum(document.getElementById('id_motor_fla'));
+            level = (v === null || fla === null || fla <= 0) ? null : gtLevel(v / fla, GT_LIMITS.ampWarn, GT_LIMITS.ampFail);
+        }
+        el.classList.remove('gt-eval-pass', 'gt-eval-warn', 'gt-eval-fail');
+        if (level) el.classList.add('gt-eval-' + level);
+    }
+
+    function gtEvaluateAll() {
+        document.querySelectorAll('[data-gt-eval]').forEach(gtEvaluate);
+    }
+
+    document.querySelectorAll('[data-gt-eval]').forEach(el => el.addEventListener('input', () => gtEvaluate(el)));
+    document.getElementById('id_motor_fla').addEventListener('input', gtEvaluateAll);
+    gtEvaluateAll();
+
+    lucide.createIcons();
+</script>
+{% endblock content %}

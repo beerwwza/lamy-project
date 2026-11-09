@@ -2373,7 +2373,7 @@ def electricity_usage_series(meters_qs, start_date, end_date):
 
 
 # ==========================================
-# ME Inspection — ใบตรวจเช็คซ่อมบำรุงเครื่องจักรหมุน (ย้ายจากฟอร์ม ME V.2 บน Google Apps Script)
+# ME Inspection — ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน (ย้ายจากฟอร์ม ME V.2 บน Google Apps Script)
 # ==========================================
 
 ME_TOL_PASS, ME_TOL_WARN, ME_TOL_FAIL = 'pass', 'warn', 'fail'
@@ -2746,8 +2746,8 @@ class MEInspection(models.Model):
 
     class Meta:
         ordering = ['-record_date', '-id']
-        verbose_name = 'ใบตรวจเช็คซ่อมบำรุงเครื่องจักร (ME)'
-        verbose_name_plural = 'ใบตรวจเช็คซ่อมบำรุงเครื่องจักร (ME)'
+        verbose_name = 'ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน'
+        verbose_name_plural = 'ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน'
 
     def __str__(self):
         return f'ME-{self.pk} {self.equipment_id} ({self.record_date})'
@@ -2814,3 +2814,240 @@ class MaterialMaster(models.Model):
 
     def __str__(self):
         return f"{self.material_id} - {self.short_desc}"
+
+
+
+# ===== Gear Trial Run — ใบตรวจเช็คและบันทึกผลการลองเครื่อง Gearbox & Gearmotor (FM-MM-GB-2026) =====
+
+GEAR_TEMP_WARN = 75        # °C: เกินค่านี้ = เฝ้าระวัง
+GEAR_TEMP_FAIL = 85        # °C: เกินค่านี้ = เกินเกณฑ์
+GEAR_AMP_WARN_RATIO = 0.95  # สัดส่วนของ FLA: เกินค่านี้ = เฝ้าระวัง
+GEAR_AMP_FAIL_RATIO = 1.0   # สัดส่วนของ FLA: เกินค่านี้ = เกินเกณฑ์
+GEAR_VIB_WARN = 2.8        # mm/s (ISO 10816-3): เกินค่านี้ = เฝ้าระวัง
+GEAR_VIB_FAIL = 4.5        # mm/s: เกินค่านี้ = เกินเกณฑ์
+
+GEAR_EVAL_PASS, GEAR_EVAL_WARN, GEAR_EVAL_FAIL = 'pass', 'warn', 'fail'
+
+GEAR_STATUS_TESTING, GEAR_STATUS_DONE = 'testing', 'done'
+GEAR_STATUS_CHOICES = [(GEAR_STATUS_TESTING, 'กำลังทดสอบ'), (GEAR_STATUS_DONE, 'เสร็จสิ้น')]
+GEAR_PURPOSE_CHOICES = [
+    ('annual', 'ตรวจประจำปี'), ('overhaul', 'Overhaul'),
+    ('new_install', 'ติดตั้งใหม่'), ('parts_change', 'เปลี่ยนอะไหล่'),
+]
+GEAR_PRE_STATUS_CHOICES = [('pass', 'ผ่าน'), ('fail', 'ไม่ผ่าน'), ('na', 'N/A')]
+GEAR_RUN_STATUS_CHOICES = [('normal', 'ปกติ'), ('abnormal', 'ผิดปกติ')]
+GEAR_RESULT_CHOICES = [('approved', 'อนุมัติ'), ('conditional', 'อนุมัติแบบมีเงื่อนไข'), ('rejected', 'ไม่อนุมัติ')]
+
+# ช่วงเวลาลองเดิน: (prefix, ป้าย, เป็นช่วงมีโหลดหรือไม่)
+GEAR_RUN_PHASES = [
+    ('nl_0m', 'No-Load 0 นาที', False), ('nl_15m', 'No-Load 15 นาที', False), ('nl_30m', 'No-Load 30 นาที', False),
+    ('ld_15m', 'Load 15 นาที', True), ('ld_30m', 'Load 30 นาที', True),
+]
+GEAR_RUN_TEMP_KEYS = [('m_de', 'มอเตอร์ DE'), ('m_nde', 'มอเตอร์ NDE'), ('gb_in', 'เกียร์ Input'),
+                      ('gb_int', 'เกียร์ Intermediate'), ('gb_out', 'เกียร์ Output'), ('sump', 'Oil Sump')]
+GEAR_VIB_POINTS = [('m_nde', 'มอเตอร์ NDE'), ('m_de', 'มอเตอร์ DE'), ('gb_in', 'เกียร์ Input'),
+                   ('gb_int', 'เกียร์ Intermediate'), ('gb_out', 'เกียร์ Output')]
+GEAR_VIB_FIELDS = [f'vib_{p}_{ax}' for p, _ in GEAR_VIB_POINTS for ax in 'vha']
+GEAR_SUMP_FIELDS = [f'{ph}_sump' for ph, _, _ in GEAR_RUN_PHASES]
+
+
+def gear_eval_temp(value):
+    """ประเมินอุณหภูมิ (°C): pass/warn/fail, ว่างคืน None"""
+    v = _me_num(value)
+    if v is None:
+        return None
+    if v > GEAR_TEMP_FAIL:
+        return GEAR_EVAL_FAIL
+    return GEAR_EVAL_WARN if v > GEAR_TEMP_WARN else GEAR_EVAL_PASS
+
+
+def gear_eval_amp(value, fla):
+    """ประเมินกระแสเทียบ FLA; ไม่มีค่ากระแสหรือ FLA (หรือ FLA <= 0) คืน None"""
+    v, f = _me_num(value), _me_num(fla)
+    if v is None or f is None or f <= 0:
+        return None
+    if v > f * GEAR_AMP_FAIL_RATIO:
+        return GEAR_EVAL_FAIL
+    return GEAR_EVAL_WARN if v > f * GEAR_AMP_WARN_RATIO else GEAR_EVAL_PASS
+
+
+def gear_amp_pct(value, fla):
+    """กระแสเป็น % ของ FLA (ปัดเป็นทศนิยม 1 ตำแหน่ง) หรือ None"""
+    v, f = _me_num(value), _me_num(fla)
+    if v is None or f is None or f <= 0:
+        return None
+    return round(v / f * 100, 1)
+
+
+def gear_eval_vib(*values):
+    """ประเมิน vibration (mm/s) จากค่าสูงสุดของ V/H/A ที่กรอก; ไม่มีค่าเลยคืน None"""
+    nums = [n for n in (_me_num(v) for v in values) if n is not None]
+    if not nums:
+        return None
+    top = max(nums)
+    if top > GEAR_VIB_FAIL:
+        return GEAR_EVAL_FAIL
+    return GEAR_EVAL_WARN if top > GEAR_VIB_WARN else GEAR_EVAL_PASS
+
+
+def _gear_dec2(label):
+    return models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, verbose_name=label)
+
+
+def _gear_char(label, length=100):
+    return models.CharField(max_length=length, null=True, blank=True, verbose_name=label)
+
+
+def _gear_choice(label, choices, length=20):
+    return models.CharField(max_length=length, choices=choices, null=True, blank=True, verbose_name=label)
+
+
+class GearTrialRun(models.Model):
+    # --- ส่วน 1: ข้อมูลทั่วไป — สเปคเป็น snapshot ณ วันทดสอบ แก้ได้โดยไม่กระทบทะเบียนเครื่องจักร ---
+    equipment = models.ForeignKey(Equipment, on_delete=models.PROTECT, related_name='gear_trial_runs', verbose_name='เครื่องจักร')
+    department = _gear_char('แผนก', 255)
+    test_date = models.DateField(default=timezone.localdate, verbose_name='วันที่ทดสอบ')
+    purpose = _gear_choice('วัตถุประสงค์', GEAR_PURPOSE_CHOICES)
+    work_order_no = _gear_char('เลขที่ใบสั่งงาน (WO)', 50)
+    status = models.CharField(max_length=20, choices=GEAR_STATUS_CHOICES, default=GEAR_STATUS_TESTING, verbose_name='สถานะใบ')
+    ambient_temp = _gear_dec2('อุณหภูมิแวดล้อม (°C)')
+
+    # --- เนมเพลท (snapshot) ---
+    gb_brand = _gear_char('เกียร์ ยี่ห้อ')
+    gb_model = _gear_char('เกียร์ รุ่น')
+    gb_ratio = _gear_char('อัตราทด', 50)
+    gb_oil_type = _gear_char('น้ำมันเกียร์ ชนิด')
+    gb_oil_volume = _gear_char('น้ำมันเกียร์ ปริมาตร', 50)
+    motor_kw = _gear_dec2('มอเตอร์ (kW)')
+    motor_rpm = _gear_dec2('มอเตอร์ รอบ (rpm)')
+    motor_fla = _gear_dec2('มอเตอร์ FLA (A)')
+    motor_voltage = _gear_dec2('แรงดันมอเตอร์ (V)')
+
+
+    # --- ส่วน 2: ตรวจก่อนเดินเครื่อง (8 ข้อ) ---
+    pre_2_1_value = _gear_char('ก่อนเดิน ข้อ 2.1 ค่า/ผลตรวจ', 255)
+    pre_2_1_status = _gear_choice('ก่อนเดิน ข้อ 2.1', GEAR_PRE_STATUS_CHOICES)
+    pre_2_2_value = _gear_char('ก่อนเดิน ข้อ 2.2 ค่า/ผลตรวจ', 255)
+    pre_2_2_status = _gear_choice('ก่อนเดิน ข้อ 2.2', GEAR_PRE_STATUS_CHOICES)
+    pre_2_3_value = _gear_char('ก่อนเดิน ข้อ 2.3 ค่า/ผลตรวจ', 255)
+    pre_2_3_status = _gear_choice('ก่อนเดิน ข้อ 2.3', GEAR_PRE_STATUS_CHOICES)
+    pre_2_4_value = _gear_char('ก่อนเดิน ข้อ 2.4 ค่า/ผลตรวจ', 255)
+    pre_2_4_status = _gear_choice('ก่อนเดิน ข้อ 2.4', GEAR_PRE_STATUS_CHOICES)
+    pre_2_5_value = _gear_char('ก่อนเดิน ข้อ 2.5 ค่า/ผลตรวจ', 255)
+    pre_2_5_status = _gear_choice('ก่อนเดิน ข้อ 2.5', GEAR_PRE_STATUS_CHOICES)
+    pre_2_6_value = _gear_char('ก่อนเดิน ข้อ 2.6 ค่า/ผลตรวจ', 255)
+    pre_2_6_status = _gear_choice('ก่อนเดิน ข้อ 2.6', GEAR_PRE_STATUS_CHOICES)
+    pre_2_7_value = _gear_char('ก่อนเดิน ข้อ 2.7 ค่า/ผลตรวจ', 255)
+    pre_2_7_status = _gear_choice('ก่อนเดิน ข้อ 2.7', GEAR_PRE_STATUS_CHOICES)
+    pre_2_8_value = _gear_char('ก่อนเดิน ข้อ 2.8 ค่า/ผลตรวจ', 255)
+    pre_2_8_status = _gear_choice('ก่อนเดิน ข้อ 2.8', GEAR_PRE_STATUS_CHOICES)
+
+    # --- ส่วน 3.1: ลองเดิน No-Load / Load ---
+    nl_0m_volt = _gear_dec2('No-Load 0 นาที แรงดัน (V)')
+    nl_0m_amp = _gear_dec2('No-Load 0 นาที กระแส (A)')
+    nl_0m_m_de = _gear_dec2('No-Load 0 นาที มอเตอร์ DE (°C)')
+    nl_0m_m_nde = _gear_dec2('No-Load 0 นาที มอเตอร์ NDE (°C)')
+    nl_0m_gb_in = _gear_dec2('No-Load 0 นาที เกียร์ Input (°C)')
+    nl_0m_gb_int = _gear_dec2('No-Load 0 นาที เกียร์ Intermediate (°C)')
+    nl_0m_gb_out = _gear_dec2('No-Load 0 นาที เกียร์ Output (°C)')
+    nl_0m_sump = _gear_dec2('No-Load 0 นาที Oil Sump (°C)')
+    nl_0m_status = _gear_choice('No-Load 0 นาที ผล', GEAR_RUN_STATUS_CHOICES)
+    nl_15m_volt = _gear_dec2('No-Load 15 นาที แรงดัน (V)')
+    nl_15m_amp = _gear_dec2('No-Load 15 นาที กระแส (A)')
+    nl_15m_m_de = _gear_dec2('No-Load 15 นาที มอเตอร์ DE (°C)')
+    nl_15m_m_nde = _gear_dec2('No-Load 15 นาที มอเตอร์ NDE (°C)')
+    nl_15m_gb_in = _gear_dec2('No-Load 15 นาที เกียร์ Input (°C)')
+    nl_15m_gb_int = _gear_dec2('No-Load 15 นาที เกียร์ Intermediate (°C)')
+    nl_15m_gb_out = _gear_dec2('No-Load 15 นาที เกียร์ Output (°C)')
+    nl_15m_sump = _gear_dec2('No-Load 15 นาที Oil Sump (°C)')
+    nl_15m_status = _gear_choice('No-Load 15 นาที ผล', GEAR_RUN_STATUS_CHOICES)
+    nl_30m_volt = _gear_dec2('No-Load 30 นาที แรงดัน (V)')
+    nl_30m_amp = _gear_dec2('No-Load 30 นาที กระแส (A)')
+    nl_30m_m_de = _gear_dec2('No-Load 30 นาที มอเตอร์ DE (°C)')
+    nl_30m_m_nde = _gear_dec2('No-Load 30 นาที มอเตอร์ NDE (°C)')
+    nl_30m_gb_in = _gear_dec2('No-Load 30 นาที เกียร์ Input (°C)')
+    nl_30m_gb_int = _gear_dec2('No-Load 30 นาที เกียร์ Intermediate (°C)')
+    nl_30m_gb_out = _gear_dec2('No-Load 30 นาที เกียร์ Output (°C)')
+    nl_30m_sump = _gear_dec2('No-Load 30 นาที Oil Sump (°C)')
+    nl_30m_status = _gear_choice('No-Load 30 นาที ผล', GEAR_RUN_STATUS_CHOICES)
+    ld_15m_volt = _gear_dec2('Load 15 นาที แรงดัน (V)')
+    ld_15m_amp = _gear_dec2('Load 15 นาที กระแส (A)')
+    ld_15m_m_de = _gear_dec2('Load 15 นาที มอเตอร์ DE (°C)')
+    ld_15m_m_nde = _gear_dec2('Load 15 นาที มอเตอร์ NDE (°C)')
+    ld_15m_gb_in = _gear_dec2('Load 15 นาที เกียร์ Input (°C)')
+    ld_15m_gb_int = _gear_dec2('Load 15 นาที เกียร์ Intermediate (°C)')
+    ld_15m_gb_out = _gear_dec2('Load 15 นาที เกียร์ Output (°C)')
+    ld_15m_sump = _gear_dec2('Load 15 นาที Oil Sump (°C)')
+    ld_15m_pct = _gear_dec2('Load 15 นาที โหลด (%)')
+    ld_15m_status = _gear_choice('Load 15 นาที ผล', GEAR_RUN_STATUS_CHOICES)
+    ld_30m_volt = _gear_dec2('Load 30 นาที แรงดัน (V)')
+    ld_30m_amp = _gear_dec2('Load 30 นาที กระแส (A)')
+    ld_30m_m_de = _gear_dec2('Load 30 นาที มอเตอร์ DE (°C)')
+    ld_30m_m_nde = _gear_dec2('Load 30 นาที มอเตอร์ NDE (°C)')
+    ld_30m_gb_in = _gear_dec2('Load 30 นาที เกียร์ Input (°C)')
+    ld_30m_gb_int = _gear_dec2('Load 30 นาที เกียร์ Intermediate (°C)')
+    ld_30m_gb_out = _gear_dec2('Load 30 นาที เกียร์ Output (°C)')
+    ld_30m_sump = _gear_dec2('Load 30 นาที Oil Sump (°C)')
+    ld_30m_pct = _gear_dec2('Load 30 นาที โหลด (%)')
+    ld_30m_status = _gear_choice('Load 30 นาที ผล', GEAR_RUN_STATUS_CHOICES)
+
+    # --- ส่วน 3.2: Vibration (mm/s) ---
+    vib_m_nde_v = _gear_dec2('Vibration มอเตอร์ NDE V (mm/s)')
+    vib_m_nde_h = _gear_dec2('Vibration มอเตอร์ NDE H (mm/s)')
+    vib_m_nde_a = _gear_dec2('Vibration มอเตอร์ NDE A (mm/s)')
+    vib_m_nde_ge = _gear_char('Vibration มอเตอร์ NDE gE', 50)
+    vib_m_de_v = _gear_dec2('Vibration มอเตอร์ DE V (mm/s)')
+    vib_m_de_h = _gear_dec2('Vibration มอเตอร์ DE H (mm/s)')
+    vib_m_de_a = _gear_dec2('Vibration มอเตอร์ DE A (mm/s)')
+    vib_m_de_ge = _gear_char('Vibration มอเตอร์ DE gE', 50)
+    vib_gb_in_v = _gear_dec2('Vibration เกียร์ Input V (mm/s)')
+    vib_gb_in_h = _gear_dec2('Vibration เกียร์ Input H (mm/s)')
+    vib_gb_in_a = _gear_dec2('Vibration เกียร์ Input A (mm/s)')
+    vib_gb_in_ge = _gear_char('Vibration เกียร์ Input gE', 50)
+    vib_gb_int_v = _gear_dec2('Vibration เกียร์ Intermediate V (mm/s)')
+    vib_gb_int_h = _gear_dec2('Vibration เกียร์ Intermediate H (mm/s)')
+    vib_gb_int_a = _gear_dec2('Vibration เกียร์ Intermediate A (mm/s)')
+    vib_gb_int_ge = _gear_char('Vibration เกียร์ Intermediate gE', 50)
+    vib_gb_out_v = _gear_dec2('Vibration เกียร์ Output V (mm/s)')
+    vib_gb_out_h = _gear_dec2('Vibration เกียร์ Output H (mm/s)')
+    vib_gb_out_a = _gear_dec2('Vibration เกียร์ Output A (mm/s)')
+    vib_gb_out_ge = _gear_char('Vibration เกียร์ Output gE', 50)
+
+    # --- ส่วน 4: ตรวจหลังหยุดเครื่อง (3 ข้อ) ---
+    post_4_1_value = _gear_char('หลังหยุด ข้อ 4.1 ค่า/ผลตรวจ', 255)
+    post_4_1_status = _gear_choice('หลังหยุด ข้อ 4.1', GEAR_PRE_STATUS_CHOICES)
+    post_4_2_value = _gear_char('หลังหยุด ข้อ 4.2 ค่า/ผลตรวจ', 255)
+    post_4_2_status = _gear_choice('หลังหยุด ข้อ 4.2', GEAR_PRE_STATUS_CHOICES)
+    post_4_3_value = _gear_char('หลังหยุด ข้อ 4.3 ค่า/ผลตรวจ', 255)
+    post_4_3_status = _gear_choice('หลังหยุด ข้อ 4.3', GEAR_PRE_STATUS_CHOICES)
+
+    # --- ส่วน 5: สรุปผล ---
+    final_result = _gear_choice('ผลสรุป', GEAR_RESULT_CHOICES)
+    next_oil_change_date = models.DateField(null=True, blank=True, verbose_name='กำหนดเปลี่ยนน้ำมันครั้งถัดไป')
+    remarks = models.TextField(null=True, blank=True, verbose_name='หมายเหตุ')
+    tester_name = _gear_char('ผู้ทดสอบ')
+    inspector_name = _gear_char('ผู้ตรวจสอบ')
+    approver_name = _gear_char('ผู้อนุมัติ')
+
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='gear_trial_runs_created', verbose_name='ผู้สร้าง')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'ใบตรวจสอบ Gear Box'
+        verbose_name_plural = 'ใบตรวจสอบ Gear Box'
+        ordering = ['-test_date', '-id']
+
+    def __str__(self):
+        return f'GT-{self.pk} {self.equipment_id} ({self.test_date})'
+
+    def max_vibration(self):
+        """ค่า vibration สูงสุดจากทุกจุด/แกน (mm/s) หรือ None"""
+        nums = [n for n in (_me_num(getattr(self, f)) for f in GEAR_VIB_FIELDS) if n is not None]
+        return max(nums) if nums else None
+
+    def max_sump_temp(self):
+        """อุณหภูมิ Oil Sump สูงสุดจากทุกช่วงเวลา (°C) หรือ None"""
+        nums = [n for n in (_me_num(getattr(self, f)) for f in GEAR_SUMP_FIELDS) if n is not None]
+        return max(nums) if nums else None

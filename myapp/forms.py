@@ -27,6 +27,7 @@ from .models import Vehicle, VehicleBooking
 from .models import ElectricityMeter, ElectricityReading
 from .models import ProcessCategory
 from .models import LatheJob, LATHE_JOB_TYPE_CHOICES
+from .models import GearTrialRun, GEAR_STATUS_DONE, GEAR_RUN_PHASES, GEAR_VIB_FIELDS, GEAR_RUN_TEMP_KEYS, gear_amp_pct
 from .models import MEInspection, ME_ISO_FIT_POINTS, ME_RUNOUT_FIELDS, ME_ALIGN_FIELDS, ME_VIB_FIELDS, ME_TEMP_FIELDS
 
 class EmployeeForm(forms.ModelForm):
@@ -1413,7 +1414,7 @@ class LatheJobForm(forms.ModelForm):
         return cleaned
 
 
-# ===== ME Inspection — ใบตรวจเช็คซ่อมบำรุงเครื่องจักร =====
+# ===== ME Inspection — ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน =====
 
 ME_SIGNATURE_ROLES = ('tech', 'cbm', 'head')  # ลายเซ็น ช่าง / CBM / หัวหน้า → field <role>_signature
 ME_SIGNATURE_PREFIX = 'data:image/png;base64,'
@@ -1598,3 +1599,73 @@ class MaterialMasterForm(forms.ModelForm):
         if not value:
             raise forms.ValidationError('กรุณากรอกชื่อย่อ')
         return value
+
+
+
+# ===== Gear Trial Run — ใบตรวจสอบ Gear Box =====
+
+# ฟิลด์ที่ต้องกรอกเมื่อปิดใบเป็น "เสร็จสิ้น" (ขณะ "กำลังทดสอบ" บังคับแค่เครื่องกับวันที่)
+GEAR_REQUIRED_WHEN_DONE = ['purpose', 'motor_fla', 'final_result']
+GEAR_FORM_EXCLUDE = ['created_by', 'created_at', 'updated_at'] + [f'{p}_pct' for p, _, loaded in GEAR_RUN_PHASES if loaded]
+
+
+class GearTrialRunForm(forms.ModelForm):
+    # เลือกเครื่องจักรผ่านช่องค้นหา (JS) แล้วเก็บรหัสไว้ใน hidden input
+    equipment = forms.ModelChoiceField(
+        queryset=Equipment.objects.all(), widget=forms.HiddenInput,
+        error_messages={'required': 'กรุณาเลือกเครื่องจักร', 'invalid_choice': 'ไม่พบเครื่องจักรที่เลือก'})
+
+    class Meta:
+        model = GearTrialRun
+        exclude = GEAR_FORM_EXCLUDE
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in self.fields.items():
+            if name == 'equipment':
+                continue
+            if isinstance(field.widget, forms.Select):
+                field.widget.attrs['class'] = _TW_TASK_SELECT
+                if name != 'status':
+                    field.choices = [('', '--')] + list(field.choices)[1:]
+            elif isinstance(field, forms.DecimalField):
+                field.widget = forms.NumberInput(attrs={'class': _TW_TASK, 'step': '0.01', 'inputmode': 'decimal'})
+            elif isinstance(field, forms.DateField):
+                field.widget = forms.DateInput(attrs={'type': 'date', 'class': _TW_TASK}, format='%Y-%m-%d')
+            elif isinstance(field.widget, forms.Textarea):
+                field.widget.attrs.update({'class': _TW_TASK, 'rows': 3})
+            else:
+                field.widget.attrs['class'] = _TW_TASK
+        # ให้ JS ในหน้าฟอร์มรู้ว่าช่องไหนใช้เกณฑ์ใด (ระบายสีผ่าน/เฝ้าระวัง/เกินทันทีตอนพิมพ์)
+        for prefix, _, _ in GEAR_RUN_PHASES:
+            self.fields[f'{prefix}_amp'].widget.attrs['data-gt-eval'] = 'amp'
+            for key, _ in GEAR_RUN_TEMP_KEYS:
+                self.fields[f'{prefix}_{key}'].widget.attrs['data-gt-eval'] = 'temp'
+        for name in GEAR_VIB_FIELDS:
+            self.fields[name].widget.attrs['data-gt-eval'] = 'vib'
+        # ช่องในตารางไม่มี <label> ต่อช่อง — ใช้ป้ายเต็มของ field เป็นชื่อสำหรับ screen reader
+        table_fields = ([f'pre_2_{i}_{k}' for i in range(1, 9) for k in ('value', 'status')]
+                        + [f'post_4_{i}_{k}' for i in range(1, 4) for k in ('value', 'status')]
+                        + [f'{prefix}_{key}' for prefix, _, _ in GEAR_RUN_PHASES
+                           for key in ('volt', 'amp', 'status', *(k for k, _ in GEAR_RUN_TEMP_KEYS))]
+                        + GEAR_VIB_FIELDS + [f'vib_{p}_ge' for p in ('m_nde', 'm_de', 'gb_in', 'gb_int', 'gb_out')])
+        for name in table_fields:
+            self.fields[name].widget.attrs['aria-label'] = self.fields[name].label
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('status') == GEAR_STATUS_DONE:
+            for name in GEAR_REQUIRED_WHEN_DONE:
+                if cleaned.get(name) in (None, ''):
+                    self.add_error(name, 'จำเป็นต้องกรอกก่อนปิดใบเป็น "เสร็จสิ้น"')
+        return cleaned
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        # % ของ FLA ของช่วง Load คำนวณจากกระแสที่กรอก ไม่ให้ผู้ใช้กรอกเอง
+        for prefix, _, loaded in GEAR_RUN_PHASES:
+            if loaded:
+                setattr(obj, f'{prefix}_pct', gear_amp_pct(getattr(obj, f'{prefix}_amp'), obj.motor_fla))
+        if commit:
+            obj.save()
+        return obj

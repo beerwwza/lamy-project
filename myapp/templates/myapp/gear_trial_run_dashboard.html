@@ -1,0 +1,213 @@
+{% extends 'myapp/base.html' %}
+{% block title %}Dashboard ใบตรวจสอบ Gear Box{% endblock title %}
+
+{% block content %}
+<style>
+    /* สีกราฟ: ผล อนุมัติ=เขียว, มีเงื่อนไข=เหลืองส้ม, ไม่อนุมัติ=แดง; แท่งแผนก=น้ำเงิน */
+    .gt-viz { --gt-approved: #16a34a; --gt-conditional: #d97706; --gt-rejected: #dc2626; --gt-series-1: #2a78d6; --gt-axis: #64748b; --gt-grid: #e2e8f0; }
+    .dark .gt-viz { --gt-approved: #22c55e; --gt-conditional: #f59e0b; --gt-rejected: #ef4444; --gt-series-1: #3987e5; --gt-axis: #94a3b8; --gt-grid: #334155; }
+</style>
+<main class="flex-1 flex flex-col h-screen overflow-hidden">
+
+    <header
+        class="min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 px-4 md:px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <a href="{% url 'gear_trial_run_list' %}"
+            class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </a>
+        <div class="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg text-indigo-700 dark:text-indigo-300">
+            <i data-lucide="chart-pie" class="w-5 h-5"></i>
+        </div>
+        <div class="min-w-0">
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight">Dashboard ใบตรวจสอบ Gear Box</h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+                นับเฉพาะใบที่ปิดเป็น "เสร็จสิ้น" ·
+                {% if filters.date_from or filters.date_to %}ช่วง {{ filters.date_from|default:"เริ่มต้น" }} ถึง {{ filters.date_to|default:"ปัจจุบัน" }}{% else %}ข้อมูลทั้งหมด{% endif %}
+            </p>
+        </div>
+    </header>
+
+    <div class="gt-viz flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="px-4 py-3 rounded-lg text-sm font-medium bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+
+        <form method="GET" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 flex flex-wrap items-end gap-3">
+            <div class="w-full sm:w-auto">
+                <label for="gt-d-dept" class="block text-xs font-semibold text-slate-500 mb-1">แผนก</label>
+                <div class="relative">
+                    <select id="gt-d-dept" name="department" class="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white sm:w-auto appearance-none pr-8">
+                        <option value="">ทุกแผนก</option>
+                        {% for name in department_choices %}<option value="{{ name }}" {% if filters.department == name %}selected{% endif %}>{{ name }}</option>{% endfor %}
+                    </select>
+                    <i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                </div>
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="gt-d-from" class="block text-xs font-semibold text-slate-500 mb-1">ตั้งแต่วันที่</label>
+                <input id="gt-d-from" type="date" name="date_from" value="{{ filters.date_from }}"
+                    class="w-full sm:w-auto p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+            </div>
+            <div class="w-full sm:w-auto">
+                <label for="gt-d-to" class="block text-xs font-semibold text-slate-500 mb-1">ถึงวันที่</label>
+                <input id="gt-d-to" type="date" name="date_to" value="{{ filters.date_to }}"
+                    class="w-full sm:w-auto p-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 dark:border-slate-700 dark:text-white">
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button type="submit" class="px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold flex items-center gap-2">
+                    <i data-lucide="calendar-search" class="w-4 h-4"></i> แสดงผล
+                </button>
+                {% if filters.department or filters.date_from or filters.date_to %}
+                <a href="{% url 'gear_trial_run_dashboard' %}" class="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-sm text-slate-600 dark:text-slate-300">ล้างตัวกรอง</a>
+                {% endif %}
+            </div>
+        </form>
+
+        <!-- KPI -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">ใบตรวจสอบ Gear Boxที่เสร็จสิ้น</p>
+                <p class="text-3xl font-bold text-slate-800 dark:text-slate-100 mt-1">{{ kpis.total }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">ใบ</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">อนุมัติ</p>
+                <p class="text-3xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{{ kpis.approved }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">ใบ</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">อนุมัติแบบมีเงื่อนไข</p>
+                <p class="text-3xl font-bold text-amber-700 dark:text-amber-400 mt-1">{{ kpis.conditional }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">ใบ</p>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border p-4 {% if kpis.rejected %}border-red-300 dark:border-red-700{% else %}border-slate-200 dark:border-slate-700{% endif %}">
+                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">ไม่อนุมัติ</p>
+                <p class="text-3xl font-bold mt-1 {% if kpis.rejected %}text-red-700 dark:text-red-400{% else %}text-slate-800 dark:text-slate-100{% endif %}">{{ kpis.rejected }}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">ใบ</p>
+            </div>
+        </div>
+
+        {% if kpis.total %}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">สัดส่วนผลสรุป</h2>
+                <div class="relative h-64"><canvas id="gtResultChart" role="img" aria-label="สัดส่วนผลสรุปใบตรวจสอบ Gear Box"></canvas></div>
+                <details class="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                    <summary class="cursor-pointer text-slate-500">ดูเป็นตาราง</summary>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="w-full text-sm"><tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                            {% for label, n in result_rows %}<tr><td class="py-1 pr-4">{{ label }}</td><td class="py-1 text-right font-semibold">{{ n }}</td></tr>{% endfor %}
+                        </tbody></table>
+                    </div>
+                </details>
+            </div>
+            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">ใบตรวจสอบ Gear Boxตามแผนก</h2>
+                <div class="relative" style="height: {{ dept_rows|length|add:2 }}rem; min-height: 16rem;"><canvas id="gtDeptChart" role="img" aria-label="ใบตรวจสอบ Gear Boxตามแผนก"></canvas></div>
+                <details class="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                    <summary class="cursor-pointer text-slate-500">ดูเป็นตาราง</summary>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="w-full text-sm"><tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                            {% for label, n in dept_rows %}<tr><td class="py-1 pr-4">{{ label }}</td><td class="py-1 text-right font-semibold">{{ n }}</td></tr>{% endfor %}
+                        </tbody></table>
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">ค่าสูงสุดต่อใบ (Vibration / Oil Sump)</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">เฝ้าระวังเมื่อเกิน {{ vib_warn }} mm/s และ {{ temp_warn }}°C · เกินเกณฑ์เมื่อเกิน {{ vib_fail }} mm/s และ {{ temp_fail }}°C{% if kpis.total > table_limit %} · แสดง {{ table_limit }} ใบล่าสุด{% endif %}</p>
+            </div>
+            <div class="relative overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-900/50 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-semibold">เลขที่</th>
+                            <th class="px-4 py-3 text-left font-semibold">วันที่</th>
+                            <th class="px-4 py-3 text-left font-semibold">เครื่องจักร</th>
+                            <th class="px-4 py-3 text-right font-semibold">Vibration สูงสุด (mm/s)</th>
+                            <th class="px-4 py-3 text-right font-semibold">Oil Sump สูงสุด (°C)</th>
+                            <th class="px-4 py-3 text-left font-semibold">ผลสรุป</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                        {% for row in table_rows %}
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/40">
+                            <td class="px-4 py-3 whitespace-nowrap"><a href="{% url 'gear_trial_run_edit' row.trial.pk %}" class="font-semibold text-blue-700 dark:text-blue-400 hover:underline">GT-{{ row.trial.pk }}</a></td>
+                            <td class="px-4 py-3 whitespace-nowrap text-slate-600 dark:text-slate-300">{{ row.trial.test_date|date:"d/m/Y" }}</td>
+                            <td class="px-4 py-3 text-slate-800 dark:text-slate-100">
+                                <div class="font-medium">{{ row.trial.equipment.name }}</div>
+                                <div class="text-xs text-slate-500">{{ row.trial.equipment.equipment_id }}</div>
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-semibold {% if row.vib_level == 'fail' %}text-red-700 dark:text-red-400{% elif row.vib_level == 'warn' %}text-amber-700 dark:text-amber-400{% else %}text-slate-700 dark:text-slate-200{% endif %}">
+                                {% if row.max_vib is None %}-{% else %}{{ row.max_vib|floatformat:"-2" }}{% endif %}
+                                {% if row.vib_level == 'fail' %}<span class="text-xs font-normal">(เกินเกณฑ์)</span>{% elif row.vib_level == 'warn' %}<span class="text-xs font-normal">(เฝ้าระวัง)</span>{% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap font-semibold {% if row.sump_level == 'fail' %}text-red-700 dark:text-red-400{% elif row.sump_level == 'warn' %}text-amber-700 dark:text-amber-400{% else %}text-slate-700 dark:text-slate-200{% endif %}">
+                                {% if row.max_sump is None %}-{% else %}{{ row.max_sump|floatformat:"-2" }}{% endif %}
+                                {% if row.sump_level == 'fail' %}<span class="text-xs font-normal">(เกินเกณฑ์)</span>{% elif row.sump_level == 'warn' %}<span class="text-xs font-normal">(เฝ้าระวัง)</span>{% endif %}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-slate-600 dark:text-slate-300">{{ row.trial.get_final_result_display|default:"-" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-10 text-center text-sm text-slate-500 dark:text-slate-400">
+            ยังไม่มีใบตรวจสอบ Gear Boxที่เสร็จสิ้นในช่วงที่เลือก
+        </div>
+        {% endif %}
+    </div>
+</main>
+
+{% if kpis.total %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+    // รอฟอนต์ไทยโหลดเสร็จก่อนวาด ไม่งั้น Chart.js วัดความกว้างป้ายผิด
+    document.fonts.ready.then(function () {
+        const css = getComputedStyle(document.querySelector('.gt-viz'));
+        const color = name => css.getPropertyValue(name).trim();
+        Chart.defaults.font.family = "'IBM Plex Sans Thai', sans-serif";
+        Chart.defaults.color = color('--gt-axis');
+
+        new Chart(document.getElementById('gtResultChart'), {
+            type: 'doughnut',
+            data: {
+                labels: [{% for label, n in result_rows %}"{{ label|escapejs }}"{% if not forloop.last %}, {% endif %}{% endfor %}],
+                datasets: [{ data: [{% for label, n in result_rows %}{{ n }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: [color('--gt-approved'), color('--gt-conditional'), color('--gt-rejected')], borderWidth: 2 }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '60%',
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, boxHeight: 8 } },
+                           tooltip: { callbacks: { label: c => c.label + ': ' + c.parsed + ' ใบ' } } },
+            },
+        });
+
+        new Chart(document.getElementById('gtDeptChart'), {
+            type: 'bar',
+            data: {
+                labels: [{% for label, n in dept_rows %}"{{ label|escapejs }}"{% if not forloop.last %}, {% endif %}{% endfor %}],
+                datasets: [{ data: [{% for label, n in dept_rows %}{{ n }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                    backgroundColor: color('--gt-series-1'), borderRadius: 4, borderSkipped: 'start', barThickness: 14 }],
+            },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.parsed.x + ' ใบ' } } },
+                scales: {
+                    x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: color('--gt-grid') } },
+                    y: { grid: { display: false } },
+                },
+            },
+        });
+    });
+</script>
+{% endif %}
+{% endblock content %}

@@ -53,7 +53,8 @@ AUTHENTICATED_URL_NAMES = [
     'me_inspection_list',
     'me_inspection_add',
     'me_inspection_dashboard',
-    'me_equipment_import',
+    'gear_trial_run_list',
+    'gear_trial_run_add',
 ]
 
 
@@ -1133,132 +1134,6 @@ class MEInspectionDashboardTests(TestCase):
 
 
 
-class MEEquipmentImportTests(TestCase):
-    """ME Inspection ticket 09: นำเข้ารายชื่อเครื่องจักรจาก Excel (ชีต PUMP/GEAR) เข้า Equipment"""
-
-    PUMP_HEADER = ['ลำดับ', 'รหัสทรัพย์สิน', 'แผนก', 'List', 'ยี่ห้อ', 'รุ่น', 'Flow [m3/hr.]', 'Head [m.]',
-                   'Motor [kW]', 'รอบมอเตอร์ [RPM]']
-    GEAR_HEADER = ['Code.', 'Location', 'List', 'ยี่ห้อ', 'รุ่น', 'Motor [kW]', 'I [ Ratio ]', 'สารหล่อลืน']
-
-    @classmethod
-    def setUpTestData(cls):
-        from .models import Equipment
-        cls.Equipment = Equipment
-        cls.admin = User.objects.create_user('me9_eq', password='pass-12345-x', is_staff=True)
-        cls.admin.user_permissions.add(Permission.objects.get(codename='write_equipment'))
-        cls.tech = User.objects.create_user('me9_tech', password='pass-12345-x', is_staff=True)
-        cls.tech.user_permissions.add(Permission.objects.get(codename='write_maintenance'))
-        Equipment.objects.create(equipment_id='P-002', name='ปั๊มเดิม', manufacturer='KSB', model='',
-                                 power_kw=Decimal('15.00'), is_active=False)
-
-    def _xlsx(self, pump_rows=(), gear_rows=(), sheets=('PUMP', 'GEAR')):
-        import io
-        from openpyxl import Workbook
-        wb = Workbook()
-        wb.remove(wb.active)
-        for name, header, rows in (('PUMP', self.PUMP_HEADER, pump_rows), ('GEAR', self.GEAR_HEADER, gear_rows)):
-            if name in sheets:
-                ws = wb.create_sheet(name)
-                ws.append(header)
-                for r in rows:
-                    ws.append(list(r))
-        if not wb.sheetnames:
-            wb.create_sheet('Sheet1')  # ไฟล์ Excel ต้องมีอย่างน้อย 1 ชีต
-        buf = io.BytesIO()
-        wb.save(buf)
-        return SimpleUploadedFile('รายการเครื่องจักรแผนก.xlsx', buf.getvalue(),
-                                  content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-    def _sample(self):
-        return self._xlsx(
-            pump_rows=[
-                (1, 'P-001', 'ลูกหีบ ราง A', 'ปั๊มน้ำอ้อย', 'Grundfos', 'NK80', 120, 35.5, 22.0, 2950),
-                (2, 'P-002', 'หม้อต้ม', 'ปั๊มเดิม (ชื่อใหม่)', 'Ebara', 'X1', '-', 'nan', 18.5, ''),
-                (3, '', 'หม้อต้ม', 'ไม่มีรหัส', '', '', '', '', '', ''),
-                (4, 'P-001', 'ลูกหีบ', 'แถวซ้ำ', '', '', '', '', '', ''),
-                (5, None, None, None, None, None, None, None, None, None),  # แถวว่างทั้งแถว ไม่นับ
-            ],
-            gear_rows=[('G-010', 'ลูกหีบ ราง B', 'เกียร์ลูกหีบ 1', 'Flender', 'H3', 'สามสิบ', '1:40', 'น้ำมันเบอร์ 320')],
-        )
-
-    def _client(self, user=None):
-        c = Client()
-        c.force_login(user or self.admin)
-        return c
-
-    def test_upload_shows_preview_without_saving(self):
-        c = self._client()
-        resp = c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': self._sample()})
-        self.assertRedirects(resp, reverse('me_equipment_import'))
-        self.assertFalse(self.Equipment.objects.filter(pk__in=['P-001', 'G-010']).exists())
-        preview = c.get(reverse('me_equipment_import')).context['preview']
-        self.assertEqual(preview['new_count'], 2)
-        self.assertEqual(preview['update_count'], 1)
-        self.assertEqual(preview['overwrite_count'], 1)
-        self.assertEqual([reason for _, _, reason in preview['skipped']],
-                         ['ไม่มีรหัสทรัพย์สินหรือชื่อเครื่อง', 'รหัสซ้ำในไฟล์ (ใช้แถวแรก)'])
-        new = {r['equipment_id']: r for r in preview['new_rows']}
-        self.assertEqual(new['P-001']['process'], 'ลูกหีบ')
-        self.assertEqual(new['P-001']['location'], 'ลูกหีบ ราง A')
-        self.assertEqual(new['P-001']['head_size'], '35.5')
-        self.assertEqual(new['P-001']['power_kw'], '22.00')
-        self.assertEqual(new['G-010']['power_kw'], '')  # 'สามสิบ' ไม่ใช่ตัวเลข
-
-    def test_confirm_fills_blanks_only_by_default(self):
-        c = self._client()
-        c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': self._sample()})
-        resp = c.post(reverse('me_equipment_import'), {'action': 'confirm'})
-        self.assertRedirects(resp, reverse('me_equipment_import'))
-        p1 = self.Equipment.objects.get(pk='P-001')
-        self.assertEqual((p1.name, p1.process, p1.manufacturer, p1.capacity, p1.power_kw, p1.rpm, p1.updated_by),
-                         ('ปั๊มน้ำอ้อย', 'ลูกหีบ', 'Grundfos', '120', Decimal('22.00'), '2950', 'me9_eq'))
-        self.assertTrue(p1.is_active)
-        self.assertEqual(self.Equipment.objects.get(pk='G-010').process, 'ลูกหีบ')
-        p2 = self.Equipment.objects.get(pk='P-002')
-        self.assertEqual(p2.name, 'ปั๊มเดิม')            # มีค่าอยู่แล้ว ไม่ทับ
-        self.assertEqual(p2.manufacturer, 'KSB')
-        self.assertEqual(p2.power_kw, Decimal('15.00'))
-        self.assertEqual(p2.model, 'X1')                 # ช่องว่าง เติมให้
-        self.assertEqual(p2.process, 'หม้อต้ม')
-        self.assertFalse(p2.is_active)                   # ไม่แตะสถานะใช้งาน
-        self.assertNotIn('me_equipment_import', c.session)
-
-    def test_confirm_with_overwrite(self):
-        c = self._client()
-        c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': self._sample()})
-        c.post(reverse('me_equipment_import'), {'action': 'confirm', 'overwrite': '1'})
-        p2 = self.Equipment.objects.get(pk='P-002')
-        self.assertEqual((p2.name, p2.manufacturer, p2.power_kw), ('ปั๊มเดิม (ชื่อใหม่)', 'Ebara', Decimal('18.50')))
-
-    def test_cancel_clears_preview(self):
-        c = self._client()
-        c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': self._sample()})
-        c.post(reverse('me_equipment_import'), {'action': 'cancel'})
-        self.assertIsNone(c.get(reverse('me_equipment_import')).context['preview'])
-        c.post(reverse('me_equipment_import'), {'action': 'confirm'})  # ไม่มี preview แล้ว ไม่นำเข้า
-        self.assertFalse(self.Equipment.objects.filter(pk='P-001').exists())
-
-    def test_requires_write_equipment(self):
-        for user in (self.tech,):
-            c = self._client(user)
-            self.assertEqual(c.get(reverse('me_equipment_import')).status_code, 403)
-            self.assertEqual(c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': self._sample()}).status_code, 403)
-
-    def test_bad_files_are_errors_not_500(self):
-        c = self._client()
-        cases = [
-            SimpleUploadedFile('list.csv', b'a,b', content_type='text/csv'),
-            SimpleUploadedFile('fake.xlsx', b'not a zip', content_type='application/octet-stream'),
-            self._xlsx(sheets=()),
-        ]
-        for upload in cases:
-            with self.subTest(name=upload.name):
-                resp = c.post(reverse('me_equipment_import'), {'action': 'upload', 'file': upload}, follow=True)
-                self.assertEqual(resp.status_code, 200)
-                self.assertIsNone(resp.context['preview'])
-                self.assertTrue(any(m.level_tag == 'error' for m in resp.context['messages']))
-
-
 class MaterialMasterImportTests(TestCase):
     """Step 1 ของ Material Master — model + command นำเข้าจาก Excel"""
 
@@ -1676,3 +1551,409 @@ class SidebarStockGroupTests(TestCase):
         self.assertIn('group" open>', self._get('navinv', 'material_list'))
         self.assertIn('group" open>', self._get('navinv', 'inventory_list'))
         self.assertNotIn('group" open>', self._get('navinv', 'dashboard'))
+
+
+class GearTrialRunModelTests(TestCase):
+    """ใบตรวจสอบ Gear Box: เกณฑ์ประเมิน (ค่าขอบ), ค่าสูงสุด, วันที่ default เวลาไทย, PROTECT"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, GearTrialRun
+        cls.GearTrialRun = GearTrialRun
+        cls.eq = Equipment.objects.create(equipment_id='GB-201', name='เกียร์ลูกหีบ 1', process='Mill')
+
+    def test_temp_thresholds(self):
+        from .models import gear_eval_temp
+        cases = [(74.9, 'pass'), (75, 'pass'), (75.1, 'warn'), (85, 'warn'), (85.1, 'fail'), (None, None), ('', None)]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(gear_eval_temp(value), expected)
+
+    def test_amp_thresholds_relative_to_fla(self):
+        from .models import gear_eval_amp
+        cases = [(94, 'pass'), (95, 'pass'), (95.1, 'warn'), (100, 'warn'), (100.1, 'fail')]
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(gear_eval_amp(value, 100), expected)
+        for fla in (None, '', 0):
+            with self.subTest(fla=fla):
+                self.assertIsNone(gear_eval_amp(50, fla))
+        self.assertIsNone(gear_eval_amp(None, 100))
+
+    def test_amp_pct(self):
+        from .models import gear_amp_pct
+        self.assertEqual(gear_amp_pct(47.5, 50), 95.0)
+        self.assertIsNone(gear_amp_pct(10, 0))
+
+    def test_vib_thresholds_use_highest_axis(self):
+        from .models import gear_eval_vib
+        self.assertEqual(gear_eval_vib(2.8, 1, 1), 'pass')
+        self.assertEqual(gear_eval_vib(2.81, 1, 1), 'warn')
+        self.assertEqual(gear_eval_vib(1, 4.5, None), 'warn')
+        self.assertEqual(gear_eval_vib(1, 1, 4.51), 'fail')
+        self.assertIsNone(gear_eval_vib(None, '', None))
+
+    def test_max_vibration_and_sump(self):
+        run = self.GearTrialRun.objects.create(
+            equipment=self.eq, vib_m_de_v=Decimal('1.20'), vib_gb_out_a=Decimal('3.40'),
+            nl_15m_sump=Decimal('60'), ld_30m_sump=Decimal('71.5'))
+        self.assertEqual(run.max_vibration(), 3.4)
+        self.assertEqual(run.max_sump_temp(), 71.5)
+        empty = self.GearTrialRun.objects.create(equipment=self.eq)
+        self.assertIsNone(empty.max_vibration())
+        self.assertIsNone(empty.max_sump_temp())
+
+    def test_default_test_date_uses_thai_local_date(self):
+        import datetime as dt
+        # 2026-11-05 20:30 UTC = 2026-11-06 03:30 เวลาไทย — ต้องได้วันที่ 6 ไม่ใช่ 5
+        fake_now = dt.datetime(2026, 11, 5, 20, 30, tzinfo=dt.timezone.utc)
+        with mock.patch('django.utils.timezone.now', return_value=fake_now):
+            run = self.GearTrialRun.objects.create(equipment=self.eq)
+        self.assertEqual(run.test_date.isoformat(), '2026-11-06')
+
+    def test_equipment_with_trial_run_cannot_be_deleted(self):
+        from django.db.models import ProtectedError
+        self.GearTrialRun.objects.create(equipment=self.eq)
+        with self.assertRaises(ProtectedError):
+            self.eq.delete()
+
+
+class GearTrialRunViewTests(TestCase):
+    """ใบตรวจสอบ Gear Box: สิทธิ์ (write_maintenance / write_cbm / superuser), add/edit, validation และ list filter"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, GearTrialRun
+        cls.GearTrialRun = GearTrialRun
+        cls.superuser = User.objects.create_superuser('gt_admin', 'gt@example.com', 'pass-12345-x')
+        cls.tech = User.objects.create_user('gt_tech', password='pass-12345-x', is_staff=True)
+        cls.tech.user_permissions.add(Permission.objects.get(codename='write_maintenance'))
+        cls.cbm = User.objects.create_user('gt_cbm', password='pass-12345-x', is_staff=True)
+        cls.cbm.user_permissions.add(Permission.objects.get(codename='write_cbm'))
+        cls.staff_no_perm = User.objects.create_user('gt_staff', password='pass-12345-x', is_staff=True)
+        cls.reader = User.objects.create_user('gt_reader', password='pass-12345-x')
+        cls.gb = Equipment.objects.create(equipment_id='GB-301', name='เกียร์ลูกหีบ 3', process='Mill',
+                                          manufacturer='SEW', model='K77', power_kw=Decimal('55'))
+        cls.trial = GearTrialRun.objects.create(equipment=cls.gb, department='Mill', work_order_no='WO-9001',
+                                                test_date='2026-11-01', created_by=cls.tech)
+
+    def _client(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
+
+    def _payload(self, **extra):
+        data = {'equipment': 'GB-301', 'test_date': '2026-11-03', 'status': 'testing', 'department': 'Mill',
+                'purpose': 'overhaul', 'motor_fla': '100', 'motor_voltage': '380',
+                'ld_15m_amp': '95.5', 'vib_m_de_v': '1.5'}
+        data.update(extra)
+        return data
+
+    def test_anonymous_redirected_to_login(self):
+        for name, args in (('gear_trial_run_list', ()), ('gear_trial_run_add', ()),
+                           ('gear_trial_run_edit', (self.trial.pk,))):
+            with self.subTest(view=name):
+                resp = Client().get(reverse(name, args=args))
+                self.assertEqual(resp.status_code, 302)
+                self.assertIn('/', resp.url)
+
+    def test_writers_can_create_and_are_redirected_to_edit(self):
+        for user in (self.tech, self.cbm, self.superuser):
+            with self.subTest(user=user.username):
+                resp = self._client(user).post(reverse('gear_trial_run_add'), self._payload())
+                created = self.GearTrialRun.objects.latest('id')
+                self.assertRedirects(resp, reverse('gear_trial_run_edit', args=[created.pk]))
+                self.assertEqual(created.created_by, user)
+                self.assertEqual(created.equipment_id, 'GB-301')
+
+    def test_load_pct_computed_from_amp_and_fla(self):
+        self._client(self.tech).post(reverse('gear_trial_run_add'), self._payload())
+        created = self.GearTrialRun.objects.latest('id')
+        self.assertEqual(created.ld_15m_pct, Decimal('95.50'))
+
+    def test_users_without_write_permission_are_forbidden(self):
+        for user in (self.staff_no_perm, self.reader):
+            with self.subTest(user=user.username):
+                c = self._client(user)
+                self.assertEqual(c.get(reverse('gear_trial_run_add')).status_code, 403)
+                self.assertEqual(c.post(reverse('gear_trial_run_add'), self._payload()).status_code, 403)
+                self.assertEqual(c.post(reverse('gear_trial_run_edit', args=[self.trial.pk]), self._payload()).status_code, 403)
+
+    def test_readers_can_view_list_and_edit_page_read_only(self):
+        c = self._client(self.reader)
+        self.assertEqual(c.get(reverse('gear_trial_run_list')).status_code, 200)
+        resp = c.get(reverse('gear_trial_run_edit', args=[self.trial.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'ดูใบนี้ได้อย่างเดียว')
+        self.assertNotContains(resp, 'สร้างใบตรวจสอบ Gear Box</a>')
+
+    def test_testing_status_requires_only_equipment_and_date(self):
+        c = self._client(self.tech)
+        before = self.GearTrialRun.objects.count()
+        resp = c.post(reverse('gear_trial_run_add'), {'equipment': 'GB-301', 'test_date': '2026-11-03', 'status': 'testing'})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.GearTrialRun.objects.count(), before + 1)
+        resp = c.post(reverse('gear_trial_run_add'), {'status': 'testing', 'test_date': '2026-11-03'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'กรุณาเลือกเครื่องจักร')
+        self.assertEqual(self.GearTrialRun.objects.count(), before + 1)
+
+    def test_done_status_requires_closing_fields(self):
+        before = self.GearTrialRun.objects.count()
+        resp = self._client(self.tech).post(reverse('gear_trial_run_add'), {
+            'equipment': 'GB-301', 'test_date': '2026-11-03', 'status': 'done'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'จำเป็นต้องกรอกก่อนปิดใบ')
+        self.assertEqual(self.GearTrialRun.objects.count(), before)
+        resp = self._client(self.tech).post(reverse('gear_trial_run_add'), self._payload(
+            status='done', final_result='approved'))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.GearTrialRun.objects.latest('id').status, 'done')
+
+    def test_edit_updates_record(self):
+        resp = self._client(self.tech).post(reverse('gear_trial_run_edit', args=[self.trial.pk]),
+                                            self._payload(remarks='เปลี่ยนน้ำมันแล้ว'))
+        self.assertRedirects(resp, reverse('gear_trial_run_edit', args=[self.trial.pk]))
+        self.trial.refresh_from_db()
+        self.assertEqual(self.trial.remarks, 'เปลี่ยนน้ำมันแล้ว')
+
+    def test_add_prefills_from_equipment_and_thai_today(self):
+        resp = self._client(self.tech).get(reverse('gear_trial_run_add') + '?equipment=GB-301')
+        form = resp.context['form']
+        self.assertEqual(form.initial['gb_brand'], 'SEW')
+        self.assertEqual(form.initial['gb_model'], 'K77')
+        self.assertEqual(form.initial['motor_kw'], Decimal('55'))
+        self.assertEqual(form.initial['motor_voltage'], Decimal('380'))
+
+    def test_list_search_and_filters(self):
+        from .models import Equipment
+        other = Equipment.objects.create(equipment_id='GB-302', name='เกียร์ลำเลียง', process='Boiler')
+        self.GearTrialRun.objects.create(equipment=other, department='Boiler', test_date='2026-10-01',
+                                         status='done', final_result='rejected', work_order_no='WO-9002')
+        c = self._client(self.reader)
+        url = reverse('gear_trial_run_list')
+
+        def ids(**params):
+            return {t.equipment_id for t in c.get(url, params).context['page_obj']}
+        self.assertEqual(ids(), {'GB-301', 'GB-302'})
+        self.assertEqual(ids(q='WO-9002'), {'GB-302'})
+        self.assertEqual(ids(q='ลูกหีบ'), {'GB-301'})
+        self.assertEqual(ids(department='Boiler'), {'GB-302'})
+        self.assertEqual(ids(result='rejected'), {'GB-302'})
+        self.assertEqual(ids(status='testing'), {'GB-301'})
+        self.assertEqual(ids(date_from='2026-10-15'), {'GB-301'})
+        self.assertEqual(ids(date_to='2026-10-15'), {'GB-302'})
+
+    def test_list_warns_on_invalid_date_filter(self):
+        resp = self._client(self.reader).get(reverse('gear_trial_run_list'), {'date_from': '2026-02-30'})
+        self.assertContains(resp, 'รูปแบบวันที่ในตัวกรองไม่ถูกต้อง')
+        self.assertEqual(len(resp.context['page_obj']), 1)
+
+
+class GearTrialRunMemoryAndThresholdTests(TestCase):
+    """ใบตรวจสอบ Gear Box: API ค่าเนมเพลทล่าสุด และเกณฑ์สีที่ส่งให้ JS ตรงกับค่าคงที่ใน models"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, GearTrialRun
+        cls.user = User.objects.create_user('gtm_reader', password='pass-12345-x')
+        cls.gb = Equipment.objects.create(equipment_id='GB-401', name='เกียร์ทดสอบ')
+        cls.old = GearTrialRun.objects.create(equipment=cls.gb, test_date='2026-09-01', gb_brand='SEW', motor_fla=Decimal('88.5'))
+        cls.new = GearTrialRun.objects.create(equipment=cls.gb, test_date='2026-10-01', gb_brand='Flender',
+                                              gb_ratio='25:1', motor_kw=Decimal('75'))
+
+    def _get(self, url):
+        c = Client()
+        c.force_login(self.user)
+        return c.get(url)
+
+    def test_last_api_returns_latest_trial_nameplate(self):
+        data = self._get(reverse('gear_trial_run_last_api', args=['GB-401'])).json()['data']
+        self.assertEqual(data['trial_id'], self.new.pk)
+        self.assertEqual(data['fields']['gb_brand'], 'Flender')
+        self.assertEqual(data['fields']['gb_ratio'], '25:1')
+        self.assertNotIn('motor_fla', data['fields'])
+
+    def test_last_api_can_exclude_current_trial(self):
+        url = reverse('gear_trial_run_last_api', args=['GB-401']) + f'?exclude={self.new.pk}'
+        data = self._get(url).json()['data']
+        self.assertEqual(data['trial_id'], self.old.pk)
+        self.assertEqual(data['fields']['motor_fla'], '88.50')
+
+    def test_last_api_null_when_no_history_and_requires_login(self):
+        from .models import Equipment
+        Equipment.objects.create(equipment_id='GB-402', name='ไม่มีประวัติ')
+        self.assertIsNone(self._get(reverse('gear_trial_run_last_api', args=['GB-402'])).json()['data'])
+        self.assertEqual(Client().get(reverse('gear_trial_run_last_api', args=['GB-401'])).status_code, 302)
+
+    def test_form_renders_thresholds_from_model_constants(self):
+        from .models import GEAR_TEMP_WARN, GEAR_TEMP_FAIL, GEAR_VIB_WARN, GEAR_VIB_FAIL, GEAR_AMP_WARN_RATIO
+        c = Client()
+        c.force_login(User.objects.create_superuser('gtm_admin', 'a@example.com', 'pass-12345-x'))
+        html = c.get(reverse('gear_trial_run_add')).content.decode()
+        self.assertIn(f'temp: [{GEAR_TEMP_WARN}, {GEAR_TEMP_FAIL}]', html)
+        self.assertIn(f'vib: [{GEAR_VIB_WARN}, {GEAR_VIB_FAIL}]', html)
+        self.assertIn(f'ampWarn: {GEAR_AMP_WARN_RATIO}', html)
+        self.assertIn('data-gt-eval="amp"', html)
+        self.assertIn('data-gt-eval="temp"', html)
+        self.assertIn('data-gt-eval="vib"', html)
+
+
+class GearTrialRunDashboardTests(TestCase):
+    """Dashboard ใบตรวจสอบ Gear Box: นับเฉพาะใบเสร็จสิ้น, ตัวกรอง, ค่าสูงสุดและระดับเตือน"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, GearTrialRun
+        cls.user = User.objects.create_user('gtd_reader', password='pass-12345-x')
+        a = Equipment.objects.create(equipment_id='GB-501', name='เกียร์ A', process='Mill')
+        b = Equipment.objects.create(equipment_id='GB-502', name='เกียร์ B', process='Boiler')
+        cls.t1 = GearTrialRun.objects.create(equipment=a, department='Mill', status='done', final_result='approved',
+                                             test_date='2026-10-01', vib_m_de_v=Decimal('1.0'), nl_15m_sump=Decimal('60'))
+        cls.t2 = GearTrialRun.objects.create(equipment=a, department='Mill', status='done', final_result='rejected',
+                                             test_date='2026-11-01', vib_gb_out_a=Decimal('4.6'), ld_30m_sump=Decimal('86'))
+        cls.t3 = GearTrialRun.objects.create(equipment=b, department='Boiler', status='done', final_result='conditional',
+                                             test_date='2026-11-02')
+        GearTrialRun.objects.create(equipment=b, department='Boiler', status='testing', final_result='approved',
+                                    test_date='2026-11-03')
+
+    def _get(self, params=None):
+        c = Client()
+        c.force_login(self.user)
+        return c.get(reverse('gear_trial_run_dashboard'), params or {})
+
+    def test_requires_login(self):
+        self.assertEqual(Client().get(reverse('gear_trial_run_dashboard')).status_code, 302)
+
+    def test_counts_only_completed_trials(self):
+        kpis = self._get().context['kpis']
+        self.assertEqual(kpis, {'total': 3, 'approved': 1, 'conditional': 1, 'rejected': 1})
+
+    def test_filters_apply(self):
+        self.assertEqual(self._get({'department': 'Boiler'}).context['kpis']['total'], 1)
+        self.assertEqual(self._get({'date_from': '2026-10-15'}).context['kpis']['total'], 2)
+        self.assertEqual(self._get({'date_to': '2026-10-15'}).context['kpis']['total'], 1)
+        resp = self._get({'date_from': '2026-02-30'})
+        self.assertContains(resp, 'รูปแบบวันที่ในตัวกรองไม่ถูกต้อง')
+
+    def test_table_rows_have_max_values_and_levels(self):
+        rows = {r['trial'].pk: r for r in self._get().context['table_rows']}
+        self.assertEqual(rows[self.t1.pk]['max_vib'], 1.0)
+        self.assertEqual(rows[self.t1.pk]['vib_level'], 'pass')
+        self.assertEqual(rows[self.t2.pk]['max_vib'], 4.6)
+        self.assertEqual(rows[self.t2.pk]['vib_level'], 'fail')
+        self.assertEqual(rows[self.t2.pk]['max_sump'], 86.0)
+        self.assertEqual(rows[self.t2.pk]['sump_level'], 'fail')
+        self.assertIsNone(rows[self.t3.pk]['max_vib'])
+        self.assertIsNone(rows[self.t3.pk]['vib_level'])
+
+    def test_empty_state(self):
+        resp = self._get({'department': 'ไม่มีแผนกนี้'})
+        self.assertContains(resp, 'ยังไม่มีใบตรวจสอบ Gear Boxที่เสร็จสิ้น')
+
+
+class GearTrialRunPrintDeleteTests(TestCase):
+    """ใบตรวจสอบ Gear Box: หน้าพิมพ์ และการลบ (POST เท่านั้น, เฉพาะ superuser)"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, GearTrialRun
+        cls.GearTrialRun = GearTrialRun
+        cls.superuser = User.objects.create_superuser('gtp_admin', 'p@example.com', 'pass-12345-x')
+        cls.tech = User.objects.create_user('gtp_tech', password='pass-12345-x', is_staff=True)
+        cls.tech.user_permissions.add(Permission.objects.get(codename='write_maintenance'))
+        cls.reader = User.objects.create_user('gtp_reader', password='pass-12345-x')
+        eq = Equipment.objects.create(equipment_id='GB-601', name='เกียร์พิมพ์')
+        cls.trial = GearTrialRun.objects.create(
+            equipment=eq, test_date='2026-11-01', motor_fla=Decimal('100'), ld_15m_amp=Decimal('101'),
+            nl_0m_sump=Decimal('80'), vib_gb_in_h=Decimal('3.0'), tester_name='สมชาย', final_result='approved')
+
+    def _client(self, user):
+        c = Client()
+        c.force_login(user)
+        return c
+
+    def test_print_requires_login_and_opens_for_readers(self):
+        url = reverse('gear_trial_run_print', args=[self.trial.pk])
+        self.assertEqual(Client().get(url).status_code, 302)
+        resp = self._client(self.reader).get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'FM-MM-GB-2026')
+        self.assertContains(resp, 'สมชาย')
+        self.assertContains(resp, 'ผู้ทดสอบ')
+        self.assertContains(resp, 'ผู้ตรวจสอบ')
+        self.assertContains(resp, 'ผู้อนุมัติ')
+
+    def test_print_marks_levels(self):
+        resp = self._client(self.reader).get(reverse('gear_trial_run_print', args=[self.trial.pk]))
+        html = resp.content.decode()
+        self.assertIn('lv-fail', html)   # กระแส 101 > 100% FLA
+        self.assertIn('lv-warn', html)   # sump 80°C และ vibration 3.0 mm/s
+        self.assertIn('เฝ้าระวัง', html)
+
+    def test_delete_requires_post(self):
+        url = reverse('gear_trial_run_delete', args=[self.trial.pk])
+        self.assertEqual(self._client(self.superuser).get(url).status_code, 405)
+        self.assertTrue(self.GearTrialRun.objects.filter(pk=self.trial.pk).exists())
+
+    def test_only_superuser_can_delete(self):
+        url = reverse('gear_trial_run_delete', args=[self.trial.pk])
+        for user in (self.tech, self.reader):
+            with self.subTest(user=user.username):
+                self.assertEqual(self._client(user).post(url).status_code, 403)
+        self.assertTrue(self.GearTrialRun.objects.filter(pk=self.trial.pk).exists())
+        resp = self._client(self.superuser).post(url)
+        self.assertRedirects(resp, reverse('gear_trial_run_list'))
+        self.assertFalse(self.GearTrialRun.objects.filter(pk=self.trial.pk).exists())
+
+    def test_delete_button_visible_only_to_superuser(self):
+        url = reverse('gear_trial_run_list')
+        self.assertContains(self._client(self.superuser).get(url), reverse('gear_trial_run_delete', args=[self.trial.pk]))
+        self.assertNotContains(self._client(self.tech).get(url), reverse('gear_trial_run_delete', args=[self.trial.pk]))
+
+
+class GearTrialRunAccessibilityTests(TestCase):
+    """ช่องกรอกในตารางลองเดิน/Vibration/ก่อนเดิน/หลังหยุดต้องมีชื่อ (aria-label) สำหรับ screen reader"""
+
+    def test_table_inputs_have_aria_labels(self):
+        from .forms import GearTrialRunForm
+        form = GearTrialRunForm()
+        for name in ('pre_2_1_value', 'pre_2_8_status', 'post_4_3_status', 'nl_0m_volt', 'ld_30m_sump',
+                     'ld_15m_status', 'vib_m_de_v', 'vib_gb_out_ge'):
+            with self.subTest(field=name):
+                self.assertEqual(form.fields[name].widget.attrs.get('aria-label'), form.fields[name].label)
+                self.assertIn('aria-label=', str(form[name]))
+        self.assertIn('No-Load 0 นาที', form.fields['nl_0m_volt'].label)
+
+
+class TaskManagerHubInspectionCardsTests(TestCase):
+    """ME และใบตรวจสอบ Gear Box อยู่ใน Task Manager (เฉพาะผู้มีสิทธิ์เขียน) และไม่อยู่ใน sidebar โดยตรงแล้ว"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.tech = User.objects.create_user('tm_tech', password='pass-12345-x', is_staff=True)
+        cls.tech.user_permissions.add(Permission.objects.get(codename='write_maintenance'))
+        cls.reader = User.objects.create_user('tm_reader', password='pass-12345-x')
+
+    def _hub(self, user):
+        c = Client()
+        c.force_login(user)
+        return c.get(reverse('task_manager_hub'))
+
+    def test_writers_see_both_cards_with_new_names(self):
+        resp = self._hub(self.tech)
+        self.assertContains(resp, reverse('me_inspection_list'))
+        self.assertContains(resp, reverse('gear_trial_run_list'))
+        self.assertContains(resp, 'ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน')
+        self.assertContains(resp, 'ใบตรวจสอบ Gear Box')
+
+    def test_readers_do_not_see_the_cards(self):
+        resp = self._hub(self.reader)
+        self.assertNotContains(resp, reverse('me_inspection_list'))
+        self.assertNotContains(resp, reverse('gear_trial_run_list'))
+
+    def test_maintenance_user_still_has_task_manager_nav_without_old_direct_links(self):
+        html = self._hub(self.tech).content.decode()
+        self.assertIn(reverse('task_manager_hub'), html)
+        self.assertNotIn('ใบตรวจเช็คซ่อม (ME)', html)
+        self.assertNotIn('ใบลองเครื่องเกียร์', html)

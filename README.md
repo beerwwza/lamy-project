@@ -30,7 +30,8 @@ LAMY is a web-based industrial operations management system built for a large-sc
 - **Maintenance Management** — Failure logging, root cause analysis, downtime categorization, spare parts tracking, and KPI scoring.
 - **Mill Production Reporting** — Daily production KPIs for Line A/B covering extraction rates, purity, bagasse moisture, and throughput.
 - **Equipment Registry** — Master inventory of all plant equipment with technical specifications, maintenance history, spare parts (BOM), criticality levels, and image storage.
-- **ME Inspection (ใบตรวจเช็คซ่อมบำรุงเครื่องจักร)** (`/me-inspection/`) — Rotating-equipment repair/inspection record migrated from the former Google Apps Script "ฟอร์ม ME V.2" into LAMY, linked to the `Equipment` registry. A 7-tab form (basic info & spare parts with photos, ISO 286 fits, shaft runout & pressure test, alignment, vibration ISO 10816, 10-item readiness checklist, on-screen signatures), pass/warn/fail colouring while typing with results recomputed server-side on save, "smart memory" that pre-fills spare-part specs from the machine's last inspection, a 4-step approval workflow (repairing → CBM review → head approval → approved) gated per step by `write_maintenance` / `write_cbm` / superuser, a filtered history list, an A4 print view, a KPI/chart dashboard, and an Excel (PUMP/GEAR sheets) import into `Equipment`.
+- **ME Inspection (ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน)** (`/me-inspection/`, reached from Task Manager) — Rotating-equipment repair/inspection record migrated from the former Google Apps Script "ฟอร์ม ME V.2" into LAMY, linked to the `Equipment` registry. A 7-tab form (basic info & spare parts with photos, ISO 286 fits, shaft runout & pressure test, alignment, vibration ISO 10816, 10-item readiness checklist, on-screen signatures), pass/warn/fail colouring while typing with results recomputed server-side on save, "smart memory" that pre-fills spare-part specs from the machine's last inspection, a 4-step approval workflow (repairing → CBM review → head approval → approved) gated per step by `write_maintenance` / `write_cbm` / superuser, a filtered history list, an A4 print view, a KPI/chart dashboard. Machines are picked from the `Equipment` registry (Machine list).
+- **Gear Trial Run (ใบตรวจสอบ Gear Box)** (`/gear-trial-run/`, reached from Task Manager) — Trial-run record (form FM-MM-GB-2026) migrated from a Google Apps Script form, linked to the `Equipment` registry. A 5-tab form (general info & nameplate, pre-start checks with LOTO warning, No-Load/Load runs at 0/15/30 min, vibration at 5 points, post-stop checks & sign-off) with live pass/warn/fail colouring, nameplate pre-fill from the registry and from the machine's last trial, a testing → done status, a filtered history list, an A4 print view with three signature lines, and a dashboard (KPIs, result doughnut, per-department bars, peak vibration / oil-sump table). Write access follows ME (`write_maintenance` / `write_cbm`); delete is superuser only.
 - **Lathe Job Tracking** — Server-rendered machine-shop job orders (one page with KPIs + charts + filtered list, add/edit forms, status change, printable job order, CSV/JSON import & export). Writes need `write_general`; delete is superuser-only.
 - **Tools Module** — Dedicated hand-tool tracking (`/tools/`) separate from general Inventory, with per-physical-unit status (so identical tools like 5 impact wrenches are tracked individually), borrow/return history with due dates, and an integrated tool-readiness checklist.
 - **Material Master (รหัสวัสดุ SAP)** (`/materials/`) — Central table of SAP Material IDs (14,575 codes, plant 1010: ZSP spare parts / ZOS other materials) loaded once from Excel and then maintained through a web form. Equipment BOM lines, Inventory items and Tools link to it by FK (optional — legacy free-text rows keep working), so the same part is identified consistently across modules. Searchable list with filters, a detail page with a "used where" section (BOM lines per machine + the inventory/tool item), duplicate-ID rejection, and a similar-name warning before saving a new code. Sidebar groups it with Inventory and Tools under "คลัง & วัสดุ".
@@ -203,7 +204,7 @@ lamy-project/
 │   ├── forms.py                    # Django ModelForms (all modules)
 │   ├── admin.py                    # Django Admin configuration
 │   ├── management/commands/        # import_material_master, link_material_master, backfills
-│   ├── migrations/                 # 112 database migration files
+│   ├── migrations/                 # 114 database migration files
 │   └── templates/
 │       └── myapp/
 │           ├── base.html           # Master layout with navigation
@@ -396,7 +397,7 @@ Each equipment item can have multiple CBM records of 5 types:
 - Priority level: 1-CRITICAL / 2-IMPORTANT / 3-GENERAL
 - Image: local file or Google Drive file ID
 
-### ME Inspection (ใบตรวจเช็คซ่อมบำรุงเครื่องจักร)
+### ME Inspection (ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน)
 
 Replaces the Google Apps Script form "ระบบบันทึกการตรวจเช็คเครื่องจักร V.2 & CBM Suite" (Google Sheet storage). No legacy data was migrated.
 
@@ -411,7 +412,21 @@ Replaces the Google Apps Script form "ระบบบันทึกการต
   `MEInspection.apply_computed_results()` recomputes every `*_result` field on each save, and client-sent values are ignored. The form page renders the same constants into its JS, so the live colours always match the stored result.
 - **Workflow:** the tables `ME_STAGE_EDIT_MODULES`, `ME_STAGE_SIGNATURE` and `ME_TRANSITIONS` in `views.py` define who may edit each status and which button moves it where. A forward move requires that stage's signature. Approval sets `approved_at`, and an approved record is locked to superusers until it is reopened. Signatures are drawn on a canvas, posted as PNG data URLs, validated (≤ 500 KB) and stored as `ImageField`s. Each role can only sign its own stage.
 - **Smart memory:** `/me-inspection/api/last/<eq_id>/` returns the spare-part numbers and fit sizes from the machine's latest inspection. JS fills only the fields that are still empty, and only on new inspections.
-- **Excel import:** the PUMP and GEAR sheets are matched by `รหัสทรัพย์สิน` / `Code.` = `equipment_id`. You get a preview first and then confirm. Fill-blanks is the default, overwrite is opt-in, and the import never deletes equipment or changes `is_active`. Gear ratio and lubricant are not imported because `Equipment` has no fields for them.
+
+### Gear Trial Run (ใบตรวจสอบ Gear Box)
+
+Replaces the Google Apps Script form "ใบตรวจเช็คและบันทึกผลการลองเครื่อง (FM-MM-GB-2026)". No legacy data was migrated. Built on the same pattern as ME Inspection.
+
+- **Model:** one flat `GearTrialRun` row per trial (~115 fields; data fields are nullable, only the equipment FK, test date and status are always set) with an FK to `Equipment` (`PROTECT`). Nameplate fields are a snapshot taken on the trial. Status is `testing` (only machine + date required) or `done` (also requires purpose, motor FLA and the final result). Load-run `*_pct` (current as % of FLA) is computed on save.
+- **Evaluation rules** are module-level constants and pure functions in `models.py` (`gear_eval_temp`, `gear_eval_amp`, `gear_eval_vib`), all using strict `>`:
+  - temperature warn > 75 °C, fail > 85 °C
+  - current warn > 95 % of FLA, fail > 100 % of FLA
+  - vibration (highest of V/H/A) warn > 2.8 mm/s, fail > 4.5 mm/s (ISO 10816-3)
+
+  Results are never stored. The form JS, the dashboard and the print view all derive them from the numbers, and the form page renders the same constants into its JS.
+- **Permissions:** add/edit use `write_maintenance` or `write_cbm` (same as ME), and list/dashboard/print only need login. Delete is POST-only and superuser-only.
+- **Smart memory:** `/gear-trial-run/api/last/<eq_id>/` returns the nameplate fields from the machine's latest trial. It is applied only on new trials, over the registry values. Equipment search reuses `/me-inspection/api/equipment-search/`.
+- **Dashboard** counts only `done` trials.
 
 ### Tools Module (เครื่องมือ)
 
@@ -587,10 +602,16 @@ Task Manager — ทดสอบเป่าแป๊ป Flushing (/flushing/, �
     └── FlushingRound      (child, แถวเพิ่ม/ลบได้ไม่จำกัด: round_no, has_copper_plate, start_time, end_time,
                              blow_pressure_bar, oversized_spot_count; property `passed` เทียบกับ OVERSIZED_SPOT_LIMIT=3)
 
-ME Inspection (ใบตรวจเช็คซ่อมบำรุงเครื่องจักร — /me-inspection/, ผูก Equipment)
+ME Inspection (ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน — /me-inspection/, ผูก Equipment)
 └── MEInspection           (equipment FK PROTECT; snapshot สเปค; อะไหล่ *_no/*_action/*_reason; ค่าวัด ISO fit / runout /
                              pressure / alignment / vibration + *_result ที่ระบบคำนวณ; ready_* 10 ข้อ; status: repairing → wait_cbm →
                              wait_approval → approved; tech/cbm/head _name + _signature (ImageField); photo_before/after; approved_at)
+
+Gear Trial Run (ใบตรวจสอบ Gear Box — /gear-trial-run/, ผูก Equipment)
+└── GearTrialRun           (equipment FK PROTECT; snapshot เนมเพลท gb_*/motor_*; ก่อนเดิน pre_2_1..8 value/status; ลองเดิน
+                             nl_0m/15m/30m + ld_15m/30m × volt/amp/อุณหภูมิ 6 จุด/status (+ ld_*_pct คำนวณจาก FLA); vibration 5 จุด
+                             × V/H/A + gE; หลังหยุด post_4_1..3; status: testing/done; final_result; tester/inspector/approver_name;
+                             created_by FK User; max_vibration() / max_sump_temp())
 
 Energy Tracking — Electricity (Phase 1) (ระบบติดตามการใช้พลังงาน — /electricity/, plant: ESC-A/ESC-B ผ่าน PLANT_CHOICES)
 └── ElectricityMeter       (meter_code, name, plant, location, equipment: M2M→Equipment, assumed_operating_hours, target_kwh_override)
@@ -600,7 +621,7 @@ Energy Tracking — Electricity (Phase 1) (ระบบติดตามกา�
 
 Google Drive uploads (`RepairDocument` and Lathe job attachments → `LAMY/Lathe/<year>/<job_no>`; Drive files are not deleted when a record is removed/replaced) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
-Database migrations: **112 migration files** in `myapp/migrations/`.
+Database migrations: **114 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -707,9 +728,20 @@ The old `/api/lathe/` JSON endpoint was removed.
 | POST | `/me-inspection/<id>/delete/` | Delete (superuser) |
 | GET | `/me-inspection/<id>/print/` | A4 printable report |
 | GET | `/me-inspection/dashboard/` | KPIs and charts, `?date_from=&date_to=&equipment=` |
-| GET/POST | `/me-inspection/import-equipment/` | Excel PUMP/GEAR → `Equipment`: upload → preview → confirm (`write_equipment`) |
 | GET | `/me-inspection/api/equipment-search/` | JSON `{"data": [...]}` — active equipment search, `?q=&process=` (max 30) |
 | GET | `/me-inspection/api/last/<eq_id>/` | JSON — latest inspection's spare-part/fit specs for smart memory (`?exclude=<id>`) |
+
+### Gear Trial Run
+
+| Method | URL | Description |
+|---|---|---|
+| GET | `/gear-trial-run/` | History list with filters `q`, `department`, `result`, `status`, `date_from`, `date_to` (any logged-in user) |
+| GET/POST | `/gear-trial-run/add/` | New trial (`write_maintenance` or `write_cbm`); `?equipment=<id>` pre-fills the nameplate |
+| GET/POST | `/gear-trial-run/<id>/edit/` | View (anyone) / edit (`write_maintenance` or `write_cbm`) |
+| POST | `/gear-trial-run/<id>/delete/` | Delete (superuser) |
+| GET | `/gear-trial-run/<id>/print/` | A4 printable report with signature lines |
+| GET | `/gear-trial-run/dashboard/` | KPIs and charts for `done` trials, `?department=&date_from=&date_to=` |
+| GET | `/gear-trial-run/api/last/<eq_id>/` | JSON — nameplate fields from the machine's latest trial (`?exclude=<id>`) |
 
 ### Inventory
 

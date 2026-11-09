@@ -419,7 +419,7 @@ class ElectricityReadingAdmin(admin.ModelAdmin):
     ordering = ['-date']
 
 
-# ===== ME Inspection — ใบตรวจเช็คซ่อมบำรุงเครื่องจักร =====
+# ===== ME Inspection — ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน =====
 
 @admin.register(MEInspection)
 class MEInspectionAdmin(admin.ModelAdmin):
@@ -438,3 +438,14 @@ class MaterialMasterAdmin(admin.ModelAdmin):
     list_filter = ['material_type', 'status', 'source']
     search_fields = ['material_id', 'short_desc', 'po_text']
     ordering = ['material_id']
+
+
+# ===== Gear Trial Run — ใบตรวจสอบ Gear Box =====
+
+@admin.register(GearTrialRun)
+class GearTrialRunAdmin(admin.ModelAdmin):
+    list_display = ['id', 'test_date', 'equipment', 'department', 'final_result', 'status']
+    list_filter = ['status', 'final_result', 'purpose', 'test_date']
+    search_fields = ['equipment__equipment_id', 'equipment__name', 'department', 'work_order_no']
+    raw_id_fields = ['equipment']
+    ordering = ['-test_date', '-id']

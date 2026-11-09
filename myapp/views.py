@@ -59,7 +59,7 @@ import calendar
 from .models import Vehicle, VehicleBooking, VEHICLE_TYPE_CHOICES, VEHICLE_DIVISION_CHOICES
 from .forms import VehicleForm, VehicleBookingForm
 from .forms import LatheJobForm
-from .forms import MEInspectionForm, ME_SIGNATURE_ROLES
+from .forms import MEInspectionForm, ME_SIGNATURE_ROLES, GearTrialRunForm
 from .forms import ElectricityMeterForm, ElectricityReadingForm
 from .forms import MaterialMasterForm
 
@@ -6191,6 +6191,18 @@ def task_manager_hub(request):
          'icon': 'wind', 'color': 'cyan', 'url': reverse('flushing_test_list'),
          'total': flushing_total, 'pending': flushing_pending},
     ]
+    if _me_can_write(request.user):
+        me_total = MEInspection.objects.count()
+        me_pending = MEInspection.objects.exclude(status=ME_STATUS_APPROVED).count()
+        gear_total, gear_pending = _counts(GearTrialRun.objects.all())
+        cards += [
+            {'title': 'ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน', 'subtitle': 'บันทึกการซ่อม อะไหล่ ค่าวัด และ Vibration พร้อมขั้นตอนอนุมัติ',
+             'icon': 'clipboard-check', 'color': 'blue', 'url': reverse('me_inspection_list'),
+             'total': me_total, 'pending': me_pending},
+            {'title': 'ใบตรวจสอบ Gear Box', 'subtitle': 'ลองเครื่อง No-Load / Load, Vibration และสรุปผล (FM-MM-GB-2026)',
+             'icon': 'cog', 'color': 'emerald', 'url': reverse('gear_trial_run_list'),
+             'total': gear_total, 'pending': gear_pending},
+        ]
     return render(request, 'myapp/task_manager_hub.html', {'cards': cards})
 
 
@@ -7209,7 +7221,7 @@ def electricity_meter_dashboard(request, meter_id):
 
 
 
-# ===== ME Inspection — ใบตรวจเช็คซ่อมบำรุงเครื่องจักร (ย้ายจากฟอร์ม ME V.2 บน Google Apps Script) =====
+# ===== ME Inspection — ใบตรวจสอบซ่อมบำรุงเครื่องจักรหมุน (ย้ายจากฟอร์ม ME V.2 บน Google Apps Script) =====
 
 ME_WRITE_MODULES = ('maintenance', 'cbm')
 ME_LIST_PAGE_SIZE = 50
@@ -7533,7 +7545,6 @@ def me_inspection_list(request):
         'group_choices': ME_REPAIR_GROUP_CHOICES,
         'status_choices': ME_STATUS_CHOICES,
         'can_write': _me_can_write(request.user),
-        'can_import': _me_has_module_perm(request.user, ('equipment',)),
     })
 
 
@@ -7820,193 +7831,6 @@ def me_inspection_last_api(request, eq_id):
 
 
 
-# ===== นำเข้ารายชื่อเครื่องจักรจาก Excel (ชีต PUMP / GEAR ของฟอร์ม ME เดิม) เข้า Equipment =====
-
-ME_IMPORT_SESSION_KEY = 'me_equipment_import'
-ME_IMPORT_MAX_BYTES = 5 * 1024 * 1024
-ME_IMPORT_MAX_ROWS = 3000
-ME_IMPORT_PREVIEW_LIMIT = 300  # แสดงในตารางตัวอย่างไม่เกินนี้ต่อกลุ่ม (ยืนยันแล้วนำเข้าครบทุกแถว)
-ME_IMPORT_LINES = ('ราง A', 'ราง B')
-# คอลัมน์ในไฟล์ "รายการเครื่องจักรแผนก.xlsx" → field ของ Equipment (ต่อชีต)
-ME_IMPORT_SHEETS = {
-    'PUMP': {'equipment_id': 'รหัสทรัพย์สิน', 'name': 'List', 'location': 'แผนก', 'manufacturer': 'ยี่ห้อ',
-             'model': 'รุ่น', 'capacity': 'Flow [m3/hr.]', 'head_size': 'Head [m.]', 'power_kw': 'Motor [kW]',
-             'rpm': 'รอบมอเตอร์ [RPM]'},
-    'GEAR': {'equipment_id': 'Code.', 'name': 'List', 'location': 'Location', 'manufacturer': 'ยี่ห้อ',
-             'model': 'รุ่น', 'power_kw': 'Motor [kW]'},
-}
-ME_IMPORT_FIELDS = ['name', 'process', 'location', 'manufacturer', 'model', 'capacity', 'head_size', 'power_kw', 'rpm']
-
-
-class _MEImportError(Exception):
-    pass
-
-
-def _me_import_cell(value):
-    """ค่าในเซลล์เป็นข้อความ: '-', 'nan', ว่าง = ''; ตัวเลขจำนวนเต็มไม่มี .0"""
-    if value is None:
-        return ''
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-    text = str(value).strip()
-    return '' if text in ('-', '') or text.lower() == 'nan' else text
-
-
-def _me_import_process(location):
-    """แผนกหลักจากข้อความตำแหน่ง เช่น 'ลูกหีบ ราง A' → 'ลูกหีบ'"""
-    for line in ME_IMPORT_LINES:
-        if line in location:
-            return location.replace(line, '').strip()
-    return location
-
-
-def _me_parse_equipment_workbook(upload):
-    """อ่านไฟล์ .xlsx → (rows, skipped) — rows เป็น dict ที่เก็บใน session ได้ (ค่าเป็นข้อความทั้งหมด)"""
-    from openpyxl import load_workbook
-    try:
-        wb = load_workbook(upload, read_only=True, data_only=True)
-    except Exception as exc:  # ไฟล์เสีย / ไม่ใช่ xlsx: openpyxl โยน exception ได้หลายชนิด
-        raise _MEImportError('อ่านไฟล์ไม่ได้ ต้องเป็นไฟล์ Excel (.xlsx)') from exc
-    sheets = [name for name in ME_IMPORT_SHEETS if name in wb.sheetnames]
-    if not sheets:
-        raise _MEImportError('ไม่พบชีต PUMP หรือ GEAR ในไฟล์')
-    rows, skipped, seen = [], [], set()
-    for sheet in sheets:
-        it = wb[sheet].iter_rows(values_only=True)
-        header = [_me_import_cell(h) for h in next(it, ())]
-        columns = {field: header.index(col) for field, col in ME_IMPORT_SHEETS[sheet].items() if col in header}
-        if 'equipment_id' not in columns or 'name' not in columns:
-            raise _MEImportError(f'ชีต {sheet} ไม่มีคอลัมน์ "{ME_IMPORT_SHEETS[sheet]["equipment_id"]}" หรือ "List"')
-        for line_no, values in enumerate(it, start=2):
-            data = {f: _me_import_cell(values[i]) if i < len(values) else '' for f, i in columns.items()}
-            if not any(data.values()):
-                continue
-            where = f'{sheet} แถว {line_no}'
-            eq_id, name = data.get('equipment_id', ''), data.get('name', '')
-            if not eq_id or not name:
-                skipped.append((where, eq_id or '-', 'ไม่มีรหัสทรัพย์สินหรือชื่อเครื่อง'))
-                continue
-            if len(eq_id) > 50:
-                skipped.append((where, eq_id[:20] + '…', 'รหัสยาวเกิน 50 ตัวอักษร'))
-                continue
-            if eq_id in seen:
-                skipped.append((where, eq_id, 'รหัสซ้ำในไฟล์ (ใช้แถวแรก)'))
-                continue
-            seen.add(eq_id)
-            if data.get('power_kw'):
-                try:
-                    data['power_kw'] = str(Decimal(data['power_kw'].replace(',', '')).quantize(Decimal('0.01')))
-                except InvalidOperation:
-                    data['power_kw'] = ''  # กำลังมอเตอร์ไม่ใช่ตัวเลข ไม่นำเข้าช่องนี้
-            data['process'] = _me_import_process(data.get('location', ''))
-            for f in ME_IMPORT_FIELDS:  # ตัดให้พอดีความยาวช่องใน Equipment
-                max_length = Equipment._meta.get_field(f).max_length
-                if max_length and data.get(f):
-                    data[f] = data[f][:max_length]
-            data['sheet'] = where
-            rows.append(data)
-            if len(rows) > ME_IMPORT_MAX_ROWS:
-                raise _MEImportError(f'จำนวนเครื่องจักรในไฟล์เกิน {ME_IMPORT_MAX_ROWS} รายการ')
-    return rows, skipped
-
-
-def _me_import_value(field, text):
-    return Decimal(text) if field == 'power_kw' else text
-
-
-def _me_classify_import(rows):
-    """เทียบกับ Equipment ปัจจุบัน → (new_rows, update_rows) โดย update_rows มีรายการช่องที่จะเปลี่ยน
-    fill = ช่องเดิมว่าง (เติมเสมอ), overwrite = ช่องเดิมมีค่าต่างจากไฟล์ (เปลี่ยนเฉพาะเมื่อติ๊กเขียนทับ)"""
-    existing = Equipment.objects.in_bulk([r['equipment_id'] for r in rows])
-    new_rows, update_rows = [], []
-    for r in rows:
-        eq = existing.get(r['equipment_id'])
-        if eq is None:
-            new_rows.append(r)
-            continue
-        changes = []
-        for f in ME_IMPORT_FIELDS:
-            text = r.get(f, '')
-            if not text:
-                continue
-            new_value, old_value = _me_import_value(f, text), getattr(eq, f)
-            if old_value in (None, ''):
-                changes.append((f, '', text, 'fill'))
-            elif old_value != new_value:
-                changes.append((f, str(old_value), text, 'overwrite'))
-        if changes:
-            update_rows.append((r, changes))
-    return new_rows, update_rows
-
-
-def _me_apply_import(rows, overwrite, username):
-    new_rows, update_rows = _me_classify_import(rows)
-    with transaction.atomic():
-        Equipment.objects.bulk_create([
-            Equipment(equipment_id=r['equipment_id'], updated_by=username,
-                      **{f: _me_import_value(f, r[f]) for f in ME_IMPORT_FIELDS if r.get(f)})
-            for r in new_rows
-        ])
-        updated = 0
-        for r, changes in update_rows:
-            applied = [(f, new) for f, _, new, kind in changes if kind == 'fill' or overwrite]
-            if not applied:
-                continue
-            eq = Equipment.objects.get(pk=r['equipment_id'])
-            for f, new in applied:
-                setattr(eq, f, _me_import_value(f, new))
-            eq.updated_by = username
-            eq.save(update_fields=[f for f, _ in applied] + ['updated_by', 'updated_at'])
-            updated += 1
-    return len(new_rows), updated
-
-
-@login_required
-@module_required('equipment')
-def me_equipment_import(request):
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        if action == 'upload':
-            upload = request.FILES.get('file')
-            if not upload or not upload.name.lower().endswith('.xlsx'):
-                messages.error(request, 'กรุณาเลือกไฟล์ Excel (.xlsx)')
-            elif upload.size > ME_IMPORT_MAX_BYTES:
-                messages.error(request, 'ไฟล์ใหญ่เกิน 5 MB')
-            else:
-                try:
-                    rows, skipped = _me_parse_equipment_workbook(upload)
-                except _MEImportError as exc:
-                    messages.error(request, str(exc))
-                else:
-                    request.session[ME_IMPORT_SESSION_KEY] = {'file': upload.name, 'rows': rows, 'skipped': skipped}
-        elif action == 'confirm' and ME_IMPORT_SESSION_KEY in request.session:
-            data = request.session.pop(ME_IMPORT_SESSION_KEY)
-            created, updated = _me_apply_import(data['rows'], request.POST.get('overwrite') == '1', request.user.username)
-            messages.success(request, f'นำเข้าเครื่องจักรเรียบร้อย: เพิ่มใหม่ {created} รายการ, อัปเดต {updated} รายการ')
-        elif action == 'cancel':
-            request.session.pop(ME_IMPORT_SESSION_KEY, None)
-        return redirect('me_equipment_import')
-
-    preview = None
-    data = request.session.get(ME_IMPORT_SESSION_KEY)
-    if data:
-        new_rows, update_rows = _me_classify_import(data['rows'])
-        labels = {f: Equipment._meta.get_field(f).verbose_name for f in ME_IMPORT_FIELDS}
-        preview = {
-            'file': data['file'],
-            'new_count': len(new_rows),
-            'update_count': len(update_rows),
-            'overwrite_count': sum(1 for _, changes in update_rows if any(c[3] == 'overwrite' for c in changes)),
-            'unchanged_count': len(data['rows']) - len(new_rows) - len(update_rows),
-            'skipped': data['skipped'],
-            'new_rows': new_rows[:ME_IMPORT_PREVIEW_LIMIT],
-            'update_rows': [(r, [(labels[f], old, new, kind) for f, old, new, kind in changes])
-                            for r, changes in update_rows[:ME_IMPORT_PREVIEW_LIMIT]],
-            'limit': ME_IMPORT_PREVIEW_LIMIT,
-        }
-    return render(request, 'myapp/me_equipment_import.html', {'preview': preview})
-
-
 # ===== Material Master — รหัสวัสดุ SAP =====
 
 def _material_filters(request):
@@ -8163,3 +7987,297 @@ def material_edit(request, pk):
 def training_p101_trainer(request):
     """ต้นแบบบทเรียน P-101 Maintenance Trainer — เนื้อหาสถิตทั้งหมดอยู่ในเทมเพลต ไม่มีการอ่าน/เขียนฐานข้อมูล"""
     return render(request, 'myapp/training/p101_trainer.html')
+
+
+
+# ===== Gear Trial Run — ใบตรวจสอบ Gear Box (ย้ายจากฟอร์ม Google Apps Script FM-MM-GB-2026) =====
+
+GEAR_WRITE_MODULES = ME_WRITE_MODULES
+GEAR_LIST_PAGE_SIZE = 50
+GEAR_TAB_LABELS = ['ข้อมูลทั่วไป & เนมเพลท', 'ตรวจก่อนเดินเครื่อง', 'ลองเดิน No-Load / Load', 'Vibration', 'ตรวจหลังหยุด & สรุปผล']
+GEAR_BASIC_FIELDS = ['department', 'test_date', 'purpose', 'work_order_no', 'status', 'ambient_temp']
+GEAR_NAMEPLATE_FIELDS = ['gb_brand', 'gb_model', 'gb_ratio', 'gb_oil_type', 'gb_oil_volume',
+                         'motor_kw', 'motor_rpm', 'motor_fla', 'motor_voltage']
+GEAR_SUMMARY_FIELDS = ['final_result', 'next_oil_change_date', 'tester_name', 'inspector_name', 'approver_name']
+# ค่าเริ่มต้นตอนสร้างใบใหม่ (ไม่ hardcode ใน model)
+GEAR_FORM_INITIAL = {'motor_voltage': Decimal('380')}
+
+
+def _gear_equipment_snapshot(eq):
+    """ค่าเริ่มต้นของ snapshot เนมเพลทจากทะเบียนเครื่องจักร — คีย์ตรงกับ field ของ GearTrialRunForm"""
+    return {
+        'department': eq.process or eq.location or '',
+        'gb_brand': eq.manufacturer or '',
+        'gb_model': eq.model or '',
+        'motor_kw': eq.power_kw,
+        'motor_rpm': _me_decimal_or_none(eq.rpm) or eq.rpm_input,
+    }
+
+
+def _gear_filtered(request):
+    """ตัวกรองหน้าประวัติ/Dashboard ใบตรวจสอบ Gear Box — คืน (queryset, ค่าตัวกรอง, วันที่ที่อ่านไม่ได้)"""
+    qs = GearTrialRun.objects.select_related('equipment')
+    filters = {key: request.GET.get(key, '').strip()
+               for key in ('q', 'department', 'result', 'status', 'date_from', 'date_to')}
+    if filters['q']:
+        q = filters['q']
+        qs = qs.filter(Q(equipment__equipment_id__icontains=q) | Q(equipment__name__icontains=q) |
+                       Q(work_order_no__icontains=q) | Q(department__icontains=q))
+    if filters['department']:
+        qs = qs.filter(department=filters['department'])
+    if filters['result']:
+        qs = qs.filter(final_result=filters['result'])
+    if filters['status']:
+        qs = qs.filter(status=filters['status'])
+    bad_dates = []
+    for key, lookup in (('date_from', 'test_date__gte'), ('date_to', 'test_date__lte')):
+        if filters[key]:
+            try:
+                parsed = parse_date(filters[key])
+            except ValueError:  # รูปแบบถูกแต่วันไม่มีจริง เช่น 2026-02-30
+                parsed = None
+            if parsed:
+                qs = qs.filter(**{lookup: parsed})
+            else:
+                bad_dates.append(filters[key])
+                filters[key] = ''
+    return qs, filters, bad_dates
+
+
+def _gear_form_context(form, user, trial=None):
+    eq = None
+    if trial is not None:
+        eq = trial.equipment
+    elif form.is_bound:
+        eq = Equipment.objects.filter(pk=form.data.get('equipment')).first()
+    elif form.initial.get('equipment'):
+        eq = form.initial['equipment']
+    run_rows = [
+        (label, [form[f'{prefix}_{key}'] for prefix, _, _ in GEAR_RUN_PHASES])
+        for key, label in (('volt', 'แรงดัน (V)'), ('amp', 'กระแส (A)')) + tuple(
+            (k, f'{lbl} (°C)') for k, lbl in GEAR_RUN_TEMP_KEYS)
+    ]
+    return {
+        'form': form,
+        'trial': trial,
+        'is_edit': trial is not None,
+        'can_edit': _me_can_write(user),
+        'can_delete': trial is not None and user.is_superuser,
+        'selected_equipment': eq,
+        'tab_labels': GEAR_TAB_LABELS,
+        'basic_fields': [form[n] for n in GEAR_BASIC_FIELDS],
+        'nameplate_fields': [form[n] for n in GEAR_NAMEPLATE_FIELDS],
+        'pre_rows': [(i, form[f'pre_2_{i}_value'], form[f'pre_2_{i}_status']) for i in range(1, 9)],
+        'run_phases': [(label, loaded) for _, label, loaded in GEAR_RUN_PHASES],
+        'run_rows': run_rows,
+        'run_status_row': [form[f'{prefix}_status'] for prefix, _, _ in GEAR_RUN_PHASES],
+        'vib_rows': [(label, [form[f'vib_{p}_{ax}'] for ax in 'vha'], form[f'vib_{p}_ge'])
+                     for p, label in GEAR_VIB_POINTS],
+        'post_rows': [(i, form[f'post_4_{i}_value'], form[f'post_4_{i}_status']) for i in range(1, 4)],
+        'summary_fields': [form[n] for n in GEAR_SUMMARY_FIELDS],
+        'process_choices': list(Equipment.objects.filter(is_active=True).exclude(process__isnull=True)
+                                .exclude(process='').order_by('process').values_list('process', flat=True).distinct()),
+        # เกณฑ์ประเมินชุดเดียวกับ helper ฝั่ง server ส่งให้ JS ระบายสีทันที
+        'thresholds': {'temp_warn': GEAR_TEMP_WARN, 'temp_fail': GEAR_TEMP_FAIL,
+                       'amp_warn': GEAR_AMP_WARN_RATIO, 'amp_fail': GEAR_AMP_FAIL_RATIO,
+                       'vib_warn': GEAR_VIB_WARN, 'vib_fail': GEAR_VIB_FAIL},
+    }
+
+
+@login_required
+def gear_trial_run_list(request):
+    qs, filters, bad_dates = _gear_filtered(request)
+    if bad_dates:
+        messages.error(request, 'รูปแบบวันที่ในตัวกรองไม่ถูกต้อง: ' + ', '.join(bad_dates))
+    page_obj = Paginator(qs, GEAR_LIST_PAGE_SIZE).get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    return render(request, 'myapp/gear_trial_run_list.html', {
+        'page_obj': page_obj,
+        'filters': filters,
+        'querystring': params.urlencode(),
+        'department_choices': list(GearTrialRun.objects.exclude(department__isnull=True).exclude(department='')
+                                   .order_by('department').values_list('department', flat=True).distinct()),
+        'result_choices': GEAR_RESULT_CHOICES,
+        'status_choices': GEAR_STATUS_CHOICES,
+        'can_write': _me_can_write(request.user),
+        'can_delete': request.user.is_superuser,
+    })
+
+
+@login_required
+@module_required_any(*GEAR_WRITE_MODULES)
+def gear_trial_run_add(request):
+    if request.method == 'POST':
+        form = GearTrialRunForm(request.POST)
+        if form.is_valid():
+            trial = form.save(commit=False)
+            trial.created_by = request.user
+            trial.save()
+            messages.success(request, f'บันทึกใบตรวจสอบ Gear Box GT-{trial.pk} เรียบร้อย')
+            return redirect('gear_trial_run_edit', trial_id=trial.pk)
+        messages.error(request, 'กรุณาตรวจสอบข้อมูลที่กรอก')
+    else:
+        initial = {'test_date': timezone.localdate(), **GEAR_FORM_INITIAL}
+        eq = Equipment.objects.filter(pk=request.GET.get('equipment')).first() if request.GET.get('equipment') else None
+        if eq:
+            initial.update(_gear_equipment_snapshot(eq), equipment=eq)
+        form = GearTrialRunForm(initial=initial)
+    return render(request, 'myapp/gear_trial_run_form.html', _gear_form_context(form, request.user))
+
+
+@login_required
+def gear_trial_run_edit(request, trial_id):
+    trial = get_object_or_404(GearTrialRun.objects.select_related('equipment'), pk=trial_id)
+    if request.method == 'POST':
+        if not _me_can_write(request.user):
+            raise PermissionDenied
+        form = GearTrialRunForm(request.POST, instance=trial)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'บันทึกใบตรวจสอบ Gear Box GT-{trial.pk} เรียบร้อย')
+            return redirect('gear_trial_run_edit', trial_id=trial.pk)
+        messages.error(request, 'กรุณาตรวจสอบข้อมูลที่กรอก')
+    else:
+        form = GearTrialRunForm(instance=trial)
+    return render(request, 'myapp/gear_trial_run_form.html', _gear_form_context(form, request.user, trial))
+
+
+GEAR_MEMORY_FIELDS = ['gb_brand', 'gb_model', 'gb_ratio', 'gb_oil_type', 'gb_oil_volume',
+                      'motor_kw', 'motor_rpm', 'motor_fla', 'motor_voltage']
+
+
+@login_required
+def gear_trial_run_last_api(request, eq_id):
+    """Smart memory: ค่าเนมเพลทจากใบตรวจสอบ Gear Boxล่าสุดของเครื่องเดียวกัน ({"data": null} ถ้ายังไม่เคยมี)"""
+    qs = GearTrialRun.objects.filter(equipment_id=eq_id)
+    exclude_id = request.GET.get('exclude', '')
+    if exclude_id.isdigit():
+        qs = qs.exclude(pk=int(exclude_id))
+    last = qs.order_by('-test_date', '-id').first()
+    if last is None:
+        return JsonResponse({'data': None})
+    fields = {name: str(getattr(last, name)) for name in GEAR_MEMORY_FIELDS
+              if getattr(last, name) not in (None, '')}
+    return JsonResponse({'data': {
+        'trial_id': last.pk,
+        'test_date': last.test_date.isoformat(),
+        'fields': fields,
+    }})
+
+
+GEAR_DASHBOARD_TABLE_LIMIT = 50
+GEAR_DASHBOARD_MAX_DEPTS = 12  # เกินนี้รวมเป็น "อื่นๆ"
+
+
+@login_required
+def gear_trial_run_dashboard(request):
+    qs, filters, bad_dates = _gear_filtered(request)
+    if bad_dates:
+        messages.error(request, 'รูปแบบวันที่ในตัวกรองไม่ถูกต้อง: ' + ', '.join(bad_dates))
+    qs = qs.filter(status=GEAR_STATUS_DONE)  # นับเฉพาะใบที่ปิดแล้ว
+    result_counts = dict(qs.values_list('final_result').annotate(n=Count('id')))
+    result_rows = [(label, result_counts.get(code, 0)) for code, label in GEAR_RESULT_CHOICES]
+    kpis = {
+        'total': qs.count(),
+        'approved': result_counts.get('approved', 0),
+        'conditional': result_counts.get('conditional', 0),
+        'rejected': result_counts.get('rejected', 0),
+    }
+    dept_rows = [((r['department'] or 'ไม่ระบุ'), r['n'])
+                 for r in qs.values('department').annotate(n=Count('id')).order_by('-n', 'department')]
+    if len(dept_rows) > GEAR_DASHBOARD_MAX_DEPTS:
+        head = dept_rows[:GEAR_DASHBOARD_MAX_DEPTS - 1]
+        dept_rows = head + [('อื่นๆ', sum(n for _, n in dept_rows[GEAR_DASHBOARD_MAX_DEPTS - 1:]))]
+    table_rows = []
+    for trial in qs[:GEAR_DASHBOARD_TABLE_LIMIT]:
+        max_vib, max_sump = trial.max_vibration(), trial.max_sump_temp()
+        table_rows.append({
+            'trial': trial,
+            'max_vib': max_vib,
+            'vib_level': gear_eval_vib(max_vib),
+            'max_sump': max_sump,
+            'sump_level': gear_eval_temp(max_sump),
+        })
+    return render(request, 'myapp/gear_trial_run_dashboard.html', {
+        'filters': filters,
+        'kpis': kpis,
+        'result_rows': result_rows,
+        'dept_rows': dept_rows,
+        'table_rows': table_rows,
+        'table_limit': GEAR_DASHBOARD_TABLE_LIMIT,
+        'vib_warn': GEAR_VIB_WARN, 'vib_fail': GEAR_VIB_FAIL,
+        'temp_warn': GEAR_TEMP_WARN, 'temp_fail': GEAR_TEMP_FAIL,
+        'department_choices': list(GearTrialRun.objects.filter(status=GEAR_STATUS_DONE)
+                                   .exclude(department__isnull=True).exclude(department='')
+                                   .order_by('department').values_list('department', flat=True).distinct()),
+    })
+
+
+def _gear_cell(value, level=None):
+    """ช่องค่าในหน้าพิมพ์: (ข้อความที่แสดง, ระดับผลประเมินสำหรับระบายสี)"""
+    if value is None or value == '':
+        return ('-', None)
+    if isinstance(value, Decimal):
+        value = f'{value.normalize():f}'
+    return (str(value), level)
+
+
+@login_required
+def gear_trial_run_print(request, trial_id):
+    obj = get_object_or_404(GearTrialRun.objects.select_related('equipment', 'created_by'), pk=trial_id)
+
+    def show(name):
+        return _me_display(obj, name)
+
+    def pairs(names):
+        return [[(obj._meta.get_field(n).verbose_name, show(n)) for n in names[i:i + 2]] for i in range(0, len(names), 2)]
+
+    fla = obj.motor_fla
+    run_rows = []
+    for key, label in (('volt', 'แรงดัน (V)'), ('amp', 'กระแส (A)')):
+        cells = []
+        for prefix, _, _ in GEAR_RUN_PHASES:
+            value = getattr(obj, f'{prefix}_{key}')
+            cells.append(_gear_cell(value, gear_eval_amp(value, fla) if key == 'amp' else None))
+        run_rows.append((label, cells))
+    run_rows.append(('โหลด (% ของ FLA)', [
+        _gear_cell(getattr(obj, f'{prefix}_pct'), None) if loaded else ('-', None)
+        for prefix, _, loaded in GEAR_RUN_PHASES]))
+    for key, label in GEAR_RUN_TEMP_KEYS:
+        run_rows.append((f'{label} (°C)', [
+            _gear_cell(getattr(obj, f'{prefix}_{key}'), gear_eval_temp(getattr(obj, f'{prefix}_{key}')))
+            for prefix, _, _ in GEAR_RUN_PHASES]))
+    run_rows.append(('ผลช่วงนี้', [(show(f'{prefix}_status'), None) for prefix, _, _ in GEAR_RUN_PHASES]))
+
+    vib_rows = []
+    for p, label in GEAR_VIB_POINTS:
+        cells = [_gear_cell(getattr(obj, f'vib_{p}_{ax}'), gear_eval_vib(getattr(obj, f'vib_{p}_{ax}'))) for ax in 'vha']
+        vib_rows.append((label, cells, show(f'vib_{p}_ge'),
+                         gear_eval_vib(*[getattr(obj, f'vib_{p}_{ax}') for ax in 'vha'])))
+    return render(request, 'myapp/gear_trial_run_print.html', {
+        'trial': obj,
+        'basic_pairs': pairs(GEAR_BASIC_FIELDS),
+        'nameplate_pairs': pairs(GEAR_NAMEPLATE_FIELDS),
+        'pre_rows': [(i, show(f'pre_2_{i}_value'), show(f'pre_2_{i}_status')) for i in range(1, 9)],
+        'run_phases': [label for _, label, _ in GEAR_RUN_PHASES],
+        'run_rows': run_rows,
+        'vib_rows': vib_rows,
+        'post_rows': [(i, show(f'post_4_{i}_value'), show(f'post_4_{i}_status')) for i in range(1, 4)],
+        'summary_pairs': pairs(['final_result', 'next_oil_change_date']),
+        'signatures': [('ผู้ทดสอบ', show('tester_name')), ('ผู้ตรวจสอบ', show('inspector_name')),
+                       ('ผู้อนุมัติ', show('approver_name'))],
+        'vib_warn': GEAR_VIB_WARN, 'vib_fail': GEAR_VIB_FAIL,
+        'temp_warn': GEAR_TEMP_WARN, 'temp_fail': GEAR_TEMP_FAIL,
+    })
+
+
+@login_required
+@superuser_required
+@require_POST
+def gear_trial_run_delete(request, trial_id):
+    trial = get_object_or_404(GearTrialRun, pk=trial_id)
+    label = f'GT-{trial.pk} ({trial.equipment_id})'
+    trial.delete()
+    messages.success(request, f'ลบใบตรวจสอบ Gear Box {label} เรียบร้อย')
+    return redirect('gear_trial_run_list')

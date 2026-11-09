@@ -1,0 +1,149 @@
+{% extends 'myapp/base.html' %}
+{% block title %}พิมพ์ใบตรวจสอบ Gear Box GT-{{ trial.pk }}{% endblock title %}
+
+{% block content %}
+<style>
+    @page { size: A4; margin: 10mm; }
+    @media print {
+        #sidebar, #sidebar-overlay, .no-print, button[aria-label="เปิดเมนู"] { display: none !important; }
+        main { height: auto !important; overflow: visible !important; }
+        .print-area { border: 0 !important; box-shadow: none !important; padding: 0 !important; max-width: none !important; }
+        body { background: #fff !important; }
+        .print-avoid-break { break-inside: avoid; }
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+    .gt-print th, .gt-print td { border: 1px solid #94a3b8; padding: 4px 6px; vertical-align: top; }
+    .gt-print th { background: #f1f5f9; text-align: left; font-weight: 600; }
+    .gt-print .gt-head th { background: #1e293b; color: #fff; }
+    .gt-print td.lv-pass { background: #dcfce7; }
+    .gt-print td.lv-warn { background: #fef9c3; }
+    .gt-print td.lv-fail { background: #fee2e2; font-weight: 700; }
+</style>
+<main class="flex-1 flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
+
+    <header
+        class="no-print min-h-16 glass-panel border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 px-4 md:px-6 py-3 z-10 bg-white/80 dark:bg-slate-900/80">
+        <div class="flex items-center gap-3">
+            <a href="{% url 'gear_trial_run_edit' trial.pk %}"
+                class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </a>
+            <h1 class="text-lg font-bold text-slate-800 dark:text-slate-100">พิมพ์ใบตรวจสอบ Gear Box GT-{{ trial.pk }}</h1>
+        </div>
+        <button type="button" onclick="window.print()"
+            class="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg shadow-md font-medium text-sm">
+            <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์ / บันทึกเป็น PDF
+        </button>
+    </header>
+
+    <div class="flex-1 overflow-y-auto p-4 md:p-6 print:overflow-visible print:p-0">
+        <div class="print-area max-w-4xl mx-auto bg-white text-slate-900 border border-slate-300 rounded shadow-sm p-4 md:p-8 text-xs space-y-3">
+
+            <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold">ใบตรวจเช็คและบันทึกผลการลองเครื่อง Gearbox &amp; Gearmotor</h2>
+                    <p class="text-slate-600">รหัสฟอร์ม FM-MM-GB-2026 — แผนกซ่อมบำรุง</p>
+                </div>
+                <div class="text-right">
+                    <p class="font-bold text-base">GT-{{ trial.pk }}</p>
+                    <p>สถานะ: {{ trial.get_status_display }}</p>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto print-avoid-break">
+                <table class="gt-print w-full border-collapse">
+                    <tr class="gt-head"><th colspan="4">ส่วนที่ 1 ข้อมูลทั่วไป &amp; เนมเพลท</th></tr>
+                    <tr><th class="w-1/5">เครื่องจักร</th><td colspan="3">{{ trial.equipment.equipment_id }} — {{ trial.equipment.name }}</td></tr>
+                    {% for pair in basic_pairs %}
+                    <tr>
+                        {% for label, value in pair %}<th class="w-1/5">{{ label }}</th><td>{{ value }}</td>{% endfor %}
+                        {% if pair|length == 1 %}<td colspan="2"></td>{% endif %}
+                    </tr>
+                    {% endfor %}
+                    {% for pair in nameplate_pairs %}
+                    <tr>
+                        {% for label, value in pair %}<th class="w-1/5">{{ label }}</th><td>{{ value }}</td>{% endfor %}
+                        {% if pair|length == 1 %}<td colspan="2"></td>{% endif %}
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+
+            <div class="overflow-x-auto print-avoid-break">
+                <table class="gt-print w-full border-collapse">
+                    <tr class="gt-head"><th colspan="3">ส่วนที่ 2 ตรวจก่อนเดินเครื่อง</th></tr>
+                    <tr><th class="w-16">ข้อ</th><th>ค่า / ผลตรวจ</th><th class="w-24">ผล</th></tr>
+                    {% for i, value, status in pre_rows %}
+                    <tr><td>2.{{ i }}</td><td>{{ value }}</td><td>{{ status }}</td></tr>
+                    {% endfor %}
+                </table>
+            </div>
+
+            <div class="overflow-x-auto print-avoid-break">
+                <table class="gt-print w-full border-collapse">
+                    <tr class="gt-head"><th colspan="{{ run_phases|length|add:1 }}">ส่วนที่ 3.1 ค่าระหว่างลองเดิน (สี: เขียว=ผ่าน, เหลือง=เฝ้าระวัง &gt; {{ temp_warn }}°C / FLA 95%, แดง=เกินเกณฑ์ &gt; {{ temp_fail }}°C / FLA 100%)</th></tr>
+                    <tr>
+                        <th>รายการ</th>
+                        {% for label in run_phases %}<th>{{ label }}</th>{% endfor %}
+                    </tr>
+                    {% for label, cells in run_rows %}
+                    <tr>
+                        <th>{{ label }}</th>
+                        {% for text, level in cells %}<td class="{% if level %}lv-{{ level }}{% endif %}">{{ text }}</td>{% endfor %}
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+
+            <div class="overflow-x-auto print-avoid-break">
+                <table class="gt-print w-full border-collapse">
+                    <tr class="gt-head"><th colspan="6">ส่วนที่ 3.2 Vibration (mm/s) — เฝ้าระวัง &gt; {{ vib_warn }}, เกินเกณฑ์ &gt; {{ vib_fail }} (ISO 10816-3)</th></tr>
+                    <tr><th>จุดวัด</th><th>V</th><th>H</th><th>A</th><th>gE</th><th>ผลจุดนี้</th></tr>
+                    {% for label, cells, ge, level in vib_rows %}
+                    <tr>
+                        <th>{{ label }}</th>
+                        {% for text, cell_level in cells %}<td class="{% if cell_level %}lv-{{ cell_level }}{% endif %}">{{ text }}</td>{% endfor %}
+                        <td>{{ ge }}</td>
+                        <td class="{% if level %}lv-{{ level }}{% endif %}">{% if level == 'fail' %}เกินเกณฑ์{% elif level == 'warn' %}เฝ้าระวัง{% elif level == 'pass' %}ผ่าน{% else %}-{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+
+            <div class="overflow-x-auto print-avoid-break">
+                <table class="gt-print w-full border-collapse">
+                    <tr class="gt-head"><th colspan="3">ส่วนที่ 4 ตรวจหลังหยุดเครื่อง</th></tr>
+                    <tr><th class="w-16">ข้อ</th><th>ค่า / ผลตรวจ</th><th class="w-24">ผล</th></tr>
+                    {% for i, value, status in post_rows %}
+                    <tr><td>4.{{ i }}</td><td>{{ value }}</td><td>{{ status }}</td></tr>
+                    {% endfor %}
+                </table>
+            </div>
+
+            <div class="overflow-x-auto print-avoid-break">
+                <table class="gt-print w-full border-collapse">
+                    <tr class="gt-head"><th colspan="4">ส่วนที่ 5 สรุปผล</th></tr>
+                    {% for pair in summary_pairs %}
+                    <tr>
+                        {% for label, value in pair %}<th class="w-1/5">{{ label }}</th><td>{{ value }}</td>{% endfor %}
+                    </tr>
+                    {% endfor %}
+                    <tr><th>หมายเหตุ</th><td colspan="3">{{ trial.remarks|default:"-"|linebreaksbr }}</td></tr>
+                </table>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 print-avoid-break">
+                {% for label, name in signatures %}
+                <div class="text-center">
+                    <div class="border-b border-slate-500 h-12"></div>
+                    <p class="mt-1 font-semibold">{{ label }}</p>
+                    <p>({{ name }})</p>
+                    <p class="text-slate-500">วันที่ ____/____/________</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</main>
+<script>lucide.createIcons();</script>
+{% endblock content %}
