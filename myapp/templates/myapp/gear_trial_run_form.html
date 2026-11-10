@@ -63,7 +63,8 @@
 
         {% if not can_edit %}
         <div class="px-4 py-3 rounded-lg text-sm bg-slate-100 border border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 flex items-center gap-2">
-            <i data-lucide="eye" class="w-4 h-4 flex-shrink-0"></i> คุณดูใบนี้ได้อย่างเดียว (ไม่มีสิทธิ์แก้ไข)
+            <i data-lucide="{% if locked %}lock{% else %}eye{% endif %}" class="w-4 h-4 flex-shrink-0"></i>
+            {% if locked %}ใบนี้ปิดเป็น "เสร็จสิ้น" แล้วและถูกล็อก — แก้ไขได้เฉพาะผู้ดูแลระบบ (superuser){% else %}คุณดูใบนี้ได้อย่างเดียว (ไม่มีสิทธิ์แก้ไข){% endif %}
         </div>
         {% endif %}
 
@@ -163,12 +164,14 @@
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-slate-50 dark:bg-slate-900/50 text-xs text-slate-500 whitespace-nowrap">
-                                <tr><th class="px-4 py-2 text-left">ข้อ</th><th class="px-4 py-2 text-left">ค่า / ผลตรวจ</th><th class="px-4 py-2 text-left">ผล</th></tr>
+                                <tr><th class="px-4 py-2 text-left">ข้อ</th><th class="px-4 py-2 text-left">รายการตรวจเช็ค</th><th class="px-4 py-2 text-left">เกณฑ์มาตรฐาน</th><th class="px-4 py-2 text-left">ค่าที่วัดได้ / ผลการตรวจ</th><th class="px-4 py-2 text-left">สถานะ</th></tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                                {% for i, value, status in pre_rows %}
+                                {% for i, title, standard, value, status in pre_rows %}
                                 <tr>
                                     <td class="px-4 py-2 whitespace-nowrap font-semibold text-slate-600">2.{{ i }}</td>
+                                    <td class="px-4 py-2 min-w-[12rem] text-slate-700">{{ title }}</td>
+                                    <td class="px-4 py-2 min-w-[12rem] text-xs text-slate-500">{{ standard }}</td>
                                     <td class="px-4 py-2 min-w-[14rem]">{{ value }}</td>
                                     <td class="px-4 py-2 min-w-[8rem]"><div class="relative">{{ status }}<i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i></div></td>
                                 </tr>
@@ -195,6 +198,10 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                <tr>
+                                    <td class="px-4 py-2 whitespace-nowrap font-medium text-slate-600">โหลด (%)</td>
+                                    {% for f in load_pct_row %}<td class="px-3 py-2 min-w-[7rem]">{% if f %}{{ f }}{% for e in f.errors %}<p class="text-xs text-red-600">{{ e }}</p>{% endfor %}{% else %}<span class="text-xs text-slate-500">0% (No-Load)</span>{% endif %}</td>{% endfor %}
+                                </tr>
                                 {% for label, fields in run_rows %}
                                 <tr>
                                     <td class="px-4 py-2 whitespace-nowrap font-medium text-slate-600">{{ label }}</td>
@@ -217,18 +224,20 @@
                     <div class="px-5 py-3 bg-slate-50 dark:bg-slate-900/40 border-b border-slate-200 dark:border-slate-700">
                         <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">ส่วนที่ 3.2 Vibration (mm/s)</h4>
                         <p class="text-xs text-slate-500">V = แนวดิ่ง · H = แนวนอน · A = แนวแกน</p>
+                        <p id="gtVibLimitText" class="text-xs text-slate-500"></p>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-slate-50 dark:bg-slate-900/50 text-xs text-slate-500 whitespace-nowrap">
-                                <tr><th class="px-4 py-2 text-left">จุดวัด</th><th class="px-3 py-2 text-left">V</th><th class="px-3 py-2 text-left">H</th><th class="px-3 py-2 text-left">A</th><th class="px-3 py-2 text-left">gE</th></tr>
+                                <tr><th class="px-4 py-2 text-left">จุดวัด</th><th class="px-3 py-2 text-left">V</th><th class="px-3 py-2 text-left">H</th><th class="px-3 py-2 text-left">A</th><th class="px-3 py-2 text-left">gE</th><th class="px-3 py-2 text-left">ผลการประเมิน</th></tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                                {% for label, axes, ge in vib_rows %}
+                                {% for point, label, axes, ge in vib_rows %}
                                 <tr>
                                     <td class="px-4 py-2 whitespace-nowrap font-medium text-slate-600">{{ label }}</td>
                                     {% for f in axes %}<td class="px-3 py-2 min-w-[7rem]">{{ f }}{% for e in f.errors %}<p class="text-xs text-red-600">{{ e }}</p>{% endfor %}</td>{% endfor %}
                                     <td class="px-3 py-2 min-w-[7rem]">{{ ge }}</td>
+                                    <td class="px-3 py-2 min-w-[9rem]"><span class="block rounded-lg border border-slate-300 px-2 py-2 text-center text-xs font-semibold" data-gt-vib-result="{{ point }}">รอค่าตรวจวัด</span></td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -246,12 +255,14 @@
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-slate-50 dark:bg-slate-900/50 text-xs text-slate-500 whitespace-nowrap">
-                                <tr><th class="px-4 py-2 text-left">ข้อ</th><th class="px-4 py-2 text-left">ค่า / ผลตรวจ</th><th class="px-4 py-2 text-left">ผล</th></tr>
+                                <tr><th class="px-4 py-2 text-left">ข้อ</th><th class="px-4 py-2 text-left">รายการตรวจเช็ค</th><th class="px-4 py-2 text-left">เกณฑ์มาตรฐาน</th><th class="px-4 py-2 text-left">ค่าที่วัดได้ / ผลการตรวจ</th><th class="px-4 py-2 text-left">สถานะ</th></tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                                {% for i, value, status in post_rows %}
+                                {% for i, title, standard, value, status in post_rows %}
                                 <tr>
                                     <td class="px-4 py-2 whitespace-nowrap font-semibold text-slate-600">4.{{ i }}</td>
+                                    <td class="px-4 py-2 min-w-[12rem] text-slate-700">{{ title }}</td>
+                                    <td class="px-4 py-2 min-w-[12rem] text-xs text-slate-500">{{ standard }}</td>
                                     <td class="px-4 py-2 min-w-[14rem]">{{ value }}</td>
                                     <td class="px-4 py-2 min-w-[8rem]"><div class="relative">{{ status }}<i data-lucide="chevron-down" class="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i></div></td>
                                 </tr>
@@ -420,7 +431,12 @@
     // ===== ระบายสีผลประเมินทันทีตอนกรอก — เกณฑ์ชุดเดียวกับฝั่ง server (ส่งผ่าน template) =====
     const GT_LIMITS = {
         temp: [{{ thresholds.temp_warn }}, {{ thresholds.temp_fail }}],
-        vib: [{{ thresholds.vib_warn }}, {{ thresholds.vib_fail }}],
+        vibSmall: [{{ thresholds.vib_small.0 }}, {{ thresholds.vib_small.1 }}],
+        vibLarge: [{{ thresholds.vib_large.0 }}, {{ thresholds.vib_large.1 }}],
+        vibXl: [{{ thresholds.vib_xl.0 }}, {{ thresholds.vib_xl.1 }}],
+        vibKwCutoff: {{ thresholds.vib_kw_cutoff }},
+        vibKwCutoffXl: {{ thresholds.vib_kw_cutoff_xl }},
+        vibXlEnabled: {% if thresholds.vib_xl_enabled %}true{% else %}false{% endif %},
         ampWarn: {{ thresholds.amp_warn }}, ampFail: {{ thresholds.amp_fail }},
     };
 
@@ -441,7 +457,6 @@
         const v = gtNum(el);
         let level = null;
         if (kind === 'temp') level = gtLevel(v, GT_LIMITS.temp[0], GT_LIMITS.temp[1]);
-        else if (kind === 'vib') level = gtLevel(v, GT_LIMITS.vib[0], GT_LIMITS.vib[1]);
         else if (kind === 'amp') {
             const fla = gtNum(document.getElementById('id_motor_fla'));
             level = (v === null || fla === null || fla <= 0) ? null : gtLevel(v / fla, GT_LIMITS.ampWarn, GT_LIMITS.ampFail);
@@ -450,12 +465,41 @@
         if (level) el.classList.add('gt-eval-' + level);
     }
 
+    // เกณฑ์ vibration ตามกำลังมอเตอร์ (ตรงกับ gear_vib_limits ฝั่ง server; ชุดที่สามใช้เมื่อ vibXlEnabled); ไม่ทราบขนาดใช้ชุดกลาง
+    function gtVibLimits() {
+        const kw = gtNum(document.getElementById('id_motor_kw'));
+        if (kw === null) return GT_LIMITS.vibLarge;
+        if (kw <= GT_LIMITS.vibKwCutoff) return GT_LIMITS.vibSmall;
+        return (GT_LIMITS.vibXlEnabled && kw > GT_LIMITS.vibKwCutoffXl) ? GT_LIMITS.vibXl : GT_LIMITS.vibLarge;
+    }
+
+    // Vibration ประเมินต่อจุดวัดจากค่าสูงสุดของ V/H/A (ตรงกับ gear_eval_vib ฝั่ง server)
+    function gtEvaluateVib(point) {
+        const vals = Array.from(document.querySelectorAll('[data-gt-vib="' + point + '"]')).map(el => gtNum(el));
+        const nums = vals.filter(v => v !== null);
+        const out = document.querySelector('[data-gt-vib-result="' + point + '"]');
+        out.classList.remove('gt-eval-pass', 'gt-eval-warn', 'gt-eval-fail');
+        if (!nums.length || Math.max(...nums) === 0) { out.textContent = 'รอค่าตรวจวัด'; return; }
+        const top = Math.max(...nums);
+        const lim = gtVibLimits();
+        const level = gtLevel(top, lim[0], lim[1]);
+        const text = { pass: 'ผ่านปกติ', warn: 'เฝ้าระวัง', fail: 'เกินเกณฑ์-แก้ไข' }[level];
+        out.textContent = text + ' (' + top.toFixed(2) + ')';
+        out.classList.add('gt-eval-' + level);
+    }
+
     function gtEvaluateAll() {
         document.querySelectorAll('[data-gt-eval]').forEach(gtEvaluate);
+        document.querySelectorAll('[data-gt-vib-result]').forEach(el => gtEvaluateVib(el.dataset.gtVibResult));
+        const lim = gtVibLimits();
+        document.getElementById('gtVibLimitText').textContent =
+            'เกณฑ์ตามขนาดมอเตอร์: เฝ้าระวังเมื่อเกิน ' + lim[0] + ' mm/s · เกินเกณฑ์เมื่อเกิน ' + lim[1] + ' mm/s';
     }
 
     document.querySelectorAll('[data-gt-eval]').forEach(el => el.addEventListener('input', () => gtEvaluate(el)));
+    document.querySelectorAll('[data-gt-vib]').forEach(el => el.addEventListener('input', () => gtEvaluateVib(el.dataset.gtVib)));
     document.getElementById('id_motor_fla').addEventListener('input', gtEvaluateAll);
+    document.getElementById('id_motor_kw').addEventListener('input', gtEvaluateAll);
     gtEvaluateAll();
 
     lucide.createIcons();

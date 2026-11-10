@@ -85,7 +85,7 @@ React + Babel standalone requires `eval()` in the browser. In production environ
 
 ## Timezone Rules
 
-The mill is in Thailand (UTC+7). `settings.py` sets `TIME_ZONE = 'Asia/Bangkok'` with `USE_TZ = True`, and `requirements.txt` includes `tzdata` (the production image is `python:3.10-slim`, which has no system timezone database — without the `tzdata` PyPI package, `zoneinfo` cannot resolve `'Asia/Bangkok'` at all).
+The mill is in Thailand (UTC+7). `settings.py` sets `TIME_ZONE = 'Asia/Bangkok'` with `USE_TZ = True`, and `requirements.txt` includes `tzdata` (the production image is `python:3.12-slim`, which has no system timezone database — without the `tzdata` PyPI package, `zoneinfo` cannot resolve `'Asia/Bangkok'` at all).
 
 Setting `TIME_ZONE` alone is **not enough** — code that bypasses Django's timezone helpers still gets the wrong time/date. This has already caused a real bug in this codebase (dashboards and PM/CBM due-date logic silently using UTC), so treat these as hard rules, not style preferences:
 
@@ -514,7 +514,7 @@ The project runs via Docker Compose:
 
 ```
 docker-compose.yml
-  web   → Python 3.10-slim, runs Django on :8000
+  web   → Python 3.12-slim, runs Django on :8000
   nginx → Reverse proxy on :80/:443, serves staticfiles/
 ```
 

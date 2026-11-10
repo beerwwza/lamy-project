@@ -8000,7 +8000,15 @@ GEAR_NAMEPLATE_FIELDS = ['gb_brand', 'gb_model', 'gb_ratio', 'gb_oil_type', 'gb_
                          'motor_kw', 'motor_rpm', 'motor_fla', 'motor_voltage']
 GEAR_SUMMARY_FIELDS = ['final_result', 'next_oil_change_date', 'tester_name', 'inspector_name', 'approver_name']
 # ค่าเริ่มต้นตอนสร้างใบใหม่ (ไม่ hardcode ใน model)
-GEAR_FORM_INITIAL = {'motor_voltage': Decimal('380')}
+GEAR_FORM_INITIAL = {
+    'motor_voltage': Decimal('380'),
+    'approver_name': 'จักรกฤษณ์ ตันเจริญ',
+    **{f'pre_2_{i}_value': default for i, (_, _, default) in enumerate(GEAR_PRE_ITEMS, start=1) if default},
+    **{f'pre_2_{i}_status': 'pass' for i in range(1, len(GEAR_PRE_ITEMS) + 1)},
+    **{f'post_4_{i}_value': default for i, (_, _, default) in enumerate(GEAR_POST_ITEMS, start=1) if default},
+    **{f'post_4_{i}_status': 'pass' for i in range(1, len(GEAR_POST_ITEMS) + 1)},
+    **{f'{prefix}_status': 'normal' for prefix, _, _ in GEAR_RUN_PHASES},
+}
 
 
 def _gear_equipment_snapshot(eq):
@@ -8044,6 +8052,17 @@ def _gear_filtered(request):
     return qs, filters, bad_dates
 
 
+def _gear_is_locked(trial):
+    """ใบที่ปิดเป็น "เสร็จสิ้น" แล้วถูกล็อก — ให้เปิดแก้ได้เฉพาะ superuser (เปลี่ยนสถานะกลับเพื่อแก้ต่อได้)"""
+    return trial is not None and trial.status == GEAR_STATUS_DONE
+
+
+def _gear_can_edit(user, trial=None):
+    if not _me_can_write(user):
+        return False
+    return user.is_superuser or not _gear_is_locked(trial)
+
+
 def _gear_form_context(form, user, trial=None):
     eq = None
     if trial is not None:
@@ -8061,26 +8080,34 @@ def _gear_form_context(form, user, trial=None):
         'form': form,
         'trial': trial,
         'is_edit': trial is not None,
-        'can_edit': _me_can_write(user),
+        'can_edit': _gear_can_edit(user, trial),
+        'locked': _me_can_write(user) and not _gear_can_edit(user, trial),
         'can_delete': trial is not None and user.is_superuser,
         'selected_equipment': eq,
         'tab_labels': GEAR_TAB_LABELS,
         'basic_fields': [form[n] for n in GEAR_BASIC_FIELDS],
         'nameplate_fields': [form[n] for n in GEAR_NAMEPLATE_FIELDS],
-        'pre_rows': [(i, form[f'pre_2_{i}_value'], form[f'pre_2_{i}_status']) for i in range(1, 9)],
+        'pre_rows': [(i, title, standard, form[f'pre_2_{i}_value'], form[f'pre_2_{i}_status'])
+                     for i, (title, standard, _) in enumerate(GEAR_PRE_ITEMS, start=1)],
         'run_phases': [(label, loaded) for _, label, loaded in GEAR_RUN_PHASES],
         'run_rows': run_rows,
         'run_status_row': [form[f'{prefix}_status'] for prefix, _, _ in GEAR_RUN_PHASES],
-        'vib_rows': [(label, [form[f'vib_{p}_{ax}'] for ax in 'vha'], form[f'vib_{p}_ge'])
+        'vib_rows': [(p, label, [form[f'vib_{p}_{ax}'] for ax in 'vha'], form[f'vib_{p}_ge'])
                      for p, label in GEAR_VIB_POINTS],
-        'post_rows': [(i, form[f'post_4_{i}_value'], form[f'post_4_{i}_status']) for i in range(1, 4)],
+        # แถว "โหลด (%)" ช่างกรอกเอง มีเฉพาะช่วง Load (ช่วง No-Load เป็น 0% เสมอ → None)
+        'load_pct_row': [form[f'{prefix}_pct'] if loaded else None for prefix, _, loaded in GEAR_RUN_PHASES],
+        'post_rows': [(i, title, standard, form[f'post_4_{i}_value'], form[f'post_4_{i}_status'])
+                      for i, (title, standard, _) in enumerate(GEAR_POST_ITEMS, start=1)],
         'summary_fields': [form[n] for n in GEAR_SUMMARY_FIELDS],
         'process_choices': list(Equipment.objects.filter(is_active=True).exclude(process__isnull=True)
                                 .exclude(process='').order_by('process').values_list('process', flat=True).distinct()),
         # เกณฑ์ประเมินชุดเดียวกับ helper ฝั่ง server ส่งให้ JS ระบายสีทันที
         'thresholds': {'temp_warn': GEAR_TEMP_WARN, 'temp_fail': GEAR_TEMP_FAIL,
                        'amp_warn': GEAR_AMP_WARN_RATIO, 'amp_fail': GEAR_AMP_FAIL_RATIO,
-                       'vib_warn': GEAR_VIB_WARN, 'vib_fail': GEAR_VIB_FAIL},
+                       'vib_small': GEAR_VIB_LIMITS_SMALL, 'vib_large': GEAR_VIB_LIMITS_LARGE,
+                       'vib_xl': GEAR_VIB_LIMITS_XL, 'vib_kw_cutoff': GEAR_VIB_KW_CUTOFF,
+                       'vib_kw_cutoff_xl': GEAR_VIB_KW_CUTOFF_XL,
+                       'vib_xl_enabled': GEAR_VIB_XL_ENABLED},
     }
 
 
@@ -8130,7 +8157,8 @@ def gear_trial_run_add(request):
 def gear_trial_run_edit(request, trial_id):
     trial = get_object_or_404(GearTrialRun.objects.select_related('equipment'), pk=trial_id)
     if request.method == 'POST':
-        if not _me_can_write(request.user):
+        # ตรวจก่อนสร้างฟอร์ม (ModelForm แก้ค่าใน instance ตั้งแต่ is_valid) — ใบที่ปิดแล้วแก้ได้เฉพาะ superuser
+        if not _gear_can_edit(request.user, trial):
             raise PermissionDenied
         form = GearTrialRunForm(request.POST, instance=trial)
         if form.is_valid():
@@ -8194,8 +8222,10 @@ def gear_trial_run_dashboard(request):
         max_vib, max_sump = trial.max_vibration(), trial.max_sump_temp()
         table_rows.append({
             'trial': trial,
+            'load_amp': _gear_cell(trial.ld_30m_amp)[0],
+            'fla': _gear_cell(trial.motor_fla)[0],
             'max_vib': max_vib,
-            'vib_level': gear_eval_vib(max_vib),
+            'vib_level': gear_eval_vib(max_vib, motor_kw=trial.motor_kw),
             'max_sump': max_sump,
             'sump_level': gear_eval_temp(max_sump),
         })
@@ -8206,7 +8236,9 @@ def gear_trial_run_dashboard(request):
         'dept_rows': dept_rows,
         'table_rows': table_rows,
         'table_limit': GEAR_DASHBOARD_TABLE_LIMIT,
-        'vib_warn': GEAR_VIB_WARN, 'vib_fail': GEAR_VIB_FAIL,
+        'vib_small': GEAR_VIB_LIMITS_SMALL, 'vib_large': GEAR_VIB_LIMITS_LARGE, 'vib_xl': GEAR_VIB_LIMITS_XL,
+        'vib_kw_cutoff': GEAR_VIB_KW_CUTOFF, 'vib_kw_cutoff_xl': GEAR_VIB_KW_CUTOFF_XL,
+        'vib_xl_enabled': GEAR_VIB_XL_ENABLED,
         'temp_warn': GEAR_TEMP_WARN, 'temp_fail': GEAR_TEMP_FAIL,
         'department_choices': list(GearTrialRun.objects.filter(status=GEAR_STATUS_DONE)
                                    .exclude(department__isnull=True).exclude(department='')
@@ -8234,6 +8266,7 @@ def gear_trial_run_print(request, trial_id):
         return [[(obj._meta.get_field(n).verbose_name, show(n)) for n in names[i:i + 2]] for i in range(0, len(names), 2)]
 
     fla = obj.motor_fla
+    vib_warn, vib_fail = gear_vib_limits(obj.motor_kw)
     run_rows = []
     for key, label in (('volt', 'แรงดัน (V)'), ('amp', 'กระแส (A)')):
         cells = []
@@ -8241,7 +8274,7 @@ def gear_trial_run_print(request, trial_id):
             value = getattr(obj, f'{prefix}_{key}')
             cells.append(_gear_cell(value, gear_eval_amp(value, fla) if key == 'amp' else None))
         run_rows.append((label, cells))
-    run_rows.append(('โหลด (% ของ FLA)', [
+    run_rows.append(('โหลด (%)', [
         _gear_cell(getattr(obj, f'{prefix}_pct'), None) if loaded else ('-', None)
         for prefix, _, loaded in GEAR_RUN_PHASES]))
     for key, label in GEAR_RUN_TEMP_KEYS:
@@ -8252,22 +8285,25 @@ def gear_trial_run_print(request, trial_id):
 
     vib_rows = []
     for p, label in GEAR_VIB_POINTS:
-        cells = [_gear_cell(getattr(obj, f'vib_{p}_{ax}'), gear_eval_vib(getattr(obj, f'vib_{p}_{ax}'))) for ax in 'vha']
+        cells = [_gear_cell(getattr(obj, f'vib_{p}_{ax}'),
+                            gear_eval_vib(getattr(obj, f'vib_{p}_{ax}'), motor_kw=obj.motor_kw)) for ax in 'vha']
         vib_rows.append((label, cells, show(f'vib_{p}_ge'),
-                         gear_eval_vib(*[getattr(obj, f'vib_{p}_{ax}') for ax in 'vha'])))
+                         gear_eval_vib(*[getattr(obj, f'vib_{p}_{ax}') for ax in 'vha'], motor_kw=obj.motor_kw)))
     return render(request, 'myapp/gear_trial_run_print.html', {
         'trial': obj,
         'basic_pairs': pairs(GEAR_BASIC_FIELDS),
         'nameplate_pairs': pairs(GEAR_NAMEPLATE_FIELDS),
-        'pre_rows': [(i, show(f'pre_2_{i}_value'), show(f'pre_2_{i}_status')) for i in range(1, 9)],
+        'pre_rows': [(i, title, standard, show(f'pre_2_{i}_value'), show(f'pre_2_{i}_status'))
+                     for i, (title, standard, _) in enumerate(GEAR_PRE_ITEMS, start=1)],
         'run_phases': [label for _, label, _ in GEAR_RUN_PHASES],
         'run_rows': run_rows,
         'vib_rows': vib_rows,
-        'post_rows': [(i, show(f'post_4_{i}_value'), show(f'post_4_{i}_status')) for i in range(1, 4)],
+        'post_rows': [(i, title, standard, show(f'post_4_{i}_value'), show(f'post_4_{i}_status'))
+                      for i, (title, standard, _) in enumerate(GEAR_POST_ITEMS, start=1)],
         'summary_pairs': pairs(['final_result', 'next_oil_change_date']),
         'signatures': [('ผู้ทดสอบ', show('tester_name')), ('ผู้ตรวจสอบ', show('inspector_name')),
                        ('ผู้อนุมัติ', show('approver_name'))],
-        'vib_warn': GEAR_VIB_WARN, 'vib_fail': GEAR_VIB_FAIL,
+        'vib_warn': vib_warn, 'vib_fail': vib_fail,
         'temp_warn': GEAR_TEMP_WARN, 'temp_fail': GEAR_TEMP_FAIL,
     })
 

@@ -121,7 +121,7 @@
         <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
             <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                 <h2 class="text-sm font-bold text-slate-800 dark:text-slate-100">ค่าสูงสุดต่อใบ (Vibration / Oil Sump)</h2>
-                <p class="text-xs text-slate-500 dark:text-slate-400">เฝ้าระวังเมื่อเกิน {{ vib_warn }} mm/s และ {{ temp_warn }}°C · เกินเกณฑ์เมื่อเกิน {{ vib_fail }} mm/s และ {{ temp_fail }}°C{% if kpis.total > table_limit %} · แสดง {{ table_limit }} ใบล่าสุด{% endif %}</p>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Oil Sump: เฝ้าระวังเมื่อเกิน {{ temp_warn }}°C · เกินเกณฑ์เมื่อเกิน {{ temp_fail }}°C · Vibration ตามขนาดมอเตอร์: ≤ {{ vib_kw_cutoff }} kW เฝ้าระวัง &gt; {{ vib_small.0 }} / เกิน &gt; {{ vib_small.1 }} mm/s, {% if vib_xl_enabled %}{{ vib_kw_cutoff }}–{{ vib_kw_cutoff_xl }} kW{% else %}&gt; {{ vib_kw_cutoff }} kW หรือไม่ระบุ{% endif %} เฝ้าระวัง &gt; {{ vib_large.0 }} / เกิน &gt; {{ vib_large.1 }} mm/s{% if vib_xl_enabled %}, &gt; {{ vib_kw_cutoff_xl }} kW เฝ้าระวัง &gt; {{ vib_xl.0 }} / เกิน &gt; {{ vib_xl.1 }} mm/s{% endif %}{% if kpis.total > table_limit %} · แสดง {{ table_limit }} ใบล่าสุด{% endif %}</p>
             </div>
             <div class="relative overflow-x-auto">
                 <table class="w-full text-sm">
@@ -130,6 +130,8 @@
                             <th class="px-4 py-3 text-left font-semibold">เลขที่</th>
                             <th class="px-4 py-3 text-left font-semibold">วันที่</th>
                             <th class="px-4 py-3 text-left font-semibold">เครื่องจักร</th>
+                            <th class="px-4 py-3 text-left font-semibold">วัตถุประสงค์</th>
+                            <th class="px-4 py-3 text-right font-semibold">กระแสโหลด 30 นาที (A / FLA)</th>
                             <th class="px-4 py-3 text-right font-semibold">Vibration สูงสุด (mm/s)</th>
                             <th class="px-4 py-3 text-right font-semibold">Oil Sump สูงสุด (°C)</th>
                             <th class="px-4 py-3 text-left font-semibold">ผลสรุป</th>
@@ -144,6 +146,8 @@
                                 <div class="font-medium">{{ row.trial.equipment.name }}</div>
                                 <div class="text-xs text-slate-500">{{ row.trial.equipment.equipment_id }}</div>
                             </td>
+                            <td class="px-4 py-3 whitespace-nowrap text-slate-600 dark:text-slate-300">{{ row.trial.get_purpose_display|default:"-" }}</td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap text-slate-600 dark:text-slate-300">{{ row.load_amp }} / {{ row.fla }}</td>
                             <td class="px-4 py-3 text-right whitespace-nowrap font-semibold {% if row.vib_level == 'fail' %}text-red-700 dark:text-red-400{% elif row.vib_level == 'warn' %}text-amber-700 dark:text-amber-400{% else %}text-slate-700 dark:text-slate-200{% endif %}">
                                 {% if row.max_vib is None %}-{% else %}{{ row.max_vib|floatformat:"-2" }}{% endif %}
                                 {% if row.vib_level == 'fail' %}<span class="text-xs font-normal">(เกินเกณฑ์)</span>{% elif row.vib_level == 'warn' %}<span class="text-xs font-normal">(เฝ้าระวัง)</span>{% endif %}

@@ -27,7 +27,9 @@ from .models import Vehicle, VehicleBooking
 from .models import ElectricityMeter, ElectricityReading
 from .models import ProcessCategory
 from .models import LatheJob, LATHE_JOB_TYPE_CHOICES
-from .models import GearTrialRun, GEAR_STATUS_DONE, GEAR_RUN_PHASES, GEAR_VIB_FIELDS, GEAR_RUN_TEMP_KEYS, gear_amp_pct
+from .models import (GearTrialRun, GEAR_STATUS_DONE, GEAR_RUN_PHASES, GEAR_RUN_TEMP_KEYS, GEAR_VIB_POINTS, GEAR_VIB_FIELDS, GEAR_PRE_ITEMS, GEAR_POST_ITEMS,
+                     GEAR_ROTATION_CHOICES, GEAR_ROTATION_ITEM_NO, GEAR_RANGE_TEMP_C, GEAR_RANGE_VOLT, GEAR_RANGE_VIB,
+                     GEAR_RANGE_LOAD_PCT, GEAR_AMP_MAX_FLA_MULTIPLE)
 from .models import MEInspection, ME_ISO_FIT_POINTS, ME_RUNOUT_FIELDS, ME_ALIGN_FIELDS, ME_VIB_FIELDS, ME_TEMP_FIELDS
 
 class EmployeeForm(forms.ModelForm):
@@ -1606,7 +1608,17 @@ class MaterialMasterForm(forms.ModelForm):
 
 # ฟิลด์ที่ต้องกรอกเมื่อปิดใบเป็น "เสร็จสิ้น" (ขณะ "กำลังทดสอบ" บังคับแค่เครื่องกับวันที่)
 GEAR_REQUIRED_WHEN_DONE = ['purpose', 'motor_fla', 'final_result']
-GEAR_FORM_EXCLUDE = ['created_by', 'created_at', 'updated_at'] + [f'{p}_pct' for p, _, loaded in GEAR_RUN_PHASES if loaded]
+GEAR_FORM_EXCLUDE = ['created_by', 'created_at', 'updated_at']
+
+
+# ช่วงค่าที่เป็นไปได้ของแต่ละกลุ่มช่อง: (รายชื่อ field, (ต่ำสุด, สูงสุด), หน่วย) — กันพิมพ์ผิด เช่น 9999 หรือติดลบ
+GEAR_RANGE_RULES = [
+    ([f'{p}_{k}' for p, _, _ in GEAR_RUN_PHASES for k, _ in GEAR_RUN_TEMP_KEYS] + ['ambient_temp'],
+     GEAR_RANGE_TEMP_C, '°C'),
+    ([f'{p}_volt' for p, _, _ in GEAR_RUN_PHASES] + ['motor_voltage'], GEAR_RANGE_VOLT, 'V'),
+    ([f'vib_{p}_{ax}' for p, _ in GEAR_VIB_POINTS for ax in 'vha'], GEAR_RANGE_VIB, 'mm/s'),
+    ([f'{p}_pct' for p, _, loaded in GEAR_RUN_PHASES if loaded], GEAR_RANGE_LOAD_PCT, '%'),
+]
 
 
 class GearTrialRunForm(forms.ModelForm):
@@ -1641,31 +1653,63 @@ class GearTrialRunForm(forms.ModelForm):
             self.fields[f'{prefix}_amp'].widget.attrs['data-gt-eval'] = 'amp'
             for key, _ in GEAR_RUN_TEMP_KEYS:
                 self.fields[f'{prefix}_{key}'].widget.attrs['data-gt-eval'] = 'temp'
-        for name in GEAR_VIB_FIELDS:
-            self.fields[name].widget.attrs['data-gt-eval'] = 'vib'
+        # vibration ประเมินต่อจุดวัด (ค่าสูงสุดของ V/H/A) ไม่ใช่ต่อช่อง — data-gt-vib บอก JS ว่าจุดไหน
+        for point, _ in GEAR_VIB_POINTS:
+            for ax in 'vha':
+                self.fields[f'vib_{point}_{ax}'].widget.attrs['data-gt-vib'] = point
+        # ข้อ 2.7 เลือกทิศทางหมุนจากรายการ ไม่ให้พิมพ์เอง
+        self.fields[f'pre_2_{GEAR_ROTATION_ITEM_NO}_value'].widget = forms.Select(
+            choices=[('', '--')] + GEAR_ROTATION_CHOICES, attrs={'class': _TW_TASK_SELECT})
+        # ช่วงที่ยอมรับ → min/max ให้เบราว์เซอร์เตือนทันที (server ตรวจซ้ำใน _check_ranges)
+        for names, (low, high), _ in GEAR_RANGE_RULES:
+            for name in names:
+                self.fields[name].widget.attrs.update({'min': low, 'max': high})
+        for prefix, _, _ in GEAR_RUN_PHASES:
+            self.fields[f'{prefix}_amp'].widget.attrs['min'] = 0
         # ช่องในตารางไม่มี <label> ต่อช่อง — ใช้ป้ายเต็มของ field เป็นชื่อสำหรับ screen reader
         table_fields = ([f'pre_2_{i}_{k}' for i in range(1, 9) for k in ('value', 'status')]
                         + [f'post_4_{i}_{k}' for i in range(1, 4) for k in ('value', 'status')]
                         + [f'{prefix}_{key}' for prefix, _, _ in GEAR_RUN_PHASES
                            for key in ('volt', 'amp', 'status', *(k for k, _ in GEAR_RUN_TEMP_KEYS))]
-                        + GEAR_VIB_FIELDS + [f'vib_{p}_ge' for p in ('m_nde', 'm_de', 'gb_in', 'gb_int', 'gb_out')])
+                        + GEAR_VIB_FIELDS + [f'vib_{p}_ge' for p, _ in GEAR_VIB_POINTS]
+                        + [f'{prefix}_pct' for prefix, _, loaded in GEAR_RUN_PHASES if loaded])
         for name in table_fields:
             self.fields[name].widget.attrs['aria-label'] = self.fields[name].label
+        # ข้อก่อนเดิน/หลังหยุดใช้ชื่อรายการจริงเป็นชื่อช่อง (ละเอียดกว่า "ก่อนเดิน ข้อ 2.1")
+        for prefix, items in (('pre_2', GEAR_PRE_ITEMS), ('post_4', GEAR_POST_ITEMS)):
+            for i, (title, _, _) in enumerate(items, start=1):
+                self.fields[f'{prefix}_{i}_value'].widget.attrs['aria-label'] = f'{title} ค่า/ผลตรวจ'
+                self.fields[f'{prefix}_{i}_status'].widget.attrs['aria-label'] = f'{title} สถานะ'
+        for prefix, _, loaded in GEAR_RUN_PHASES:
+            if loaded:  # % โหลดของเครื่องที่ขับ — ช่างกรอกเอง ไม่ใช่สัดส่วนกระแสต่อ FLA
+                self.fields[f'{prefix}_pct'].widget.attrs.update({'placeholder': '% โหลด', 'step': '1'})
+
+    def _check_ranges(self, cleaned):
+        for names, (low, high), unit in GEAR_RANGE_RULES:
+            for name in names:
+                value = cleaned.get(name)
+                if value is not None and not low <= value <= high:
+                    self.add_error(name, f'ค่า {value:f} {unit} ผิดปกติเกินจริง (ช่วงที่ยอมรับ {low} ถึง {high} {unit}) '
+                                         'กรุณาตรวจสอบว่าพิมพ์ถูกต้อง')
+        # กระแสต้องไม่ติดลบ และไม่เกิน 10 เท่าของ FLA (ถ้ากรอก FLA แล้ว)
+        fla = cleaned.get('motor_fla')
+        for prefix, _, _ in GEAR_RUN_PHASES:
+            name = f'{prefix}_amp'
+            value = cleaned.get(name)
+            if value is None:
+                continue
+            if value < 0:
+                self.add_error(name, f'กระแส {value:f} A ติดลบไม่ได้ กรุณาตรวจสอบว่าพิมพ์ถูกต้อง')
+            elif fla and fla > 0 and value > fla * GEAR_AMP_MAX_FLA_MULTIPLE:
+                self.add_error(name, f'กระแส {value:f} A เกิน {GEAR_AMP_MAX_FLA_MULTIPLE} เท่าของ FLA ({fla:f} A) '
+                                     'กรุณาตรวจสอบว่าพิมพ์ถูกต้อง')
 
     def clean(self):
         cleaned = super().clean()
+        self._check_ranges(cleaned)
         if cleaned.get('status') == GEAR_STATUS_DONE:
             for name in GEAR_REQUIRED_WHEN_DONE:
                 if cleaned.get(name) in (None, ''):
                     self.add_error(name, 'จำเป็นต้องกรอกก่อนปิดใบเป็น "เสร็จสิ้น"')
         return cleaned
 
-    def save(self, commit=True):
-        obj = super().save(commit=False)
-        # % ของ FLA ของช่วง Load คำนวณจากกระแสที่กรอก ไม่ให้ผู้ใช้กรอกเอง
-        for prefix, _, loaded in GEAR_RUN_PHASES:
-            if loaded:
-                setattr(obj, f'{prefix}_pct', gear_amp_pct(getattr(obj, f'{prefix}_amp'), obj.motor_fla))
-        if commit:
-            obj.save()
-        return obj

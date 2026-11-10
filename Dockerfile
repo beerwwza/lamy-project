@@ -1,5 +1,5 @@
-# ใช้ Python 3.10 (หรือเปลี่ยนตามเวอร์ชันที่คุณใช้อยู่)
-FROM python:3.10-slim
+# ใช้ Python 3.12 ให้ตรงกับเครื่องพัฒนา (pandas 3.x / numpy 2.5 ต้องใช้ Python 3.11 ขึ้นไป)
+FROM python:3.12-slim
 
 # ตั้งค่าพื้นฐาน
 ENV PYTHONDONTWRITEBYTECODE=1

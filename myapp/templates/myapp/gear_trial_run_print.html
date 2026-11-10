@@ -71,10 +71,10 @@
 
             <div class="overflow-x-auto print-avoid-break">
                 <table class="gt-print w-full border-collapse">
-                    <tr class="gt-head"><th colspan="3">ส่วนที่ 2 ตรวจก่อนเดินเครื่อง</th></tr>
-                    <tr><th class="w-16">ข้อ</th><th>ค่า / ผลตรวจ</th><th class="w-24">ผล</th></tr>
-                    {% for i, value, status in pre_rows %}
-                    <tr><td>2.{{ i }}</td><td>{{ value }}</td><td>{{ status }}</td></tr>
+                    <tr class="gt-head"><th colspan="5">ส่วนที่ 2 ตรวจก่อนเดินเครื่อง</th></tr>
+                    <tr><th class="w-12">ข้อ</th><th>รายการตรวจเช็ค</th><th>เกณฑ์มาตรฐาน</th><th>ผลการตรวจ</th><th class="w-20">สถานะ</th></tr>
+                    {% for i, title, standard, value, status in pre_rows %}
+                    <tr><td>2.{{ i }}</td><td>{{ title }}</td><td>{{ standard }}</td><td>{{ value }}</td><td>{{ status }}</td></tr>
                     {% endfor %}
                 </table>
             </div>
@@ -97,7 +97,7 @@
 
             <div class="overflow-x-auto print-avoid-break">
                 <table class="gt-print w-full border-collapse">
-                    <tr class="gt-head"><th colspan="6">ส่วนที่ 3.2 Vibration (mm/s) — เฝ้าระวัง &gt; {{ vib_warn }}, เกินเกณฑ์ &gt; {{ vib_fail }} (ISO 10816-3)</th></tr>
+                    <tr class="gt-head"><th colspan="6">ส่วนที่ 3.2 Vibration (mm/s) — เฝ้าระวัง &gt; {{ vib_warn }}, เกินเกณฑ์ &gt; {{ vib_fail }} (ตามขนาดมอเตอร์ {% if trial.motor_kw %}{{ trial.motor_kw|floatformat:"-2" }} kW{% else %}ไม่ระบุ{% endif %})</th></tr>
                     <tr><th>จุดวัด</th><th>V</th><th>H</th><th>A</th><th>gE</th><th>ผลจุดนี้</th></tr>
                     {% for label, cells, ge, level in vib_rows %}
                     <tr>
@@ -112,10 +112,10 @@
 
             <div class="overflow-x-auto print-avoid-break">
                 <table class="gt-print w-full border-collapse">
-                    <tr class="gt-head"><th colspan="3">ส่วนที่ 4 ตรวจหลังหยุดเครื่อง</th></tr>
-                    <tr><th class="w-16">ข้อ</th><th>ค่า / ผลตรวจ</th><th class="w-24">ผล</th></tr>
-                    {% for i, value, status in post_rows %}
-                    <tr><td>4.{{ i }}</td><td>{{ value }}</td><td>{{ status }}</td></tr>
+                    <tr class="gt-head"><th colspan="5">ส่วนที่ 4 ตรวจหลังหยุดเครื่อง</th></tr>
+                    <tr><th class="w-12">ข้อ</th><th>รายการตรวจเช็ค</th><th>เกณฑ์มาตรฐาน</th><th>ผลการตรวจ</th><th class="w-20">สถานะ</th></tr>
+                    {% for i, title, standard, value, status in post_rows %}
+                    <tr><td>4.{{ i }}</td><td>{{ title }}</td><td>{{ standard }}</td><td>{{ value }}</td><td>{{ status }}</td></tr>
                     {% endfor %}
                 </table>
             </div>

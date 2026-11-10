@@ -2823,20 +2823,69 @@ GEAR_TEMP_WARN = 75        # °C: เกินค่านี้ = เฝ้า�
 GEAR_TEMP_FAIL = 85        # °C: เกินค่านี้ = เกินเกณฑ์
 GEAR_AMP_WARN_RATIO = 0.95  # สัดส่วนของ FLA: เกินค่านี้ = เฝ้าระวัง
 GEAR_AMP_FAIL_RATIO = 1.0   # สัดส่วนของ FLA: เกินค่านี้ = เกินเกณฑ์
-GEAR_VIB_WARN = 2.8        # mm/s (ISO 10816-3): เกินค่านี้ = เฝ้าระวัง
-GEAR_VIB_FAIL = 4.5        # mm/s: เกินค่านี้ = เกินเกณฑ์
+# Vibration (mm/s) แยกตามขนาดมอเตอร์ — ใช้กฎเดียวกับใบตรวจ ME (มอเตอร์ > 15 kW ใช้เกณฑ์ชุดใหญ่)
+# เกินค่าแรก = เฝ้าระวัง, เกินค่าหลัง = เกินเกณฑ์; ไม่ทราบขนาดมอเตอร์ใช้เกณฑ์ตามใบต้นฉบับ (2.8 / 4.5)
+GEAR_VIB_KW_CUTOFF = ME_VIB_LARGE_MOTOR_KW
+GEAR_VIB_LIMITS_SMALL = ME_VIB_LIMITS_SMALL   # มอเตอร์ <= 15 kW: (1.8, 2.8)
+GEAR_VIB_WARN = 2.8        # เกณฑ์ชุดใหญ่ (มอเตอร์ > 15 kW หรือไม่ทราบขนาด): เกินค่านี้ = เฝ้าระวัง
+GEAR_VIB_FAIL = 4.5        # เกินค่านี้ = เกินเกณฑ์
+GEAR_VIB_LIMITS_LARGE = (GEAR_VIB_WARN, GEAR_VIB_FAIL)
+# มอเตอร์ > 300 kW: ISO 10816-3 กลุ่ม 1 (ฐานแข็ง) ขอบโซน B/C = 4.5 และ C/D = 7.1 mm/s RMS
+GEAR_VIB_KW_CUTOFF_XL = 300
+GEAR_VIB_LIMITS_XL = (4.5, 7.1)
+# ปิดชุดที่สามไว้ก่อน (รอวิศวกร/Agent กำหนดขอบเขต): False = มอเตอร์ > 300 kW ใช้ชุดกลาง; เปิดกลับโดยตั้งเป็น True
+GEAR_VIB_XL_ENABLED = False
+
+# ช่วงค่าที่เป็นไปได้ทางกายภาพ (ตรวจตอนกรอกฟอร์ม กันพิมพ์ผิด ไม่ใช่เกณฑ์ผ่าน/ไม่ผ่านของเครื่อง)
+GEAR_RANGE_TEMP_C = (-10, 200)
+GEAR_RANGE_VOLT = (0, 1000)
+GEAR_RANGE_VIB = (0, 100)
+GEAR_RANGE_LOAD_PCT = (0, 150)
+GEAR_AMP_MAX_FLA_MULTIPLE = 10  # กระแสเกินกี่เท่าของ FLA ถือว่าน่าจะพิมพ์ผิด
 
 GEAR_EVAL_PASS, GEAR_EVAL_WARN, GEAR_EVAL_FAIL = 'pass', 'warn', 'fail'
 
 GEAR_STATUS_TESTING, GEAR_STATUS_DONE = 'testing', 'done'
 GEAR_STATUS_CHOICES = [(GEAR_STATUS_TESTING, 'กำลังทดสอบ'), (GEAR_STATUS_DONE, 'เสร็จสิ้น')]
 GEAR_PURPOSE_CHOICES = [
-    ('annual', 'ตรวจประจำปี'), ('overhaul', 'Overhaul'),
-    ('new_install', 'ติดตั้งใหม่'), ('parts_change', 'เปลี่ยนอะไหล่'),
+    ('annual', 'การลองเครื่องประจำปี (Annual Trial Run)'), ('overhaul', 'ซ่อมบำรุงใหญ่ (Overhaul)'),
+    ('new_install', 'ติดตั้งใหม่ (New Installation)'), ('parts_change', 'เปลี่ยนอะไหล่ (Part Replacement)'),
 ]
 GEAR_PRE_STATUS_CHOICES = [('pass', 'ผ่าน'), ('fail', 'ไม่ผ่าน'), ('na', 'N/A')]
 GEAR_RUN_STATUS_CHOICES = [('normal', 'ปกติ'), ('abnormal', 'ผิดปกติ')]
-GEAR_RESULT_CHOICES = [('approved', 'อนุมัติ'), ('conditional', 'อนุมัติแบบมีเงื่อนไข'), ('rejected', 'ไม่อนุมัติ')]
+GEAR_RESULT_CHOICES = [
+    ('approved', 'ผ่านเกณฑ์สมบูรณ์ (Approved for Operation)'),
+    ('conditional', 'ผ่านแบบมีเงื่อนไข (Conditional Pass - ต้องเฝ้าระวัง/เก็บงาน)'),
+    ('rejected', 'ไม่ผ่านเกณฑ์ (Rejected - ห้ามเดินเครื่อง ต้องแก้ไขใหม่)'),
+]
+GEAR_ROTATION_CHOICES = [
+    ('ตามเข็มนาฬิกา (CW) - ตรงลูกศร', 'ตามเข็ม (CW) - ตรงลูกศร'),
+    ('ทวนเข็มนาฬิกา (CCW) - ตรงลูกศร', 'ทวนเข็ม (CCW) - ตรงลูกศร'),
+]
+
+# รายการตรวจจากใบต้นฉบับ FM-MM-GB-2026: (ชื่อรายการ, เกณฑ์มาตรฐาน, ค่าเริ่มต้นของช่องผล "" = ว่าง)
+GEAR_PRE_ITEMS = [
+    ('ระดับและชนิดน้ำมันเกียร์', 'ระดับกึ่งกลาง Sight Glass / ตรงเบอร์', ''),
+    ('การรั่วซึมของน้ำมันก่อนเดินเครื่อง (Static Leakage)',
+     'ไม่มีรอยรั่วซึมตามซีลเพลา, รอยต่อเสื้อเกียร์, ปลั๊กถ่าย และตาแมว', 'แห้งสนิท ไม่พบรอยซึม'),
+    ('จุกอุดระบายอากาศ (Breather Plug)',
+     'ถอดจุกอุดพลาสติก / รูระบายอากาศไม่ตัน (*ห้ามลืมเด็ดขาด*)', 'ถอดจุกอุดแล้ว / รูระบายสะอาด'),
+    ('ค่าความร่วมศูนย์เพลา (Input Alignment: Motor-Gear)', 'Offset ≤ 0.05 mm, Angular ≤ 0.04/100mm', ''),
+    ('ค่าความร่วมศูนย์เพลา (Output Alignment: Gear-Driven)', 'Offset ≤ 0.05 mm, Angular ≤ 0.04/100mm', ''),
+    ('การหมุนเพลาด้วยมือ (Manual Turn)', 'หมุนคล่องตัว ไม่สะดุด ไม่มีเสียงขบผิดปกติ', ''),
+    ('ทิศทางการหมุน (Bump Test - ปลดคัปปลิ้ง)', 'หมุนตรงตามลูกศรหน้าเครื่อง / ชุด Backstop', ''),
+    ('การ์ดครอบคัปปลิ้งและความปลอดภัยรอบพื้นที่', 'ติดตั้งแน่นหนา / เก็บเครื่องมือออกจากจุดหมุน',
+     'ติดตั้งการ์ดเรียบร้อย พื้นที่ปลอดภัย'),
+]
+GEAR_POST_ITEMS = [
+    ('การรั่วซึมของน้ำมันหลังเดินเครื่อง (Oil Leakage)',
+     'ไม่มีรอยรั่วซึมตาม Oil Seal, รอยต่อเสื้อเกียร์, จุดต่อท่อ', 'แห้งสนิท ไม่พบรอยรั่วซึม'),
+    ('เศษโลหะที่ปลั๊กแม่เหล็ก (Magnetic Plug)', 'ไม่มีเศษโลหะชิ้นใหญ่หรือเกล็ดโลหะหลุดร่อน',
+     'ปกติ (ไม่พบเศษโลหะผิดปกติ)'),
+    ('การกวดขันโบลท์ซ้ำ (Hot/Post-Run Re-Torque)', 'โบลท์ฐานเครื่องและคัปปลิ้งแน่นครบทุกตัวหลังเครื่องเย็นตัว',
+     'ทวนความแน่นครบทุกจุดแล้ว'),
+]
+GEAR_ROTATION_ITEM_NO = 7  # ข้อ 2.7 เลือกทิศทาง CW/CCW แทนการพิมพ์ข้อความ
 
 # ช่วงเวลาลองเดิน: (prefix, ป้าย, เป็นช่วงมีโหลดหรือไม่)
 GEAR_RUN_PHASES = [
@@ -2871,23 +2920,29 @@ def gear_eval_amp(value, fla):
     return GEAR_EVAL_WARN if v > f * GEAR_AMP_WARN_RATIO else GEAR_EVAL_PASS
 
 
-def gear_amp_pct(value, fla):
-    """กระแสเป็น % ของ FLA (ปัดเป็นทศนิยม 1 ตำแหน่ง) หรือ None"""
-    v, f = _me_num(value), _me_num(fla)
-    if v is None or f is None or f <= 0:
-        return None
-    return round(v / f * 100, 1)
+def gear_vib_limits(motor_kw):
+    """(warn, fail) ของ vibration ตามกำลังมอเตอร์: <= 15 kW ชุดเล็ก, 15-300 kW ชุดใหญ่, > 300 kW ชุดใหญ่มาก (เมื่อ GEAR_VIB_XL_ENABLED; ปิดอยู่ใช้ชุดใหญ่);
+    ไม่ทราบขนาด = ชุดใหญ่ตามใบต้นฉบับ"""
+    kw = _me_num(motor_kw)
+    if kw is None:
+        return GEAR_VIB_LIMITS_LARGE
+    if kw <= GEAR_VIB_KW_CUTOFF:
+        return GEAR_VIB_LIMITS_SMALL
+    if GEAR_VIB_XL_ENABLED and kw > GEAR_VIB_KW_CUTOFF_XL:
+        return GEAR_VIB_LIMITS_XL
+    return GEAR_VIB_LIMITS_LARGE
 
 
-def gear_eval_vib(*values):
-    """ประเมิน vibration (mm/s) จากค่าสูงสุดของ V/H/A ที่กรอก; ไม่มีค่าเลยคืน None"""
+def gear_eval_vib(*values, motor_kw=None):
+    """ประเมิน vibration (mm/s) จากค่าสูงสุดของ V/H/A ที่กรอก เทียบเกณฑ์ตามขนาดมอเตอร์; ไม่มีค่าเลยคืน None"""
     nums = [n for n in (_me_num(v) for v in values) if n is not None]
     if not nums:
         return None
+    warn, fail = gear_vib_limits(motor_kw)
     top = max(nums)
-    if top > GEAR_VIB_FAIL:
+    if top > fail:
         return GEAR_EVAL_FAIL
-    return GEAR_EVAL_WARN if top > GEAR_VIB_WARN else GEAR_EVAL_PASS
+    return GEAR_EVAL_WARN if top > warn else GEAR_EVAL_PASS
 
 
 def _gear_dec2(label):

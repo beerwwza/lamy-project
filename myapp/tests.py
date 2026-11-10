@@ -1580,18 +1580,43 @@ class GearTrialRunModelTests(TestCase):
                 self.assertIsNone(gear_eval_amp(50, fla))
         self.assertIsNone(gear_eval_amp(None, 100))
 
-    def test_amp_pct(self):
-        from .models import gear_amp_pct
-        self.assertEqual(gear_amp_pct(47.5, 50), 95.0)
-        self.assertIsNone(gear_amp_pct(10, 0))
-
     def test_vib_thresholds_use_highest_axis(self):
         from .models import gear_eval_vib
+        # ไม่ทราบขนาดมอเตอร์ → เกณฑ์ตามใบต้นฉบับ 2.8 / 4.5
         self.assertEqual(gear_eval_vib(2.8, 1, 1), 'pass')
         self.assertEqual(gear_eval_vib(2.81, 1, 1), 'warn')
         self.assertEqual(gear_eval_vib(1, 4.5, None), 'warn')
         self.assertEqual(gear_eval_vib(1, 1, 4.51), 'fail')
         self.assertIsNone(gear_eval_vib(None, '', None))
+
+    def test_vib_limits_depend_on_motor_size(self):
+        from .models import gear_eval_vib, gear_vib_limits
+        self.assertEqual(gear_vib_limits(None), (2.8, 4.5))
+        self.assertEqual(gear_vib_limits(15), (1.8, 2.8))      # <= 15 kW ชุดเล็ก (ตรงกับ ME)
+        self.assertEqual(gear_vib_limits('15.01'), (2.8, 4.5))  # > 15 kW ชุดใหญ่
+        self.assertEqual(gear_vib_limits(Decimal('55')), (2.8, 4.5))
+        self.assertEqual(gear_vib_limits(300), (2.8, 4.5))       # 300 kW พอดียังเป็นชุดกลาง
+        # ชุดที่สามปิดไว้ (GEAR_VIB_XL_ENABLED=False): > 300 kW ใช้ชุดกลาง
+        self.assertEqual(gear_vib_limits('300.01'), (2.8, 4.5))
+        self.assertEqual(gear_vib_limits(Decimal('450')), (2.8, 4.5))
+        with mock.patch('myapp.models.GEAR_VIB_XL_ENABLED', True):
+            self.assertEqual(gear_vib_limits(300), (2.8, 4.5))
+            self.assertEqual(gear_vib_limits('300.01'), (4.5, 7.1))  # > 300 kW ชุดใหญ่มาก (ISO 10816-3 กลุ่ม 1)
+            self.assertEqual(gear_vib_limits(Decimal('450')), (4.5, 7.1))
+        cases = [(1.8, 'pass'), (1.81, 'warn'), (2.8, 'warn'), (2.81, 'fail')]
+        for value, expected in cases:
+            with self.subTest(small=value):
+                self.assertEqual(gear_eval_vib(value, motor_kw=7.5), expected)
+        # ค่าเดียวกันให้ผลต่างกันตามขนาดเครื่อง
+        self.assertEqual(gear_eval_vib(3.0, motor_kw=7.5), 'fail')
+        self.assertEqual(gear_eval_vib(3.0, motor_kw=75), 'warn')
+        self.assertEqual(gear_eval_vib(3.0, motor_kw=450), 'warn')  # ชุดที่สามปิดอยู่ -> ชุดกลาง
+        xl_cases = [(4.5, 'pass'), (4.51, 'warn'), (7.1, 'warn'), (7.11, 'fail')]
+        with mock.patch('myapp.models.GEAR_VIB_XL_ENABLED', True):
+            self.assertEqual(gear_eval_vib(3.0, motor_kw=450), 'pass')
+            for value, expected in xl_cases:
+                with self.subTest(xl=value):
+                    self.assertEqual(gear_eval_vib(value, motor_kw=450), expected)
 
     def test_max_vibration_and_sump(self):
         run = self.GearTrialRun.objects.create(
@@ -1666,10 +1691,13 @@ class GearTrialRunViewTests(TestCase):
                 self.assertEqual(created.created_by, user)
                 self.assertEqual(created.equipment_id, 'GB-301')
 
-    def test_load_pct_computed_from_amp_and_fla(self):
-        self._client(self.tech).post(reverse('gear_trial_run_add'), self._payload())
+    def test_load_pct_is_entered_by_operator_not_derived_from_current(self):
+        # ต้นฉบับ: "โหลด (%)" คือ % โหลดของเครื่องที่ขับ ช่างกรอกเอง ไม่ใช่กระแสต่อ FLA
+        self._client(self.tech).post(reverse('gear_trial_run_add'), self._payload(ld_15m_pct='50', ld_30m_pct='75'))
         created = self.GearTrialRun.objects.latest('id')
-        self.assertEqual(created.ld_15m_pct, Decimal('95.50'))
+        self.assertEqual(created.ld_15m_pct, Decimal('50.00'))
+        self.assertEqual(created.ld_30m_pct, Decimal('75.00'))
+        self.assertEqual(created.ld_15m_amp, Decimal('95.50'))
 
     def test_users_without_write_permission_are_forbidden(self):
         for user in (self.staff_no_perm, self.reader):
@@ -1792,11 +1820,16 @@ class GearTrialRunMemoryAndThresholdTests(TestCase):
         c.force_login(User.objects.create_superuser('gtm_admin', 'a@example.com', 'pass-12345-x'))
         html = c.get(reverse('gear_trial_run_add')).content.decode()
         self.assertIn(f'temp: [{GEAR_TEMP_WARN}, {GEAR_TEMP_FAIL}]', html)
-        self.assertIn(f'vib: [{GEAR_VIB_WARN}, {GEAR_VIB_FAIL}]', html)
+        self.assertIn(f'vibLarge: [{GEAR_VIB_WARN}, {GEAR_VIB_FAIL}]', html)
+        self.assertIn('vibSmall: [1.8, 2.8]', html)
+        self.assertIn('vibKwCutoff: 15', html)
+        self.assertIn('vibXl: [4.5, 7.1]', html)
+        self.assertIn('vibKwCutoffXl: 300', html)
+        self.assertIn('vibXlEnabled: false', html)
         self.assertIn(f'ampWarn: {GEAR_AMP_WARN_RATIO}', html)
         self.assertIn('data-gt-eval="amp"', html)
         self.assertIn('data-gt-eval="temp"', html)
-        self.assertIn('data-gt-eval="vib"', html)
+        self.assertIn('data-gt-vib="m_de"', html)
 
 
 class GearTrialRunDashboardTests(TestCase):
@@ -1918,12 +1951,16 @@ class GearTrialRunAccessibilityTests(TestCase):
     def test_table_inputs_have_aria_labels(self):
         from .forms import GearTrialRunForm
         form = GearTrialRunForm()
-        for name in ('pre_2_1_value', 'pre_2_8_status', 'post_4_3_status', 'nl_0m_volt', 'ld_30m_sump',
-                     'ld_15m_status', 'vib_m_de_v', 'vib_gb_out_ge'):
+        for name in ('nl_0m_volt', 'ld_30m_sump', 'ld_15m_status', 'ld_15m_pct', 'vib_m_de_v', 'vib_gb_out_ge'):
             with self.subTest(field=name):
                 self.assertEqual(form.fields[name].widget.attrs.get('aria-label'), form.fields[name].label)
                 self.assertIn('aria-label=', str(form[name]))
         self.assertIn('No-Load 0 นาที', form.fields['nl_0m_volt'].label)
+        # ข้อก่อนเดิน/หลังหยุดใช้ชื่อรายการจริงจากใบต้นฉบับ
+        self.assertEqual(form.fields['pre_2_3_value'].widget.attrs['aria-label'],
+                         'จุกอุดระบายอากาศ (Breather Plug) ค่า/ผลตรวจ')
+        self.assertEqual(form.fields['post_4_3_status'].widget.attrs['aria-label'],
+                         'การกวดขันโบลท์ซ้ำ (Hot/Post-Run Re-Torque) สถานะ')
 
 
 class TaskManagerHubInspectionCardsTests(TestCase):
@@ -1957,3 +1994,193 @@ class TaskManagerHubInspectionCardsTests(TestCase):
         self.assertIn(reverse('task_manager_hub'), html)
         self.assertNotIn('ใบตรวจเช็คซ่อม (ME)', html)
         self.assertNotIn('ใบลองเครื่องเกียร์', html)
+
+
+class GearTrialRunSourceFidelityTests(TestCase):
+    """ความตรงกับใบต้นฉบับ FM-MM-GB-2026: รายการตรวจ เกณฑ์มาตรฐาน ค่าเริ่มต้น และผลประเมิน vibration ต่อจุด"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, GearTrialRun
+        cls.admin = User.objects.create_superuser('gtf_admin', 'f@example.com', 'pass-12345-x')
+        cls.eq = Equipment.objects.create(equipment_id='GB-701', name='เกียร์ต้นฉบับ')
+        cls.trial = GearTrialRun.objects.create(
+            equipment=cls.eq, test_date='2026-11-01', purpose='overhaul', motor_fla=Decimal('100'),
+            ld_30m_amp=Decimal('90'), final_result='conditional', status='done', vib_m_de_h=Decimal('3.5'))
+
+    def _get(self, name, *args):
+        c = Client()
+        c.force_login(self.admin)
+        return c.get(reverse(name, args=args))
+
+    def test_new_form_uses_source_defaults(self):
+        initial = self._get('gear_trial_run_add').context['form'].initial
+        self.assertEqual(initial['pre_2_2_value'], 'แห้งสนิท ไม่พบรอยซึม')
+        self.assertEqual(initial['post_4_3_value'], 'ทวนความแน่นครบทุกจุดแล้ว')
+        self.assertEqual(initial['approver_name'], 'จักรกฤษณ์ ตันเจริญ')
+        self.assertEqual(initial['pre_2_1_status'], 'pass')
+        self.assertEqual(initial['nl_0m_status'], 'normal')
+        # ไม่ตั้งผลสรุป/วัตถุประสงค์ล่วงหน้า กันใบที่ยังทดสอบไม่เสร็จถูกอนุมัติโดยไม่ได้ตั้งใจ
+        self.assertNotIn('final_result', initial)
+        self.assertNotIn('purpose', initial)
+
+    def test_form_shows_item_titles_standards_and_rotation_select(self):
+        html = self._get('gear_trial_run_add').content.decode()
+        self.assertIn('จุกอุดระบายอากาศ (Breather Plug)', html)
+        self.assertIn('Offset ≤ 0.05 mm', html)
+        self.assertIn('เศษโลหะที่ปลั๊กแม่เหล็ก (Magnetic Plug)', html)
+        form = self._get('gear_trial_run_add').context['form']
+        self.assertEqual(form.fields['pre_2_7_value'].widget.__class__.__name__, 'Select')
+        self.assertIn('ตามเข็ม (CW) - ตรงลูกศร', str(form['pre_2_7_value']))
+
+    def test_vibration_result_is_per_measurement_point(self):
+        html = self._get('gear_trial_run_edit', self.trial.pk).content.decode()
+        for point in ('m_nde', 'm_de', 'gb_in', 'gb_int', 'gb_out'):
+            self.assertIn(f'data-gt-vib-result="{point}"', html)
+        self.assertIn('data-gt-vib="m_de"', html)
+
+    def test_print_shows_standards_and_manual_load_pct_row(self):
+        html = self._get('gear_trial_run_print', self.trial.pk).content.decode()
+        self.assertIn('เกณฑ์มาตรฐาน', html)
+        self.assertIn('ระดับและชนิดน้ำมันเกียร์', html)
+        self.assertIn('โหลด (%)', html)
+
+    def test_dashboard_table_shows_purpose_and_load_current_over_fla(self):
+        resp = self._get('gear_trial_run_dashboard')
+        self.assertContains(resp, 'ซ่อมบำรุงใหญ่ (Overhaul)')
+        self.assertContains(resp, '90 / 100')
+
+    def test_result_labels_match_source_wording(self):
+        from .models import GEAR_RESULT_CHOICES
+        labels = dict(GEAR_RESULT_CHOICES)
+        self.assertIn('Approved for Operation', labels['approved'])
+        self.assertIn('Conditional Pass', labels['conditional'])
+        self.assertIn('Rejected', labels['rejected'])
+
+
+class GearTrialRunLockAfterCloseTests(TestCase):
+    """ใบที่ปิดเป็น "เสร็จสิ้น" ถูกล็อก: ผู้มีสิทธิ์เขียนทั่วไปแก้ไม่ได้ เฉพาะ superuser แก้ได้ (เปิดกลับเป็นกำลังทดสอบได้)"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, GearTrialRun
+        cls.GearTrialRun = GearTrialRun
+        cls.superuser = User.objects.create_superuser('gtl_admin', 'l@example.com', 'pass-12345-x')
+        cls.tech = User.objects.create_user('gtl_tech', password='pass-12345-x', is_staff=True)
+        cls.tech.user_permissions.add(Permission.objects.get(codename='write_maintenance'))
+        eq = Equipment.objects.create(equipment_id='GB-801', name='เกียร์ล็อก')
+        cls.open_trial = GearTrialRun.objects.create(equipment=eq, test_date='2026-11-01', remarks='เดิม')
+        cls.done_trial = GearTrialRun.objects.create(
+            equipment=eq, test_date='2026-11-02', status='done', purpose='annual', motor_fla=Decimal('10'),
+            final_result='approved', remarks='เดิม')
+
+    def _post(self, user, trial, **extra):
+        c = Client()
+        c.force_login(user)
+        data = {'equipment': 'GB-801', 'test_date': '2026-11-02', 'status': trial.status, 'purpose': 'annual',
+                'motor_fla': '10', 'final_result': 'approved', 'remarks': 'แก้แล้ว'}
+        data.update(extra)
+        return c.post(reverse('gear_trial_run_edit', args=[trial.pk]), data)
+
+    def test_writer_can_still_edit_open_trial(self):
+        resp = self._post(self.tech, self.open_trial, status='testing', purpose='', final_result='')
+        self.assertEqual(resp.status_code, 302)
+        self.open_trial.refresh_from_db()
+        self.assertEqual(self.open_trial.remarks, 'แก้แล้ว')
+
+    def test_writer_cannot_edit_closed_trial(self):
+        resp = self._post(self.tech, self.done_trial)
+        self.assertEqual(resp.status_code, 403)
+        self.done_trial.refresh_from_db()
+        self.assertEqual(self.done_trial.remarks, 'เดิม')
+
+    def test_writer_cannot_reopen_closed_trial_by_changing_status(self):
+        resp = self._post(self.tech, self.done_trial, status='testing')
+        self.assertEqual(resp.status_code, 403)
+        self.done_trial.refresh_from_db()
+        self.assertEqual(self.done_trial.status, 'done')
+
+    def test_superuser_can_edit_and_reopen_closed_trial(self):
+        resp = self._post(self.superuser, self.done_trial, status='testing')
+        self.assertEqual(resp.status_code, 302)
+        self.done_trial.refresh_from_db()
+        self.assertEqual(self.done_trial.status, 'testing')
+        self.assertEqual(self.done_trial.remarks, 'แก้แล้ว')
+
+    def test_locked_page_is_read_only_with_notice_for_writer_only(self):
+        c = Client()
+        c.force_login(self.tech)
+        resp = c.get(reverse('gear_trial_run_edit', args=[self.done_trial.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'ถูกล็อก')
+        self.assertTrue(resp.context['locked'])
+        self.assertNotContains(resp, '<i data-lucide="save"')
+        c.force_login(self.superuser)
+        resp = c.get(reverse('gear_trial_run_edit', args=[self.done_trial.pk]))
+        self.assertNotContains(resp, 'ถูกล็อก')
+        self.assertContains(resp, '<i data-lucide="save"')
+
+
+class GearTrialRunRangeValidationTests(TestCase):
+    """กันพิมพ์ผิด: ค่านอกช่วงที่เป็นไปได้ทางกายภาพต้องไม่ถูกบันทึกและมีข้อความภาษาไทย (ขอบช่วงยังรับได้)"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from .models import Equipment, GearTrialRun
+        cls.GearTrialRun = GearTrialRun
+        cls.user = User.objects.create_superuser('gtr_admin', 'r@example.com', 'pass-12345-x')
+        Equipment.objects.create(equipment_id='GB-901', name='เกียร์ช่วงค่า')
+
+    def _post(self, **extra):
+        c = Client()
+        c.force_login(self.user)
+        data = {'equipment': 'GB-901', 'test_date': '2026-11-03', 'status': 'testing', 'motor_fla': '100'}
+        data.update(extra)
+        before = self.GearTrialRun.objects.count()
+        resp = c.post(reverse('gear_trial_run_add'), data)
+        return resp, self.GearTrialRun.objects.count() - before
+
+    def test_boundaries_are_accepted(self):
+        resp, created = self._post(**{
+            'nl_0m_m_de': '-10', 'nl_0m_sump': '200', 'ambient_temp': '200', 'nl_0m_volt': '0', 'ld_15m_volt': '1000',
+            'motor_voltage': '1000', 'vib_m_de_v': '0', 'vib_m_de_h': '100', 'ld_15m_pct': '0', 'ld_30m_pct': '150',
+            'nl_0m_amp': '0', 'ld_30m_amp': '1000'})
+        self.assertEqual((resp.status_code, created), (302, 1))
+
+    def test_out_of_range_values_are_rejected_with_thai_message(self):
+        cases = {
+            'nl_0m_m_de': '-10.01', 'nl_15m_sump': '200.01', 'ambient_temp': '9999',
+            'nl_0m_volt': '-1', 'ld_15m_volt': '1000.01', 'motor_voltage': '5000',
+            'vib_gb_in_h': '100.01', 'vib_m_nde_v': '-0.5',
+            'ld_15m_pct': '150.01', 'ld_30m_pct': '-5',
+        }
+        for name, value in cases.items():
+            with self.subTest(field=name, value=value):
+                resp, created = self._post(**{name: value})
+                self.assertEqual((resp.status_code, created), (200, 0))
+                self.assertIn(name, resp.context['form'].errors)
+                self.assertContains(resp, 'กรุณาตรวจสอบว่าพิมพ์ถูกต้อง')
+
+    def test_current_must_not_be_negative_nor_over_ten_times_fla(self):
+        resp, created = self._post(nl_0m_amp='-5')
+        self.assertEqual((resp.status_code, created), (200, 0))
+        self.assertContains(resp, 'ติดลบไม่ได้')
+        resp, created = self._post(ld_30m_amp='1000.01')
+        self.assertEqual((resp.status_code, created), (200, 0))
+        self.assertContains(resp, 'เกิน 10 เท่าของ FLA')
+
+    def test_current_upper_bound_skipped_when_fla_missing(self):
+        resp, created = self._post(motor_fla='', ld_30m_amp='5000')
+        self.assertEqual((resp.status_code, created), (302, 1))
+
+    def test_range_checked_in_testing_status_too(self):
+        resp, created = self._post(status='testing', nl_0m_m_de='9999')
+        self.assertEqual((resp.status_code, created), (200, 0))
+
+    def test_inputs_carry_min_max_for_instant_browser_feedback(self):
+        from .forms import GearTrialRunForm
+        form = GearTrialRunForm()
+        attrs = form.fields['nl_0m_m_de'].widget.attrs
+        self.assertEqual((attrs['min'], attrs['max']), (-10, 200))
+        self.assertEqual(form.fields['nl_0m_amp'].widget.attrs['min'], 0)
+        self.assertEqual(form.fields['ld_30m_pct'].widget.attrs['max'], 150)

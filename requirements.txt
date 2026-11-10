@@ -1,8 +1,11 @@
-Django>=4.2
-pandas
-numpy
-openpyxl
-Pillow
+# Pinned to the exact versions tested in development (Python 3.12) so the Docker image
+# (python:3.12-slim) builds the same environment. To upgrade: bump here, run `python manage.py test myapp`,
+# then rebuild the image.
+Django==5.2.19
+pandas==3.0.5
+numpy==2.5.3
+openpyxl==3.1.5
+Pillow==12.3.0
 python-dotenv==1.2.3
-gunicorn>=21
-tzdata
+gunicorn==26.2.0
+tzdata==2026.6

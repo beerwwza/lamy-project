@@ -47,8 +47,8 @@ The system is primarily operated by plant engineers and maintenance teams, with 
 
 | Layer | Technology | Version |
 |---|---|---|
-| Backend Framework | Django | >= 5.2 |
-| Language | Python | 3.10 |
+| Backend Framework | Django | 5.2.19 (pinned) |
+| Language | Python | 3.12 |
 | Database | SQLite3 | — |
 | Web Server | Gunicorn / Django dev server | — |
 | Reverse Proxy | Nginx | (via Docker) |
@@ -62,12 +62,17 @@ The system is primarily operated by plant engineers and maintenance teams, with 
 ### Python Dependencies (`requirements.txt`)
 
 ```
-Django>=4.2
-pandas
-numpy
-openpyxl
-Pillow
+Django==5.2.19
+pandas==3.0.5
+numpy==2.5.3
+openpyxl==3.1.5
+Pillow==12.3.0
+python-dotenv==1.2.3
+gunicorn==26.2.0
+tzdata==2026.6
 ```
+
+All versions are pinned to what is tested in development (Python 3.12), and the Docker image is `python:3.12-slim`. To upgrade a package, change it in `requirements.txt`, run `python manage.py test myapp`, then rebuild the image.
 
 ---
 
@@ -186,7 +191,7 @@ python manage.py recalculate_reliability
 lamy-project/
 ├── manage.py                       # Django CLI entry point
 ├── requirements.txt                # Python dependencies
-├── Dockerfile                      # Docker image (Python 3.10-slim)
+├── Dockerfile                      # Docker image (Python 3.12-slim)
 ├── docker-compose.yml              # Multi-service orchestration
 ├── db.sqlite3                      # SQLite database (gitignored)
 ├── .env                            # Environment variables (gitignored)
@@ -204,7 +209,7 @@ lamy-project/
 │   ├── forms.py                    # Django ModelForms (all modules)
 │   ├── admin.py                    # Django Admin configuration
 │   ├── management/commands/        # import_material_master, link_material_master, backfills
-│   ├── migrations/                 # 114 database migration files
+│   ├── migrations/                 # 115 database migration files
 │   └── templates/
 │       └── myapp/
 │           ├── base.html           # Master layout with navigation
@@ -417,14 +422,16 @@ Replaces the Google Apps Script form "ระบบบันทึกการต
 
 Replaces the Google Apps Script form "ใบตรวจเช็คและบันทึกผลการลองเครื่อง (FM-MM-GB-2026)". No legacy data was migrated. Built on the same pattern as ME Inspection.
 
-- **Model:** one flat `GearTrialRun` row per trial (~115 fields; data fields are nullable, only the equipment FK, test date and status are always set) with an FK to `Equipment` (`PROTECT`). Nameplate fields are a snapshot taken on the trial. Status is `testing` (only machine + date required) or `done` (also requires purpose, motor FLA and the final result). Load-run `*_pct` (current as % of FLA) is computed on save.
+- **Model:** one flat `GearTrialRun` row per trial (~115 fields; data fields are nullable, only the equipment FK, test date and status are always set) with an FK to `Equipment` (`PROTECT`). Nameplate fields are a snapshot taken on the trial. Status is `testing` (only machine + date required) or `done` (also requires purpose, motor FLA and the final result). Load-run `*_pct` is the machine load % entered by the operator (it is not derived from current/FLA). Item titles, standards, default results and the CW/CCW choice for item 2.7 come from the original FM-MM-GB-2026 sheet.
 - **Evaluation rules** are module-level constants and pure functions in `models.py` (`gear_eval_temp`, `gear_eval_amp`, `gear_eval_vib`), all using strict `>`:
   - temperature warn > 75 °C, fail > 85 °C
   - current warn > 95 % of FLA, fail > 100 % of FLA
-  - vibration (highest of V/H/A) warn > 2.8 mm/s, fail > 4.5 mm/s (ISO 10816-3)
+  - vibration (highest of V/H/A) depends on motor size: ≤ 15 kW → warn > 1.8, fail > 2.8 mm/s (same rule as ME); 15–300 kW → warn > 2.8, fail > 4.5 mm/s; > 300 kW → warn > 4.5, fail > 7.1 mm/s (ISO 10816-3 group 1, rigid support) — **this third set is currently disabled** (`GEAR_VIB_XL_ENABLED = False` in `models.py`, pending engineer confirmation), so motors > 300 kW use the 15–300 kW set; set the flag to `True` to enable it. If the motor kW is not filled in, the middle set (the original sheet's 2.8 / 4.5) applies. See `gear_vib_limits` in `models.py`
+
+  Input sanity ranges (typo guard, not pass/fail criteria) are enforced by `GearTrialRunForm` and also set as `min`/`max` on the inputs: temperature −10 to 200 °C, voltage 0 to 1000 V, vibration 0 to 100 mm/s, load 0 to 150 %, current ≥ 0 and ≤ 10 × FLA (when FLA is filled in). They are not enforced in Django Admin.
 
   Results are never stored. The form JS, the dashboard and the print view all derive them from the numbers, and the form page renders the same constants into its JS.
-- **Permissions:** add/edit use `write_maintenance` or `write_cbm` (same as ME), and list/dashboard/print only need login. Delete is POST-only and superuser-only.
+- **Permissions:** add/edit use `write_maintenance` or `write_cbm` (same as ME), and list/dashboard/print only need login. A trial closed as `done` is locked: only a superuser can edit it (or reopen it by setting the status back to `testing`). Delete is POST-only and superuser-only.
 - **Smart memory:** `/gear-trial-run/api/last/<eq_id>/` returns the nameplate fields from the machine's latest trial. It is applied only on new trials, over the registry values. Equipment search reuses `/me-inspection/api/equipment-search/`.
 - **Dashboard** counts only `done` trials.
 
@@ -609,7 +616,7 @@ ME Inspection (ใบตรวจสอบซ่อมบำรุงเคร�
 
 Gear Trial Run (ใบตรวจสอบ Gear Box — /gear-trial-run/, ผูก Equipment)
 └── GearTrialRun           (equipment FK PROTECT; snapshot เนมเพลท gb_*/motor_*; ก่อนเดิน pre_2_1..8 value/status; ลองเดิน
-                             nl_0m/15m/30m + ld_15m/30m × volt/amp/อุณหภูมิ 6 จุด/status (+ ld_*_pct คำนวณจาก FLA); vibration 5 จุด
+                             nl_0m/15m/30m + ld_15m/30m × volt/amp/อุณหภูมิ 6 จุด/status (+ ld_*_pct = % โหลดที่ช่างกรอก); vibration 5 จุด
                              × V/H/A + gE; หลังหยุด post_4_1..3; status: testing/done; final_result; tester/inspector/approver_name;
                              created_by FK User; max_vibration() / max_sump_temp())
 
@@ -621,7 +628,7 @@ Energy Tracking — Electricity (Phase 1) (ระบบติดตามกา�
 
 Google Drive uploads (`RepairDocument` and Lathe job attachments → `LAMY/Lathe/<year>/<job_no>`; Drive files are not deleted when a record is removed/replaced) ไม่ใช้ Google API SDK โดยตรง — ส่งไฟล์ผ่าน Google Apps Script Web App (`gas_webapp_script.js`, ตั้งค่า URL ที่ `GAS_WEBAPP_URL` ใน `.env`). ไฟล์ที่อัปโหลดสำเร็จจะถูกตั้งสิทธิ์เป็น "Anyone with the link — Viewer" อัตโนมัติ.
 
-Database migrations: **114 migration files** in `myapp/migrations/`.
+Database migrations: **115 migration files** in `myapp/migrations/`.
 
 ---
 
@@ -737,7 +744,7 @@ The old `/api/lathe/` JSON endpoint was removed.
 |---|---|---|
 | GET | `/gear-trial-run/` | History list with filters `q`, `department`, `result`, `status`, `date_from`, `date_to` (any logged-in user) |
 | GET/POST | `/gear-trial-run/add/` | New trial (`write_maintenance` or `write_cbm`); `?equipment=<id>` pre-fills the nameplate |
-| GET/POST | `/gear-trial-run/<id>/edit/` | View (anyone) / edit (`write_maintenance` or `write_cbm`) |
+| GET/POST | `/gear-trial-run/<id>/edit/` | View (anyone) / edit (`write_maintenance` or `write_cbm`; closed `done` trials: superuser only) |
 | POST | `/gear-trial-run/<id>/delete/` | Delete (superuser) |
 | GET | `/gear-trial-run/<id>/print/` | A4 printable report with signature lines |
 | GET | `/gear-trial-run/dashboard/` | KPIs and charts for `done` trials, `?department=&date_from=&date_to=` |
